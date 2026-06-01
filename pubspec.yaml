@@ -1,0 +1,140 @@
+name: cosmo_strike_flutter_app
+description: "Cosmo Strike — a retro side-scrolling shoot-'em-up (Space Impact remake)."
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  # Matches snake_classic; google_mobile_ads 8.0.0 requires Dart >= 3.10.0.
+  sdk: ^3.10.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State management
+  provider: ^6.1.2
+  flutter_bloc: ^9.0.0
+  bloc: ^9.0.0
+  equatable: ^2.0.5
+  flutter_riverpod: ^3.2.0
+
+  # Dependency injection
+  get_it: ^9.2.0
+
+  # Functional programming helpers
+  dartz: ^0.10.1
+
+  # Audio system
+  audioplayers: ^6.0.0
+  flutter_soloud: ^4.0.6
+
+  # Persistent storage
+  shared_preferences: ^2.2.3
+
+  # Drift database for offline-first storage
+  drift: ^2.18.0
+  sqlite3_flutter_libs: ^0.6.0+eol
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # Animations and effects
+  flutter_animate: ^4.5.0
+
+  # Custom fonts
+  google_fonts: ^8.0.1
+
+  # Vector math for game calculations
+  vector_math: ^2.1.4
+
+  # UUID for unique identifiers
+  uuid: ^4.5.1
+
+  # Native in-app review prompts (Google Play + StoreKit)
+  in_app_review: ^2.0.10
+
+  # Firebase dependencies
+  firebase_core: ^4.0.0
+  firebase_auth: ^6.0.1
+  google_sign_in: ^7.1.1
+  firebase_analytics: ^12.0.0
+
+  # Connectivity for offline/online detection
+  connectivity_plus: ^7.0.0
+
+  # Beautiful logging library
+  talker: ^5.0.0
+  talker_flutter: ^5.0.0
+
+  # Enhanced UI components for auth
+  flutter_dotenv: ^6.0.0
+  font_awesome_flutter: ^11.0.0
+
+  # Push notifications
+  firebase_messaging: ^16.0.1
+  flutter_local_notifications: ^21.0.0
+  timezone: ^0.11.0
+
+  # HTTP client for backend communication
+  http: ^1.2.2
+
+  # SignalR for real-time multiplayer (replaces WebSocket)
+  signalr_netcore: ^1.3.7
+
+  # In-app purchases for monetization
+  in_app_purchase: ^3.2.3
+  in_app_purchase_android: ^0.4.0
+
+  # Ads (AdMob). Bundles the UMP consent SDK. Pro/trial users never see ads.
+  google_mobile_ads: ^8.0.0
+  app_tracking_transparency: ^2.0.7
+
+  # URL launcher for external links
+  url_launcher: ^6.3.1
+
+  # In-app updates from Play Store
+  in_app_update: ^4.2.3
+
+  # Declarative routing
+  go_router: ^17.1.0
+
+  # For Splash Screen
+  flutter_native_splash: ^2.4.6
+  package_info_plus: ^10.1.0
+  flame: ^1.37.0
+  flame_audio: ^2.12.1
+
+# TODO: Remove this override once firebase_analytics > 12.4.1 ships with the AGP 9 / built-in Kotlin fix.
+# Tracking: https://github.com/firebase/flutterfire/issues/18297 (PR branch: analytics_18297)
+dependency_overrides:
+  firebase_analytics:
+    git:
+      url: https://github.com/firebase/flutterfire.git
+      ref: analytics_18297
+      path: packages/firebase_analytics/firebase_analytics
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+  flutter_launcher_icons: "^0.14.4"
+
+  # Drift code generation
+  drift_dev: ^2.18.0
+  build_runner: ^2.4.9
+
+flutter:
+
+  uses-material-design: true
+
+  assets:
+    - assets/audio/
+    - assets/images/
+    - assets/logo/
+    - PRIVACY.md
+    - .env

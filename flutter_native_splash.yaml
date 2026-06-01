@@ -1,0 +1,15 @@
+flutter_native_splash:
+  # Cosmo Strike — amber phosphor warm-dark splash seeded from the logo palette.
+  color: "#0a0501"
+  color_dark: "#0a0501"
+
+  # Single source logo. Real splash/branding art is listed in ASSETS_NEEDED.md;
+  # until those ship, the app icon doubles as the splash image.
+  image: assets/logo/cosmo_strike_icon_512_amber.png
+  image_dark: assets/logo/cosmo_strike_icon_512_amber.png
+
+  android_12:
+    image: assets/logo/cosmo_strike_icon_512_amber.png
+    image_dark: assets/logo/cosmo_strike_icon_512_amber.png
+    color: "#0a0501"
+    color_dark: "#0a0501"
