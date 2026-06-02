@@ -228,12 +228,8 @@ class _MultiplayerGameAdapterState extends State<MultiplayerGameAdapter>
                     ),
                     child: Stack(
                       children: [
-                        // Grid pattern background
-                        Positioned.fill(
-                          child: CustomPaint(
-                            painter: _GridBackgroundPainter(theme, boardSize),
-                          ),
-                        ),
+                        // No grid — ships leave neon light-trails on the
+                        // deep-space backdrop (the container gradient above).
 
                         // Main game content with all players
                         AspectRatio(
@@ -281,47 +277,7 @@ class _MultiplayerGameAdapterState extends State<MultiplayerGameAdapter>
   }
 }
 
-/// Grid background painter
-class _GridBackgroundPainter extends CustomPainter {
-  final GameTheme theme;
-  final int boardSize;
-
-  _GridBackgroundPainter(this.theme, this.boardSize);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cellWidth = size.width / boardSize;
-    final cellHeight = size.height / boardSize;
-
-    final paint = Paint()
-      ..color = theme.accentColor.withValues(alpha: 0.08)
-      ..strokeWidth = 0.5;
-
-    // Draw vertical lines
-    for (int x = 0; x <= boardSize; x++) {
-      canvas.drawLine(
-        Offset(x * cellWidth, 0),
-        Offset(x * cellWidth, size.height),
-        paint,
-      );
-    }
-
-    // Draw horizontal lines
-    for (int y = 0; y <= boardSize; y++) {
-      canvas.drawLine(
-        Offset(0, y * cellHeight),
-        Offset(size.width, y * cellHeight),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _GridBackgroundPainter oldDelegate) =>
-      oldDelegate.theme != theme || oldDelegate.boardSize != boardSize;
-}
-
-/// Main painter for all game content - ships, food, effects
+/// Main painter for all game content — ships (neon light-trails), food, effects
 class _MultiplayerBoardPainter extends CustomPainter {
   final MultiplayerGame game;
   final String currentUserId;
@@ -399,33 +355,30 @@ class _MultiplayerBoardPainter extends CustomPainter {
     if (game.foodPosition == null) return;
 
     final foodPos = game.foodPosition!;
-    final centerX = foodPos.x * cellWidth + cellWidth / 2;
-    final centerY = foodPos.y * cellHeight + cellHeight / 2;
-    final baseRadius = math.min(cellWidth, cellHeight) * 0.35;
+    final center = Offset(
+      foodPos.x * cellWidth + cellWidth / 2,
+      foodPos.y * cellHeight + cellHeight / 2,
+    );
+    final baseRadius = math.min(cellWidth, cellHeight) * 0.34;
     final radius = baseRadius * pulseAnimation.value;
+    final node = theme.neonSecondary;
 
-    // Glow effect
-    final glowPaint = Paint()
-      ..color = theme.foodColor.withValues(alpha: 0.3)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
-    canvas.drawCircle(Offset(centerX, centerY), radius * 1.5, glowPaint);
-
-    // Main food circle with gradient
-    final foodPaint = Paint()
-      ..shader =
-          RadialGradient(
-            colors: [theme.foodColor, theme.foodColor.withValues(alpha: 0.8)],
-          ).createShader(
-            Rect.fromCircle(center: Offset(centerX, centerY), radius: radius),
-          );
-    canvas.drawCircle(Offset(centerX, centerY), radius, foodPaint);
-
-    // Highlight
-    final highlightPaint = Paint()..color = Colors.white.withValues(alpha: 0.6);
+    // Neon energy node: soft halo + solid core + bright ring (no apple dot).
     canvas.drawCircle(
-      Offset(centerX - radius * 0.3, centerY - radius * 0.3),
-      radius * 0.2,
-      highlightPaint,
+      center,
+      radius * 1.8,
+      Paint()
+        ..color = node.withValues(alpha: 0.28)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+    );
+    canvas.drawCircle(center, radius, Paint()..color = node);
+    canvas.drawCircle(
+      center,
+      radius * 1.3,
+      Paint()
+        ..color = node.withValues(alpha: 0.75)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
     );
   }
 
@@ -443,194 +396,124 @@ class _MultiplayerBoardPainter extends CustomPainter {
     if (ship.isEmpty) return;
 
     final isDead = !isAlive;
-    final baseColor = isDead ? Colors.grey : color;
+    final trailColor = isDead ? const Color(0xFF6B7280) : color;
+    final lineW = math.min(cellWidth, cellHeight);
 
-    // Draw body segments (from tail to head)
-    for (int i = ship.length - 1; i >= 0; i--) {
-      final segment = ship[i];
-      final isHead = i == 0;
-
-      final centerX = segment.x * cellWidth + cellWidth / 2;
-      final centerY = segment.y * cellHeight + cellHeight / 2;
-
-      // Calculate segment size (head is larger, tail tapers)
-      double segmentSize;
-      if (isHead) {
-        segmentSize = math.min(cellWidth, cellHeight) * 0.45;
-      } else {
-        // Taper towards tail
-        final taperFactor = 1.0 - (i / ship.length) * 0.3;
-        segmentSize = math.min(cellWidth, cellHeight) * 0.38 * taperFactor;
-      }
-
-      // Gradient for 3D effect
-      final segmentPaint = Paint()
-        ..shader =
-            RadialGradient(
-              center: const Alignment(-0.3, -0.3),
-              colors: [
-                _lighten(baseColor, 0.3),
-                baseColor,
-                _darken(baseColor, 0.2),
-              ],
-              stops: const [0.0, 0.5, 1.0],
-            ).createShader(
-              Rect.fromCircle(
-                center: Offset(centerX, centerY),
-                radius: segmentSize,
-              ),
-            );
-
-      // Draw glow for current player's head
-      if (isHead && isCurrentPlayer && !isDead) {
-        final glowPaint = Paint()
-          ..color = baseColor.withValues(alpha: 0.4)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
-        canvas.drawCircle(
-          Offset(centerX, centerY),
-          segmentSize * 1.4,
-          glowPaint,
-        );
-      }
-
-      // Draw segment with rounded corners
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(centerX, centerY),
-          width: segmentSize * 2,
-          height: segmentSize * 2,
+    // Segment centers (head -> tail).
+    final pts = <Offset>[
+      for (final s in ship)
+        Offset(
+          s.x * cellWidth + cellWidth / 2,
+          s.y * cellHeight + cellHeight / 2,
         ),
-        Radius.circular(segmentSize * 0.4),
-      );
-      canvas.drawRRect(rect, segmentPaint);
+    ];
 
-      // Draw eyes on head
-      if (isHead) {
-        _drawEyes(
-          canvas,
-          Offset(centerX, centerY),
-          direction,
-          segmentSize,
-          baseColor,
-          isDead,
-        );
+    // Wide blurred glow underlay for the whole trail.
+    if (!isDead && pts.length > 1) {
+      final glowPath = Path()..moveTo(pts.first.dx, pts.first.dy);
+      for (final p in pts.skip(1)) {
+        glowPath.lineTo(p.dx, p.dy);
       }
+      canvas.drawPath(
+        glowPath,
+        Paint()
+          ..color = trailColor.withValues(alpha: 0.30)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = lineW * 0.9
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      );
+    }
 
-      // Draw border for visibility
-      final borderPaint = Paint()
-        ..color = _darken(baseColor, 0.4).withValues(alpha: 0.5)
+    // Light-trail: bright at the head, fading + thinning toward the tail.
+    for (int i = 0; i < pts.length - 1; i++) {
+      final f = (1.0 - i / pts.length).clamp(0.12, 1.0);
+      canvas.drawLine(
+        pts[i],
+        pts[i + 1],
+        Paint()
+          ..color = trailColor.withValues(alpha: (isDead ? 0.28 : 0.95) * f)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = lineW * (0.30 + 0.30 * f)
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+    }
+
+    // Directional chevron head (no eyes).
+    final head = pts.first;
+    final hs = lineW * 0.7;
+    canvas.save();
+    canvas.translate(head.dx, head.dy);
+    canvas.rotate(_directionAngle(direction));
+    final chevron = Path()
+      ..moveTo(hs * 0.6, 0)
+      ..lineTo(-hs * 0.5, -hs * 0.46)
+      ..lineTo(-hs * 0.2, 0)
+      ..lineTo(-hs * 0.5, hs * 0.46)
+      ..close();
+    if (isCurrentPlayer && !isDead) {
+      canvas.drawPath(
+        chevron,
+        Paint()
+          ..color = trailColor.withValues(alpha: 0.5)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+    }
+    canvas.drawPath(
+      chevron,
+      Paint()..color = isDead ? trailColor : _lighten(trailColor, 0.18),
+    );
+    canvas.drawPath(
+      chevron,
+      Paint()
+        ..color = Colors.white.withValues(alpha: isDead ? 0.3 : 0.85)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5;
-      canvas.drawRRect(rect, borderPaint);
-    }
+        ..strokeWidth = 1.2,
+    );
+    canvas.restore();
 
-    // Draw player name label above head
-    if (ship.isNotEmpty) {
-      final head = ship.first;
-      final headX = head.x * cellWidth + cellWidth / 2;
-      final headY = head.y * cellHeight - 8;
-
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: playerName,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            shadows: [
-              Shadow(
-                color: Colors.black.withValues(alpha: 0.8),
-                offset: const Offset(1, 1),
-                blurRadius: 2,
-              ),
-            ],
-          ),
+    // Player name label above the head.
+    final headCell = ship.first;
+    final headX = headCell.x * cellWidth + cellWidth / 2;
+    final headY = headCell.y * cellHeight - 8;
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: playerName,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          shadows: [
+            Shadow(
+              color: Colors.black.withValues(alpha: 0.8),
+              offset: const Offset(1, 1),
+              blurRadius: 2,
+            ),
+          ],
         ),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset(headX - textPainter.width / 2, headY - textPainter.height),
-      );
-    }
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(headX - textPainter.width / 2, headY - textPainter.height),
+    );
   }
 
-  void _drawEyes(
-    Canvas canvas,
-    Offset center,
-    Direction direction,
-    double headSize,
-    Color shipColor,
-    bool isDead,
-  ) {
-    final eyeRadius = headSize * 0.2;
-    final eyeOffset = headSize * 0.35;
-
-    Offset leftEyePos;
-    Offset rightEyePos;
-
+  /// Rotation for the head chevron (drawn pointing +x = right by default).
+  double _directionAngle(Direction direction) {
     switch (direction) {
       case Direction.up:
-        leftEyePos = Offset(center.dx - eyeOffset, center.dy - eyeOffset * 0.5);
-        rightEyePos = Offset(
-          center.dx + eyeOffset,
-          center.dy - eyeOffset * 0.5,
-        );
-        break;
+        return -math.pi / 2;
       case Direction.down:
-        leftEyePos = Offset(center.dx - eyeOffset, center.dy + eyeOffset * 0.5);
-        rightEyePos = Offset(
-          center.dx + eyeOffset,
-          center.dy + eyeOffset * 0.5,
-        );
-        break;
+        return math.pi / 2;
       case Direction.left:
-        leftEyePos = Offset(center.dx - eyeOffset * 0.5, center.dy - eyeOffset);
-        rightEyePos = Offset(
-          center.dx - eyeOffset * 0.5,
-          center.dy + eyeOffset,
-        );
-        break;
+        return math.pi;
       case Direction.right:
-        leftEyePos = Offset(center.dx + eyeOffset * 0.5, center.dy - eyeOffset);
-        rightEyePos = Offset(
-          center.dx + eyeOffset * 0.5,
-          center.dy + eyeOffset,
-        );
-        break;
-    }
-
-    // Eye whites
-    final eyeWhitePaint = Paint()..color = Colors.white;
-    canvas.drawCircle(leftEyePos, eyeRadius, eyeWhitePaint);
-    canvas.drawCircle(rightEyePos, eyeRadius, eyeWhitePaint);
-
-    // Pupils (X for dead ship)
-    if (isDead) {
-      final xPaint = Paint()
-        ..color = Colors.black
-        ..strokeWidth = 2
-        ..style = PaintingStyle.stroke;
-
-      // Draw X on each eye
-      for (final eyePos in [leftEyePos, rightEyePos]) {
-        canvas.drawLine(
-          Offset(eyePos.dx - eyeRadius * 0.5, eyePos.dy - eyeRadius * 0.5),
-          Offset(eyePos.dx + eyeRadius * 0.5, eyePos.dy + eyeRadius * 0.5),
-          xPaint,
-        );
-        canvas.drawLine(
-          Offset(eyePos.dx + eyeRadius * 0.5, eyePos.dy - eyeRadius * 0.5),
-          Offset(eyePos.dx - eyeRadius * 0.5, eyePos.dy + eyeRadius * 0.5),
-          xPaint,
-        );
-      }
-    } else {
-      final pupilPaint = Paint()..color = Colors.black;
-      final pupilRadius = eyeRadius * 0.5;
-      canvas.drawCircle(leftEyePos, pupilRadius, pupilPaint);
-      canvas.drawCircle(rightEyePos, pupilRadius, pupilPaint);
+        return 0;
     }
   }
 
@@ -638,13 +521,6 @@ class _MultiplayerBoardPainter extends CustomPainter {
     final hsl = HSLColor.fromColor(color);
     return hsl
         .withLightness((hsl.lightness + amount).clamp(0.0, 1.0))
-        .toColor();
-  }
-
-  Color _darken(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl
-        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
         .toColor();
   }
 
