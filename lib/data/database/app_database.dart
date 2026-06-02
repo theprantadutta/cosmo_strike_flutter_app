@@ -688,168 +688,19 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 1;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    // Single-version schema. Cosmo Strike is a fresh app, so the original
+    // v2..v13 incremental migrations (inherited from the prior codebase) have
+    // been collapsed away — onCreate builds the entire current schema (every
+    // table + index) in one shot. Bumping the app onto this clean baseline
+    // needs a one-time local data reset (uninstall/reinstall or clear app
+    // data); there are no real users yet, so nothing is lost.
     onCreate: (m) async {
       await m.createAll();
-      // Create indexes on initial database creation
       await _createIndexes();
-    },
-    onUpgrade: (m, from, to) async {
-      if (from < 2) {
-        // Add indexes for frequently queried columns
-        await _createIndexes();
-      }
-      if (from < 3) {
-        // v3: add the modelJson catch-all column to Statistics so the full
-        // GameStatistics model can round-trip without the per-field name
-        // translation that lost data on every save/load cycle.
-        await m.addColumn(statistics, statistics.modelJson);
-      }
-      if (from < 4) {
-        // v4: add `updatedAt` to every synced table so the sync engine
-        // has a uniform "this row changed at X" signal independent of
-        // the older / inconsistently-maintained `lastUpdated` columns.
-        //
-        // SQLite ALTER TABLE ADD COLUMN only accepts *constant*
-        // defaults — `CURRENT_TIMESTAMP` is non-constant and gets
-        // rejected. We add the column with a literal-0 default, then
-        // backfill the actual now() value in a follow-up UPDATE so
-        // existing rows aren't stuck at the epoch. New inserts pick
-        // up the proper currentDateAndTime default from the regular
-        // Drift companion path going forward.
-        const tables = <String>[
-          'game_settings',
-          'statistics',
-          'achievements',
-          'coins',
-          'coin_transactions',
-          'premium_status',
-          'unlocked_items',
-          'battle_passes',
-          'daily_challenges',
-        ];
-        for (final t in tables) {
-          await customStatement(
-            'ALTER TABLE "$t" ADD COLUMN "updated_at" INTEGER NOT NULL DEFAULT 0',
-          );
-          await customStatement(
-            "UPDATE \"$t\" SET \"updated_at\" = CAST(strftime('%s', 'now') AS INTEGER)",
-          );
-        }
-      }
-      if (from < 5) {
-        // v5: leaderboard cache + meta. Server-rendered leaderboards
-        // are mirrored locally so the screen has something to show
-        // when offline; refreshes are write-through replaces from
-        // LeaderboardService.
-        await m.createTable(leaderboardEntries);
-        await m.createTable(leaderboardMeta);
-        await customStatement(
-          'CREATE INDEX IF NOT EXISTS idx_leaderboard_entries_board_rank '
-          'ON leaderboard_entries(board_type, rank)',
-        );
-      }
-      if (from < 6) {
-        // v6: tournament cache (list + per-tournament leaderboard +
-        // staleness meta). Same pattern as the leaderboard cache.
-        await m.createTable(tournamentsCache);
-        await m.createTable(tournamentLeaderboardCache);
-        await m.createTable(tournamentMeta);
-        await customStatement(
-          'CREATE INDEX IF NOT EXISTS idx_tournaments_cache_active_end '
-          'ON tournaments_cache(is_active_list, end_date)',
-        );
-        await customStatement(
-          'CREATE INDEX IF NOT EXISTS idx_tournament_leaderboard_tid_rank '
-          'ON tournament_leaderboard_cache(tournament_id, rank)',
-        );
-      }
-      if (from < 7) {
-        // v7: friends cache (friend list + friend requests +
-        // staleness meta). Mutations are live API calls, the cache
-        // only serves the read path.
-        await m.createTable(friendsCache);
-        await m.createTable(friendRequestsCache);
-        await m.createTable(friendsMeta);
-        await customStatement(
-          'CREATE INDEX IF NOT EXISTS idx_friend_requests_from_user '
-          'ON friend_requests_cache(from_user_id)',
-        );
-      }
-      if (from < 8) {
-        // v8: weekly quests claim mirror, analogous to daily_challenges.
-        // Sync engine writes here; backend's UserWeeklyQuestClaim table
-        // is the canonical sync destination. The legacy
-        // /weekly-quests/progress endpoint still maintains the
-        // gameplay-side UserWeeklyQuest table; the two coexist.
-        await m.createTable(weeklyQuests);
-        await customStatement(
-          'CREATE INDEX IF NOT EXISTS idx_weekly_quests_week_start '
-          'ON weekly_quests(week_start_date)',
-        );
-        await customStatement(
-          'CREATE UNIQUE INDEX IF NOT EXISTS idx_weekly_quests_quest_id '
-          'ON weekly_quests(quest_id)',
-        );
-      }
-      if (from < 9) {
-        // v9: daily bonus state singleton. Drift-first replacement for
-        // the legacy SharedPreferences-only gate ('last_daily_bonus_claim_date',
-        // 'daily_bonuses'). SyncEngine pushes the snapshot to the
-        // backend's DailyLoginBonus table.
-        await m.createTable(dailyBonusState);
-      }
-      if (from < 10) {
-        // v10: lifetime player progression singleton (XP + level), parallel
-        // to the per-season battle pass. SyncEngine pushes it to the
-        // backend's User.Experience/Level via the player_progress dataType.
-        await m.createTable(playerProgressTable);
-      }
-      if (from < 11) {
-        // v11: daily_challenges had no unique index on challenge_id, so
-        // upsertDailyChallenge (insertOnConflictUpdate) kept INSERTing new
-        // rows instead of upserting — once offline-first progress writes
-        // started, duplicate rows piled up and the sync batch shipped the
-        // same challenge_id twice, 500ing the backend. Dedupe (keep the
-        // latest row per challenge_id) then add the unique index so upserts
-        // behave like weekly_quests.
-        await customStatement(
-          'DELETE FROM daily_challenges WHERE id NOT IN '
-          '(SELECT MAX(id) FROM daily_challenges GROUP BY challenge_id)',
-        );
-        await customStatement(
-          'CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_challenges_challenge_id '
-          'ON daily_challenges(challenge_id)',
-        );
-      }
-      if (from < 13) {
-        // v13: rebrand the entity length columns snake_* -> ship_*. The v12
-        // step was a no-op (it assumed a fresh install), so dev DBs that
-        // upgraded in place kept the old snake_* columns — which the generated
-        // mapper can no longer read (null-check crash in initializeDefaults).
-        // Rename them defensively: on a fresh install the columns are already
-        // ship_*, so each rename simply fails and is ignored.
-        Future<void> tryRename(
-            String table, String oldName, String newName) async {
-          try {
-            await customStatement(
-              'ALTER TABLE "$table" RENAME COLUMN "$oldName" TO "$newName"',
-            );
-          } catch (_) {
-            // Column already renamed (fresh schema) or absent — safe to skip.
-          }
-        }
-
-        await tryRename('statistics', 'max_snake_length', 'max_ship_length');
-        await tryRename(
-            'statistics', 'total_snake_length', 'total_ship_length');
-        await tryRename(
-            'statistics', 'average_snake_length', 'average_ship_length');
-        await tryRename('replays', 'snake_length', 'ship_length');
-      }
     },
   );
 
@@ -914,6 +765,22 @@ class AppDatabase extends _$AppDatabase {
     // CacheStore index for expiration checks
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_cache_store_expires ON cache_store(expires_at)',
+    );
+
+    // Leaderboard / tournament / friends cache indexes — these used to be
+    // created inside later migration steps; folded in here so the collapsed
+    // single-version schema still builds them on a fresh install.
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_leaderboard_entries_board_rank ON leaderboard_entries(board_type, rank)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_tournaments_cache_active_end ON tournaments_cache(is_active_list, end_date)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_tournament_leaderboard_tid_rank ON tournament_leaderboard_cache(tournament_id, rank)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_friend_requests_from_user ON friend_requests_cache(from_user_id)',
     );
   }
 
