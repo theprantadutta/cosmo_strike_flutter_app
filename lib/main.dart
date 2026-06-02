@@ -44,6 +44,10 @@ import 'firebase_options.dart';
 /// Whether critical init succeeded. If false, show an error screen.
 bool _initSucceeded = false;
 
+/// Captured init failure (shown on the error screen so a startup failure is
+/// visible instead of an infinite splash).
+String? _initError;
+
 void main() async {
   // Ensure Flutter is initialized and preserve splash screen
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -70,14 +74,16 @@ void main() async {
 
     // Load environment variables
     AppLogger.info('Loading environment variables...');
-    await dotenv.load(fileName: '.env');
+    await dotenv
+        .load(fileName: '.env')
+        .timeout(const Duration(seconds: 10));
     AppLogger.success('Environment variables loaded');
 
     // Initialize Firebase
     AppLogger.firebase('Initializing Firebase...');
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
-    );
+    ).timeout(const Duration(seconds: 20));
     AppLogger.success('Firebase initialized successfully');
 
     // Landscape-only: Cosmo Strike is a horizontal command-HUD experience
@@ -91,7 +97,7 @@ void main() async {
 
     // Initialize dependency injection
     AppLogger.info('Configuring dependencies...');
-    await configureDependencies();
+    await configureDependencies().timeout(const Duration(seconds: 30));
     AppLogger.success('Dependencies configured');
 
     // Initialize router with analytics observer
@@ -165,6 +171,7 @@ void main() async {
     _initSucceeded = true;
     AppLogger.success('Cosmo Strike ready to launch!');
   } catch (error, stackTrace) {
+    _initError = '$error';
     AppLogger.error('Failed to initialize Cosmo Strike', error, stackTrace);
   }
 
@@ -177,13 +184,20 @@ void main() async {
   };
 
   if (_initSucceeded) {
+    // Safety net: the splash is normally lifted by LoadingScreen.initState.
+    // If the first screen somehow never mounts, lift it anyway after a few
+    // seconds so the app can never appear permanently frozen on the splash.
+    Future.delayed(const Duration(seconds: 6), FlutterNativeSplash.remove);
     runApp(
       const riverpod.ProviderScope(
         child: CosmoStrikeApp(),
       ),
     );
   } else {
-    // Critical init failed — show a minimal error screen instead of crashing
+    // Critical init failed — remove the splash (otherwise it stays on top
+    // forever, hiding this screen and making the app look frozen) and show a
+    // minimal error screen with the actual cause instead of crashing.
+    FlutterNativeSplash.remove();
     runApp(
       MaterialApp(
         home: Scaffold(
@@ -207,6 +221,14 @@ void main() async {
                     style: TextStyle(color: Colors.grey[400], fontSize: 14),
                     textAlign: TextAlign.center,
                   ),
+                  if (_initError != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      _initError!,
+                      style: TextStyle(color: Colors.red[300], fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ],
               ),
             ),

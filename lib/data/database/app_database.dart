@@ -688,7 +688,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -825,9 +825,31 @@ class AppDatabase extends _$AppDatabase {
           'ON daily_challenges(challenge_id)',
         );
       }
-      // v12: rebrand entity columns to the 'ship_*' length names. The schema is
-      // produced fresh by onCreate; this rebrand ships with a clean dev-data
-      // reset (fresh install), so no in-place column migration is required.
+      if (from < 13) {
+        // v13: rebrand the entity length columns snake_* -> ship_*. The v12
+        // step was a no-op (it assumed a fresh install), so dev DBs that
+        // upgraded in place kept the old snake_* columns — which the generated
+        // mapper can no longer read (null-check crash in initializeDefaults).
+        // Rename them defensively: on a fresh install the columns are already
+        // ship_*, so each rename simply fails and is ignored.
+        Future<void> tryRename(
+            String table, String oldName, String newName) async {
+          try {
+            await customStatement(
+              'ALTER TABLE "$table" RENAME COLUMN "$oldName" TO "$newName"',
+            );
+          } catch (_) {
+            // Column already renamed (fresh schema) or absent — safe to skip.
+          }
+        }
+
+        await tryRename('statistics', 'max_snake_length', 'max_ship_length');
+        await tryRename(
+            'statistics', 'total_snake_length', 'total_ship_length');
+        await tryRename(
+            'statistics', 'average_snake_length', 'average_ship_length');
+        await tryRename('replays', 'snake_length', 'ship_length');
+      }
     },
   );
 
