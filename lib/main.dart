@@ -33,6 +33,7 @@ import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
 import 'package:cosmo_strike_flutter_app/services/preferences_service.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/services/sync/sync_engine.dart';
+import 'package:cosmo_strike_flutter_app/ui/design/immersive.dart';
 import 'package:cosmo_strike_flutter_app/services/unified_user_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:cosmo_strike_flutter_app/utils/typography.dart';
@@ -79,11 +80,13 @@ void main() async {
     );
     AppLogger.success('Firebase initialized successfully');
 
-    // Set preferred orientations
+    // Landscape-only: Cosmo Strike is a horizontal command-HUD experience
+    // (side-scrolling shmup + wide UI). Lock both landscape orientations so
+    // the device can flip between them but never rotates to portrait.
     AppLogger.ui('Setting device orientation...');
     SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
     ]);
 
     // Initialize dependency injection
@@ -272,17 +275,15 @@ class _CosmoStrikeAppState extends State<CosmoStrikeApp>
   }
 
   void _setImmersiveMode() {
-    // Re-apply the edge-to-edge defaults on app resume. Same rationale as
-    // the bootstrap setup above — manual mode triggers the deprecated
-    // setStatusBarColor path Play Console flags.
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarIconBrightness: Brightness.light,
-      systemNavigationBarDividerColor: Colors.transparent,
-    ));
+    // Re-apply the edge-to-edge menu chrome on app resume — UNLESS a gameplay
+    // screen is active, in which case it owns the full-screen immersiveSticky
+    // mode and we must not override it (that's what made the status bar
+    // reappear mid-game). See Immersive.inGameplay.
+    if (Immersive.inGameplay) {
+      Immersive.enterGame();
+      return;
+    }
+    Immersive.enterMenu();
   }
 
   @override

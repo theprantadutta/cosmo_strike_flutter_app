@@ -16,6 +16,7 @@ import 'package:cosmo_strike_flutter_app/widgets/screen_shake.dart';
 import 'package:cosmo_strike_flutter_app/widgets/crash_feedback_overlay.dart';
 import 'package:cosmo_strike_flutter_app/models/game_state.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
+import 'package:cosmo_strike_flutter_app/ui/design/immersive.dart';
 
 class MultiplayerGameScreen extends StatefulWidget {
   const MultiplayerGameScreen({super.key});
@@ -60,9 +61,10 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Note: the status bar is hidden app-wide via WindowInsetsController in
-    // MainActivity.kt — no per-screen tweak needed. The nav bar stays
-    // visible for back-gesture access.
+    // Full-screen play: hide the status / notification bar (immersiveSticky).
+    // (The previous comment claiming MainActivity.kt hides it natively was
+    // wrong — MainActivity is stock, so nothing was hiding the bar.)
+    Immersive.enterGame();
 
     _keyboardFocusNode = FocusNode();
 
@@ -84,6 +86,8 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
 
   @override
   void dispose() {
+    // Restore the menu chrome (status/nav bars) when leaving the game.
+    Immersive.enterMenu();
     WidgetsBinding.instance.removeObserver(this);
     _gameTimer?.cancel();
     _keyboardFocusNode.dispose();
@@ -94,6 +98,10 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Android drops immersiveSticky on resume — re-assert it.
+      Immersive.enterGame();
+    }
     if (state == AppLifecycleState.paused) {
       // Don't cancel timer in multiplayer - game continues on server
     }

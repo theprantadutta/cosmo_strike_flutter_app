@@ -201,75 +201,74 @@ class GameConstants {
   static const int bonusScore = 25;
   static const int specialScore = 50;
 
-  // Colors - Amber Phosphor (Cosmo Strike default; retro dot-matrix amber
-  // display seeded from the logo palette). Kept under the `classic` enum slot
-  // so it ships as the default theme while the swappable theme system stays
-  // intact. Amber hull / electric-blue energy / warm-dark backgrounds.
-  static const Color classicBackground = Color(0xFF0a0501); // deepest warm dark
-  static const Color classicShip = Color(0xFFffc14d);      // primary amber hull
-  static const Color classicFood = Color(0xFF5cc8ff);       // electric-blue energy
-  static const Color classicBorder = Color(0xFFff9e2c);     // darker amber accent
+  // ===========================================================================
+  // COMMAND-HUD SKIN PALETTES
+  // Every skin shares a deep indigo / near-black space base and is differentiated
+  // by a neon PRIMARY (ship) + neon SECONDARY (food) + tertiary accent. This is
+  // the "sleek sci-fi command HUD" language — no amber-phosphor, no warm dot-matrix.
+  // Field names are preserved (they back the GameTheme getters + ~1,175 call
+  // sites); only the values change.
+  // ===========================================================================
 
-  // Colors - Modern Theme (Improved Contrast)
-  static const Color modernBackground = Color(0xFF1a1a2e);
-  static const Color modernShip = Color(0xFF4fc3f7); // Bright cyan-blue
-  static const Color modernFood = Color(0xFFe94560); // Kept - good contrast
-  static const Color modernAccent = Color(
-    0xFF64b5f6,
-  ); // Light blue for better visibility
+  // Command Cyan (default skin, `classic` slot) — cyan hull / magenta energy.
+  static const Color classicBackground = Color(0xFF05060F); // deep indigo black
+  static const Color classicShip = Color(0xFF22D3EE);       // neon cyan
+  static const Color classicFood = Color(0xFFF21DC4);       // neon magenta
+  static const Color classicBorder = Color(0xFF38BDF8);     // sky-blue accent
 
-  // Colors - Neon Theme (Enhanced)
-  static const Color neonBackground = Color(0xFF0a0a0a);
-  static const Color neonShip = Color(0xFF00ffff); // Electric cyan
-  static const Color neonFood = Color(0xFFff1493); // Deep pink
-  static const Color neonGlow = Color(0xFF00ff00); // Pure lime green
+  // Azure skin
+  static const Color modernBackground = Color(0xFF070A18);
+  static const Color modernShip = Color(0xFF38BDF8); // sky blue
+  static const Color modernFood = Color(0xFFFB7185); // rose
+  static const Color modernAccent = Color(0xFF60A5FA); // azure
 
-  // Colors - Retro Theme (80s arcade — bright neon-orange on near-black,
-  // intentionally distinct from Desert's earthy palette).
-  static const Color retroBackground = Color(0xFF1A0808); // Almost-black with red undertone
-  static const Color retroShip = Color(0xFFFF6A00); // Bright neon orange
-  static const Color retroFood = Color(0xFFFFFF00); // Pure arcade yellow
-  static const Color retroAccent = Color(0xFFFF1F4F); // Hot pink — arcade marquee glow
+  // Voltage skin
+  static const Color neonBackground = Color(0xFF04040C);
+  static const Color neonShip = Color(0xFF00FFC6); // aqua-mint
+  static const Color neonFood = Color(0xFFFF2BD6); // hot magenta
+  static const Color neonGlow = Color(0xFF9DFF00); // electric lime
 
-  // Colors - Space Theme
-  static const Color spaceBackground = Color(0xFF0B0C2A); // Deep space blue
-  static const Color spaceShip = Color(0xFF9932CC); // Dark orchid
-  static const Color spaceFood = Color(0xFF00CED1); // Dark turquoise
-  static const Color spaceAccent = Color(0xFF4169E1); // Royal blue
+  // Synthwave skin
+  static const Color retroBackground = Color(0xFF0B0518);
+  static const Color retroShip = Color(0xFFFF3CAC); // magenta-pink
+  static const Color retroFood = Color(0xFF36E2FF); // electric cyan
+  static const Color retroAccent = Color(0xFFFFC53D); // amber-gold marquee
 
-  // Colors - Ocean Theme
-  static const Color oceanBackground = Color(0xFF001B3D); // Deep ocean blue
-  static const Color oceanShip = Color(0xFF20B2AA); // Light sea green
-  static const Color oceanFood = Color(0xFFFF7F50); // Coral
-  static const Color oceanAccent = Color(0xFF4682B4); // Steel blue
+  // Nebula skin (premium)
+  static const Color spaceBackground = Color(0xFF070A20);
+  static const Color spaceShip = Color(0xFF8B5CF6); // violet
+  static const Color spaceFood = Color(0xFF22D3EE); // cyan
+  static const Color spaceAccent = Color(0xFF6366F1); // indigo
 
-  // Colors - Cyberpunk Theme
-  static const Color cyberpunkBackground = Color(0xFF0D0221); // Deep midnight purple
-  static const Color cyberpunkShip = Color(0xFFFF003C); // Neon red/magenta
-  static const Color cyberpunkFood = Color(0xFFFCEE0A); // Electric yellow
-  static const Color cyberpunkAccent = Color(0xFFB537F2); // Vivid purple
+  // Abyssal skin (premium)
+  static const Color oceanBackground = Color(0xFF03101E);
+  static const Color oceanShip = Color(0xFF2DD4BF); // teal
+  static const Color oceanFood = Color(0xFF38BDF8); // sky
+  static const Color oceanAccent = Color(0xFF0EA5E9); // cerulean
 
-  // Colors - Forest Theme (rich emerald jungle — vivid green ship on
-  // deep forest, distinct from Classic's pale Game Boy yellow-green).
-  static const Color forestBackground = Color(0xFF0D2818); // Dark forest floor
-  static const Color forestShip = Color(0xFF2ECC71); // Vivid emerald
-  static const Color forestFood = Color(0xFFDC143C); // Crimson berry
-  static const Color forestAccent = Color(0xFFF1C40F); // Sunlit-canopy gold
+  // Override skin (premium)
+  static const Color cyberpunkBackground = Color(0xFF0A0118);
+  static const Color cyberpunkShip = Color(0xFFFF2BD6); // neon magenta
+  static const Color cyberpunkFood = Color(0xFFFCEE0A); // electric yellow
+  static const Color cyberpunkAccent = Color(0xFF9D4EDD); // vivid purple
 
-  // Colors - Desert Theme (Southwestern — terracotta canyon with cactus
-  // teal food, intentionally separated from Retro's arcade orange).
-  static const Color desertBackground = Color(0xFF3D1F0E); // Warm terracotta canyon
-  static const Color desertShip = Color(0xFFCD853F); // Peru — sand-rattleship brown
-  static const Color desertFood = Color(0xFF5FCBC9); // Cactus turquoise (prickly pear bloom)
-  static const Color desertAccent = Color(0xFFE8B894); // Sun-bleached sandy peach
+  // Bio Lab skin (premium)
+  static const Color forestBackground = Color(0xFF04130D);
+  static const Color forestShip = Color(0xFF34D399); // emerald neon
+  static const Color forestFood = Color(0xFF22D3EE); // cyan
+  static const Color forestAccent = Color(0xFFA3E635); // lime
 
-  // Colors - Crystal Theme (icy prismatic — pale crystalline ship on
-  // deep amethyst with a rose-quartz food, distinct from Space's cosmic
-  // purple-on-navy palette).
-  static const Color crystalBackground = Color(0xFF1A0033); // Deep amethyst
-  static const Color crystalShip = Color(0xFFB0E0E6); // Powder-blue ice crystal
-  static const Color crystalFood = Color(0xFFFFB6C1); // Rose quartz pink
-  static const Color crystalAccent = Color(0xFFE6E6FA); // Lavender shimmer
+  // Solar Flare skin (premium) — warm neon, still on the deep-space base.
+  static const Color desertBackground = Color(0xFF120A08);
+  static const Color desertShip = Color(0xFFFF7849); // warm orange-neon
+  static const Color desertFood = Color(0xFF2DE2E6); // cyan counterpoint
+  static const Color desertAccent = Color(0xFFFFC24B); // solar gold
+
+  // Prism Core skin (premium)
+  static const Color crystalBackground = Color(0xFF0A0820);
+  static const Color crystalShip = Color(0xFFA5F3FC); // icy cyan
+  static const Color crystalFood = Color(0xFFF0ABFC); // orchid
+  static const Color crystalAccent = Color(0xFFC4B5FD); // lavender
 
   // Animation durations
   static const Duration shortAnimation = Duration(milliseconds: 150);
@@ -460,51 +459,73 @@ enum GameTheme {
     }
   }
 
-  Color get textColor {
-    switch (this) {
-      // Amber Phosphor ships on a warm-dark background, so it reads with the
-      // icy-white highlight rather than the light-background black87 group.
-      case GameTheme.classic:
-        return const Color(0xFFeaf6ff);
-      case GameTheme.modern:
-      case GameTheme.retro:
-        return Colors.black87;
-      case GameTheme.neon:
-      case GameTheme.space:
-      case GameTheme.cyberpunk:
-      case GameTheme.crystal:
-        return Colors.white;
-      case GameTheme.ocean:
-      case GameTheme.forest:
-        return Colors.white70;
-      case GameTheme.desert:
-        return Colors.black54;
-    }
-  }
+  /// Every command-HUD skin sits on a deep-space base, so body text is a single
+  /// icy white across all skins (see also [textPrimary]/[textMuted]).
+  Color get textColor => const Color(0xFFEAF3FF);
 
-  Color get cardColor {
+  /// Surface panel color: a subtly skin-tinted dark glass derived from the
+  /// background + a hint of the neon primary. Used by legacy `cardColor` call
+  /// sites; new UI should prefer [surface] / [surfaceGlass].
+  Color get cardColor =>
+      Color.alphaBlend(shipColor.withValues(alpha: 0.06), backgroundColor);
+
+  // ---------------------------------------------------------------------------
+  // Command-HUD semantic tokens (new design language). Implemented in terms of
+  // the existing skin getters so only the ~30 palette constants ever change.
+  // ---------------------------------------------------------------------------
+
+  /// Primary neon accent (cyan/violet/etc. per skin) — hulls, key strokes, CTAs.
+  Color get neonPrimary => shipColor;
+
+  /// Secondary neon accent — highlights, energy nodes, contrast pops.
+  Color get neonSecondary => foodColor;
+
+  /// Glow color for shadows/halos (matches the primary neon).
+  Color get glow => shipColor;
+
+  /// Hairline stroke for glass panels / holographic borders.
+  Color get stroke => shipColor.withValues(alpha: 0.35);
+
+  /// Opaque elevated surface (slightly skin-tinted dark).
+  Color get surface =>
+      Color.alphaBlend(shipColor.withValues(alpha: 0.05), backgroundColor);
+
+  /// Frosted-glass fill (translucent) for panels rendered over the starfield.
+  Color get surfaceGlass => backgroundColor.withValues(alpha: 0.55);
+
+  /// Primary body/label text — icy white.
+  Color get textPrimary => const Color(0xFFEAF3FF);
+
+  /// Muted/secondary text.
+  Color get textMuted => const Color(0xB3EAF3FF);
+
+  /// Thin holographic grid line color.
+  Color get gridLine => shipColor.withValues(alpha: 0.10);
+
+  /// Player-facing skin label (cockpit naming). [name] is kept stable for
+  /// persistence/backend sync; UI should show [displayName].
+  String get displayName {
     switch (this) {
-      // Amber Phosphor: warm-dark surface panel (one step lighter than bg).
       case GameTheme.classic:
-        return const Color(0xFF180b03);
+        return 'Command Cyan';
       case GameTheme.modern:
-        return Colors.grey.shade100;
+        return 'Azure';
       case GameTheme.neon:
-        return Colors.black12;
+        return 'Voltage';
       case GameTheme.retro:
-        return Colors.brown.shade100;
+        return 'Synthwave';
       case GameTheme.space:
-        return Colors.indigo.shade900;
+        return 'Nebula';
       case GameTheme.ocean:
-        return Colors.blue.shade900;
+        return 'Abyssal';
       case GameTheme.cyberpunk:
-        return Colors.purple.shade900;
+        return 'Override';
       case GameTheme.forest:
-        return Colors.green.shade900;
+        return 'Bio Lab';
       case GameTheme.desert:
-        return Colors.orange.shade100;
+        return 'Solar Flare';
       case GameTheme.crystal:
-        return Colors.purple.shade100;
+        return 'Prism Core';
     }
   }
 

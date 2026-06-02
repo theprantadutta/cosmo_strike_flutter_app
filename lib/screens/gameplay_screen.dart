@@ -14,6 +14,7 @@ import '../presentation/bloc/game/game_settings_cubit.dart';
 import '../presentation/bloc/premium/battle_pass_cubit.dart';
 import '../router/routes.dart';
 import '../services/api_service.dart';
+import '../ui/design/immersive.dart';
 
 /// Hosts the Flame shoot-'em-up. Flame is scoped to this screen only; the HUD,
 /// pause / stage-clear / game-over overlays, and drag input live in Flutter on
@@ -39,6 +40,8 @@ class _GameplayScreenState extends State<GameplayScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Full-screen play: hide the status / notification bar.
+    Immersive.enterGame();
     _game = CosmoStrikeGame(
       onGameOver: _handleGameOver,
     );
@@ -46,13 +49,18 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed) {
+      // Android drops immersiveSticky on resume — re-assert it.
+      Immersive.enterGame();
+    } else {
       _game.pauseGame();
     }
   }
 
   @override
   void dispose() {
+    // Restore the menu chrome (status/nav bars) when leaving the game.
+    Immersive.enterMenu();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
