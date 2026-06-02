@@ -76,16 +76,14 @@ void main() async {
 
     // Load environment variables
     AppLogger.info('Loading environment variables...');
-    await dotenv
-        .load(fileName: '.env')
-        .timeout(const Duration(seconds: 10));
+    await dotenv.load(fileName: '.env');
     AppLogger.success('Environment variables loaded');
 
     // Initialize Firebase
     AppLogger.firebase('Initializing Firebase...');
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
-    ).timeout(const Duration(seconds: 20));
+    );
     AppLogger.success('Firebase initialized successfully');
 
     // Landscape-only: Cosmo Strike is a horizontal command-HUD experience
@@ -99,7 +97,7 @@ void main() async {
 
     // Initialize dependency injection
     AppLogger.info('Configuring dependencies...');
-    await configureDependencies().timeout(const Duration(seconds: 30));
+    await configureDependencies();
     AppLogger.success('Dependencies configured');
 
     // Initialize router with analytics observer
