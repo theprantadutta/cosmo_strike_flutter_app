@@ -403,73 +403,14 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
   ) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: isNarrowScreen ? 16.0 : 24.0),
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header
-          Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      theme.accentColor.withValues(alpha: 0.2),
-                      theme.accentColor.withValues(alpha: 0.1),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: theme.accentColor.withValues(alpha: 0.3),
-                    width: 1.5,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: theme.accentColor.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.privacy_tip_outlined,
-                        color: theme.accentColor,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Privacy Policy',
-                            style: TextStyle(
-                              color: theme.accentColor,
-                              fontSize: isSmallScreen ? 20 : 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            'Please review our privacy policy before continuing',
-                            style: TextStyle(
-                              color: theme.accentColor.withValues(alpha: 0.7),
-                              fontSize: isSmallScreen ? 12 : 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              )
-              .gameEntrance(),
-
-          const SizedBox(height: 16),
-
-          // Privacy Policy Content
+          // LEFT — the actual privacy policy, large and scrollable so the user
+          // can read/scroll the whole thing (it was a cramped sliver in the old
+          // portrait-stacked layout).
           Expanded(
+            flex: 6,
             child:
                 Container(
                       width: double.infinity,
@@ -490,6 +431,7 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
                         ),
                       ),
                       child: SingleChildScrollView(
+                        primary: false,
                         child: Text(
                           _privacyPolicyContent,
                           style: TextStyle(
@@ -503,10 +445,82 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
                     .gameZoomIn(delay: 200.ms),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(width: 16),
 
-          // Acceptance Checkbox
-          Container(
+          // RIGHT — title + accept controls.
+          Expanded(
+            flex: 4,
+            child: SingleChildScrollView(
+              primary: false,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Header
+                  Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              theme.accentColor.withValues(alpha: 0.2),
+                              theme.accentColor.withValues(alpha: 0.1),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: theme.accentColor.withValues(alpha: 0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: theme.accentColor.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.privacy_tip_outlined,
+                                color: theme.accentColor,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Privacy Policy',
+                                    style: TextStyle(
+                                      color: theme.accentColor,
+                                      fontSize: isSmallScreen ? 20 : 24,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Please review, then accept to continue',
+                                    style: TextStyle(
+                                      color: theme.accentColor
+                                          .withValues(alpha: 0.7),
+                                      fontSize: isSmallScreen ? 12 : 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                      .gameEntrance(),
+
+                  const SizedBox(height: 16),
+
+                  // Acceptance Checkbox
+                  Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -624,8 +638,10 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
                 ),
               )
               .gameZoomIn(delay: 400.ms),
-
-          const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

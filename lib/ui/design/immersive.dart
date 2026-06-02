@@ -3,15 +3,13 @@ import 'package:flutter/services.dart';
 
 /// Centralized system-chrome control for the command-HUD shell.
 ///
-/// Two modes:
-/// - **Menu** (`enterMenu`): edge-to-edge — status + nav bars stay present but
-///   transparent (Android 15 compliance), content draws under them.
-/// - **Game** (`enterGame`): `immersiveSticky` — status + nav bars hidden for
-///   full-screen play; a swipe temporarily reveals them.
+/// Cosmo Strike is a full-screen landscape game, so the status/notification bar
+/// and nav bar are hidden EVERYWHERE (immersiveSticky) — a swipe from the edge
+/// reveals them briefly, then they auto-hide.
 ///
-/// The [inGameplay] flag exists so the app-resume handler (`main.dart`
-/// `didChangeAppLifecycleState`) does NOT re-apply the menu chrome while a game
-/// screen is active, which would otherwise fight the immersive mode.
+/// Both [enterMenu] and [enterGame] use immersiveSticky; they're kept as
+/// separate calls only so the app-resume handler can re-assert the mode. The
+/// [inGameplay] flag tracks which screen is active for that re-assert.
 class Immersive {
   Immersive._();
 
@@ -26,10 +24,10 @@ class Immersive {
     systemNavigationBarDividerColor: Colors.transparent,
   );
 
-  /// Edge-to-edge menu chrome. Safe to call on resume.
+  /// Full-screen menu chrome (status + nav bars hidden). Safe to call on resume.
   static void enterMenu() {
     inGameplay = false;
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     SystemChrome.setSystemUIOverlayStyle(_menuOverlay);
   }
 

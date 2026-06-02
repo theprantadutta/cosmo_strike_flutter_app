@@ -63,7 +63,9 @@ void main() async {
     // path which triggers Play Console's "deprecated APIs for edge-to-edge"
     // warning — see flutter/flutter#183372. The active game screen still
     // goes full-immersive via immersiveSticky (handled in GameScreen).
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    // Full-screen game: hide the status/notification + nav bars app-wide from
+    // first launch (immersiveSticky — swipe from an edge reveals them briefly).
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
