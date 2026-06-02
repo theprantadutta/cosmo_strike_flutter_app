@@ -328,7 +328,7 @@ class _StoreScreenState extends State<StoreScreen>
                   child: _buildProPlanCard(
                     theme: theme,
                     title: 'Monthly',
-                    productId: ProductIds.snakeClassicProMonthly,
+                    productId: ProductIds.proMonthly,
                     fallbackPrice: 4.99,
                     cadence: '/month',
                     savingsLabel: null,
@@ -340,7 +340,7 @@ class _StoreScreenState extends State<StoreScreen>
                   child: _buildProPlanCard(
                     theme: theme,
                     title: 'Yearly',
-                    productId: ProductIds.snakeClassicProYearly,
+                    productId: ProductIds.proYearly,
                     fallbackPrice: 49.99,
                     cadence: '/year',
                     savingsLabel: 'Save 17%',
@@ -376,7 +376,7 @@ class _StoreScreenState extends State<StoreScreen>
                 child: _buildProPlanCard(
                   theme: theme,
                   title: 'Monthly',
-                  productId: ProductIds.snakeClassicProMonthly,
+                  productId: ProductIds.proMonthly,
                   fallbackPrice: 4.99,
                   cadence: '/month',
                   savingsLabel: null,
@@ -389,7 +389,7 @@ class _StoreScreenState extends State<StoreScreen>
                 child: _buildProPlanCard(
                   theme: theme,
                   title: 'Yearly',
-                  productId: ProductIds.snakeClassicProYearly,
+                  productId: ProductIds.proYearly,
                   fallbackPrice: 49.99,
                   cadence: '/year',
                   savingsLabel: 'Save 17%',
@@ -495,8 +495,8 @@ class _StoreScreenState extends State<StoreScreen>
     // VerifyPurchase response lands — that would double-charge and bug out
     // the PremiumCubit's mid-flight state.
     final anyProPending = _pendingProductIds
-            .contains(ProductIds.snakeClassicProMonthly) ||
-        _pendingProductIds.contains(ProductIds.snakeClassicProYearly);
+            .contains(ProductIds.proMonthly) ||
+        _pendingProductIds.contains(ProductIds.proYearly);
     final borderColor = highlight
         ? Colors.amber.withValues(alpha: 0.6)
         : theme.accentColor.withValues(alpha: 0.25);
@@ -759,7 +759,7 @@ class _StoreScreenState extends State<StoreScreen>
                   // monthly default. We'll fire the monthly purchase to
                   // keep the path consistent with the Subscribe button.
                   _purchaseSubscription(
-                    ProductIds.snakeClassicProMonthly,
+                    ProductIds.proMonthly,
                     'Pro Monthly',
                   );
                 },
@@ -1382,8 +1382,8 @@ class _StoreScreenState extends State<StoreScreen>
     // Pro subscription SKUs — once PremiumCubit flips to hasPremium=true the
     // Pro tab swaps to the "you are Pro" banner, but we also clear pending
     // so any leftover spinner state doesn't survive a tab switch.
-    if (productId == ProductIds.snakeClassicProMonthly ||
-        productId == ProductIds.snakeClassicProYearly) {
+    if (productId == ProductIds.proMonthly ||
+        productId == ProductIds.proYearly) {
       return premiumState.hasPremium;
     }
     // Themes — including the all-themes bundle. Pro subscribers also have

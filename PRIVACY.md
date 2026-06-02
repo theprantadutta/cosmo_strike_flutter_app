@@ -1,10 +1,10 @@
-# Privacy Policy for Snake Classic
+# Privacy Policy for Cosmo Strike
 
 **Policy Version: 2.0**  
 **Effective Date: May 29, 2026**  
 **Last Updated: May 29, 2026**
 
-> **What changed in version 2.0 (May 29, 2026):** Snake Classic now shows
+> **What changed in version 2.0 (May 29, 2026):** Cosmo Strike now shows
 > advertising in the free version of the app (banner, interstitial, and opt-in
 > rewarded ads) through Google AdMob. This update explains what that means for
 > your data and your choices. Pro subscribers and users in an active trial see
@@ -13,7 +13,7 @@
 
 ## Introduction
 
-Snake Classic ("we," "our," or "us") respects your privacy and is committed to protecting your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application Snake Classic (the "App") available on Google Play Store.
+Cosmo Strike ("we," "our," or "us") respects your privacy and is committed to protecting your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application Cosmo Strike (the "App") available on Google Play Store.
 
 By downloading and using our App, you agree to the collection and use of information in accordance with this Privacy Policy.
 
@@ -127,7 +127,7 @@ By downloading and using our App, you agree to the collection and use of informa
 ## How We Use Your Information
 
 ### 1. Core App Functionality
-- Provide and maintain the Snake Classic game experience
+- Provide and maintain the Cosmo Strike game experience
 - Save your game progress, scores, and achievements
 - Sync your data across multiple devices
 - Enable offline gameplay with local data storage
@@ -265,14 +265,14 @@ We show ads to support the free version of the app using **Google AdMob**. Pro s
 - Contact us for information about your specific regional rights
 
 ### 3. Parental Rights (Children Under 13)
-- Snake Classic is not directed at children under 13
+- Cosmo Strike is not directed at children under 13
 - We don't knowingly collect personal information from children under 13
 - Parents can contact us to review, delete, or stop collection of their child's information
 - If we discover we've collected information from a child under 13, we'll delete it immediately
 
 ## Children's Privacy
 
-Snake Classic is designed for players aged 13 and older. We do not knowingly collect personal information from children under 13 years of age. If you are a parent or guardian and believe your child has provided us with personal information, please contact us immediately, and we will take steps to remove such information from our systems.
+Cosmo Strike is designed for players aged 13 and older. We do not knowingly collect personal information from children under 13 years of age. If you are a parent or guardian and believe your child has provided us with personal information, please contact us immediately, and we will take steps to remove such information from our systems.
 
 ## International Data Transfers
 
@@ -294,7 +294,7 @@ Your information may be transferred to and processed in countries other than you
 - **Custom Events:** Game progression tracking for feature improvement
 
 ### 3. Advertising
-- Snake Classic displays third-party advertising in the free version of the app through **Google AdMob** (see *Information Sharing and Disclosure → Advertising (Google AdMob)* for full details)
+- Cosmo Strike displays third-party advertising in the free version of the app through **Google AdMob** (see *Information Sharing and Disclosure → Advertising (Google AdMob)* for full details)
 - Ads may use an advertising ID and device identifiers to serve and measure ads; in the EEA/UK we request consent first, and on iOS we request App Tracking Transparency permission
 - **Rewarded ads are entirely optional** — they only appear when you choose to watch them in exchange for in-game rewards
 - A **Pro subscription (or an active trial) removes all ads**
@@ -313,11 +313,11 @@ We may update this Privacy Policy periodically to reflect changes in our practic
 If you have questions, concerns, or requests regarding this Privacy Policy or our privacy practices:
 
 **Primary Contact:**
-- **Email:** privacy@snakeclassic.game
+- **Email:** privacy@cosmostrike.pranta.dev
 - **In-App:** Use the "Contact Support" feature in Settings
 
 **Data Protection Officer (for GDPR inquiries):**
-- **Email:** dpo@snakeclassic.game
+- **Email:** dpo@cosmostrike.pranta.dev
 
 **Mailing Address:**
 [Company Address]
@@ -327,7 +327,7 @@ If you have questions, concerns, or requests regarding this Privacy Policy or ou
 ## Additional Information
 
 ### 1. Open Source Components
-Snake Classic uses open-source software components. Third-party licenses and privacy policies can be found in the app's "About" section.
+Cosmo Strike uses open-source software components. Third-party licenses and privacy policies can be found in the app's "About" section.
 
 ### 2. Age Verification
 - Users must be 13 or older to create an account
@@ -342,7 +342,7 @@ Privacy-related disputes are subject to the dispute resolution procedures outlin
 
 ---
 
-**By using Snake Classic, you acknowledge that you have read, understood, and agree to this Privacy Policy.**
+**By using Cosmo Strike, you acknowledge that you have read, understood, and agree to this Privacy Policy.**
 
 *This Privacy Policy is designed to comply with Google Play Store policies and international privacy regulations including GDPR, CCPA, and other applicable laws.*
 

@@ -6,6 +6,9 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- Google Mobile Ads (AdMob) App ID — required by the SDK at startup. -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-9242904787767394~9318162400</string>
 	<key>CFBundleDisplayName</key>
 	<string>Cosmo Strike</string>
 	<key>CFBundleExecutable</key>

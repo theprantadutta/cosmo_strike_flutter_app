@@ -208,7 +208,7 @@ abstract class GameTypography {
       );
 
   /// Game title style - 28px Orbitron ExtraBold
-  /// Use for: "SNAKE CLASSIC" title, brand text
+  /// Use for: "COSMO STRIKE" title, brand text
   static TextStyle gameTitle({Color? color}) => GoogleFonts.orbitron(
         fontSize: 28,
         fontWeight: FontWeight.w800,

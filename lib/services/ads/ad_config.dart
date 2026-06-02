@@ -27,12 +27,12 @@ class AdConfig {
   static const _testRewardedIos = 'ca-app-pub-3940256099942544/1712485313';
 
   // ---- Real PRODUCTION ad unit ids (from admob_ad_list.md) ----
-  static const _bannerAndroid = 'ca-app-pub-9242904787767394/3016639636';
-  static const _bannerIos = 'ca-app-pub-9242904787767394/3952271184';
-  static const _interstitialAndroid = 'ca-app-pub-9242904787767394/6572741266';
-  static const _interstitialIos = 'ca-app-pub-9242904787767394/9378033857';
-  static const _rewardedAndroid = 'ca-app-pub-9242904787767394/7829982619';
-  static const _rewardedIos = 'ca-app-pub-9242904787767394/3896430862';
+  static const _bannerAndroid = 'ca-app-pub-9242904787767394/7902658867';
+  static const _bannerIos = 'ca-app-pub-9242904787767394/5606148107';
+  static const _interstitialAndroid = 'ca-app-pub-9242904787767394/3963413851';
+  static const _interstitialIos = 'ca-app-pub-9242904787767394/1337250516';
+  static const _rewardedAndroid = 'ca-app-pub-9242904787767394/9024168845';
+  static const _rewardedIos = 'ca-app-pub-9242904787767394/7711087171';
 
   static String get bannerUnitId => kDebugMode
       ? (_isIos ? _testBannerIos : _testBannerAndroid)

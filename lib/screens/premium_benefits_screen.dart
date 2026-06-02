@@ -300,7 +300,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
         _buildPricingCard(
           title: 'Monthly Plan',
           price: PurchaseService().getStorePriceOrDefault(
-              ProductIds.snakeClassicProMonthly, 4.99),
+              ProductIds.proMonthly, 4.99),
           period: '/month',
           badge: '$_monthlyTrialDays-day free trial',
           accentColor: Colors.blue,
@@ -312,9 +312,9 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
           title: 'Yearly Plan',
           price: _isYearly
               ? PurchaseService().getStorePriceOrDefault(
-                  ProductIds.snakeClassicProYearly, 39.99)
+                  ProductIds.proYearly, 39.99)
               : PurchaseService().getStorePriceOrDefault(
-                  ProductIds.snakeClassicProMonthly, 4.99),
+                  ProductIds.proMonthly, 4.99),
           period: _isYearly ? '/year' : '/month',
           badge: _isYearly
               ? 'Save 33% • $_yearlyTrialDays-day free trial'
@@ -627,8 +627,8 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
 
   Widget _buildBottomButton(GameTheme theme, PremiumState premiumState) {
     final productId = _isYearly
-        ? ProductIds.snakeClassicProYearly
-        : ProductIds.snakeClassicProMonthly;
+        ? ProductIds.proYearly
+        : ProductIds.proMonthly;
     final price = PurchaseService().getStorePriceOrDefault(
       productId,
       _isYearly ? 39.99 : 4.99,
@@ -753,8 +753,8 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
   void _subscribe() {
     final purchaseService = PurchaseService();
     final productId = _isYearly
-        ? ProductIds.snakeClassicProYearly
-        : ProductIds.snakeClassicProMonthly;
+        ? ProductIds.proYearly
+        : ProductIds.proMonthly;
     final product = purchaseService.getProduct(productId);
 
     if (product != null) {

@@ -6,7 +6,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  # Matches snake_classic; google_mobile_ads 8.0.0 requires Dart >= 3.10.0.
+  # google_mobile_ads 8.0.0 requires Dart >= 3.10.0.
   sdk: ^3.10.0
 
 dependencies:

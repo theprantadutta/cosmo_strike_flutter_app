@@ -372,7 +372,7 @@ class PremiumCubit extends Cubit<PremiumState> {
   Future<bool> purchasePremium() async {
     try {
       final result = await _purchaseService.purchaseProduct(
-        ProductIds.snakeClassicProMonthly,
+        ProductIds.proMonthly,
       );
       // Do NOT call _handlePremiumPurchased() here — purchaseProduct() only
       // initiates the billing flow. The actual completion arrives asynchronously

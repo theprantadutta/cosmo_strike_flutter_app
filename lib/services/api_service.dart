@@ -49,7 +49,7 @@ class ApiService {
 
   VoidCallback? onUnauthorized;
 
-  static const String _prodFallbackUrl = 'https://snakeclassic.pranta.dev';
+  static const String _prodFallbackUrl = 'https://cosmostrike.pranta.dev';
 
   static String get baseUrl {
     final String backendUrl;

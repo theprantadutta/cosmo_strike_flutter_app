@@ -11,11 +11,11 @@ import 'analytics/analytics_facade.dart';
 import 'api_service.dart';
 
 // Product IDs for different categories
-// Store IDs use the com.pranta.snakeclassic. prefix for Google Play / App Store.
+// Store IDs use the com.pranta.cosmostrike. prefix for Google Play / App Store.
 // Internal IDs (SharedPreferences, database) stay unprefixed for backward compat.
 class ProductIds {
   // Store product ID prefix
-  static const String prefix = 'com.pranta.snakeclassic.';
+  static const String prefix = 'com.pranta.cosmostrike.';
 
   /// Strip the store prefix to get the internal ID.
   static String stripPrefix(String id) {
@@ -80,8 +80,8 @@ class ProductIds {
   static const String ultimateCosmetics = '${prefix}ultimate_collection';
 
   // Subscriptions
-  static const String snakeClassicProMonthly = '${prefix}pro_monthly';
-  static const String snakeClassicProYearly = '${prefix}pro_yearly';
+  static const String proMonthly = '${prefix}pro_monthly';
+  static const String proYearly = '${prefix}pro_yearly';
 
   // Battle Pass — Coming Soon (not registered on stores yet)
   static const String battlePass = '${prefix}battle_pass_season';
@@ -110,7 +110,7 @@ class ProductIds {
     // Bundles (4)
     starterCosmetics, elementalCosmetics, cosmicCosmetics, ultimateCosmetics,
     // Subscriptions (2)
-    snakeClassicProMonthly, snakeClassicProYearly,
+    proMonthly, proYearly,
     // Tournament entries (5)
     tournamentBronze, tournamentSilver, tournamentGold,
     championshipEntry, tournamentVipEntry,
@@ -125,8 +125,8 @@ class ProductIds {
   ];
 
   static List<String> get subscriptionIds => [
-    snakeClassicProMonthly,
-    snakeClassicProYearly,
+    proMonthly,
+    proYearly,
   ];
 }
 

@@ -31,7 +31,7 @@ class ConnectivityService extends ChangeNotifier {
   bool get isBackendReachable => _isBackendReachable;
   DateTime? get lastOnlineTime => _lastOnlineTime;
 
-  static const String _prodFallbackUrl = 'https://snakeclassic.pranta.dev';
+  static const String _prodFallbackUrl = 'https://cosmostrike.pranta.dev';
 
   /// Backend health endpoint URL
   static String get _healthUrl {
