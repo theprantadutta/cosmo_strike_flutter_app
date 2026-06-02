@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/painting.dart';
@@ -28,7 +30,9 @@ class PlayerShip extends PositionComponent
   Vector2? _target;
 
   double get _leftBound => game.size.x * 0.04 + size.x / 2;
-  double get _rightBound => game.size.x * 0.42;
+  // Keep the player's lane proportional to the SHORTER dimension so an
+  // ultra-wide (21:9+) landscape screen doesn't hand them half the field.
+  double get _rightBound => math.min(game.size.x * 0.42, game.size.y * 0.9);
 
   @override
   Future<void> onLoad() async {

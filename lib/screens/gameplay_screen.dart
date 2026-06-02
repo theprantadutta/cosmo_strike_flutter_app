@@ -14,7 +14,8 @@ import '../presentation/bloc/game/game_settings_cubit.dart';
 import '../presentation/bloc/premium/battle_pass_cubit.dart';
 import '../router/routes.dart';
 import '../services/api_service.dart';
-import '../ui/design/immersive.dart';
+import '../ui/design.dart';
+import '../utils/constants.dart';
 
 /// Hosts the Flame shoot-'em-up. Flame is scoped to this screen only; the HUD,
 /// pause / stage-clear / game-over overlays, and drag input live in Flutter on
@@ -191,6 +192,10 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 }
 
+/// HUD skin for the glass frames — Command Cyan matches the cyan CosmoPalette
+/// hull so the overlay chrome and the gameplay read as one system.
+const GameTheme _hudSkin = GameTheme.classic;
+
 class _Hud extends StatelessWidget {
   const _Hud({required this.game});
   final CosmoStrikeGame game;
@@ -198,94 +203,121 @@ class _Hud extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.all(GameTokens.space12),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Corner panels keep the central play field clear in landscape.
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ValueListenableBuilder<int>(
-                valueListenable: game.scoreNotifier,
-                builder: (_, score, _) => Text(
-                  '$score',
-                  style: const TextStyle(
-                    color: CosmoPalette.highlight,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.5,
-                  ),
+              // Top-left: score + stage/wave.
+              GlassPanel(
+                theme: _hudSkin,
+                radius: GameTokens.radiusMd,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ValueListenableBuilder<int>(
+                      valueListenable: game.scoreNotifier,
+                      builder: (_, score, _) => Text(
+                        '$score',
+                        style: const TextStyle(
+                          color: CosmoPalette.highlight,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                    ValueListenableBuilder<int>(
+                      valueListenable: game.stageNotifier,
+                      builder: (_, stage, _) => ValueListenableBuilder<int>(
+                        valueListenable: game.waveNotifier,
+                        builder: (_, wave, _) => Text(
+                          'S$stage · W$wave',
+                          style: const TextStyle(
+                            color: CosmoPalette.hull,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const Spacer(),
-              ValueListenableBuilder<int>(
-                valueListenable: game.stageNotifier,
-                builder: (_, stage, _) => ValueListenableBuilder<int>(
-                  valueListenable: game.waveNotifier,
-                  builder: (_, wave, _) => Text(
-                    'S$stage · W$wave',
-                    style: const TextStyle(
-                      color: CosmoPalette.hull,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+              // Top-right: lives + pause.
+              GlassPanel(
+                theme: _hudSkin,
+                radius: GameTokens.radiusMd,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ValueListenableBuilder<int>(
+                      valueListenable: game.livesNotifier,
+                      builder: (_, lives, _) => Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(
+                          lives.clamp(0, 6),
+                          (i) => const Padding(
+                            padding: EdgeInsets.only(right: 3),
+                            child: Icon(Icons.flight,
+                                size: 16, color: CosmoPalette.hull),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              IconButton(
-                onPressed: game.pauseGame,
-                icon: const Icon(Icons.pause_circle_outline,
-                    color: CosmoPalette.hull),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              ValueListenableBuilder<int>(
-                valueListenable: game.livesNotifier,
-                builder: (_, lives, _) => Row(
-                  children: List.generate(
-                    lives.clamp(0, 6),
-                    (i) => const Padding(
-                      padding: EdgeInsets.only(right: 3),
-                      child: Icon(Icons.flight, size: 16, color: CosmoPalette.hull),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: game.pauseGame,
+                      child: const Icon(Icons.pause_circle_outline,
+                          color: CosmoPalette.hull, size: 26),
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ValueListenableBuilder<double>(
-                  valueListenable: game.healthNotifier,
-                  builder: (_, hp, _) => ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: hp,
-                      minHeight: 7,
-                      backgroundColor: CosmoPalette.bgHigh,
-                      valueColor: const AlwaysStoppedAnimation(CosmoPalette.energy),
-                    ),
-                  ),
+                  ],
                 ),
               ),
             ],
           ),
+          const SizedBox(height: GameTokens.space8),
+          // Slim energy bar under the score panel (left-aligned, not full width).
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SizedBox(
+              width: 220,
+              child: ValueListenableBuilder<double>(
+                valueListenable: game.healthNotifier,
+                builder: (_, hp, _) => ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: hp,
+                    minHeight: 6,
+                    backgroundColor: CosmoPalette.bgHigh,
+                    valueColor:
+                        const AlwaysStoppedAnimation(CosmoPalette.energy),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const Spacer(),
+          // Boss bar spans the bottom only while a boss is alive.
           ValueListenableBuilder<double>(
             valueListenable: game.bossHealthNotifier,
             builder: (_, boss, _) {
-              if (boss < 0) return const SizedBox(height: 8);
-              return Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: boss,
-                    minHeight: 9,
-                    backgroundColor: CosmoPalette.bgHigh,
-                    valueColor:
-                        const AlwaysStoppedAnimation(CosmoPalette.hostile),
-                  ),
+              if (boss < 0) return const SizedBox.shrink();
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: boss,
+                  minHeight: 9,
+                  backgroundColor: CosmoPalette.bgHigh,
+                  valueColor:
+                      const AlwaysStoppedAnimation(CosmoPalette.hostile),
                 ),
               );
             },
@@ -310,32 +342,38 @@ class _CenterOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: CosmoPalette.bgDeep.withValues(alpha: 0.82),
+      color: const Color(0xFF05060F).withValues(alpha: 0.86),
       alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: CosmoPalette.hull,
-              fontSize: 34,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 3,
-            ),
-          ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 12),
+      child: GlassPanel(
+        theme: _hudSkin,
+        glow: true,
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             Text(
-              subtitle!,
+              title,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: CosmoPalette.highlight, fontSize: 15),
+              style: const TextStyle(
+                color: CosmoPalette.hull,
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 3,
+              ),
             ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                subtitle!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: CosmoPalette.highlight, fontSize: 15),
+              ),
+            ],
+            const SizedBox(height: 24),
+            ...actions,
           ],
-          const SizedBox(height: 28),
-          ...actions,
-        ],
+        ),
       ),
     );
   }
@@ -357,26 +395,13 @@ class _OverlayButton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: SizedBox(
-        width: 220,
-        child: ElevatedButton(
+        width: 240,
+        child: NeonButton(
+          label: label,
           onPressed: onTap,
-          style: ElevatedButton.styleFrom(
-            backgroundColor:
-                secondary ? CosmoPalette.bgHigh : CosmoPalette.hull,
-            foregroundColor:
-                secondary ? CosmoPalette.highlight : CosmoPalette.bgDeep,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.5,
-            ),
-          ),
+          theme: _hudSkin,
+          variant:
+              secondary ? NeonButtonVariant.outline : NeonButtonVariant.solid,
         ),
       ),
     );
