@@ -152,7 +152,7 @@ class _BattlePassScreenState extends State<BattlePassScreen> {
             }
 
             return Scaffold(
-              bottomNavigationBar: const SnakeBannerAd(),
+              bottomNavigationBar: const ShipBannerAd(),
               body: AppBackground(
                 theme: theme,
                 child: SafeArea(

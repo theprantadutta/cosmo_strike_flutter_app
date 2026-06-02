@@ -58,8 +58,8 @@ class BoardSize {
     20,
     20,
     'Classic',
-    'The original Snake experience',
-    icon: '🐍',
+    'The original Ship experience',
+    icon: '🚀',
   );
   static const BoardSize large = BoardSize(
     25,
@@ -104,7 +104,7 @@ class GameConstants {
   // Available board sizes
   static const List<BoardSize> availableBoardSizes = [
     BoardSize(15, 15, 'Small', 'Quick games, tight spaces', icon: '🎯'),
-    BoardSize(20, 20, 'Classic', 'The original Snake experience', icon: '🐍'),
+    BoardSize(20, 20, 'Classic', 'The original Ship experience', icon: '🚀'),
     BoardSize(25, 25, 'Large', 'More room to grow', icon: '📏'),
     BoardSize(30, 30, 'Huge', 'Maximum challenge and space', icon: '🏟️'),
     // All board sizes are FREE — anyone can pick any size. (The `isPremium`
@@ -206,13 +206,13 @@ class GameConstants {
   // so it ships as the default theme while the swappable theme system stays
   // intact. Amber hull / electric-blue energy / warm-dark backgrounds.
   static const Color classicBackground = Color(0xFF0a0501); // deepest warm dark
-  static const Color classicSnake = Color(0xFFffc14d);      // primary amber hull
+  static const Color classicShip = Color(0xFFffc14d);      // primary amber hull
   static const Color classicFood = Color(0xFF5cc8ff);       // electric-blue energy
   static const Color classicBorder = Color(0xFFff9e2c);     // darker amber accent
 
   // Colors - Modern Theme (Improved Contrast)
   static const Color modernBackground = Color(0xFF1a1a2e);
-  static const Color modernSnake = Color(0xFF4fc3f7); // Bright cyan-blue
+  static const Color modernShip = Color(0xFF4fc3f7); // Bright cyan-blue
   static const Color modernFood = Color(0xFFe94560); // Kept - good contrast
   static const Color modernAccent = Color(
     0xFF64b5f6,
@@ -220,54 +220,54 @@ class GameConstants {
 
   // Colors - Neon Theme (Enhanced)
   static const Color neonBackground = Color(0xFF0a0a0a);
-  static const Color neonSnake = Color(0xFF00ffff); // Electric cyan
+  static const Color neonShip = Color(0xFF00ffff); // Electric cyan
   static const Color neonFood = Color(0xFFff1493); // Deep pink
   static const Color neonGlow = Color(0xFF00ff00); // Pure lime green
 
   // Colors - Retro Theme (80s arcade — bright neon-orange on near-black,
   // intentionally distinct from Desert's earthy palette).
   static const Color retroBackground = Color(0xFF1A0808); // Almost-black with red undertone
-  static const Color retroSnake = Color(0xFFFF6A00); // Bright neon orange
+  static const Color retroShip = Color(0xFFFF6A00); // Bright neon orange
   static const Color retroFood = Color(0xFFFFFF00); // Pure arcade yellow
   static const Color retroAccent = Color(0xFFFF1F4F); // Hot pink — arcade marquee glow
 
   // Colors - Space Theme
   static const Color spaceBackground = Color(0xFF0B0C2A); // Deep space blue
-  static const Color spaceSnake = Color(0xFF9932CC); // Dark orchid
+  static const Color spaceShip = Color(0xFF9932CC); // Dark orchid
   static const Color spaceFood = Color(0xFF00CED1); // Dark turquoise
   static const Color spaceAccent = Color(0xFF4169E1); // Royal blue
 
   // Colors - Ocean Theme
   static const Color oceanBackground = Color(0xFF001B3D); // Deep ocean blue
-  static const Color oceanSnake = Color(0xFF20B2AA); // Light sea green
+  static const Color oceanShip = Color(0xFF20B2AA); // Light sea green
   static const Color oceanFood = Color(0xFFFF7F50); // Coral
   static const Color oceanAccent = Color(0xFF4682B4); // Steel blue
 
   // Colors - Cyberpunk Theme
   static const Color cyberpunkBackground = Color(0xFF0D0221); // Deep midnight purple
-  static const Color cyberpunkSnake = Color(0xFFFF003C); // Neon red/magenta
+  static const Color cyberpunkShip = Color(0xFFFF003C); // Neon red/magenta
   static const Color cyberpunkFood = Color(0xFFFCEE0A); // Electric yellow
   static const Color cyberpunkAccent = Color(0xFFB537F2); // Vivid purple
 
-  // Colors - Forest Theme (rich emerald jungle — vivid green snake on
+  // Colors - Forest Theme (rich emerald jungle — vivid green ship on
   // deep forest, distinct from Classic's pale Game Boy yellow-green).
   static const Color forestBackground = Color(0xFF0D2818); // Dark forest floor
-  static const Color forestSnake = Color(0xFF2ECC71); // Vivid emerald
+  static const Color forestShip = Color(0xFF2ECC71); // Vivid emerald
   static const Color forestFood = Color(0xFFDC143C); // Crimson berry
   static const Color forestAccent = Color(0xFFF1C40F); // Sunlit-canopy gold
 
   // Colors - Desert Theme (Southwestern — terracotta canyon with cactus
   // teal food, intentionally separated from Retro's arcade orange).
   static const Color desertBackground = Color(0xFF3D1F0E); // Warm terracotta canyon
-  static const Color desertSnake = Color(0xFFCD853F); // Peru — sand-rattlesnake brown
+  static const Color desertShip = Color(0xFFCD853F); // Peru — sand-rattleship brown
   static const Color desertFood = Color(0xFF5FCBC9); // Cactus turquoise (prickly pear bloom)
   static const Color desertAccent = Color(0xFFE8B894); // Sun-bleached sandy peach
 
-  // Colors - Crystal Theme (icy prismatic — pale crystalline snake on
+  // Colors - Crystal Theme (icy prismatic — pale crystalline ship on
   // deep amethyst with a rose-quartz food, distinct from Space's cosmic
   // purple-on-navy palette).
   static const Color crystalBackground = Color(0xFF1A0033); // Deep amethyst
-  static const Color crystalSnake = Color(0xFFB0E0E6); // Powder-blue ice crystal
+  static const Color crystalShip = Color(0xFFB0E0E6); // Powder-blue ice crystal
   static const Color crystalFood = Color(0xFFFFB6C1); // Rose quartz pink
   static const Color crystalAccent = Color(0xFFE6E6FA); // Lavender shimmer
 
@@ -360,28 +360,28 @@ enum GameTheme {
     }
   }
 
-  Color get snakeColor {
+  Color get shipColor {
     switch (this) {
       case GameTheme.classic:
-        return GameConstants.classicSnake;
+        return GameConstants.classicShip;
       case GameTheme.modern:
-        return GameConstants.modernSnake;
+        return GameConstants.modernShip;
       case GameTheme.neon:
-        return GameConstants.neonSnake;
+        return GameConstants.neonShip;
       case GameTheme.retro:
-        return GameConstants.retroSnake;
+        return GameConstants.retroShip;
       case GameTheme.space:
-        return GameConstants.spaceSnake;
+        return GameConstants.spaceShip;
       case GameTheme.ocean:
-        return GameConstants.oceanSnake;
+        return GameConstants.oceanShip;
       case GameTheme.cyberpunk:
-        return GameConstants.cyberpunkSnake;
+        return GameConstants.cyberpunkShip;
       case GameTheme.forest:
-        return GameConstants.forestSnake;
+        return GameConstants.forestShip;
       case GameTheme.desert:
-        return GameConstants.desertSnake;
+        return GameConstants.desertShip;
       case GameTheme.crystal:
-        return GameConstants.crystalSnake;
+        return GameConstants.crystalShip;
     }
   }
 
@@ -438,25 +438,25 @@ enum GameTheme {
   Color get primaryColor {
     switch (this) {
       case GameTheme.classic:
-        return GameConstants.classicSnake;
+        return GameConstants.classicShip;
       case GameTheme.modern:
-        return GameConstants.modernSnake;
+        return GameConstants.modernShip;
       case GameTheme.neon:
-        return GameConstants.neonSnake;
+        return GameConstants.neonShip;
       case GameTheme.retro:
-        return GameConstants.retroSnake;
+        return GameConstants.retroShip;
       case GameTheme.space:
-        return GameConstants.spaceSnake;
+        return GameConstants.spaceShip;
       case GameTheme.ocean:
-        return GameConstants.oceanSnake;
+        return GameConstants.oceanShip;
       case GameTheme.cyberpunk:
-        return GameConstants.cyberpunkSnake;
+        return GameConstants.cyberpunkShip;
       case GameTheme.forest:
-        return GameConstants.forestSnake;
+        return GameConstants.forestShip;
       case GameTheme.desert:
-        return GameConstants.desertSnake;
+        return GameConstants.desertShip;
       case GameTheme.crystal:
-        return GameConstants.crystalSnake;
+        return GameConstants.crystalShip;
     }
   }
 
@@ -677,7 +677,7 @@ enum GameMode {
     }
   }
 
-  // PerfectGame rule: the snake's head must never re-enter any cell its
+  // PerfectGame rule: the ship's head must never re-enter any cell its
   // body has previously occupied. The cubit tracks visited cells in a Set
   // and crashes the run when this returns true and the head re-enters one.
   bool get enforcesNoRevisit {

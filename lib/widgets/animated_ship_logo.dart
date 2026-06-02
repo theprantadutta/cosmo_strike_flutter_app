@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 
-class AnimatedSnakeLogo extends StatefulWidget {
+class AnimatedShipLogo extends StatefulWidget {
   final GameTheme theme;
   final AnimationController controller;
   final double size;
   final bool useTextLogo; // New parameter to choose between logos
 
-  const AnimatedSnakeLogo({
+  const AnimatedShipLogo({
     super.key,
     required this.theme,
     required this.controller,
@@ -16,10 +16,10 @@ class AnimatedSnakeLogo extends StatefulWidget {
   });
 
   @override
-  State<AnimatedSnakeLogo> createState() => _AnimatedSnakeLogoState();
+  State<AnimatedShipLogo> createState() => _AnimatedShipLogoState();
 }
 
-class _AnimatedSnakeLogoState extends State<AnimatedSnakeLogo>
+class _AnimatedShipLogoState extends State<AnimatedShipLogo>
     with SingleTickerProviderStateMixin {
   late Animation<double> _scaleAnimation;
   late Animation<double> _pulseAnimation;

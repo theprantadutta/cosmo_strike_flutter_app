@@ -6,14 +6,14 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dar
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/direction.dart';
 
-/// A beautiful game board for multiplayer snake games.
-/// Renders multiple snakes with different colors, food, and effects.
+/// A beautiful game board for multiplayer ship games.
+/// Renders multiple ships with different colors, food, and effects.
 class MultiplayerGameBoard extends StatefulWidget {
   final MultiplayerGame game;
   final String currentUserId;
   final double cellSize;
 
-  /// Snake colors for different players
+  /// Ship colors for different players
   static const List<Color> playerColors = [
     Color(0xFF4CAF50), // Green
     Color(0xFFF44336), // Red
@@ -237,14 +237,14 @@ class _MultiplayerBoardPainter extends CustomPainter {
     // Draw food
     _drawFood(canvas, cellWidth, cellHeight);
 
-    // Draw all snakes
+    // Draw all ships
     for (var player in game.players) {
-      if (player.snake.isNotEmpty) {
+      if (player.ship.isNotEmpty) {
         final color =
             MultiplayerGameBoard.playerColors[player.rank %
                 MultiplayerGameBoard.playerColors.length];
         final isCurrentPlayer = player.userId == currentUserId;
-        _drawSnake(
+        _drawShip(
           canvas,
           player,
           color,
@@ -290,7 +290,7 @@ class _MultiplayerBoardPainter extends CustomPainter {
     );
   }
 
-  void _drawSnake(
+  void _drawShip(
     Canvas canvas,
     MultiplayerPlayer player,
     Color color,
@@ -298,15 +298,15 @@ class _MultiplayerBoardPainter extends CustomPainter {
     double cellHeight,
     bool isCurrentPlayer,
   ) {
-    final snake = player.snake;
-    if (snake.isEmpty) return;
+    final ship = player.ship;
+    if (ship.isEmpty) return;
 
     final isDead = player.status == PlayerStatus.crashed;
     final baseColor = isDead ? Colors.grey : color;
 
     // Draw body segments (from tail to head)
-    for (int i = snake.length - 1; i >= 0; i--) {
-      final segment = snake[i];
+    for (int i = ship.length - 1; i >= 0; i--) {
+      final segment = ship[i];
       final isHead = i == 0;
 
       final centerX = segment.x * cellWidth + cellWidth / 2;
@@ -379,8 +379,8 @@ class _MultiplayerBoardPainter extends CustomPainter {
     }
 
     // Draw player name label above head
-    if (snake.isNotEmpty) {
-      final head = snake.first;
+    if (ship.isNotEmpty) {
+      final head = ship.first;
       final headX = head.x * cellWidth + cellWidth / 2;
       final headY = head.y * cellHeight - 8;
 
@@ -415,7 +415,7 @@ class _MultiplayerBoardPainter extends CustomPainter {
     Offset center,
     Direction direction,
     double headSize,
-    Color snakeColor,
+    Color shipColor,
     bool isDead,
   ) {
     final eyeRadius = headSize * 0.2;
@@ -460,7 +460,7 @@ class _MultiplayerBoardPainter extends CustomPainter {
     canvas.drawCircle(leftEyePos, eyeRadius, eyeWhitePaint);
     canvas.drawCircle(rightEyePos, eyeRadius, eyeWhitePaint);
 
-    // Pupils (X for dead snake)
+    // Pupils (X for dead ship)
     if (isDead) {
       final xPaint = Paint()
         ..color = Colors.black

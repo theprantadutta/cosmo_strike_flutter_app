@@ -5,7 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/models/daily_challenge.dart';
-import 'package:cosmo_strike_flutter_app/models/snake_coins.dart';
+import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
@@ -143,7 +143,7 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
     final allCompleted = challengesState.allCompleted;
 
     return Scaffold(
-      bottomNavigationBar: const SnakeBannerAd(),
+      bottomNavigationBar: const ShipBannerAd(),
       appBar: AppBar(
         title: const Text(
           'Daily Challenges',

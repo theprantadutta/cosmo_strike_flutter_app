@@ -652,7 +652,7 @@ class UnifiedUserService extends ChangeNotifier {
     ];
 
     final nouns = [
-      'Snake',
+      'Ship',
       'Viper',
       'Python',
       'Cobra',

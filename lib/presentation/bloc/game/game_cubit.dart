@@ -14,8 +14,8 @@ import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/models/game_state.dart' as model;
 import 'package:cosmo_strike_flutter_app/models/position.dart';
 import 'package:cosmo_strike_flutter_app/models/power_up.dart';
-import 'package:cosmo_strike_flutter_app/models/snake.dart';
-import 'package:cosmo_strike_flutter_app/models/snake_coins.dart';
+import 'package:cosmo_strike_flutter_app/models/ship.dart';
+import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/models/game_replay.dart' show GameRecorder, GameReplay;
 import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
@@ -85,7 +85,7 @@ class GameCubit extends Cubit<GameCubitState> {
   int _powerUpsCollectedThisGame = 0;
   int _consecutiveGamesWithoutWallHits = 0;
 
-  // PerfectGame mode: every cell the snake's head has ever occupied during
+  // PerfectGame mode: every cell the ship's head has ever occupied during
   // the current run. A second visit ends the run. Reset on game start and
   // Survival respawn; left intact when paused.
   final Set<Position> _visitedCells = {};
@@ -99,7 +99,7 @@ class GameCubit extends Cubit<GameCubitState> {
   // rejections keep the flash visible.
   Timer? _rejectedInputClearTimer;
 
-  // Same pattern for accepted inputs — drives the edge bloom + snake-head
+  // Same pattern for accepted inputs — drives the edge bloom + ship-head
   // intent shimmer. Cancelled on each new acceptance so back-to-back swipes
   // each get a fresh pulse.
   Timer? _acceptedInputClearTimer;
@@ -247,7 +247,7 @@ class GameCubit extends Cubit<GameCubitState> {
     _achievementService.resetLastGameUnlocks();
     _visitedCells
       ..clear()
-      ..addAll(gameState.snake.body);
+      ..addAll(gameState.ship.body);
     _powerUpCountdownLastSecond.clear();
 
     // Daily first game XP
@@ -257,7 +257,7 @@ class GameCubit extends Cubit<GameCubitState> {
     final food = Food.generateRandom(
       gameState.boardWidth,
       gameState.boardHeight,
-      gameState.snake,
+      gameState.ship,
       isPremium: _isPro,
     );
     final List<Food> extraFoods = [];
@@ -267,7 +267,7 @@ class GameCubit extends Cubit<GameCubitState> {
           _generateNonOverlappingFood(
             gameState.boardWidth,
             gameState.boardHeight,
-            gameState.snake,
+            gameState.ship,
             existing: [food, ...extraFoods],
           ),
         );
@@ -284,7 +284,7 @@ class GameCubit extends Cubit<GameCubitState> {
     );
 
     debugPrint(
-      '🎮 [GameCubit] Emitting new state: status=${newState.status}, gameState.snake.length=${newState.gameState?.snake.length}',
+      '🎮 [GameCubit] Emitting new state: status=${newState.status}, gameState.ship.length=${newState.gameState?.ship.length}',
     );
     emit(newState);
     debugPrint(
@@ -292,7 +292,7 @@ class GameCubit extends Cubit<GameCubitState> {
     );
 
     // Brief "Ready" beat before the first tick fires so the player gets a
-    // moment to focus on the snake's starting position. Reuses the
+    // moment to focus on the ship's starting position. Reuses the
     // level-up slowdown plumbing — set the deadline 500ms out and
     // _scheduleNextGameTick will stretch the very first tick by 1.5x.
     // Auto-clears once the window passes.
@@ -545,15 +545,15 @@ class GameCubit extends Cubit<GameCubitState> {
     }
   }
 
-  /// Change snake direction
+  /// Change ship direction
   void changeDirection(Direction newDirection) {
     if (state.status != GamePlayStatus.playing) return;
     if (state.gameState == null) return;
 
-    final accepted = state.gameState!.snake.changeDirection(newDirection);
+    final accepted = state.gameState!.ship.changeDirection(newDirection);
     if (accepted) {
       HapticFeedback.selectionClick();
-      // Emit timestamp + direction so the edge bloom and snake-head intent
+      // Emit timestamp + direction so the edge bloom and ship-head intent
       // shimmer can fire. Clears after 300ms.
       final stamp = DateTime.now();
       emit(state.copyWith(
@@ -731,12 +731,12 @@ class GameCubit extends Cubit<GameCubitState> {
 
     if (_updateCount <= 5 || _updateCount % 50 == 0) {
       debugPrint(
-        '🎮 [GameCubit] _updateGame #$_updateCount running, snake at ${state.gameState!.snake.head}',
+        '🎮 [GameCubit] _updateGame #$_updateCount running, ship at ${state.gameState!.ship.head}',
       );
     }
 
     final previousState = state.gameState!;
-    final snake = previousState.snake.copy();
+    final ship = previousState.ship.copy();
     final isMultiFood = previousState.gameMode.hasMultipleFood;
 
     // Check for expired food
@@ -745,7 +745,7 @@ class GameCubit extends Cubit<GameCubitState> {
       currentFood = Food.generateRandom(
         previousState.boardWidth,
         previousState.boardHeight,
-        snake,
+        ship,
         isPremium: _isPro,
       );
     }
@@ -759,7 +759,7 @@ class GameCubit extends Cubit<GameCubitState> {
           extraFoods[i] = _generateNonOverlappingFood(
             previousState.boardWidth,
             previousState.boardHeight,
-            snake,
+            ship,
             existing: [
               ?currentFood,
               ...extraFoods.where((f) => f != extraFoods[i]),
@@ -778,7 +778,7 @@ class GameCubit extends Cubit<GameCubitState> {
     }
 
     // Check collisions before moving
-    final nextHeadPosition = snake.head.move(snake.currentDirection);
+    final nextHeadPosition = ship.head.move(ship.currentDirection);
     final willEatPrimaryFood =
         currentFood != null &&
         nextHeadPosition == currentFood.position;
@@ -796,23 +796,23 @@ class GameCubit extends Cubit<GameCubitState> {
     final willEatFood = willEatPrimaryFood || eatenExtraIndex >= 0;
 
     // Check power-up collision: both current position AND next position
-    // This ensures we don't miss collection if snake spawned on or passed through
+    // This ensures we don't miss collection if ship spawned on or passed through
     final willCollectPowerUp =
         currentPowerUp != null &&
         (nextHeadPosition == currentPowerUp.position ||
-         snake.head == currentPowerUp.position);
+         ship.head == currentPowerUp.position);
 
     // Debug logging for power-up collision detection (throttled to avoid perf impact)
     if (currentPowerUp != null && (_updateCount <= 5 || _updateCount % 100 == 0)) {
       debugPrint('🎯 Power-up at: ${currentPowerUp.position} (type: ${currentPowerUp.type.name})');
-      debugPrint('🐍 Snake head: ${snake.head}, next: $nextHeadPosition');
+      debugPrint('🚀 Ship head: ${ship.head}, next: $nextHeadPosition');
       debugPrint('✅ Will collect power-up: $willCollectPowerUp');
     }
 
     // Immunity (invincibility power-up OR the post-revive grace OR ghost mode)
     // also bypasses the outer walls — the collision check below skips wall
-    // death while it's active. But bypassing the wall is only safe if the snake
-    // actually STAYS on the board: with wrapAround off, an immune snake driven
+    // death while it's active. But bypassing the wall is only safe if the ship
+    // actually STAYS on the board: with wrapAround off, an immune ship driven
     // into a wall walks out of bounds invisibly and then dies the instant
     // immunity ends. So while immune we wrap it to the opposite edge (same as
     // no-wall modes) — it re-enters the board and keeps moving instead of
@@ -820,8 +820,8 @@ class GameCubit extends Cubit<GameCubitState> {
     final hasImmunity =
         previousState.hasInvincibility || previousState.hasGhostMode;
 
-    // Move snake
-    snake.move(
+    // Move ship
+    ship.move(
       ateFood: willEatFood,
       boardWidth: previousState.boardWidth,
       boardHeight: previousState.boardHeight,
@@ -832,11 +832,11 @@ class GameCubit extends Cubit<GameCubitState> {
     final wallCollision =
         !hasImmunity &&
         previousState.gameMode.hasWalls &&
-        snake.checkWallCollision(
+        ship.checkWallCollision(
           previousState.boardWidth,
           previousState.boardHeight,
         );
-    final selfCollision = !hasImmunity && snake.checkSelfCollision();
+    final selfCollision = !hasImmunity && ship.checkSelfCollision();
 
     if (wallCollision || selfCollision) {
       final crashReason = wallCollision
@@ -846,34 +846,34 @@ class GameCubit extends Cubit<GameCubitState> {
       // Get collision body part for self-collision feedback
       Position? collisionBodyPart;
       if (selfCollision) {
-        collisionBodyPart = snake.getSelfCollisionBodyPart();
+        collisionBodyPart = ship.getSelfCollisionBodyPart();
       }
 
       _handleCrash(
         crashReason,
-        snake.head,
+        ship.head,
         collisionBodyPart: collisionBodyPart,
-        fatalSnake: snake,
+        fatalShip: ship,
       );
       return;
     }
 
     // PerfectGame: head re-entering a previously-visited cell is fatal,
     // regardless of food/immunity. Skip if this tick the head landed on a
-    // cell that is currently part of the snake's body — that case is already
+    // cell that is currently part of the ship's body — that case is already
     // caught by the self-collision branch above, so any revisit reaching this
     // point is a true trail-cross.
     if (previousState.gameMode.enforcesNoRevisit &&
         !hasImmunity &&
-        _visitedCells.contains(snake.head)) {
+        _visitedCells.contains(ship.head)) {
       _handleCrash(
         model.CrashReason.selfCollision,
-        snake.head,
-        fatalSnake: snake,
+        ship.head,
+        fatalShip: ship,
       );
       return;
     }
-    _visitedCells.add(snake.head);
+    _visitedCells.add(ship.head);
 
     // Handle food consumption
     var newScore = previousState.score;
@@ -960,14 +960,14 @@ class GameCubit extends Cubit<GameCubitState> {
         currentFood = _generateNonOverlappingFood(
           previousState.boardWidth,
           previousState.boardHeight,
-          snake,
+          ship,
           existing: extraFoods,
         );
       } else {
         extraFoods[eatenExtraIndex] = _generateNonOverlappingFood(
           previousState.boardWidth,
           previousState.boardHeight,
-          snake,
+          ship,
           existing: [
             ?currentFood,
             ...extraFoods.where((f) => f != extraFoods[eatenExtraIndex]),
@@ -986,7 +986,7 @@ class GameCubit extends Cubit<GameCubitState> {
     // Power-up countdown haptic: fire once when each active power-up's
     // remaining time first dips below 3s, 2s, and 1s. Visual flash already
     // pulses in the last 3 seconds (game_hud.dart:758) — this adds a felt
-    // cue so a player whose eyes are on the snake still gets the warning.
+    // cue so a player whose eyes are on the ship still gets the warning.
     for (final p in activePowerUps) {
       final remainingMs = p.remainingTime.inMilliseconds;
       if (remainingMs <= 0 || remainingMs > 3000) continue;
@@ -1048,7 +1048,7 @@ class GameCubit extends Cubit<GameCubitState> {
         : const <Position>{};
 
     final newGameState = previousState.copyWith(
-      snake: snake,
+      ship: ship,
       food: currentFood,
       foods: extraFoods,
       powerUp: currentPowerUp,
@@ -1071,7 +1071,7 @@ class GameCubit extends Cubit<GameCubitState> {
 
     if (_updateCount <= 5) {
       debugPrint(
-        '🎮 [GameCubit] _updateGame #$_updateCount emitting: snake moved to ${snake.head}',
+        '🎮 [GameCubit] _updateGame #$_updateCount emitting: ship moved to ${ship.head}',
       );
     }
 
@@ -1082,7 +1082,7 @@ class GameCubit extends Cubit<GameCubitState> {
     // so speed changes from level-ups apply immediately without a pause.
 
     _recordFrame(
-      snake,
+      ship,
       currentFood,
       currentPowerUp,
       newGameState,
@@ -1092,7 +1092,7 @@ class GameCubit extends Cubit<GameCubitState> {
   }
 
   void _recordFrame(
-    Snake snake,
+    Ship ship,
     Food? food,
     PowerUp? powerUp,
     model.GameState gameState,
@@ -1106,13 +1106,13 @@ class GameCubit extends Cubit<GameCubitState> {
       event = {'type': 'power_up_collected', 'powerUpType': powerUp?.type.name};
     }
 
-    final snakePositions = <List<int>>[];
-    for (final pos in snake.body) {
-      snakePositions.add(<int>[pos.x, pos.y]);
+    final shipPositions = <List<int>>[];
+    for (final pos in ship.body) {
+      shipPositions.add(<int>[pos.x, pos.y]);
     }
 
     _gameRecorder.recordFrame(
-      snakePositions: snakePositions,
+      shipPositions: shipPositions,
       foodPosition: food != null
           ? <int>[food.position.x, food.position.y]
           : null,
@@ -1122,20 +1122,20 @@ class GameCubit extends Cubit<GameCubitState> {
       powerUpType: powerUp?.type.name,
       score: gameState.score,
       level: gameState.level,
-      direction: snake.currentDirection.name,
+      direction: ship.currentDirection.name,
       activePowerUps: gameState.activePowerUps.map((p) => p.type.name).toList(),
       gameEvent: event,
     );
   }
 
-  /// Generate a Food whose position doesn't overlap the snake, any of the
+  /// Generate a Food whose position doesn't overlap the ship, any of the
   /// already-placed foods, or the active power-up. Used by MultiFood mode so
   /// the simultaneous foods don't stack onto the same cell or land on a
   /// power-up that the player would then "eat" instead of collect.
   Food _generateNonOverlappingFood(
     int boardWidth,
     int boardHeight,
-    Snake snake, {
+    Ship ship, {
     Iterable<Food> existing = const [],
   }) {
     final taken = <Position>{
@@ -1149,7 +1149,7 @@ class GameCubit extends Cubit<GameCubitState> {
       final candidate = Food.generateRandom(
         boardWidth,
         boardHeight,
-        snake,
+        ship,
         isPremium: _isPro,
       );
       if (!taken.contains(candidate.position)) {
@@ -1159,7 +1159,7 @@ class GameCubit extends Cubit<GameCubitState> {
     return Food.generateRandom(
       boardWidth,
       boardHeight,
-      snake,
+      ship,
       isPremium: _isPro,
     );
   }
@@ -1183,7 +1183,7 @@ class GameCubit extends Cubit<GameCubitState> {
       final powerUp = PowerUp.generateRandom(
         current.boardWidth,
         current.boardHeight,
-        current.snake,
+        current.ship,
         foodPosition: current.food?.position,
         foodPositions: current.foods.map((f) => f.position),
       );
@@ -1198,7 +1198,7 @@ class GameCubit extends Cubit<GameCubitState> {
     }
   }
 
-  /// Survival-mode respawn: rebuild snake at spawn, regenerate food, keep
+  /// Survival-mode respawn: rebuild ship at spawn, regenerate food, keep
   /// the current score and level, and decrement livesRemaining by one.
   /// Plays a softer "crash" cue rather than the full game-over flow.
   void _respawnAfterCrash(model.GameState current) {
@@ -1206,16 +1206,16 @@ class GameCubit extends Cubit<GameCubitState> {
     _enhancedAudioService.playSfx('game_over', volume: 0.6);
     HapticFeedback.heavyImpact();
 
-    final newSnake = Snake.initial();
+    final newShip = Ship.initial();
     // PerfectGame respawns get a fresh visited-cell map; the rule applies
     // per-life rather than across the whole run.
     _visitedCells
       ..clear()
-      ..addAll(newSnake.body);
+      ..addAll(newShip.body);
     final newFood = Food.generateRandom(
       current.boardWidth,
       current.boardHeight,
-      newSnake,
+      newShip,
       isPremium: _isPro,
     );
     // Re-seed extras list if the active mode wants multiple simultaneous foods.
@@ -1226,7 +1226,7 @@ class GameCubit extends Cubit<GameCubitState> {
           _generateNonOverlappingFood(
             current.boardWidth,
             current.boardHeight,
-            newSnake,
+            newShip,
             existing: [newFood, ...extras],
           ),
         );
@@ -1236,7 +1236,7 @@ class GameCubit extends Cubit<GameCubitState> {
     emit(
       state.copyWith(
         gameState: current.copyWith(
-          snake: newSnake,
+          ship: newShip,
           food: newFood,
           foods: extras,
           activePowerUps: const [],
@@ -1263,7 +1263,7 @@ class GameCubit extends Cubit<GameCubitState> {
     model.CrashReason reason,
     Position? crashPosition, {
     Position? collisionBodyPart,
-    Snake? fatalSnake,
+    Ship? fatalShip,
   }) {
     debugPrint(
       '🎮 [GameCubit] _handleCrash called: reason=$reason, crashPosition=$crashPosition',
@@ -1291,13 +1291,13 @@ class GameCubit extends Cubit<GameCubitState> {
       return;
     }
 
-    // Crash render: we commit the FATAL snake ([fatalSnake], head on the cell
-    // it died on — into the wall / onto its body) as the crash-frame snake, and
+    // Crash render: we commit the FATAL ship ([fatalShip], head on the cell
+    // it died on — into the wall / onto its body) as the crash-frame ship, and
     // pin previousGameState to the pre-move state (head on the last valid cell).
     // The board interpolates the head from previousGameState → gameState, so it
     // gets a clean one-cell delta to lunge across; the board plays that as a
     // short one-shot "lunge into the wall" on crash (see GameBoard's crash
-    // lunge controller). Without committing the fatal snake the head would stay
+    // lunge controller). Without committing the fatal ship the head would stay
     // a cell back from where it died.
     final preMoveState = currentGameState;
 
@@ -1336,7 +1336,7 @@ class GameCubit extends Cubit<GameCubitState> {
           state.copyWith(
             status: GamePlayStatus.crashed,
             gameState: state.gameState?.copyWith(
-              snake: fatalSnake,
+              ship: fatalShip,
               status: model.GameStatus.crashed,
               crashReason: reason,
               crashPosition: crashPosition,
@@ -1358,7 +1358,7 @@ class GameCubit extends Cubit<GameCubitState> {
     // Skip mode: go directly to game over with minimal feedback
     if (durationSeconds == GameConstants.crashFeedbackSkip) {
       final crashedGameState = state.gameState?.copyWith(
-        snake: fatalSnake,
+        ship: fatalShip,
         status: model.GameStatus.crashed,
         crashReason: reason,
         crashPosition: crashPosition,
@@ -1385,7 +1385,7 @@ class GameCubit extends Cubit<GameCubitState> {
 
     // First show crash feedback with reason and position details (visual only)
     final crashedGameState = state.gameState?.copyWith(
-      snake: fatalSnake,
+      ship: fatalShip,
       status: model.GameStatus.crashed,
       crashReason: reason,
       crashPosition: crashPosition,
@@ -1439,12 +1439,12 @@ class GameCubit extends Cubit<GameCubitState> {
   }
 
   /// Continue the current run after a crash — this is a true "revive", not a
-  /// restart. The snake the player crashed with is KEPT as-is (same length,
-  /// same score/level/combo/food/power-ups). The crash FRAME's snake is the
-  /// fatal snake (head lunged into the wall / onto its body, possibly out of
+  /// restart. The ship the player crashed with is KEPT as-is (same length,
+  /// same score/level/combo/food/power-ups). The crash FRAME's ship is the
+  /// fatal ship (head lunged into the wall / onto its body, possibly out of
   /// bounds) used only for the death animation — so we revive from the
-  /// pre-crash snake we pinned into `previousGameState`, which is the last
-  /// valid in-bounds snake.
+  /// pre-crash ship we pinned into `previousGameState`, which is the last
+  /// valid in-bounds ship.
   ///
   /// The only thing we change is the heading — it's still pointed at the wall
   /// / its own body that killed it, so without turning it the next tick would
@@ -1458,14 +1458,14 @@ class GameCubit extends Cubit<GameCubitState> {
     if (current == null || _revivedThisGame) return;
     _revivedThisGame = true;
 
-    // Restore the last valid (in-bounds) snake from the pinned pre-crash state,
-    // not the fatal crash-frame snake; only steer it somewhere safe to continue.
+    // Restore the last valid (in-bounds) ship from the pinned pre-crash state,
+    // not the fatal crash-frame ship; only steer it somewhere safe to continue.
     final preCrash = state.previousGameState ?? current;
-    final snake = preCrash.snake.copy();
-    final safeDir = _safeReviveDirection(snake, current);
-    final revivedSnake = safeDir != null
-        ? Snake.fromPositions(snake.body, safeDir)
-        : snake;
+    final ship = preCrash.ship.copy();
+    final safeDir = _safeReviveDirection(ship, current);
+    final revivedShip = safeDir != null
+        ? Ship.fromPositions(ship.body, safeDir)
+        : ship;
 
     // 3-second invincibility grace so the immediate surroundings (and the
     // wall/body it just hit) can't re-kill before the player reacts.
@@ -1479,7 +1479,7 @@ class GameCubit extends Cubit<GameCubitState> {
         status: GamePlayStatus.playing,
         offeringRevive: false,
         gameState: current.copyWith(
-          snake: revivedSnake,
+          ship: revivedShip,
           activePowerUps: [...current.activePowerUps, grace],
           status: model.GameStatus.playing,
           crashReason: null,
@@ -1502,12 +1502,12 @@ class GameCubit extends Cubit<GameCubitState> {
 
   /// Pick a direction to continue in after a revive that won't immediately
   /// re-crash: prefer a heading whose next cell is in-bounds and not part of
-  /// the snake's body, and never a 180° reverse into the neck. Returns null
-  /// if the snake is fully boxed in (the invincibility grace then covers it).
-  Direction? _safeReviveDirection(Snake snake, model.GameState gs) {
-    final head = snake.head;
-    final body = snake.body.toSet();
-    final reverse = snake.currentDirection.opposite;
+  /// the ship's body, and never a 180° reverse into the neck. Returns null
+  /// if the ship is fully boxed in (the invincibility grace then covers it).
+  Direction? _safeReviveDirection(Ship ship, model.GameState gs) {
+    final head = ship.head;
+    final body = ship.body.toSet();
+    final reverse = ship.currentDirection.opposite;
     for (final dir in Direction.values) {
       if (dir == reverse) continue; // can't flip straight back into the body
       final next = head.move(dir);
@@ -1586,7 +1586,7 @@ class GameCubit extends Cubit<GameCubitState> {
     // gameModeFilter and difficultyFilter (if set) match the finished
     // game. GamesInMode / GamesInDifficulty rows stay server-only because
     // the client doesn't track per-mode game counts. Special achievements
-    // (combo / snake length / no-wall etc.) are always client-only.
+    // (combo / ship length / no-wall etc.) are always client-only.
     //
     // The post-sync diff in _updateAchievementsFromBackend still catches
     // any server-only unlocks (cumulative tallies, GamesInMode totals)
@@ -1615,7 +1615,7 @@ class GameCubit extends Cubit<GameCubitState> {
       foodTypesEaten: _foodTypesEatenThisGame,
       noWallGames: _consecutiveGamesWithoutWallHits,
       maxCombo: gameState.maxCombo,
-      snakeLength: gameState.snake.body.length,
+      shipLength: gameState.ship.body.length,
       gameEndTime: DateTime.now(),
     );
 
@@ -1695,7 +1695,7 @@ class GameCubit extends Cubit<GameCubitState> {
           id: Value(replay.id),
           name: Value(replay.playerName),
           score: Value(replay.finalScore),
-          snakeLength: Value(gameState.snake.length),
+          shipLength: Value(gameState.ship.length),
           gameDurationSeconds: Value(replay.gameTimeSeconds),
           gameMode: Value(replay.gameMode),
           boardSize: Value('${gameState.boardWidth}x${gameState.boardHeight}'),

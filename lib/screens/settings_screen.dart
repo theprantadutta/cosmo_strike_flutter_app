@@ -200,7 +200,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       final theme = themeState.currentTheme;
 
                     return Scaffold(
-                      bottomNavigationBar: const SnakeBannerAd(),
+                      bottomNavigationBar: const ShipBannerAd(),
                       extendBodyBehindAppBar: true,
                       appBar: AppBar(
                         title: Text(
@@ -612,7 +612,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: theme.snakeColor,
+                      color: theme.shipColor,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -2088,10 +2088,10 @@ class _BoardSizePainter extends CustomPainter {
       }
     }
 
-    // Draw a small snake representation
-    final snakePaint = Paint()..color = theme.snakeColor;
+    // Draw a small ship representation
+    final shipPaint = Paint()..color = theme.shipColor;
     final center = Offset(size.width / 2, size.height / 2);
-    canvas.drawCircle(center, 2, snakePaint);
+    canvas.drawCircle(center, 2, shipPaint);
   }
 
   @override

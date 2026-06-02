@@ -53,7 +53,7 @@ class _AchievementsScreenState extends State<AchievementsScreen>
 
   Widget _buildContent(BuildContext context, GameTheme theme) {
     return Scaffold(
-      bottomNavigationBar: const SnakeBannerAd(),
+      bottomNavigationBar: const ShipBannerAd(),
       appBar: AppBar(
         title: const Text(
           'Achievements',

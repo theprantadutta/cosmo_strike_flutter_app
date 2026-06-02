@@ -41,24 +41,24 @@ class ProductIds {
   static const String forestTheme = '${prefix}forest_theme';
   static const String themesBundle = '${prefix}premium_themes_bundle';
 
-  // Snake Coins (Consumable)
+  // Ship Coins (Consumable)
   static const String coinPackSmall = '${prefix}coin_pack_small';
   static const String coinPackMedium = '${prefix}coin_pack_medium';
   static const String coinPackLarge = '${prefix}coin_pack_large';
   static const String coinPackMega = '${prefix}coin_pack_mega';
 
-  // Snake Skins (store IDs use skin_ category prefix)
-  static const String goldenSnake = '${prefix}skin_golden';
-  static const String rainbowSnake = '${prefix}skin_rainbow';
-  static const String galaxySnake = '${prefix}skin_galaxy';
-  static const String dragonSnake = '${prefix}skin_dragon';
-  static const String electricSnake = '${prefix}skin_electric';
-  static const String fireSnake = '${prefix}skin_fire';
-  static const String iceSnake = '${prefix}skin_ice';
-  static const String shadowSnake = '${prefix}skin_shadow';
-  static const String neonSnake = '${prefix}skin_neon';
-  static const String crystalSnake = '${prefix}skin_crystal';
-  static const String cosmicSnake = '${prefix}skin_cosmic';
+  // Ship Skins (store IDs use skin_ category prefix)
+  static const String goldenShip = '${prefix}skin_golden';
+  static const String rainbowShip = '${prefix}skin_rainbow';
+  static const String galaxyShip = '${prefix}skin_galaxy';
+  static const String dragonShip = '${prefix}skin_dragon';
+  static const String electricShip = '${prefix}skin_electric';
+  static const String fireShip = '${prefix}skin_fire';
+  static const String iceShip = '${prefix}skin_ice';
+  static const String shadowShip = '${prefix}skin_shadow';
+  static const String neonShip = '${prefix}skin_neon';
+  static const String crystalShip = '${prefix}skin_crystal';
+  static const String cosmicShip = '${prefix}skin_cosmic';
 
   // Trail Effects
   static const String particleTrail = '${prefix}trail_particle';
@@ -101,9 +101,9 @@ class ProductIds {
     oceanTheme, desertTheme, forestTheme, themesBundle,
     // Coins (4)
     coinPackSmall, coinPackMedium, coinPackLarge, coinPackMega,
-    // Snake skins (11)
-    goldenSnake, rainbowSnake, galaxySnake, dragonSnake, electricSnake,
-    fireSnake, iceSnake, shadowSnake, neonSnake, crystalSnake, cosmicSnake,
+    // Ship skins (11)
+    goldenShip, rainbowShip, galaxyShip, dragonShip, electricShip,
+    fireShip, iceShip, shadowShip, neonShip, crystalShip, cosmicShip,
     // Trail effects (11)
     particleTrail, glowTrail, rainbowTrail, fireTrail, electricTrail, starTrail,
     cosmicTrail, neonTrail, shadowTrail, crystalTrail, dragonTrail,

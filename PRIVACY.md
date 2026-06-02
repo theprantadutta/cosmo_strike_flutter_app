@@ -313,11 +313,11 @@ We may update this Privacy Policy periodically to reflect changes in our practic
 If you have questions, concerns, or requests regarding this Privacy Policy or our privacy practices:
 
 **Primary Contact:**
-- **Email:** privacy@cosmostrike.pranta.dev
+- **Email:** prantadutta1997@gmail.com
 - **In-App:** Use the "Contact Support" feature in Settings
 
 **Data Protection Officer (for GDPR inquiries):**
-- **Email:** dpo@cosmostrike.pranta.dev
+- **Email:** prantadutta1997@gmail.com
 
 **Mailing Address:**
 [Company Address]

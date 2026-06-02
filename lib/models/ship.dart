@@ -1,7 +1,7 @@
 import 'package:cosmo_strike_flutter_app/models/position.dart';
 import 'package:cosmo_strike_flutter_app/utils/direction.dart';
 
-class Snake {
+class Ship {
   List<Position> body;
   Direction currentDirection;
 
@@ -12,15 +12,15 @@ class Snake {
   // Flag to track if a direction change has been queued this tick
   bool _hasQueuedDirection = false;
 
-  Snake({required this.body, this.currentDirection = Direction.right})
+  Ship({required this.body, this.currentDirection = Direction.right})
     : _lastCommittedDirection = Direction.right;
 
   Position get head => body.first;
   Position get tail => body.last;
   int get length => body.length;
 
-  factory Snake.initial() {
-    return Snake(
+  factory Ship.initial() {
+    return Ship(
       body: [
         const Position(4, 10),
         const Position(3, 10),
@@ -30,18 +30,18 @@ class Snake {
     );
   }
 
-  /// Creates a Snake from a list of positions and direction
-  /// Used for converting multiplayer player data to single-player Snake model
-  factory Snake.fromPositions(List<Position> positions, Direction direction) {
+  /// Creates a Ship from a list of positions and direction
+  /// Used for converting multiplayer player data to single-player Ship model
+  factory Ship.fromPositions(List<Position> positions, Direction direction) {
     if (positions.isEmpty) {
-      return Snake.initial();
+      return Ship.initial();
     }
-    final snake = Snake(
+    final ship = Ship(
       body: List<Position>.from(positions),
       currentDirection: direction,
     );
-    snake._lastCommittedDirection = direction;
-    return snake;
+    ship._lastCommittedDirection = direction;
+    return ship;
   }
 
   void move({
@@ -90,7 +90,7 @@ class Snake {
   /// Queues a direction change for the next tick. Returns `true` when the
   /// input is accepted, `false` when it is rejected — either because a
   /// direction is already queued this tick or because the requested move
-  /// would reverse the snake into itself. Callers use the return value to
+  /// would reverse the ship into itself. Callers use the return value to
   /// surface "denied" feedback (haptic + red flash on the gesture indicator).
   bool changeDirection(Direction newDirection) {
     // Only allow ONE direction change per game tick
@@ -131,8 +131,8 @@ class Snake {
     return body.contains(position);
   }
 
-  Snake copy() {
-    final copied = Snake(
+  Ship copy() {
+    final copied = Ship(
       body: List<Position>.from(body),
       currentDirection: currentDirection,
     );

@@ -304,11 +304,11 @@ class TransitionEffectPainter extends CustomPainter {
       // Particle color transition
       paint.color =
           Color.lerp(
-            fromTheme.snakeColor,
-            toTheme.snakeColor,
+            fromTheme.shipColor,
+            toTheme.shipColor,
             particleProgress,
           )?.withValues(alpha: particleProgress) ??
-          toTheme.snakeColor.withValues(alpha: particleProgress);
+          toTheme.shipColor.withValues(alpha: particleProgress);
 
       final particleSize = (math.sin(particleProgress * math.pi) * 6).clamp(
         1.0,
@@ -379,8 +379,8 @@ class TransitionEffectPainter extends CustomPainter {
 
     // Color gradient along spiral
     paint.color =
-        Color.lerp(fromTheme.snakeColor, toTheme.snakeColor, progress) ??
-        toTheme.snakeColor;
+        Color.lerp(fromTheme.shipColor, toTheme.shipColor, progress) ??
+        toTheme.shipColor;
 
     canvas.drawPath(path, paint);
   }

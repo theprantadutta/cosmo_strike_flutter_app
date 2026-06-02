@@ -422,7 +422,7 @@ class NotificationService {
 
   Future<void> showDailyReminderNotification() async {
     await _showLocalNotification(
-      title: '🐍 Time to play Cosmo Strike!',
+      title: '🚀 Time to play Cosmo Strike!',
       body: 'Complete your daily challenge and climb the leaderboard!',
       type: NotificationType.dailyReminder,
       payload: jsonEncode({'route': 'home'}),
@@ -726,7 +726,7 @@ class NotificationService {
   Future<void> sendTestLocalNotification() async {
     AppLogger.info('🧪 Firing test local notification');
     await _showLocalNotification(
-      title: '🐍 Cosmo Strike Test',
+      title: '🚀 Cosmo Strike Test',
       body: 'If you see this, local notifications work end-to-end.',
       payload: jsonEncode({'route': 'home', 'source': 'test'}),
     );

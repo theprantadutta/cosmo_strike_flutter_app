@@ -92,7 +92,7 @@ class MultiplayerService {
   Future<void> sendPlayerAction(MultiplayerGameAction action) async {}
 
   Future<void> updatePlayerGameState({
-    required List<Position> snake,
+    required List<Position> ship,
     required int score,
     required PlayerStatus status,
   }) async {}
@@ -121,9 +121,9 @@ class MultiplayerService {
 
   Future<void> checkGameEnd() async {}
 
-  /// Pre-game snake spawn — pure geometry, kept because the game
+  /// Pre-game ship spawn — pure geometry, kept because the game
   /// engine may still call it. Doesn't touch the network.
-  List<Position> generateInitialSnakePosition(int playerIndex, int boardSize) {
+  List<Position> generateInitialShipPosition(int playerIndex, int boardSize) {
     final centerY = boardSize ~/ 2;
     final spacingY = boardSize ~/ 4;
     final y = (centerY + (playerIndex - 1) * spacingY).clamp(2, boardSize - 3);

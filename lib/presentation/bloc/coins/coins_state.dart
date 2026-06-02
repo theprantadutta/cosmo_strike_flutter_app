@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:cosmo_strike_flutter_app/models/snake_coins.dart';
+import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 
 /// Status of the coins cubit
 enum CoinsStatus { initial, loading, ready, error }

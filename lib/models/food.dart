@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:cosmo_strike_flutter_app/models/position.dart';
-import 'package:cosmo_strike_flutter_app/models/snake.dart';
+import 'package:cosmo_strike_flutter_app/models/ship.dart';
 
 enum FoodType {
   normal,
@@ -33,7 +33,7 @@ class Food {
   static Position generateRandomPosition(
     int boardWidth,
     int boardHeight,
-    Snake snake,
+    Ship ship,
   ) {
     final random = Random();
     // Bounded retry mirrors PowerUp.generateRandom — on a near-full late-game
@@ -44,14 +44,14 @@ class Food {
         random.nextInt(boardWidth),
         random.nextInt(boardHeight),
       );
-      if (!snake.occupiesPosition(candidate)) {
+      if (!ship.occupiesPosition(candidate)) {
         return candidate;
       }
     }
     for (var x = 0; x < boardWidth; x++) {
       for (var y = 0; y < boardHeight; y++) {
         final fallback = Position(x, y);
-        if (!snake.occupiesPosition(fallback)) {
+        if (!ship.occupiesPosition(fallback)) {
           return fallback;
         }
       }
@@ -62,10 +62,10 @@ class Food {
   static Food generateRandom(
     int boardWidth,
     int boardHeight,
-    Snake snake, {
+    Ship ship, {
     bool isPremium = false,
   }) {
-    final position = generateRandomPosition(boardWidth, boardHeight, snake);
+    final position = generateRandomPosition(boardWidth, boardHeight, ship);
     final random = Random();
 
     FoodType type = FoodType.normal;

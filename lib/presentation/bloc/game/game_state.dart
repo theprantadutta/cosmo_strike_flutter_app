@@ -24,9 +24,9 @@ class GameCubitState extends Equatable {
   /// cubit so the flash doesn't linger.
   final DateTime? lastRejectedInputAt;
   /// Timestamp + direction of the last accepted direction input. Drives the
-  /// edge-bloom pulse (250ms) and the snake-head intent shimmer (~100ms)
+  /// edge-bloom pulse (250ms) and the ship-head intent shimmer (~100ms)
   /// so the player gets a glance-level "did it register?" answer before
-  /// the next tick actually turns the snake. Cleared by a Timer in the
+  /// the next tick actually turns the ship. Cleared by a Timer in the
   /// cubit so neither layer lingers.
   final DateTime? lastAcceptedInputAt;
   final Direction? lastAcceptedDirection;
@@ -132,11 +132,11 @@ class GameCubitState extends Equatable {
   /// Current level
   int get level => gameState?.level ?? 1;
 
-  /// Snake body positions
-  List<Position> get snakeBody => gameState?.snake.body ?? [];
+  /// Ship body positions
+  List<Position> get shipBody => gameState?.ship.body ?? [];
 
-  /// Snake head position
-  Position? get snakeHead => gameState?.snake.head;
+  /// Ship head position
+  Position? get shipHead => gameState?.ship.head;
 
   /// Current food
   Food? get food => gameState?.food;

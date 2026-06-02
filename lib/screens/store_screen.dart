@@ -6,7 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_cosmetics.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_power_up.dart';
-import 'package:cosmo_strike_flutter_app/models/snake_coins.dart';
+import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/rewarded_coins_button.dart';
@@ -88,7 +88,7 @@ class _StoreScreenState extends State<StoreScreen>
               builder: (context, coinsState) {
                 final theme = themeState.currentTheme;
                 return Scaffold(
-                  bottomNavigationBar: const SnakeBannerAd(),
+                  bottomNavigationBar: const ShipBannerAd(),
                   extendBodyBehindAppBar: true,
                   appBar: AppBar(
                     title: const Text(
@@ -1855,14 +1855,14 @@ class _StoreScreenState extends State<StoreScreen>
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               // Match the Trails tab aspect ratio so the painted preview
-              // band has room to render the snake silhouette + signature.
+              // band has room to render the ship silhouette + signature.
               childAspectRatio: 0.78,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
             ),
-            itemCount: SnakeSkinType.values.length,
+            itemCount: ShipSkinType.values.length,
       itemBuilder: (context, index) {
-        final skin = SnakeSkinType.values[index];
+        final skin = ShipSkinType.values[index];
         // Pro subscription unlocks all premium skins (mirrors theme bundling).
         final isUnlocked = premiumState.isSkinUnlocked(skin);
         final isSelected = premiumState.selectedSkinId == skin.id;
@@ -1904,12 +1904,12 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   /// Modernized skin card — mirrors the Trails tab redesign. Each card
-  /// paints a small snake-silhouette preview using the skin's actual
+  /// paints a small ship-silhouette preview using the skin's actual
   /// colors and its per-skin signature (golden shimmer, fire embers,
   /// galaxy stars, etc.) so users see what the skin will look like
   /// in-game without leaving the store.
   Widget _buildSkinCard({
-    required SnakeSkinType skin,
+    required ShipSkinType skin,
     required bool isUnlocked,
     required bool isSelected,
     required bool isPending,
@@ -1920,8 +1920,8 @@ class _StoreScreenState extends State<StoreScreen>
     final palette = skin.colors.isNotEmpty
         ? skin.colors
         : [
-            theme.snakeColor,
-            theme.snakeColor.withValues(alpha: 0.6),
+            theme.shipColor,
+            theme.shipColor.withValues(alpha: 0.6),
           ];
     final headerStart = palette.first.withValues(alpha: 0.85);
     final headerEnd = palette.last.withValues(alpha: 0.35);
@@ -1956,7 +1956,7 @@ class _StoreScreenState extends State<StoreScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Preview band — painted snake silhouette with the skin's
+            // Preview band — painted ship silhouette with the skin's
             // own colors + a stylized signature so each skin reads
             // instantly distinct from its grid neighbors.
             Expanded(
@@ -3062,9 +3062,9 @@ class _ThemePreviewPainter extends CustomPainter {
     final gridPaint = Paint()
       ..color = theme.accentColor.withValues(alpha: 0.18)
       ..strokeWidth = 0.6;
-    // 6×6 grid + a longer 6-segment coiled snake + 2 food items. Denser
+    // 6×6 grid + a longer 6-segment coiled ship + 2 food items. Denser
     // than the original 8×8/4-segment preview so the card visibly
-    // represents "snake game" rather than a near-empty backdrop.
+    // represents "ship game" rather than a near-empty backdrop.
     const cells = 6;
     final cellW = size.width / cells;
     final cellH = size.height / cells;
@@ -3081,16 +3081,16 @@ class _ThemePreviewPainter extends CustomPainter {
       );
     }
 
-    // Coiled snake path (head → tail). Index 0 is the head.
-    const snakeCells = <(int, int)>[
+    // Coiled ship path (head → tail). Index 0 is the head.
+    const shipCells = <(int, int)>[
       (4, 2), (3, 2), (2, 2), (2, 3), (2, 4), (3, 4),
     ];
     final r = (cellW < cellH ? cellW : cellH) * 0.40;
-    for (int i = 0; i < snakeCells.length; i++) {
-      final fade = 1.0 - (i / snakeCells.length) * 0.55;
+    for (int i = 0; i < shipCells.length; i++) {
+      final fade = 1.0 - (i / shipCells.length) * 0.55;
       final paint = Paint()
-        ..color = theme.snakeColor.withValues(alpha: fade);
-      final (col, row) = snakeCells[i];
+        ..color = theme.shipColor.withValues(alpha: fade);
+      final (col, row) = shipCells[i];
       canvas.drawCircle(
         Offset(cellW * col + cellW / 2, cellH * row + cellH / 2),
         i == 0 ? r * 1.05 : r,
@@ -3135,7 +3135,7 @@ class _PowerUpCatalogItem {
   });
 }
 
-/// Paints a stylized snake-trail preview specific to each trail type.
+/// Paints a stylized ship-trail preview specific to each trail type.
 /// The shared element is a 5-segment serpentine head with a fading
 /// tail; the per-trail signature (sparkles, lightning, flame, stars,
 /// crystal facets, etc.) draws on top using the trail's own color
@@ -3166,7 +3166,7 @@ class _TrailPreviewPainter extends CustomPainter {
     ];
     final segmentRadius = (width < height ? width : height) * 0.08;
 
-    // Trail-specific overlays — drawn BEHIND the snake so the head
+    // Trail-specific overlays — drawn BEHIND the ship so the head
     // reads cleanly on top.
     switch (trail) {
       case TrailEffectType.none:
@@ -3207,8 +3207,8 @@ class _TrailPreviewPainter extends CustomPainter {
         break;
     }
 
-    // Snake head + body. Color picked from the trail palette so the
-    // snake itself reads as part of the trail's identity. Tail fades
+    // Ship head + body. Color picked from the trail palette so the
+    // ship itself reads as part of the trail's identity. Tail fades
     // by alpha so the serpentine reads directionally.
     for (var i = 0; i < segmentCenters.length; i++) {
       final t = i / (segmentCenters.length - 1);
@@ -3226,7 +3226,7 @@ class _TrailPreviewPainter extends CustomPainter {
       );
     }
 
-    // Snake-head highlight — small bright dot on the leading segment
+    // Ship-head highlight — small bright dot on the leading segment
     // so the eye picks up direction immediately.
     canvas.drawCircle(
       segmentCenters.last,
@@ -3475,13 +3475,13 @@ class _TrailPreviewPainter extends CustomPainter {
       old.trail != trail || old.accentColor != accentColor;
 }
 
-/// Paints a stylized snake silhouette for the store's Skins tab, using
+/// Paints a stylized ship silhouette for the store's Skins tab, using
 /// the skin's own color palette plus a per-skin signature overlay
 /// (shimmer for golden, ember dots for fire, scale ridges for dragon,
-/// etc.) so each skin card visually previews what the in-game snake
+/// etc.) so each skin card visually previews what the in-game ship
 /// will look like with that skin equipped.
 class _SkinPreviewPainter extends CustomPainter {
-  final SnakeSkinType skin;
+  final ShipSkinType skin;
   final Color accentColor;
 
   _SkinPreviewPainter({required this.skin, required this.accentColor});
@@ -3494,7 +3494,7 @@ class _SkinPreviewPainter extends CustomPainter {
         ? skin.colors
         : <Color>[accentColor, accentColor.withValues(alpha: 0.5)];
 
-    // S-curve snake silhouette, 7 segments. Curving more dramatically
+    // S-curve ship silhouette, 7 segments. Curving more dramatically
     // than the trail card's 5-segment line so the skin's colors get a
     // proper showcase across multiple body positions.
     final centers = <Offset>[
@@ -3536,39 +3536,39 @@ class _SkinPreviewPainter extends CustomPainter {
     // Per-skin signature overlay — same direction as the in-game
     // _drawSkinSignature so the store preview matches gameplay.
     switch (skin) {
-      case SnakeSkinType.classic:
+      case ShipSkinType.classic:
         break;
-      case SnakeSkinType.golden:
+      case ShipSkinType.golden:
         _shimmerStripe(canvas, centers, r);
         break;
-      case SnakeSkinType.rainbow:
+      case ShipSkinType.rainbow:
         _whiteSparkles(canvas, centers, r, count: 4);
         break;
-      case SnakeSkinType.galaxy:
+      case ShipSkinType.galaxy:
         _starSpecks(canvas, size, 12);
         break;
-      case SnakeSkinType.dragon:
+      case ShipSkinType.dragon:
         _scaleRidges(canvas, centers, r);
         break;
-      case SnakeSkinType.electric:
+      case ShipSkinType.electric:
         _sparkBolts(canvas, centers);
         break;
-      case SnakeSkinType.fire:
+      case ShipSkinType.fire:
         _emberRising(canvas, centers);
         break;
-      case SnakeSkinType.ice:
+      case ShipSkinType.ice:
         _frostSpecks(canvas, centers, r);
         break;
-      case SnakeSkinType.shadow:
+      case ShipSkinType.shadow:
         _smokyHalos(canvas, centers, r);
         break;
-      case SnakeSkinType.neon:
+      case ShipSkinType.neon:
         _neonHalos(canvas, centers, r);
         break;
-      case SnakeSkinType.crystal:
+      case ShipSkinType.crystal:
         _facetHighlights(canvas, centers, r);
         break;
-      case SnakeSkinType.cosmic:
+      case ShipSkinType.cosmic:
         _cosmicHaze(canvas, centers, r);
         _starSpecks(canvas, size, 6);
         break;

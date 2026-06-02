@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart' as db;
 import 'package:cosmo_strike_flutter_app/models/achievement.dart';
-import 'package:cosmo_strike_flutter_app/models/snake_coins.dart';
+import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
@@ -698,7 +698,7 @@ class AchievementService extends ChangeNotifier {
     Set<String>? foodTypesEaten,
     int? noWallGames,
     int? maxCombo,
-    int? snakeLength,
+    int? shipLength,
     DateTime? gameEndTime,
   }) {
     final newUnlocks = <Achievement>[];
@@ -760,25 +760,25 @@ class AchievementService extends ChangeNotifier {
             }
             break;
 
-          // -------- snake length (final length this game) --------
-          case 'growing_snake':
-          case 'big_snake':
-          case 'huge_snake':
-          case 'massive_snake':
+          // -------- ship length (final length this game) --------
+          case 'growing_ship':
+          case 'big_ship':
+          case 'huge_ship':
+          case 'massive_ship':
           case 'anaconda':
-            if (snakeLength != null && snakeLength >= achievement.targetValue) {
+            if (shipLength != null && shipLength >= achievement.targetValue) {
               shouldUnlock = true;
               newProgress = achievement.targetValue;
-            } else if (snakeLength != null && snakeLength > achievement.currentProgress) {
-              newProgress = snakeLength;
+            } else if (shipLength != null && shipLength > achievement.currentProgress) {
+              newProgress = shipLength;
             }
             break;
 
           // -------- in-game level (peak level this game) --------
-          // velocity=15, mach_speed=20, cosmic_snake=25
+          // velocity=15, mach_speed=20, cosmic_ship=25
           case 'velocity':
           case 'mach_speed':
-          case 'cosmic_snake':
+          case 'cosmic_ship':
             if (level != null && level >= achievement.targetValue) {
               shouldUnlock = true;
               newProgress = achievement.targetValue;

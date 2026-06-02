@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart' as db;
 import 'package:cosmo_strike_flutter_app/models/daily_challenge.dart' show ChallengeDifficulty;
-import 'package:cosmo_strike_flutter_app/models/snake_coins.dart';
+import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/models/weekly_quest.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/battle_pass_cubit.dart';

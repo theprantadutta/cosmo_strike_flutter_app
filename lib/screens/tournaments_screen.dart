@@ -48,7 +48,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
         final theme = themeState.currentTheme;
 
         return Scaffold(
-          bottomNavigationBar: const SnakeBannerAd(),
+          bottomNavigationBar: const ShipBannerAd(),
           body: AppBackground(
             theme: theme,
             child: SafeArea(

@@ -37,7 +37,7 @@ class UsernameService {
     'root',
     'user',
     'player',
-    'snake',
+    'ship',
     'game',
     'server',
   ];
@@ -87,7 +87,7 @@ class UsernameService {
   ];
 
   static const List<String> _nouns = [
-    'Snake',
+    'Ship',
     'Viper',
     'Python',
     'Cobra',

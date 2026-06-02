@@ -199,7 +199,7 @@ class MultiplayerGame {
   String get modeEmoji {
     switch (mode) {
       case MultiplayerGameMode.classic:
-        return '🐍';
+        return '🚀';
       case MultiplayerGameMode.speedRun:
         return '⚡';
       case MultiplayerGameMode.survival:
@@ -228,7 +228,7 @@ extension MultiplayerGameModeExtensions on MultiplayerGameMode {
   String get modeEmoji {
     switch (this) {
       case MultiplayerGameMode.classic:
-        return '🐍';
+        return '🚀';
       case MultiplayerGameMode.speedRun:
         return '⚡';
       case MultiplayerGameMode.survival:
@@ -247,7 +247,7 @@ class MultiplayerPlayer {
   final String? username;
   final String? photoUrl;
   final PlayerStatus status;
-  final List<Position> snake;
+  final List<Position> ship;
   final Direction currentDirection;
   final int score;
   final int rank;
@@ -268,7 +268,7 @@ class MultiplayerPlayer {
     this.username,
     this.photoUrl,
     required this.status,
-    this.snake = const [],
+    this.ship = const [],
     this.currentDirection = Direction.right,
     this.score = 0,
     this.rank = 0,
@@ -303,7 +303,7 @@ class MultiplayerPlayer {
         (status) => status.name == json['status'],
         orElse: () => PlayerStatus.waiting,
       ),
-      snake: (json['snake'] as List? ?? json['snake_positions'] as List? ?? [])
+      ship: (json['ship'] as List? ?? json['ship_positions'] as List? ?? [])
           .map((pos) => Position.fromJson(pos))
           .toList(),
       currentDirection: Direction.values.firstWhere(
@@ -334,7 +334,7 @@ class MultiplayerPlayer {
       'displayName': displayName,
       'photoUrl': photoUrl,
       'status': status.name,
-      'snake': snake.map((pos) => pos.toJson()).toList(),
+      'ship': ship.map((pos) => pos.toJson()).toList(),
       'currentDirection': currentDirection.name,
       'score': score,
       'rank': rank,
@@ -352,7 +352,7 @@ class MultiplayerPlayer {
     String? displayName,
     String? photoUrl,
     PlayerStatus? status,
-    List<Position>? snake,
+    List<Position>? ship,
     Direction? currentDirection,
     int? score,
     int? rank,
@@ -368,7 +368,7 @@ class MultiplayerPlayer {
       displayName: displayName ?? this.displayName,
       photoUrl: photoUrl ?? this.photoUrl,
       status: status ?? this.status,
-      snake: snake ?? this.snake,
+      ship: ship ?? this.ship,
       currentDirection: currentDirection ?? this.currentDirection,
       score: score ?? this.score,
       rank: rank ?? this.rank,
@@ -387,8 +387,8 @@ class MultiplayerPlayer {
       DateTime.now().difference(disconnectedAt!).inSeconds < 60;
 
   Position get head {
-    if (snake.isEmpty) return const Position(10, 10);
-    return snake.first;
+    if (ship.isEmpty) return const Position(10, 10);
+    return ship.first;
   }
 
   bool get isAlive => status == PlayerStatus.playing;
@@ -489,14 +489,14 @@ class MultiplayerGameAction {
 
   factory MultiplayerGameAction.gameUpdate(
     String playerId,
-    List<Position> snake,
+    List<Position> ship,
     int score,
   ) {
     return MultiplayerGameAction(
       playerId: playerId,
       actionType: 'gameUpdate',
       data: {
-        'snake': snake.map((pos) => pos.toJson()).toList(),
+        'ship': ship.map((pos) => pos.toJson()).toList(),
         'score': score,
       },
       timestamp: DateTime.now(),

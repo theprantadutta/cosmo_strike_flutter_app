@@ -89,13 +89,13 @@ enum TournamentGameMode {
   String get description {
     switch (this) {
       case TournamentGameMode.classic:
-        return 'Standard Snake game rules';
+        return 'Standard Ship game rules';
       case TournamentGameMode.speedRun:
         return 'Game speed increases rapidly';
       case TournamentGameMode.survival:
         return 'Survive as long as possible';
       case TournamentGameMode.noWalls:
-        return 'Snake wraps around screen edges';
+        return 'Ship wraps around screen edges';
       case TournamentGameMode.powerUpMadness:
         return 'Frequent power-ups spawn';
       case TournamentGameMode.perfectGame:
@@ -106,7 +106,7 @@ enum TournamentGameMode {
   String get emoji {
     switch (this) {
       case TournamentGameMode.classic:
-        return '🐍';
+        return '🚀';
       case TournamentGameMode.speedRun:
         return '⚡';
       case TournamentGameMode.survival:
@@ -389,15 +389,15 @@ class Tournament {
   factory Tournament.fromJson(Map<String, dynamic> json) {
     // Pull a value tolerantly: try snake_case (ASP.NET wire format)
     // first, then camelCase (legacy / non-API), then null.
-    T? pick<T>(String snake, String camel) {
-      return (json[snake] as T?) ?? (json[camel] as T?);
+    T? pick<T>(String ship, String camel) {
+      return (json[ship] as T?) ?? (json[camel] as T?);
     }
 
     // Enum lookup that matches both wire formats. Backend sends
     // SnakeCaseLower ("speed_run", "completed"); Flutter names are
     // camelCase ("speedRun") or sometimes different ("ended" vs
     // "completed"). Match by snake-case-equivalent of the enum name.
-    String snakeFromCamel(String camel) {
+    String shipFromCamel(String camel) {
       final buf = StringBuffer();
       for (var i = 0; i < camel.length; i++) {
         final c = camel[i];
@@ -416,7 +416,7 @@ class Tournament {
       name: pick<String>('name', 'name') ?? '',
       description: pick<String>('description', 'description') ?? '',
       type: TournamentType.values.firstWhere(
-        (t) => t.name == json['type'] || snakeFromCamel(t.name) == json['type'],
+        (t) => t.name == json['type'] || shipFromCamel(t.name) == json['type'],
         orElse: () => TournamentType.daily,
       ),
       status: () {
@@ -430,8 +430,8 @@ class Tournament {
         (m) =>
             m.name == json['game_mode'] ||
             m.name == json['gameMode'] ||
-            snakeFromCamel(m.name) == json['game_mode'] ||
-            snakeFromCamel(m.name) == json['gameMode'],
+            shipFromCamel(m.name) == json['game_mode'] ||
+            shipFromCamel(m.name) == json['gameMode'],
         orElse: () => TournamentGameMode.classic,
       ),
       startDate: DateTime.parse(

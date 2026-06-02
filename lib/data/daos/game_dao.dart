@@ -109,7 +109,7 @@ class GameDao extends DatabaseAccessor<AppDatabase> with _$GameDaoMixin {
   /// Update statistics after a game
   Future<void> updateGameStats({
     required int score,
-    required int snakeLength,
+    required int shipLength,
     required int foodsEaten,
     required int gameDurationSeconds,
     required String deathCause, // 'wall' or 'self'
@@ -125,8 +125,8 @@ class GameDao extends DatabaseAccessor<AppDatabase> with _$GameDaoMixin {
     final newTotalFoods = current.totalFoodsEaten + foodsEaten;
     final newTotalTime = current.totalGameTimeSeconds + gameDurationSeconds;
     final newMaxLength =
-        snakeLength > current.maxSnakeLength ? snakeLength : current.maxSnakeLength;
-    final newTotalLength = current.totalSnakeLength + snakeLength;
+        shipLength > current.maxShipLength ? shipLength : current.maxShipLength;
+    final newTotalLength = current.totalShipLength + shipLength;
     final newAvgLength = newTotalLength / newTotalGames;
 
     int newDeathsByWall = current.deathsByWall;
@@ -155,9 +155,9 @@ class GameDao extends DatabaseAccessor<AppDatabase> with _$GameDaoMixin {
           highestScore: Value(newHighestScore),
           totalFoodsEaten: Value(newTotalFoods),
           totalGameTimeSeconds: Value(newTotalTime),
-          maxSnakeLength: Value(newMaxLength),
-          totalSnakeLength: Value(newTotalLength),
-          averageSnakeLength: Value(newAvgLength),
+          maxShipLength: Value(newMaxLength),
+          totalShipLength: Value(newTotalLength),
+          averageShipLength: Value(newAvgLength),
           deathsByWall: Value(newDeathsByWall),
           deathsBySelf: Value(newDeathsBySelf),
           totalDeaths: Value(newDeathsByWall + newDeathsBySelf),

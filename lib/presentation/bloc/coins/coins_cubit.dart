@@ -5,7 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cosmo_strike_flutter_app/data/daos/store_dao.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart' as db;
-import 'package:cosmo_strike_flutter_app/models/snake_coins.dart';
+import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';

@@ -5,7 +5,7 @@ import 'package:cosmo_strike_flutter_app/models/food.dart';
 import 'package:cosmo_strike_flutter_app/models/game_state.dart';
 import 'package:cosmo_strike_flutter_app/models/multiplayer_game.dart';
 import 'package:cosmo_strike_flutter_app/models/position.dart';
-import 'package:cosmo_strike_flutter_app/models/snake.dart';
+import 'package:cosmo_strike_flutter_app/models/ship.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/utils/direction.dart';
@@ -30,7 +30,7 @@ const List<Color> multiplayerColors = [
 class MultiplayerGameAdapter extends StatefulWidget {
   final MultiplayerGame game;
   final String currentUserId;
-  final List<Position> localSnake;
+  final List<Position> localShip;
   final Direction localDirection;
   final int localScore;
   final bool localIsAlive;
@@ -39,7 +39,7 @@ class MultiplayerGameAdapter extends StatefulWidget {
     super.key,
     required this.game,
     required this.currentUserId,
-    required this.localSnake,
+    required this.localShip,
     required this.localDirection,
     required this.localScore,
     required this.localIsAlive,
@@ -95,7 +95,7 @@ class _MultiplayerGameAdapterState extends State<MultiplayerGameAdapter>
 
   /// Convert current player's multiplayer data to single-player GameState
   GameState _buildGameStateForCurrentPlayer() {
-    final snake = Snake.fromPositions(widget.localSnake, widget.localDirection);
+    final ship = Ship.fromPositions(widget.localShip, widget.localDirection);
 
     // Convert food position
     Food? food;
@@ -104,7 +104,7 @@ class _MultiplayerGameAdapterState extends State<MultiplayerGameAdapter>
     }
 
     return GameState(
-      snake: snake,
+      ship: ship,
       food: food,
       score: widget.localScore,
       highScore: widget.localScore,
@@ -128,11 +128,11 @@ class _MultiplayerGameAdapterState extends State<MultiplayerGameAdapter>
   void didUpdateWidget(MultiplayerGameAdapter oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Track when snake changes for smooth animation
-    if (oldWidget.localSnake.length != widget.localSnake.length ||
-        (oldWidget.localSnake.isNotEmpty &&
-            widget.localSnake.isNotEmpty &&
-            oldWidget.localSnake.first != widget.localSnake.first)) {
+    // Track when ship changes for smooth animation
+    if (oldWidget.localShip.length != widget.localShip.length ||
+        (oldWidget.localShip.isNotEmpty &&
+            widget.localShip.isNotEmpty &&
+            oldWidget.localShip.first != widget.localShip.first)) {
       _lastGameStateChangeTime = DateTime.now();
 
       // Check for food consumption and add particle effect
@@ -247,7 +247,7 @@ class _MultiplayerGameAdapterState extends State<MultiplayerGameAdapter>
                                 painter: _MultiplayerBoardPainter(
                                   game: widget.game,
                                   currentUserId: widget.currentUserId,
-                                  localSnake: widget.localSnake,
+                                  localShip: widget.localShip,
                                   localDirection: widget.localDirection,
                                   localIsAlive: widget.localIsAlive,
                                   theme: theme,
@@ -321,11 +321,11 @@ class _GridBackgroundPainter extends CustomPainter {
       oldDelegate.theme != theme || oldDelegate.boardSize != boardSize;
 }
 
-/// Main painter for all game content - snakes, food, effects
+/// Main painter for all game content - ships, food, effects
 class _MultiplayerBoardPainter extends CustomPainter {
   final MultiplayerGame game;
   final String currentUserId;
-  final List<Position> localSnake;
+  final List<Position> localShip;
   final Direction localDirection;
   final bool localIsAlive;
   final GameTheme theme;
@@ -336,7 +336,7 @@ class _MultiplayerBoardPainter extends CustomPainter {
   _MultiplayerBoardPainter({
     required this.game,
     required this.currentUserId,
-    required this.localSnake,
+    required this.localShip,
     required this.localDirection,
     required this.localIsAlive,
     required this.theme,
@@ -350,21 +350,21 @@ class _MultiplayerBoardPainter extends CustomPainter {
     final cellWidth = size.width / boardSize;
     final cellHeight = size.height / boardSize;
 
-    // Draw food first (below snakes)
+    // Draw food first (below ships)
     _drawFood(canvas, cellWidth, cellHeight);
 
-    // Draw all snakes - current player uses local state for smooth rendering
+    // Draw all ships - current player uses local state for smooth rendering
     for (var player in game.players) {
       final isCurrentPlayer = player.userId == currentUserId;
 
       if (isCurrentPlayer) {
-        // Use local snake state for smooth rendering
-        if (localSnake.isNotEmpty) {
+        // Use local ship state for smooth rendering
+        if (localShip.isNotEmpty) {
           final color =
               multiplayerColors[player.rank % multiplayerColors.length];
-          _drawSnake(
+          _drawShip(
             canvas,
-            localSnake,
+            localShip,
             localDirection,
             localIsAlive,
             color,
@@ -376,12 +376,12 @@ class _MultiplayerBoardPainter extends CustomPainter {
         }
       } else {
         // Use server state for other players
-        if (player.snake.isNotEmpty) {
+        if (player.ship.isNotEmpty) {
           final color =
               multiplayerColors[player.rank % multiplayerColors.length];
-          _drawSnake(
+          _drawShip(
             canvas,
-            player.snake,
+            player.ship,
             player.currentDirection,
             player.isAlive,
             color,
@@ -429,9 +429,9 @@ class _MultiplayerBoardPainter extends CustomPainter {
     );
   }
 
-  void _drawSnake(
+  void _drawShip(
     Canvas canvas,
-    List<Position> snake,
+    List<Position> ship,
     Direction direction,
     bool isAlive,
     Color color,
@@ -440,14 +440,14 @@ class _MultiplayerBoardPainter extends CustomPainter {
     required bool isCurrentPlayer,
     required String playerName,
   }) {
-    if (snake.isEmpty) return;
+    if (ship.isEmpty) return;
 
     final isDead = !isAlive;
     final baseColor = isDead ? Colors.grey : color;
 
     // Draw body segments (from tail to head)
-    for (int i = snake.length - 1; i >= 0; i--) {
-      final segment = snake[i];
+    for (int i = ship.length - 1; i >= 0; i--) {
+      final segment = ship[i];
       final isHead = i == 0;
 
       final centerX = segment.x * cellWidth + cellWidth / 2;
@@ -459,7 +459,7 @@ class _MultiplayerBoardPainter extends CustomPainter {
         segmentSize = math.min(cellWidth, cellHeight) * 0.45;
       } else {
         // Taper towards tail
-        final taperFactor = 1.0 - (i / snake.length) * 0.3;
+        final taperFactor = 1.0 - (i / ship.length) * 0.3;
         segmentSize = math.min(cellWidth, cellHeight) * 0.38 * taperFactor;
       }
 
@@ -525,8 +525,8 @@ class _MultiplayerBoardPainter extends CustomPainter {
     }
 
     // Draw player name label above head
-    if (snake.isNotEmpty) {
-      final head = snake.first;
+    if (ship.isNotEmpty) {
+      final head = ship.first;
       final headX = head.x * cellWidth + cellWidth / 2;
       final headY = head.y * cellHeight - 8;
 
@@ -561,7 +561,7 @@ class _MultiplayerBoardPainter extends CustomPainter {
     Offset center,
     Direction direction,
     double headSize,
-    Color snakeColor,
+    Color shipColor,
     bool isDead,
   ) {
     final eyeRadius = headSize * 0.2;
@@ -606,7 +606,7 @@ class _MultiplayerBoardPainter extends CustomPainter {
     canvas.drawCircle(leftEyePos, eyeRadius, eyeWhitePaint);
     canvas.drawCircle(rightEyePos, eyeRadius, eyeWhitePaint);
 
-    // Pupils (X for dead snake)
+    // Pupils (X for dead ship)
     if (isDead) {
       final xPaint = Paint()
         ..color = Colors.black
@@ -651,7 +651,7 @@ class _MultiplayerBoardPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _MultiplayerBoardPainter oldDelegate) {
     return oldDelegate.game != game ||
-        oldDelegate.localSnake != localSnake ||
+        oldDelegate.localShip != localShip ||
         oldDelegate.localDirection != localDirection ||
         oldDelegate.localIsAlive != localIsAlive ||
         oldDelegate.theme != theme ||

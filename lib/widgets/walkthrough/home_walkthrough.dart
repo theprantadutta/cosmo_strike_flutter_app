@@ -22,7 +22,7 @@ class HomeWalkthrough {
       WalkthroughStep(
         id: 'home_play',
         title: 'Welcome to Cosmo Strike!',
-        message: 'Tap the PLAY button to start a game. Swipe to control your snake and eat food to grow!',
+        message: 'Tap the PLAY button to start a game. Swipe to control your ship and eat food to grow!',
         targetKey: playButtonKey,
         position: TooltipPosition.above,
         icon: Icons.play_arrow_rounded,
@@ -58,7 +58,7 @@ class HomeWalkthrough {
       WalkthroughStep(
         id: 'home_store',
         title: 'The Store',
-        message: 'Buy themes, snake skins, trails, and power-ups with your coins. Unlock Pro for premium boards and exclusive cosmetics.',
+        message: 'Buy themes, ship skins, trails, and power-ups with your coins. Unlock Pro for premium boards and exclusive cosmetics.',
         targetKey: storeKey,
         position: TooltipPosition.above,
         icon: Icons.store,
@@ -70,7 +70,7 @@ class HomeWalkthrough {
       WalkthroughStep(
         id: 'home_cosmetics',
         title: 'Skins & Trails',
-        message: 'Customize your snake here. Skins change how the snake itself looks; trails leave a glow behind it. Earn with coins or unlock with Pro.',
+        message: 'Customize your ship here. Skins change how the ship itself looks; trails leave a glow behind it. Earn with coins or unlock with Pro.',
         targetKey: cosmeticsKey,
         position: TooltipPosition.above,
         icon: Icons.palette,

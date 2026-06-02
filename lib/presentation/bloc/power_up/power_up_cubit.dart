@@ -7,7 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cosmo_strike_flutter_app/models/power_up.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_power_up.dart';
-import 'package:cosmo_strike_flutter_app/models/snake_coins.dart';
+import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 

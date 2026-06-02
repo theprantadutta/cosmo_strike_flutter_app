@@ -320,13 +320,13 @@ class MultiplayerCubit extends Cubit<MultiplayerState> {
 
   /// Update player's game state (position, score, status)
   Future<void> updateGameState({
-    required List<Position> snake,
+    required List<Position> ship,
     required int score,
     required PlayerStatus status,
   }) async {
     try {
       await _multiplayerService.updatePlayerGameState(
-        snake: snake,
+        ship: ship,
         score: score,
         status: status,
       );
@@ -593,12 +593,12 @@ class MultiplayerCubit extends Cubit<MultiplayerState> {
     return player?.score ?? 0;
   }
 
-  List<Position> getPlayerSnake(String userId) {
+  List<Position> getPlayerShip(String userId) {
     final player = state.currentGame?.players
         .where((p) => p.userId == userId)
         .toList()
         .firstOrNull;
-    return player?.snake ?? [];
+    return player?.ship ?? [];
   }
 
   /// Winner display name

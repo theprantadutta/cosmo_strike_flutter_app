@@ -162,7 +162,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         final theme = themeState.currentTheme;
 
         return Scaffold(
-          bottomNavigationBar: const SnakeBannerAd(),
+          bottomNavigationBar: const ShipBannerAd(),
           body: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -1180,7 +1180,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         break;
       case TournamentGameMode.noWalls:
         baseRules.add(
-          'Snake wraps around screen edges instead of hitting walls',
+          'Ship wraps around screen edges instead of hitting walls',
         );
         break;
       case TournamentGameMode.powerUpMadness:
@@ -1190,7 +1190,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         baseRules.add('Any collision immediately ends the game');
         break;
       case TournamentGameMode.classic:
-        baseRules.add('Standard Snake rules apply');
+        baseRules.add('Standard Ship rules apply');
         break;
     }
 

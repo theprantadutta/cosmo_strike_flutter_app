@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/models/daily_challenge.dart' show ChallengeDifficulty;
-import 'package:cosmo_strike_flutter_app/models/snake_coins.dart';
+import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/models/weekly_quest.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
@@ -75,7 +75,7 @@ class _WeeklyQuestsScreenState extends State<WeeklyQuestsScreen> {
           listenable: _service,
           builder: (context, _) {
             return Scaffold(
-              bottomNavigationBar: const SnakeBannerAd(),
+              bottomNavigationBar: const ShipBannerAd(),
               body: AppBackground(
                 theme: theme,
                 child: SafeArea(

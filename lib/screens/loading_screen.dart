@@ -24,7 +24,7 @@ import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
-import 'package:cosmo_strike_flutter_app/widgets/animated_snake_logo.dart';
+import 'package:cosmo_strike_flutter_app/widgets/animated_ship_logo.dart';
 
 class LoadingScreen extends StatefulWidget {
   const LoadingScreen({super.key});
@@ -637,7 +637,7 @@ class _LoadingScreenState extends State<LoadingScreen>
                     ),
                   ],
                 ),
-                child: AnimatedSnakeLogo(
+                child: AnimatedShipLogo(
                   theme: theme,
                   controller: _logoController,
                   useTextLogo: true, // Use the logo with text on loading screen

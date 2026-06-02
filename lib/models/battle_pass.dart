@@ -21,7 +21,7 @@ enum BattlePassRewardType {
       case BattlePassRewardType.theme:
         return 'Theme';
       case BattlePassRewardType.skin:
-        return 'Snake Skin';
+        return 'Ship Skin';
       case BattlePassRewardType.trail:
         return 'Trail Effect';
       case BattlePassRewardType.powerUp:
@@ -46,7 +46,7 @@ enum BattlePassRewardType {
       case BattlePassRewardType.theme:
         return '🎨';
       case BattlePassRewardType.skin:
-        return '🐍';
+        return '🚀';
       case BattlePassRewardType.trail:
         return '✨';
       case BattlePassRewardType.powerUp:

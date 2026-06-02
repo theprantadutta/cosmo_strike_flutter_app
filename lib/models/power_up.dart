@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:cosmo_strike_flutter_app/models/position.dart';
-import 'package:cosmo_strike_flutter_app/models/snake.dart';
+import 'package:cosmo_strike_flutter_app/models/ship.dart';
 import 'package:flutter/material.dart';
 
 enum PowerUpType {
@@ -25,7 +25,7 @@ enum PowerUpType {
   String get description {
     switch (this) {
       case PowerUpType.speedBoost:
-        return 'Increases snake speed for 7 seconds';
+        return 'Increases ship speed for 7 seconds';
       case PowerUpType.invincibility:
         return 'Pass through walls and yourself for 6 seconds';
       case PowerUpType.scoreMultiplier:
@@ -110,7 +110,7 @@ class PowerUp {
   static Position generateRandomPosition(
     int boardWidth,
     int boardHeight,
-    Snake snake, {
+    Ship ship, {
     Position? foodPosition,
     Iterable<Position> foodPositions = const [],
   }) {
@@ -128,7 +128,7 @@ class PowerUp {
         random.nextInt(boardWidth),
         random.nextInt(boardHeight),
       );
-      if (!snake.occupiesPosition(newPosition) &&
+      if (!ship.occupiesPosition(newPosition) &&
           !blocked.contains(newPosition)) {
         return newPosition;
       }
@@ -139,7 +139,7 @@ class PowerUp {
   static PowerUp? generateRandom(
     int boardWidth,
     int boardHeight,
-    Snake snake, {
+    Ship ship, {
     Position? foodPosition,
     Iterable<Position> foodPositions = const [],
   }) {
@@ -148,7 +148,7 @@ class PowerUp {
     final position = generateRandomPosition(
       boardWidth,
       boardHeight,
-      snake,
+      ship,
       foodPosition: foodPosition,
       foodPositions: foodPositions,
     );

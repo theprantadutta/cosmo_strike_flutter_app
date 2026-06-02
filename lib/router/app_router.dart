@@ -144,7 +144,7 @@ GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
       pageBuilder: (context, state) => _scalePage(state, const GameplayScreen()),
     ),
     // /game-over removed: the Flame GameplayScreen shows its own game-over
-    // overlay and routes home, so the snake GameOverScreen is no longer used.
+    // overlay and routes home, so the ship GameOverScreen is no longer used.
 
     // Profile & Stats
     GoRoute(

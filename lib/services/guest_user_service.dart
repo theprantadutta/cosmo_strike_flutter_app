@@ -269,7 +269,7 @@ class GuestUserService {
     ];
 
     final nouns = [
-      'Snake',
+      'Ship',
       'Viper',
       'Python',
       'Cobra',

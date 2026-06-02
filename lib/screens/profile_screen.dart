@@ -82,7 +82,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (context, _) => BlocBuilder<AuthCubit, AuthState>(
         builder: (context, authState) {
           return Scaffold(
-            bottomNavigationBar: const SnakeBannerAd(),
+            bottomNavigationBar: const ShipBannerAd(),
             extendBodyBehindAppBar: true,
             appBar: AppBar(
               title: Text(

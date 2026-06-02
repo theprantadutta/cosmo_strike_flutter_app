@@ -3,7 +3,7 @@ import 'dart:convert';
 class GameFrame {
   final int frameNumber;
   final int timestamp;
-  final List<List<int>> snakePositions;
+  final List<List<int>> shipPositions;
   final List<int>? foodPosition;
   final List<int>? powerUpPosition;
   final String? powerUpType;
@@ -17,7 +17,7 @@ class GameFrame {
   const GameFrame({
     required this.frameNumber,
     required this.timestamp,
-    required this.snakePositions,
+    required this.shipPositions,
     this.foodPosition,
     this.powerUpPosition,
     this.powerUpType,
@@ -32,7 +32,7 @@ class GameFrame {
     return {
       'frameNumber': frameNumber,
       'timestamp': timestamp,
-      'snakePositions': snakePositions,
+      'shipPositions': shipPositions,
       'foodPosition': foodPosition,
       'powerUpPosition': powerUpPosition,
       'powerUpType': powerUpType,
@@ -48,8 +48,8 @@ class GameFrame {
     return GameFrame(
       frameNumber: json['frameNumber'] ?? 0,
       timestamp: json['timestamp'] ?? 0,
-      snakePositions:
-          (json['snakePositions'] as List?)
+      shipPositions:
+          (json['shipPositions'] as List?)
               ?.map((pos) => (pos as List).cast<int>())
               .toList() ??
           [],
@@ -187,10 +187,10 @@ class GameReplay {
     final totalPowerUps = frames
         .where((f) => f.gameEvent?['type'] == 'power_up_collected')
         .length;
-    final maxSnakeLength = frames.isEmpty
+    final maxShipLength = frames.isEmpty
         ? 0
         : frames
-            .map((f) => f.snakePositions.length)
+            .map((f) => f.shipPositions.length)
             .reduce((a, b) => a > b ? a : b);
 
     return {
@@ -198,7 +198,7 @@ class GameReplay {
       'outcome': gameOutcome,
       'foodConsumed': totalFood,
       'powerUpsCollected': totalPowerUps,
-      'maxLength': maxSnakeLength,
+      'maxLength': maxShipLength,
       'averageScore': frames.isNotEmpty ? finalScore / frames.length * 100 : 0,
     };
   }
@@ -219,7 +219,7 @@ class GameRecorder {
   }
 
   void recordFrame({
-    required List<List<int>> snakePositions,
+    required List<List<int>> shipPositions,
     List<int>? foodPosition,
     List<int>? powerUpPosition,
     String? powerUpType,
@@ -239,7 +239,7 @@ class GameRecorder {
     final frame = GameFrame(
       frameNumber: _frameCounter++,
       timestamp: timestamp,
-      snakePositions: snakePositions.map((pos) => [...pos]).toList(),
+      shipPositions: shipPositions.map((pos) => [...pos]).toList(),
       foodPosition: foodPosition != null ? [...foodPosition] : null,
       powerUpPosition: powerUpPosition != null ? [...powerUpPosition] : null,
       powerUpType: powerUpType,

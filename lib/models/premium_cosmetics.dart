@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum SnakeSkinType {
+enum ShipSkinType {
   classic,
   golden,
   rainbow,
@@ -18,95 +18,95 @@ enum SnakeSkinType {
 
   String get displayName {
     switch (this) {
-      case SnakeSkinType.classic:
+      case ShipSkinType.classic:
         return 'Classic';
-      case SnakeSkinType.golden:
-        return 'Golden Snake';
-      case SnakeSkinType.rainbow:
-        return 'Rainbow Snake';
-      case SnakeSkinType.galaxy:
-        return 'Galaxy Snake';
-      case SnakeSkinType.dragon:
-        return 'Dragon Snake';
-      case SnakeSkinType.electric:
-        return 'Electric Snake';
-      case SnakeSkinType.fire:
-        return 'Fire Snake';
-      case SnakeSkinType.ice:
-        return 'Ice Snake';
-      case SnakeSkinType.shadow:
-        return 'Shadow Snake';
-      case SnakeSkinType.neon:
-        return 'Neon Snake';
-      case SnakeSkinType.crystal:
-        return 'Crystal Snake';
-      case SnakeSkinType.cosmic:
-        return 'Cosmic Snake';
+      case ShipSkinType.golden:
+        return 'Golden Ship';
+      case ShipSkinType.rainbow:
+        return 'Rainbow Ship';
+      case ShipSkinType.galaxy:
+        return 'Galaxy Ship';
+      case ShipSkinType.dragon:
+        return 'Dragon Ship';
+      case ShipSkinType.electric:
+        return 'Electric Ship';
+      case ShipSkinType.fire:
+        return 'Fire Ship';
+      case ShipSkinType.ice:
+        return 'Ice Ship';
+      case ShipSkinType.shadow:
+        return 'Shadow Ship';
+      case ShipSkinType.neon:
+        return 'Neon Ship';
+      case ShipSkinType.crystal:
+        return 'Crystal Ship';
+      case ShipSkinType.cosmic:
+        return 'Cosmic Ship';
     }
   }
 
   String get description {
     switch (this) {
-      case SnakeSkinType.classic:
-        return 'The original snake appearance';
-      case SnakeSkinType.golden:
-        return 'Gleaming gold snake that shines with every move';
-      case SnakeSkinType.rainbow:
-        return 'A colorful snake that shifts through rainbow colors';
-      case SnakeSkinType.galaxy:
-        return 'Cosmic snake with starry patterns';
-      case SnakeSkinType.dragon:
-        return 'Fierce dragon-scaled snake with mystical powers';
-      case SnakeSkinType.electric:
+      case ShipSkinType.classic:
+        return 'The original ship appearance';
+      case ShipSkinType.golden:
+        return 'Gleaming gold ship that shines with every move';
+      case ShipSkinType.rainbow:
+        return 'A colorful ship that shifts through rainbow colors';
+      case ShipSkinType.galaxy:
+        return 'Cosmic ship with starry patterns';
+      case ShipSkinType.dragon:
+        return 'Fierce dragon-scaled ship with mystical powers';
+      case ShipSkinType.electric:
         return 'Crackling with electric energy';
-      case SnakeSkinType.fire:
+      case ShipSkinType.fire:
         return 'Burning bright with fiery patterns';
-      case SnakeSkinType.ice:
+      case ShipSkinType.ice:
         return 'Frozen beauty with crystalline effects';
-      case SnakeSkinType.shadow:
-        return 'Dark and mysterious shadow snake';
-      case SnakeSkinType.neon:
+      case ShipSkinType.shadow:
+        return 'Dark and mysterious shadow ship';
+      case ShipSkinType.neon:
         return 'Glowing with cyberpunk neon lights';
-      case SnakeSkinType.crystal:
-        return 'Translucent crystal snake with prismatic effects';
-      case SnakeSkinType.cosmic:
-        return 'Snake made of stardust and cosmic matter';
+      case ShipSkinType.crystal:
+        return 'Translucent crystal ship with prismatic effects';
+      case ShipSkinType.cosmic:
+        return 'Ship made of stardust and cosmic matter';
     }
   }
 
   bool get isPremium {
-    return this != SnakeSkinType.classic;
+    return this != ShipSkinType.classic;
   }
 
   double get price {
     switch (this) {
-      case SnakeSkinType.classic:
+      case ShipSkinType.classic:
         return 0.0;
-      case SnakeSkinType.golden:
-      case SnakeSkinType.fire:
-      case SnakeSkinType.ice:
-      case SnakeSkinType.electric:
+      case ShipSkinType.golden:
+      case ShipSkinType.fire:
+      case ShipSkinType.ice:
+      case ShipSkinType.electric:
         return 1.99;
-      case SnakeSkinType.rainbow:
-      case SnakeSkinType.neon:
-      case SnakeSkinType.shadow:
+      case ShipSkinType.rainbow:
+      case ShipSkinType.neon:
+      case ShipSkinType.shadow:
         return 2.99;
-      case SnakeSkinType.galaxy:
-      case SnakeSkinType.crystal:
-      case SnakeSkinType.cosmic:
+      case ShipSkinType.galaxy:
+      case ShipSkinType.crystal:
+      case ShipSkinType.cosmic:
         return 3.99;
-      case SnakeSkinType.dragon:
+      case ShipSkinType.dragon:
         return 4.99;
     }
   }
 
   List<Color> get colors {
     switch (this) {
-      case SnakeSkinType.classic:
+      case ShipSkinType.classic:
         return [const Color(0xFF9BBD0F)];
-      case SnakeSkinType.golden:
+      case ShipSkinType.golden:
         return [const Color(0xFFFFD700), const Color(0xFFB8860B)];
-      case SnakeSkinType.rainbow:
+      case ShipSkinType.rainbow:
         return [
           const Color(0xFFFF0000),
           const Color(0xFFFF8000),
@@ -121,63 +121,63 @@ enum SnakeSkinType {
           const Color(0xFFFF00FF),
           const Color(0xFFFF0080),
         ];
-      case SnakeSkinType.galaxy:
+      case ShipSkinType.galaxy:
         return [
           const Color(0xFF1A0033),
           const Color(0xFF4B0082),
           const Color(0xFF9932CC),
           const Color(0xFFBA55D3),
         ];
-      case SnakeSkinType.dragon:
+      case ShipSkinType.dragon:
         return [
           const Color(0xFF8B0000),
           const Color(0xFFDC143C),
           const Color(0xFFFF6347),
           const Color(0xFFFFD700),
         ];
-      case SnakeSkinType.electric:
+      case ShipSkinType.electric:
         return [
           const Color(0xFF00FFFF),
           const Color(0xFF87CEEB),
           const Color(0xFF4169E1),
           const Color(0xFF0000FF),
         ];
-      case SnakeSkinType.fire:
+      case ShipSkinType.fire:
         return [
           const Color(0xFFFF4500),
           const Color(0xFFFF6347),
           const Color(0xFFFF8C00),
           const Color(0xFFFFD700),
         ];
-      case SnakeSkinType.ice:
+      case ShipSkinType.ice:
         return [
           const Color(0xFFB0E0E6),
           const Color(0xFF87CEEB),
           const Color(0xFF4682B4),
           const Color(0xFF1E90FF),
         ];
-      case SnakeSkinType.shadow:
+      case ShipSkinType.shadow:
         return [
           const Color(0xFF2F2F2F),
           const Color(0xFF404040),
           const Color(0xFF696969),
           const Color(0xFF808080),
         ];
-      case SnakeSkinType.neon:
+      case ShipSkinType.neon:
         return [
           const Color(0xFF00FFFF),
           const Color(0xFF39FF14),
           const Color(0xFFFF1493),
           const Color(0xFFFFFF00),
         ];
-      case SnakeSkinType.crystal:
+      case ShipSkinType.crystal:
         return [
           const Color(0xFFE6E6FA),
           const Color(0xFFDDA0DD),
           const Color(0xFFBA55D3),
           const Color(0xFF9370DB),
         ];
-      case SnakeSkinType.cosmic:
+      case ShipSkinType.cosmic:
         return [
           const Color(0xFF191970),
           const Color(0xFF4B0082),
@@ -189,29 +189,29 @@ enum SnakeSkinType {
 
   String get icon {
     switch (this) {
-      case SnakeSkinType.classic:
-        return '🐍';
-      case SnakeSkinType.golden:
+      case ShipSkinType.classic:
+        return '🚀';
+      case ShipSkinType.golden:
         return '✨';
-      case SnakeSkinType.rainbow:
+      case ShipSkinType.rainbow:
         return '🌈';
-      case SnakeSkinType.galaxy:
+      case ShipSkinType.galaxy:
         return '🌌';
-      case SnakeSkinType.dragon:
+      case ShipSkinType.dragon:
         return '🐉';
-      case SnakeSkinType.electric:
+      case ShipSkinType.electric:
         return '⚡';
-      case SnakeSkinType.fire:
+      case ShipSkinType.fire:
         return '🔥';
-      case SnakeSkinType.ice:
+      case ShipSkinType.ice:
         return '❄️';
-      case SnakeSkinType.shadow:
+      case ShipSkinType.shadow:
         return '🌑';
-      case SnakeSkinType.neon:
+      case ShipSkinType.neon:
         return '💡';
-      case SnakeSkinType.crystal:
+      case ShipSkinType.crystal:
         return '💎';
-      case SnakeSkinType.cosmic:
+      case ShipSkinType.cosmic:
         return '🌟';
     }
   }
@@ -265,11 +265,11 @@ enum TrailEffectType {
   String get description {
     switch (this) {
       case TrailEffectType.none:
-        return 'Clean snake with no trail effects';
+        return 'Clean ship with no trail effects';
       case TrailEffectType.particle:
         return 'Leaves a trail of sparkling particles';
       case TrailEffectType.glow:
-        return 'Glowing trail that fades behind the snake';
+        return 'Glowing trail that fades behind the ship';
       case TrailEffectType.rainbow:
         return 'Colorful rainbow trail effect';
       case TrailEffectType.fire:
@@ -277,7 +277,7 @@ enum TrailEffectType {
       case TrailEffectType.electric:
         return 'Crackling electric trail with lightning effects';
       case TrailEffectType.star:
-        return 'Twinkling stars follow the snake\'s path';
+        return 'Twinkling stars follow the ship\'s path';
       case TrailEffectType.cosmic:
         return 'Cosmic dust and nebula effects';
       case TrailEffectType.neon:
@@ -383,14 +383,14 @@ enum TrailEffectType {
   }
 }
 
-class SnakeCosmetics {
-  final SnakeSkinType skin;
+class ShipCosmetics {
+  final ShipSkinType skin;
   final TrailEffectType trail;
 
-  const SnakeCosmetics({required this.skin, required this.trail});
+  const ShipCosmetics({required this.skin, required this.trail});
 
-  SnakeCosmetics copyWith({SnakeSkinType? skin, TrailEffectType? trail}) {
-    return SnakeCosmetics(skin: skin ?? this.skin, trail: trail ?? this.trail);
+  ShipCosmetics copyWith({ShipSkinType? skin, TrailEffectType? trail}) {
+    return ShipCosmetics(skin: skin ?? this.skin, trail: trail ?? this.trail);
   }
 
   bool get isPremium => skin.isPremium || trail.isPremium;
@@ -401,11 +401,11 @@ class SnakeCosmetics {
     return {'skin': skin.id, 'trail': trail.id};
   }
 
-  factory SnakeCosmetics.fromJson(Map<String, dynamic> json) {
-    return SnakeCosmetics(
-      skin: SnakeSkinType.values.firstWhere(
+  factory ShipCosmetics.fromJson(Map<String, dynamic> json) {
+    return ShipCosmetics(
+      skin: ShipSkinType.values.firstWhere(
         (s) => s.id == json['skin'],
-        orElse: () => SnakeSkinType.classic,
+        orElse: () => ShipSkinType.classic,
       ),
       trail: TrailEffectType.values.firstWhere(
         (t) => t.id == json['trail'],
@@ -414,8 +414,8 @@ class SnakeCosmetics {
     );
   }
 
-  static const SnakeCosmetics defaultCosmetics = SnakeCosmetics(
-    skin: SnakeSkinType.classic,
+  static const ShipCosmetics defaultCosmetics = ShipCosmetics(
+    skin: ShipSkinType.classic,
     trail: TrailEffectType.none,
   );
 }
@@ -424,7 +424,7 @@ class CosmeticBundle {
   final String id;
   final String name;
   final String description;
-  final List<SnakeSkinType> skins;
+  final List<ShipSkinType> skins;
   final List<TrailEffectType> trails;
   final double bundlePrice;
   final String icon;
@@ -460,7 +460,7 @@ class CosmeticBundle {
       id: 'starter_pack',
       name: 'Starter Pack',
       description: 'Perfect for new premium players',
-      skins: [SnakeSkinType.golden, SnakeSkinType.fire],
+      skins: [ShipSkinType.golden, ShipSkinType.fire],
       trails: [TrailEffectType.particle, TrailEffectType.glow],
       bundlePrice: 3.99,
       icon: '🎁',
@@ -469,7 +469,7 @@ class CosmeticBundle {
       id: 'elemental_pack',
       name: 'Elemental Pack',
       description: 'Master the elements with style',
-      skins: [SnakeSkinType.fire, SnakeSkinType.ice, SnakeSkinType.electric],
+      skins: [ShipSkinType.fire, ShipSkinType.ice, ShipSkinType.electric],
       trails: [TrailEffectType.fire, TrailEffectType.electric],
       bundlePrice: 7.99,
       icon: '🌊',
@@ -479,9 +479,9 @@ class CosmeticBundle {
       name: 'Cosmic Collection',
       description: 'Explore the universe in style',
       skins: [
-        SnakeSkinType.galaxy,
-        SnakeSkinType.cosmic,
-        SnakeSkinType.crystal,
+        ShipSkinType.galaxy,
+        ShipSkinType.cosmic,
+        ShipSkinType.crystal,
       ],
       trails: [
         TrailEffectType.cosmic,
@@ -496,17 +496,17 @@ class CosmeticBundle {
       name: 'Ultimate Collection',
       description: 'Every premium cosmetic item',
       skins: [
-        SnakeSkinType.golden,
-        SnakeSkinType.rainbow,
-        SnakeSkinType.galaxy,
-        SnakeSkinType.dragon,
-        SnakeSkinType.electric,
-        SnakeSkinType.fire,
-        SnakeSkinType.ice,
-        SnakeSkinType.shadow,
-        SnakeSkinType.neon,
-        SnakeSkinType.crystal,
-        SnakeSkinType.cosmic,
+        ShipSkinType.golden,
+        ShipSkinType.rainbow,
+        ShipSkinType.galaxy,
+        ShipSkinType.dragon,
+        ShipSkinType.electric,
+        ShipSkinType.fire,
+        ShipSkinType.ice,
+        ShipSkinType.shadow,
+        ShipSkinType.neon,
+        ShipSkinType.crystal,
+        ShipSkinType.cosmic,
       ],
       trails: [
         TrailEffectType.particle,

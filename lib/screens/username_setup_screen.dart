@@ -39,7 +39,7 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
     super.initState();
     // Pre-fill with the backend-assigned username so users who don't care
     // can just tap Continue. The auto-generated names are intentionally
-    // game-on-brand (Swift_Snake_4231 etc.) so they're acceptable defaults.
+    // game-on-brand (Swift_Ship_4231 etc.) so they're acceptable defaults.
     final authState = context.read<AuthCubit>().state;
     _initialUsername = authState.user?.username ?? '';
     _controller.text = _initialUsername;

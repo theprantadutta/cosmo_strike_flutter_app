@@ -267,7 +267,7 @@ class AdService {
   /// Show the rewarded ad. [onReward] fires only if the user earned the reward
   /// (watched to completion) AND **after the ad is dismissed** — never while
   /// it's still on screen. This matters for the revive placement: granting on
-  /// the earn callback resumed the game loop behind the ad, so the snake moved
+  /// the earn callback resumed the game loop behind the ad, so the ship moved
   /// (and re-crashed) before the player closed it. Granting on dismiss means
   /// the player is back in the app when the reward applies.
   Future<bool> showRewarded({required VoidCallback onReward}) async {

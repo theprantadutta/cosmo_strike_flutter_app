@@ -77,7 +77,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
     });
 
     return Scaffold(
-      bottomNavigationBar: const SnakeBannerAd(),
+      bottomNavigationBar: const ShipBannerAd(),
       body: AppBackground(
         theme: theme,
         child: SafeArea(

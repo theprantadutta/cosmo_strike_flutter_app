@@ -114,7 +114,7 @@ Music (looping OGG/MP3):
 ---
 
 ## Follow-ups (tracked separately, not assets)
-- Achievement / daily-challenge / weekly-quest seed **copy** still uses snake
-  flavor text (the underlying metric is already "enemies destroyed"); a shmup
-  copy pass is tracked.
+- Achievement / daily-challenge / weekly-quest seed **copy** could use another
+  flavor-text polish pass for shmup tone (the underlying metric is already
+  "enemies destroyed").
 - Per-stage boss design + stage backgrounds expand as stages are authored.

@@ -103,7 +103,7 @@ class _ReplaysScreenState extends State<ReplaysScreen>
     final theme = themeState.currentTheme;
 
     return Scaffold(
-      bottomNavigationBar: const SnakeBannerAd(),
+      bottomNavigationBar: const ShipBannerAd(),
       appBar: AppBar(
         title: Row(
           children: [

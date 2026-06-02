@@ -131,7 +131,7 @@ Future<void> showCreditsDialog(BuildContext context, GameTheme theme) async {
                 const SizedBox(height: 14),
 
                 Text(
-                  'The classic snake game, reimagined.',
+                  'The classic ship game, reimagined.',
                   style: TextStyle(
                     color: theme.accentColor.withValues(alpha: 0.75),
                     fontSize: 13,

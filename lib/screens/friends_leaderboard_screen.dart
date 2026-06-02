@@ -106,7 +106,7 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen>
         final currentUid = authState.isSignedIn ? authState.userId : null;
 
         return Scaffold(
-          bottomNavigationBar: const SnakeBannerAd(),
+          bottomNavigationBar: const ShipBannerAd(),
           body: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(

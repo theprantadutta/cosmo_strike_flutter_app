@@ -8,7 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../game/cosmo_palette.dart';
 import '../game/cosmo_strike_game.dart';
-import '../models/snake_coins.dart';
+import '../models/ship_coins.dart';
 import '../presentation/bloc/coins/coins_cubit.dart';
 import '../presentation/bloc/game/game_settings_cubit.dart';
 import '../presentation/bloc/premium/battle_pass_cubit.dart';

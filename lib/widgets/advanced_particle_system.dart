@@ -72,7 +72,7 @@ class ParticleConfig {
     friction: 0.94, // Reduced for longer travel
   );
 
-  // Food explosion configurations - reduced for better snake visibility
+  // Food explosion configurations - reduced for better ship visibility
   static const ParticleConfig appleFoodExplosion = ParticleConfig(
     type: ParticleType.food,
     count: 8, // Reduced from 20
@@ -148,7 +148,7 @@ class ParticleConfig {
     emissionAngleRange: math.pi, // Semi-circle upward
   );
 
-  static const ParticleConfig snakeTrail = ParticleConfig(
+  static const ParticleConfig shipTrail = ParticleConfig(
     type: ParticleType.trail,
     count: 5,
     lifetime: Duration(milliseconds: 600),

@@ -52,7 +52,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         final theme = state.currentTheme;
 
         return Scaffold(
-          bottomNavigationBar: const SnakeBannerAd(),
+          bottomNavigationBar: const ShipBannerAd(),
           body: AppBackground(
             theme: theme,
             child: SafeArea(

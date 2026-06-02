@@ -37,7 +37,7 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
   Direction? _lastSwipeDirection;
 
   // Local game state for smooth gameplay
-  List<Position> _mySnake = [];
+  List<Position> _myShip = [];
   Direction _currentDirection = Direction.right;
   Direction _nextDirection = Direction.right;
   int _myScore = 0;
@@ -114,12 +114,12 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
     if (_currentUserId == null) return;
 
     final myPlayer = game.getPlayer(_currentUserId!);
-    if (myPlayer == null || myPlayer.snake.isEmpty) return;
+    if (myPlayer == null || myPlayer.ship.isEmpty) return;
 
     // Initialize local state from server data
     _boardSize = game.gameSettings['boardSize'] ?? 20;
     _gameSpeed = game.gameSettings['initialSpeed'] ?? 200;
-    _mySnake = List.from(myPlayer.snake);
+    _myShip = List.from(myPlayer.ship);
     _currentDirection = myPlayer.currentDirection;
     _nextDirection = myPlayer.currentDirection;
     _myScore = myPlayer.score;
@@ -127,7 +127,7 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
     _isGameInitialized = true;
 
     debugPrint(
-      '[MultiplayerGameScreen] Game initialized! Snake: ${_mySnake.length} segments',
+      '[MultiplayerGameScreen] Game initialized! Ship: ${_myShip.length} segments',
     );
     _startGameLoop();
     setState(() {});
@@ -143,13 +143,13 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
   }
 
   void _updateGame() {
-    if (_mySnake.isEmpty || !_isAlive) return;
+    if (_myShip.isEmpty || !_isAlive) return;
 
     // Update direction
     _currentDirection = _nextDirection;
 
     // Calculate new head position
-    final head = _mySnake.first;
+    final head = _myShip.first;
     final newHead = head.move(_currentDirection);
 
     // Check wall collision
@@ -162,7 +162,7 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
     }
 
     // Check self collision
-    if (_mySnake.any((pos) => pos == newHead)) {
+    if (_myShip.any((pos) => pos == newHead)) {
       _handleCrash(CrashReason.selfCollision);
       return;
     }
@@ -173,7 +173,7 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
     if (game != null) {
       for (final player in game.players) {
         if (player.userId != _currentUserId && player.isAlive) {
-          if (player.snake.any((pos) => pos == newHead)) {
+          if (player.ship.any((pos) => pos == newHead)) {
             _handleCrash(CrashReason.selfCollision); // Player collision
             return;
           }
@@ -181,8 +181,8 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
       }
     }
 
-    // Move snake
-    _mySnake.insert(0, newHead);
+    // Move ship
+    _myShip.insert(0, newHead);
 
     // Check food collision
     bool ateFood = false;
@@ -204,12 +204,12 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
     }
 
     if (!ateFood) {
-      _mySnake.removeLast();
+      _myShip.removeLast();
     }
 
     // Send update to server
     multiplayerCubit.updateGameState(
-      snake: _mySnake,
+      ship: _myShip,
       score: _myScore,
       status: PlayerStatus.playing,
     );
@@ -369,7 +369,7 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Length: ${_mySnake.length}',
+                    'Length: ${_myShip.length}',
                     style: TextStyle(
                       color: theme.accentColor.withValues(alpha: 0.7),
                       fontSize: 14,
@@ -468,14 +468,14 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
               // Trigger when status changes to playing
               if (!prevPlaying && currPlaying) return true;
 
-              // Trigger when snakes appear
-              final hadSnakes =
-                  prev.currentGame?.players.any((p) => p.snake.isNotEmpty) ??
+              // Trigger when ships appear
+              final hadShips =
+                  prev.currentGame?.players.any((p) => p.ship.isNotEmpty) ??
                   false;
-              final hasSnakes =
-                  curr.currentGame?.players.any((p) => p.snake.isNotEmpty) ??
+              final hasShips =
+                  curr.currentGame?.players.any((p) => p.ship.isNotEmpty) ??
                   false;
-              return !hadSnakes && hasSnakes;
+              return !hadShips && hasShips;
             }
             return false;
           },
@@ -502,7 +502,7 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
                     );
                   }
 
-                  // Waiting for snake data / game to start
+                  // Waiting for ship data / game to start
                   if (!_isGameInitialized) {
                     return Scaffold(
                       backgroundColor: theme.backgroundColor,
@@ -593,7 +593,7 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
                                               game: game,
                                               currentUserId:
                                                   _currentUserId ?? '',
-                                              localSnake: _mySnake,
+                                              localShip: _myShip,
                                               localDirection: _currentDirection,
                                               localScore: _myScore,
                                               localIsAlive: _isAlive,
@@ -984,7 +984,7 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
 
           const SizedBox(width: 12),
 
-          // Snake length indicator
+          // Ship length indicator
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
@@ -1001,7 +1001,7 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen>
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '${_mySnake.length}',
+                  '${_myShip.length}',
                   style: TextStyle(
                     color: theme.accentColor,
                     fontWeight: FontWeight.bold,

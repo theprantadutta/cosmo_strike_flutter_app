@@ -270,7 +270,7 @@ class StorageService {
       id: Value(replayId),
       name: Value(data['name']),
       score: Value(data['score'] ?? 0),
-      snakeLength: Value(data['snakeLength'] ?? 0),
+      shipLength: Value(data['shipLength'] ?? 0),
       gameDurationSeconds: Value(data['gameDurationSeconds'] ?? 0),
       gameMode: Value(data['gameMode'] ?? 'classic'),
       boardSize: Value(data['boardSize'] ?? '20x20'),

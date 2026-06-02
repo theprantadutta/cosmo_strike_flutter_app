@@ -82,10 +82,10 @@ class Statistics extends Table {
   IntColumn get totalGameTimeSeconds =>
       integer().withDefault(const Constant(0))();
 
-  // Snake length stats
-  IntColumn get maxSnakeLength => integer().withDefault(const Constant(0))();
-  IntColumn get totalSnakeLength => integer().withDefault(const Constant(0))();
-  RealColumn get averageSnakeLength =>
+  // Ship length stats
+  IntColumn get maxShipLength => integer().withDefault(const Constant(0))();
+  IntColumn get totalShipLength => integer().withDefault(const Constant(0))();
+  RealColumn get averageShipLength =>
       real().withDefault(const Constant(0.0))();
 
   // Death stats
@@ -384,7 +384,7 @@ class Replays extends Table {
   TextColumn get id => text()();
   TextColumn get name => text().nullable()();
   IntColumn get score => integer()();
-  IntColumn get snakeLength => integer()();
+  IntColumn get shipLength => integer()();
   IntColumn get gameDurationSeconds => integer()();
   TextColumn get gameMode => text().withDefault(const Constant('classic'))();
   TextColumn get boardSize =>
@@ -688,7 +688,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -825,6 +825,9 @@ class AppDatabase extends _$AppDatabase {
           'ON daily_challenges(challenge_id)',
         );
       }
+      // v12: rebrand entity columns to the 'ship_*' length names. The schema is
+      // produced fresh by onCreate; this rebrand ships with a clean dev-data
+      // reset (fresh install), so no in-place column migration is required.
     },
   );
 

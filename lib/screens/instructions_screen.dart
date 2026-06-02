@@ -19,7 +19,7 @@ class InstructionsScreen extends StatelessWidget {
         final theme = state.currentTheme;
 
         return Scaffold(
-          bottomNavigationBar: const SnakeBannerAd(),
+          bottomNavigationBar: const ShipBannerAd(),
           extendBodyBehindAppBar: true,
           appBar: AppBar(
             title: Text(

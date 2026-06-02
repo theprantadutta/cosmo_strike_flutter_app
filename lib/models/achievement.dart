@@ -294,7 +294,7 @@ class Achievement {
         coinReward: 25,
       ),
       const Achievement(
-        id: 'snake_enthusiast',
+        id: 'ship_enthusiast',
         title: 'Pilot Enthusiast',
         description: 'Play 100 games',
         icon: Icons.gamepad,
@@ -306,7 +306,7 @@ class Achievement {
         coinReward: 50,
       ),
       const Achievement(
-        id: 'snake_addict',
+        id: 'ship_addict',
         title: 'Combat Addict',
         description: 'Play 500 games',
         icon: Icons.sports_esports,
@@ -427,21 +427,21 @@ class Achievement {
       // ============================================================
       // C. Games Played (2 NEW)
       // ============================================================
-      const Achievement(id: 'snake_veteran', title: 'Ace Veteran', description: 'Play 1,000 games', icon: Icons.military_tech, type: AchievementType.games, rarity: AchievementRarity.legendary, targetValue: 1000, points: 350, xpReward: 350, coinReward: 175),
-      const Achievement(id: 'snake_legend', title: 'Pilot Legend', description: 'Play 5,000 games', icon: Icons.workspace_premium, type: AchievementType.games, rarity: AchievementRarity.diamond, targetValue: 5000, points: 500, xpReward: 500, coinReward: 250),
+      const Achievement(id: 'ship_veteran', title: 'Ace Veteran', description: 'Play 1,000 games', icon: Icons.military_tech, type: AchievementType.games, rarity: AchievementRarity.legendary, targetValue: 1000, points: 350, xpReward: 350, coinReward: 175),
+      const Achievement(id: 'ship_legend', title: 'Pilot Legend', description: 'Play 5,000 games', icon: Icons.workspace_premium, type: AchievementType.games, rarity: AchievementRarity.diamond, targetValue: 5000, points: 500, xpReward: 500, coinReward: 250),
 
       // ============================================================
       // D. Single-Game Survival (3 NEW)
       // ============================================================
       const Achievement(id: 'iron_will', title: 'Iron Will', description: 'Survive 10 minutes in a single game', icon: Icons.fitness_center, type: AchievementType.survival, rarity: AchievementRarity.legendary, targetValue: 600, points: 150, xpReward: 150, coinReward: 75),
-      const Achievement(id: 'eternal_snake', title: 'Eternal Pilot', description: 'Survive 20 minutes in a single game', icon: Icons.all_inclusive, type: AchievementType.survival, rarity: AchievementRarity.diamond, targetValue: 1200, points: 250, xpReward: 250, coinReward: 125),
+      const Achievement(id: 'eternal_ship', title: 'Eternal Pilot', description: 'Survive 20 minutes in a single game', icon: Icons.all_inclusive, type: AchievementType.survival, rarity: AchievementRarity.diamond, targetValue: 1200, points: 250, xpReward: 250, coinReward: 125),
       const Achievement(id: 'time_lord', title: 'Time Lord', description: 'Survive 30 minutes in a single game', icon: Icons.hourglass_top, type: AchievementType.survival, rarity: AchievementRarity.diamond, targetValue: 1800, points: 400, xpReward: 400, coinReward: 200),
 
       // ============================================================
       // E. Single-Game Enemies Destroyed (6 NEW)
       // ============================================================
       const Achievement(id: 'first_bite_snack', title: 'First Kills', description: 'Destroy 5 enemies in one game', icon: Icons.lunch_dining, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 5, points: 15, xpReward: 15, coinReward: 8),
-      const Achievement(id: 'hungry_snake', title: 'Trigger Happy', description: 'Destroy 20 enemies in one game', icon: Icons.ramen_dining, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 20, points: 25, xpReward: 25, coinReward: 12),
+      const Achievement(id: 'hungry_ship', title: 'Trigger Happy', description: 'Destroy 20 enemies in one game', icon: Icons.ramen_dining, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 20, points: 25, xpReward: 25, coinReward: 12),
       const Achievement(id: 'famished', title: 'Sharpshooter', description: 'Destroy 50 enemies in one game', icon: Icons.dining, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 50, points: 50, xpReward: 50, coinReward: 25),
       const Achievement(id: 'ravenous', title: 'Onslaught', description: 'Destroy 100 enemies in one game', icon: Icons.set_meal, type: AchievementType.special, rarity: AchievementRarity.epic, targetValue: 100, points: 100, xpReward: 100, coinReward: 50),
       const Achievement(id: 'insatiable', title: 'Annihilator', description: 'Destroy 200 enemies in one game', icon: Icons.fastfood, type: AchievementType.special, rarity: AchievementRarity.legendary, targetValue: 200, points: 200, xpReward: 200, coinReward: 100),
@@ -461,7 +461,7 @@ class Achievement {
       const Achievement(id: 'quick_player', title: 'Quick Player', description: 'Play for 1 hour total', icon: Icons.schedule, type: AchievementType.general, rarity: AchievementRarity.common, targetValue: 3600, points: 25, xpReward: 25, coinReward: 10),
       const Achievement(id: 'engaged_player', title: 'Engaged Player', description: 'Play for 10 hours total', icon: Icons.watch_later, type: AchievementType.general, rarity: AchievementRarity.rare, targetValue: 36000, points: 75, xpReward: 75, coinReward: 40),
       const Achievement(id: 'hardcore_player', title: 'Hardcore Player', description: 'Play for 50 hours total', icon: Icons.self_improvement, type: AchievementType.general, rarity: AchievementRarity.epic, targetValue: 180000, points: 175, xpReward: 175, coinReward: 90),
-      const Achievement(id: 'snake_obsessed', title: 'Combat Obsessed', description: 'Play for 100 hours total', icon: Icons.psychology, type: AchievementType.general, rarity: AchievementRarity.legendary, targetValue: 360000, points: 300, xpReward: 300, coinReward: 150),
+      const Achievement(id: 'ship_obsessed', title: 'Combat Obsessed', description: 'Play for 100 hours total', icon: Icons.psychology, type: AchievementType.general, rarity: AchievementRarity.legendary, targetValue: 360000, points: 300, xpReward: 300, coinReward: 150),
       const Achievement(id: 'touch_grass', title: 'Touch Grass', description: 'Play for 250 hours total — maybe step outside?', icon: Icons.grass, type: AchievementType.general, rarity: AchievementRarity.diamond, targetValue: 900000, points: 500, xpReward: 500, coinReward: 250),
 
       // ============================================================
@@ -507,7 +507,7 @@ class Achievement {
       // ============================================================
       const Achievement(id: 'survival_initiate', title: 'Survival Initiate', description: 'Finish 10 Survival games', icon: Icons.favorite, type: AchievementType.games, rarity: AchievementRarity.common, targetValue: 10, points: 25, xpReward: 25, coinReward: 12, gameModeFilter: 'survival'),
       const Achievement(id: 'survival_pro', title: 'Survival Pro', description: 'Survive 5 minutes in Survival mode', icon: Icons.health_and_safety, type: AchievementType.survival, rarity: AchievementRarity.epic, targetValue: 300, points: 100, xpReward: 100, coinReward: 50, gameModeFilter: 'survival'),
-      const Achievement(id: 'last_snake_standing', title: 'Last Ship Standing', description: 'Score 2,500 in Survival', icon: Icons.shield_moon, type: AchievementType.score, rarity: AchievementRarity.legendary, targetValue: 2500, points: 200, xpReward: 200, coinReward: 100, gameModeFilter: 'survival'),
+      const Achievement(id: 'last_ship_standing', title: 'Last Ship Standing', description: 'Score 2,500 in Survival', icon: Icons.shield_moon, type: AchievementType.score, rarity: AchievementRarity.legendary, targetValue: 2500, points: 200, xpReward: 200, coinReward: 100, gameModeFilter: 'survival'),
 
       // ============================================================
       // N. Game Mode — TIME ATTACK (3 NEW)
@@ -538,10 +538,10 @@ class Achievement {
       // ============================================================
       // Q. Stage Progress (5 NEW)
       // ============================================================
-      const Achievement(id: 'growing_snake', title: 'Rising Star', description: 'Reach stage 20', icon: Icons.trending_up, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 20, points: 20, xpReward: 20, coinReward: 10),
-      const Achievement(id: 'big_snake', title: 'Deep Striker', description: 'Reach stage 50', icon: Icons.straighten, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 50, points: 50, xpReward: 50, coinReward: 25),
-      const Achievement(id: 'huge_snake', title: 'Frontline Pilot', description: 'Reach stage 100', icon: Icons.open_in_full, type: AchievementType.special, rarity: AchievementRarity.epic, targetValue: 100, points: 100, xpReward: 100, coinReward: 50),
-      const Achievement(id: 'massive_snake', title: 'Vanguard', description: 'Reach stage 200', icon: Icons.expand, type: AchievementType.special, rarity: AchievementRarity.legendary, targetValue: 200, points: 200, xpReward: 200, coinReward: 100),
+      const Achievement(id: 'growing_ship', title: 'Rising Star', description: 'Reach stage 20', icon: Icons.trending_up, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 20, points: 20, xpReward: 20, coinReward: 10),
+      const Achievement(id: 'big_ship', title: 'Deep Striker', description: 'Reach stage 50', icon: Icons.straighten, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 50, points: 50, xpReward: 50, coinReward: 25),
+      const Achievement(id: 'huge_ship', title: 'Frontline Pilot', description: 'Reach stage 100', icon: Icons.open_in_full, type: AchievementType.special, rarity: AchievementRarity.epic, targetValue: 100, points: 100, xpReward: 100, coinReward: 50),
+      const Achievement(id: 'massive_ship', title: 'Vanguard', description: 'Reach stage 200', icon: Icons.expand, type: AchievementType.special, rarity: AchievementRarity.legendary, targetValue: 200, points: 200, xpReward: 200, coinReward: 100),
       const Achievement(id: 'anaconda', title: 'Dreadnought', description: 'Reach stage 500', icon: Icons.all_inclusive, type: AchievementType.special, rarity: AchievementRarity.diamond, targetValue: 500, points: 400, xpReward: 400, coinReward: 200),
 
       // ============================================================
@@ -583,7 +583,7 @@ class Achievement {
       // ============================================================
       const Achievement(id: 'velocity', title: 'Velocity', description: 'Reach in-game level 15 in one game', icon: Icons.fast_forward, type: AchievementType.special, rarity: AchievementRarity.epic, targetValue: 15, points: 120, xpReward: 120, coinReward: 60),
       const Achievement(id: 'mach_speed', title: 'Mach Speed', description: 'Reach in-game level 20 in one game', icon: Icons.rocket, type: AchievementType.special, rarity: AchievementRarity.legendary, targetValue: 20, points: 200, xpReward: 200, coinReward: 100),
-      const Achievement(id: 'cosmic_snake', title: 'Cosmic Ace', description: 'Reach in-game level 25 in one game', icon: Icons.satellite_alt, type: AchievementType.special, rarity: AchievementRarity.diamond, targetValue: 25, points: 300, xpReward: 300, coinReward: 150),
+      const Achievement(id: 'cosmic_ship', title: 'Cosmic Ace', description: 'Reach in-game level 25 in one game', icon: Icons.satellite_alt, type: AchievementType.special, rarity: AchievementRarity.diamond, targetValue: 25, points: 300, xpReward: 300, coinReward: 150),
 
       // ============================================================
       // W. Variety / Exploration (3 NEW)

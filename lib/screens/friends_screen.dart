@@ -56,7 +56,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
         final theme = themeState.currentTheme;
 
         return Scaffold(
-          bottomNavigationBar: const SnakeBannerAd(),
+          bottomNavigationBar: const ShipBannerAd(),
           body: AppBackground(
             theme: theme,
             child: SafeArea(

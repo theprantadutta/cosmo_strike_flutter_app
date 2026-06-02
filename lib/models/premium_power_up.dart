@@ -70,19 +70,19 @@ enum PremiumPowerUpType {
       case PremiumPowerUpType.teleport:
         return 'Instantly teleport to a safe random location';
       case PremiumPowerUpType.sizeReducer:
-        return 'Temporarily shrink snake by 50% for 15 seconds';
+        return 'Temporarily shrink ship by 50% for 15 seconds';
       case PremiumPowerUpType.scoreShield:
         return 'Protect score from loss on crash for 3 attempts';
       case PremiumPowerUpType.comboMultiplier:
         return 'Each food eaten increases multiplier (max 10x) for 20 seconds';
       case PremiumPowerUpType.timeWarp:
-        return 'Slow down everything except your snake for 12 seconds';
+        return 'Slow down everything except your ship for 12 seconds';
       case PremiumPowerUpType.magneticFood:
         return 'Food automatically moves toward you for 25 seconds';
       case PremiumPowerUpType.ghostMode:
         return 'Phase through walls and yourself for 10 seconds';
       case PremiumPowerUpType.doubleTrouble:
-        return 'Spawn a second snake that copies your moves for 15 seconds';
+        return 'Spawn a second ship that copies your moves for 15 seconds';
       case PremiumPowerUpType.luckyCharm:
         return 'Double chance of spawning power-ups for 30 seconds';
       case PremiumPowerUpType.powerSurge:
@@ -115,7 +115,7 @@ enum PremiumPowerUpType {
       case PremiumPowerUpType.ghostMode:
         return '👻';
       case PremiumPowerUpType.doubleTrouble:
-        return '🐍';
+        return '🚀';
       case PremiumPowerUpType.luckyCharm:
         return '🍀';
       case PremiumPowerUpType.powerSurge:
@@ -282,7 +282,7 @@ class PremiumPowerUp extends PowerUp {
   static PremiumPowerUp? generateRandomPremium(
     int boardWidth,
     int boardHeight,
-    snake, {
+    ship, {
     foodPosition,
     bool premiumOnly = false,
   }) {
@@ -308,7 +308,7 @@ class PremiumPowerUp extends PowerUp {
         final position = PowerUp.generateRandomPosition(
           boardWidth,
           boardHeight,
-          snake,
+          ship,
           foodPosition: foodPosition,
         );
 
@@ -417,7 +417,7 @@ class PremiumActivePowerUp extends ActivePowerUp {
   int get crashesRemaining => additionalData['crashes_remaining'] ?? 0;
   bool get isSizeReduced =>
       premiumType == PremiumPowerUpType.sizeReducer && !isExpired;
-  bool get hasDoubleSnake =>
+  bool get hasDoubleShip =>
       premiumType == PremiumPowerUpType.doubleTrouble && !isExpired;
   bool get isMagneticActive =>
       premiumType == PremiumPowerUpType.magneticFood && !isExpired;

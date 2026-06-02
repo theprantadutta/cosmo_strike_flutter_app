@@ -19,7 +19,7 @@ import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/walkthrough_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
-import 'package:cosmo_strike_flutter_app/models/snake_coins.dart';
+import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/rewarded_action_button.dart';
@@ -294,7 +294,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       controller: ThemeTransitionController(vsync: this),
                       currentTheme: theme,
                       child: Scaffold(
-                        bottomNavigationBar: const SnakeBannerAd(),
+                        bottomNavigationBar: const ShipBannerAd(),
                         body: AppBackground(
                           theme: theme,
                           child: SafeArea(

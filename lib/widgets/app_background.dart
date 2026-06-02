@@ -298,8 +298,8 @@ class _PremiumDecorPainter extends CustomPainter {
       ..shader = RadialGradient(
         center: const Alignment(-0.3, -0.3),
         colors: [
-          theme.snakeColor.withValues(alpha: 0.45),
-          theme.snakeColor.withValues(alpha: 0.18),
+          theme.shipColor.withValues(alpha: 0.45),
+          theme.shipColor.withValues(alpha: 0.18),
           theme.backgroundColor.withValues(alpha: 0.6),
         ],
       ).createShader(Rect.fromCircle(center: planetCenter, radius: 60));
@@ -430,7 +430,7 @@ class _PremiumDecorPainter extends CustomPainter {
       final x = rng.nextDouble() * size.width;
       final y = rng.nextDouble() * vanish.dy * 0.95;
       final r = 0.8 + rng.nextDouble() * 1.6;
-      final color = i.isEven ? theme.foodColor : theme.snakeColor;
+      final color = i.isEven ? theme.foodColor : theme.shipColor;
       glowPaint.color = color.withValues(alpha: 0.4);
       canvas.drawCircle(Offset(x, y), r + 1.5, glowPaint);
       dotPaint.color = color.withValues(alpha: 0.95);
@@ -514,7 +514,7 @@ class _PremiumDecorPainter extends CustomPainter {
       final sway = math.sin((yProgress + phase) * math.pi * 4) * 30;
       final x = (col + sway).clamp(-10.0, size.width + 10.0);
       final rotation = (yProgress + phase) * math.pi * 2;
-      final color = i.isEven ? theme.foodColor : theme.snakeColor;
+      final color = i.isEven ? theme.foodColor : theme.shipColor;
       leafPaint.color = color.withValues(alpha: 0.32);
       canvas.save();
       canvas.translate(x, y);
@@ -560,7 +560,7 @@ class _PremiumDecorPainter extends CustomPainter {
 
     // Three layered dune silhouettes at the bottom.
     final duneColors = [
-      theme.snakeColor.withValues(alpha: 0.32),
+      theme.shipColor.withValues(alpha: 0.32),
       Colors.black.withValues(alpha: 0.28),
       Colors.black.withValues(alpha: 0.4),
     ];
@@ -625,13 +625,13 @@ class _PremiumDecorPainter extends CustomPainter {
       }
       path.close();
 
-      // Prismatic gradient: snakeColor → foodColor → accentColor.
+      // Prismatic gradient: shipColor → foodColor → accentColor.
       final fillPaint = Paint()
         ..shader = LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            theme.snakeColor.withValues(alpha: 0.42),
+            theme.shipColor.withValues(alpha: 0.42),
             theme.foodColor.withValues(alpha: 0.28),
             theme.accentColor.withValues(alpha: 0.32),
           ],

@@ -185,7 +185,7 @@ class PremiumState extends Equatable {
   /// skins unlock either through individual purchase OR an active Pro
   /// subscription (Pro bundles all premium cosmetics, mirroring the theme
   /// fast-path). Use this in UI gating (store equip buttons, paint logic).
-  bool isSkinUnlocked(SnakeSkinType skin) =>
+  bool isSkinUnlocked(ShipSkinType skin) =>
       !skin.isPremium || hasPremium || ownedSkins.contains(skin.id);
 
   /// Check if a trail is usable by the player. Same Pro-bundle fast-path

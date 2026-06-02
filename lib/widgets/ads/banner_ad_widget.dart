@@ -13,14 +13,14 @@ import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 /// arrives. Reserving the space up front is what prevents the layout shift
 /// users would otherwise see when a banner pops in a moment after the screen
 /// renders.
-class SnakeBannerAd extends StatefulWidget {
-  const SnakeBannerAd({super.key});
+class ShipBannerAd extends StatefulWidget {
+  const ShipBannerAd({super.key});
 
   @override
-  State<SnakeBannerAd> createState() => _SnakeBannerAdState();
+  State<ShipBannerAd> createState() => _ShipBannerAdState();
 }
 
-class _SnakeBannerAdState extends State<SnakeBannerAd> {
+class _ShipBannerAdState extends State<ShipBannerAd> {
   BannerAd? _ad;
   bool _loaded = false;
 

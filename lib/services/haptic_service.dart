@@ -84,8 +84,8 @@ class HapticService {
 
   /// Game-specific haptic feedback methods
 
-  /// Feedback for snake movement/direction changes
-  Future<void> snakeMove() async {
+  /// Feedback for ship movement/direction changes
+  Future<void> shipMove() async {
     await lightImpact();
   }
 

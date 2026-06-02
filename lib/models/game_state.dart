@@ -1,5 +1,5 @@
 import 'package:cosmo_strike_flutter_app/models/food.dart';
-import 'package:cosmo_strike_flutter_app/models/snake.dart';
+import 'package:cosmo_strike_flutter_app/models/ship.dart';
 import 'package:cosmo_strike_flutter_app/models/position.dart';
 import 'package:cosmo_strike_flutter_app/models/power_up.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_power_up.dart';
@@ -31,13 +31,13 @@ enum CrashReason {
       case CrashReason.wallCollision:
         return '🧱';
       case CrashReason.selfCollision:
-        return '🐍';
+        return '🚀';
     }
   }
 }
 
 class GameState {
-  final Snake snake;
+  final Ship ship;
   final Food? food;
   final List<Food> foods;
   final PowerUp? powerUp;
@@ -74,14 +74,14 @@ class GameState {
   /// this as 'now' so the countdown chip freezes during pause.
   final DateTime? pausedAt;
 
-  // PerfectGame mode: every cell the snake's head has occupied this run.
+  // PerfectGame mode: every cell the ship's head has occupied this run.
   // Empty in modes that don't enforce no-revisit so the painter can early-out
   // without iterating an unused set. The cubit owns the master copy and
   // emits a Set.of(...) snapshot each tick in enforcesNoRevisit modes.
   final Set<Position> visitedCells;
 
   GameState({
-    required this.snake,
+    required this.ship,
     this.food,
     this.foods = const [],
     this.powerUp,
@@ -110,7 +110,7 @@ class GameState {
 
   factory GameState.initial() {
     return GameState(
-      snake: Snake.initial(),
+      ship: Ship.initial(),
       status: GameStatus.menu,
       crashReason: null,
       crashPosition: null,
@@ -278,7 +278,7 @@ class GameState {
       p.premiumType == PremiumPowerUpType.megaScoreMultiplier;
 
   GameState copyWith({
-    Snake? snake,
+    Ship? ship,
     Food? food,
     List<Food>? foods,
     PowerUp? powerUp,
@@ -307,7 +307,7 @@ class GameState {
     bool clearPausedAt = false,
   }) {
     return GameState(
-      snake: snake ?? this.snake,
+      ship: ship ?? this.ship,
       food: food ?? this.food,
       foods: foods ?? this.foods,
       powerUp: clearPowerUp ? null : (powerUp ?? this.powerUp),

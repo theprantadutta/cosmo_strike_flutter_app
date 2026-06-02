@@ -5,7 +5,7 @@ import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart' as db;
 import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/power_up/power_up_cubit.dart';
-import 'package:cosmo_strike_flutter_app/models/snake_coins.dart';
+import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';

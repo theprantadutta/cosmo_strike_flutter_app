@@ -103,7 +103,7 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
     final theme = themeState.currentTheme;
 
     return Scaffold(
-      bottomNavigationBar: const SnakeBannerAd(),
+      bottomNavigationBar: const ShipBannerAd(),
       appBar: AppBar(
         title: Text(
           _replay != null ? 'Replay: ${_replay!.playerName}' : 'Loading Replay...',
@@ -601,15 +601,15 @@ class ReplayBoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint();
 
-    // Draw snake
-    if (frame.snakePositions.isNotEmpty) {
-      for (int i = 0; i < frame.snakePositions.length; i++) {
-        final pos = frame.snakePositions[i];
+    // Draw ship
+    if (frame.shipPositions.isNotEmpty) {
+      for (int i = 0; i < frame.shipPositions.length; i++) {
+        final pos = frame.shipPositions[i];
         final isHead = i == 0;
 
         paint.color = isHead
-            ? theme.snakeColor
-            : theme.snakeColor.withValues(alpha: 0.8);
+            ? theme.shipColor
+            : theme.shipColor.withValues(alpha: 0.8);
 
         final rect = Rect.fromLTWH(
           pos[0] * cellSize + 1,

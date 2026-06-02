@@ -81,7 +81,7 @@ We implement appropriate security measures to protect your personal information 
 You have the right to access, update, or delete your personal information. Contact us for any privacy-related requests.
 
 ## Contact Information
-For questions about this Privacy Policy, please contact us at: privacy@cosmostrike.pranta.dev
+For questions about this Privacy Policy, please contact us at: prantadutta1997@gmail.com
 
 By using Cosmo Strike, you acknowledge that you have read, understood, and agree to this Privacy Policy.
 ''';

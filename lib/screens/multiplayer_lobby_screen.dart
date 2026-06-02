@@ -141,7 +141,7 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
                   }
 
                   return Scaffold(
-                    bottomNavigationBar: const SnakeBannerAd(),
+                    bottomNavigationBar: const ShipBannerAd(),
                     body: AppBackground(
                       theme: theme,
                       child: SafeArea(
