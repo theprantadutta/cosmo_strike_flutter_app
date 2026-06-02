@@ -324,18 +324,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                       ),
                                     ),
 
-                                    // Game title with logo - flexible sizing
-                                    _buildGameTitle(theme, screenHeight),
-
-                                    // Main content area - scrollable if needed
+                                    // Landscape command deck: left identity +
+                                    // hero PLAY column, right 8-tile nav grid.
+                                    // Reuses the existing sub-builders (so the
+                                    // walkthrough keys / daily-bonus / game-mode
+                                    // logic stay intact); only the composition
+                                    // changes from a vertical stack to a wide
+                                    // two-region row.
                                     Expanded(
-                                      child: screenHeight < 600
-                                          ? SingleChildScrollView(
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: screenWidth * 0.03,
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            // Left — identity + hero play.
+                                            Expanded(
+                                              flex: 5,
                                               child: Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
                                                 children: [
-                                                  SizedBox(
-                                                    height: (screenHeight * 0.6)
-                                                        .clamp(300, 500),
+                                                  _buildGameTitle(
+                                                    theme,
+                                                    screenHeight,
+                                                  ),
+                                                  Expanded(
                                                     child: _buildMainPlayArea(
                                                       context,
                                                       gameState,
@@ -346,64 +362,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                                       screenHeight,
                                                     ),
                                                   ),
-                                                  Padding(
-                                                    padding:
-                                                        EdgeInsets.symmetric(
-                                                          horizontal:
-                                                              screenWidth *
-                                                              0.04,
-                                                        ),
-                                                    child:
-                                                        _buildBottomNavigation(
-                                                          context,
-                                                          themeState,
-                                                          theme,
-                                                          screenHeight,
-                                                          screenWidth,
-                                                        ),
-                                                  ),
-                                                  SizedBox(
-                                                    height: isVerySmallScreen
-                                                        ? 8
-                                                        : 12,
-                                                  ),
                                                 ],
                                               ),
-                                            )
-                                          : Column(
-                                              children: [
-                                                // Main play area - takes available space
-                                                Expanded(
-                                                  child: _buildMainPlayArea(
-                                                    context,
-                                                    gameState,
-                                                    authState,
-                                                    theme,
-                                                    screenHeight,
-                                                    screenWidth,
-                                                    screenHeight,
-                                                  ),
-                                                ),
-
-                                                // Bottom navigation grid - fixed at bottom
-                                                Padding(
-                                                  padding: EdgeInsets.symmetric(
-                                                    horizontal:
-                                                        screenWidth * 0.04,
-                                                    vertical: isVerySmallScreen
-                                                        ? 8
-                                                        : 12,
-                                                  ),
-                                                  child: _buildBottomNavigation(
-                                                    context,
-                                                    themeState,
-                                                    theme,
-                                                    screenHeight,
-                                                    screenWidth,
-                                                  ),
-                                                ),
-                                              ],
                                             ),
+                                            const SizedBox(width: 16),
+                                            // Right — command deck (nav grid).
+                                            Expanded(
+                                              flex: 6,
+                                              child: Center(
+                                                child: _buildBottomNavigation(
+                                                  context,
+                                                  themeState,
+                                                  theme,
+                                                  screenHeight,
+                                                  screenWidth,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 );
