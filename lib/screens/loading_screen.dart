@@ -560,50 +560,59 @@ class _LoadingScreenState extends State<LoadingScreen>
   Widget _buildLoadingView(GameTheme theme) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final screenHeight = constraints.maxHeight;
-        final isSmallScreen = screenHeight < 600;
+        // Landscape phones report a short height — treat < 600 as "compact"
+        // (smaller logo/text) so nothing clips.
+        final isSmallScreen = constraints.maxHeight < 600;
 
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: screenHeight),
-            child: IntrinsicHeight(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  SizedBox(height: isSmallScreen ? 8 : 16),
-
-                  // Game-style header
-                  _buildGameHeader(theme, isSmallScreen),
-
-                  SizedBox(height: isSmallScreen ? 12 : 20),
-
-                  // Central loading area with enhanced content
-                  _buildEnhancedLoadingArea(theme, isSmallScreen),
-
-                  SizedBox(height: isSmallScreen ? 16 : 24),
-
-                  // Progress section with game-like design
-                  _buildProgressSection(theme, isSmallScreen),
-
-                  SizedBox(height: isSmallScreen ? 14 : 22),
-
-                  // Rotating gameplay tip — keeps the center alive while loading
-                  _buildTipCard(theme, isSmallScreen),
-
-                  SizedBox(height: isSmallScreen ? 12 : 20),
-
-                  // Game features preview
-                  if (!isSmallScreen) _buildFeaturesPreview(theme),
-                  if (!isSmallScreen) SizedBox(height: isSmallScreen ? 16 : 24),
-
-                  // Branded footer
-                  _buildBrandedFooter(theme, isSmallScreen),
-
-                  SizedBox(height: isSmallScreen ? 8 : 16),
-                ],
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+          child: Column(
+            children: [
+              // Landscape body: branding on the left, live loading status
+              // (spinner + progress + tip) on the right. Each side centers and
+              // can scroll on tiny screens so content never overflows.
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: Center(
+                        child: SingleChildScrollView(
+                          primary: false,
+                          child: _buildGameHeader(theme, isSmallScreen),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      flex: 6,
+                      child: Center(
+                        child: SingleChildScrollView(
+                          primary: false,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildEnhancedLoadingArea(theme, isSmallScreen),
+                              const SizedBox(height: 14),
+                              _buildProgressSection(theme, isSmallScreen),
+                              const SizedBox(height: 12),
+                              _buildTipCard(theme, isSmallScreen),
+                              if (!isSmallScreen) ...[
+                                const SizedBox(height: 16),
+                                _buildFeaturesPreview(theme),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 6),
+              _buildBrandedFooter(theme, isSmallScreen),
+            ],
           ),
         );
       },

@@ -450,11 +450,9 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
           // RIGHT — title + accept controls.
           Expanded(
             flex: 4,
-            child: SingleChildScrollView(
-              primary: false,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
                   // Header
                   Container(
                         width: double.infinity,
@@ -640,7 +638,6 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
               .gameZoomIn(delay: 400.ms),
                 ],
               ),
-            ),
           ),
         ],
       ),
