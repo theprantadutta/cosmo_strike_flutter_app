@@ -7,8 +7,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart'
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/username_service.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
-import 'package:cosmo_strike_flutter_app/widgets/gradient_button.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 
 /// First-time username confirmation screen.
 ///
@@ -110,132 +109,106 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
     return BlocBuilder<ThemeCubit, ThemeState>(
       builder: (context, themeState) {
         final theme = themeState.currentTheme;
-        return Scaffold(
-          backgroundColor: theme.backgroundColor,
-          body: AppBackground(
-            theme: theme,
-            child: SafeArea(
-              // SingleChildScrollView so the keyboard opening (autofocused
-              // TextField) on a short screen doesn't overflow the Column.
-              // LayoutBuilder + ConstrainedBox keeps the Spacers working at
-              // tall heights — content centres vertically when it fits and
-              // scrolls when it doesn't.
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
-                      ),
-                      child: IntrinsicHeight(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Spacer(),
-                    Icon(
-                      Icons.person_pin,
-                      size: 64,
-                      color: theme.accentColor,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Pick your username',
-                      style: TextStyle(
-                        color: theme.accentColor,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "It's how you'll show up on the leaderboard. "
-                      "We've picked one for you — keep it or change it.",
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.75),
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 32),
-                    TextField(
-                      controller: _controller,
-                      enabled: !_isLoading,
-                      autofocus: true,
-                      textCapitalization: TextCapitalization.none,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'[a-zA-Z0-9_]'),
+        // D-lite archetype: a centered, max-width glass card on the starfield
+        // so the form reads as a focused panel instead of stretching across the
+        // full landscape width.
+        return CommandScaffold(
+          theme: theme,
+          showTopBar: false,
+          body: Center(
+            child: SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: GlassPanel(
+                  theme: theme,
+                  glow: true,
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Icon(Icons.person_pin, size: 52, color: theme.neonPrimary),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Pick your username',
+                        style: TextStyle(
+                          color: theme.textPrimary,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
                         ),
-                        LengthLimitingTextInputFormatter(20),
-                      ],
-                      decoration: InputDecoration(
-                        labelText: 'Username',
-                        labelStyle: TextStyle(
-                          color: theme.accentColor.withValues(alpha: 0.7),
-                        ),
-                        filled: true,
-                        fillColor: theme.backgroundColor.withValues(alpha: 0.3),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: theme.accentColor.withValues(alpha: 0.3),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "It's how you'll show up on the leaderboard. "
+                        "We've picked one for you — keep it or change it.",
+                        style: TextStyle(color: theme.textMuted, fontSize: 13),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: _controller,
+                        enabled: !_isLoading,
+                        autofocus: true,
+                        textCapitalization: TextCapitalization.none,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[a-zA-Z0-9_]'),
                           ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: theme.accentColor.withValues(alpha: 0.3),
+                          LengthLimitingTextInputFormatter(20),
+                        ],
+                        decoration: InputDecoration(
+                          labelText: 'Username',
+                          labelStyle: TextStyle(color: theme.textMuted),
+                          filled: true,
+                          fillColor: theme.neonPrimary.withValues(alpha: 0.06),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: theme.stroke),
                           ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: theme.stroke),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                BorderSide(color: theme.neonPrimary, width: 1.5),
+                          ),
+                          errorText: _errorMessage,
+                          errorStyle: const TextStyle(color: Color(0xFFFF6B8A)),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: theme.accentColor),
+                        style: TextStyle(color: theme.textPrimary),
+                        maxLength: 20,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '• 3-20 characters\n'
+                        '• Must start with a letter\n'
+                        '• Letters, numbers, and underscores only',
+                        style: TextStyle(color: theme.textMuted, fontSize: 12),
+                      ),
+                      const SizedBox(height: 20),
+                      NeonButton(
+                        onPressed: _isLoading ? null : _onContinue,
+                        label: _isLoading ? 'SAVING...' : 'CONTINUE',
+                        icon: Icons.arrow_forward,
+                        theme: theme,
+                        expand: true,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'You can change this anytime in Settings.',
+                        style: TextStyle(
+                          color: theme.textMuted.withValues(alpha: 0.7),
+                          fontSize: 12,
                         ),
-                        errorText: _errorMessage,
-                        errorStyle: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
                       ),
-                      style: const TextStyle(color: Colors.white),
-                      maxLength: 20,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '• 3-20 characters\n'
-                      '• Must start with a letter\n'
-                      '• Letters, numbers, and underscores only',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.6),
-                        fontSize: 12,
-                      ),
-                    ),
-                    const Spacer(),
-                    GradientButton(
-                      onPressed: _isLoading ? null : _onContinue,
-                      text: _isLoading ? 'SAVING...' : 'CONTINUE',
-                      primaryColor: theme.accentColor,
-                      secondaryColor: theme.foodColor,
-                      icon: Icons.arrow_forward,
-                      width: double.infinity,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'You can change this anytime in Settings.',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.5),
-                        fontSize: 12,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
+                    ],
+                  ),
                 ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
               ),
             ),
           ),

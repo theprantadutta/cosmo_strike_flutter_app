@@ -4,7 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 
 /// Email/password sign-in, account-creation, and anonymous-account link
 /// screen. Tab switcher between Sign In and Create Account.
@@ -55,23 +56,20 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeCubit>().state.currentTheme;
 
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(
-          widget.linkFromAnonymous ? 'Save Your Progress' : 'Email Sign-In',
-          style: const TextStyle(color: Colors.white),
-        ),
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: AppBackground(
-        theme: theme,
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+    // D-lite archetype: a centered, max-width glass card with the tabbed
+    // sign-in / create-account form on the starfield.
+    return CommandScaffold(
+      theme: theme,
+      title: widget.linkFromAnonymous ? 'Save Your Progress' : 'Email Sign-In',
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: GlassPanel(
+              theme: theme,
+              glow: true,
+              padding: const EdgeInsets.all(20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -80,32 +78,29 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
                       'Add an email and password to your account so you can buy items, restore on reinstall, and sign in from any device.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 15,
+                        color: theme.textMuted,
+                        fontSize: 14,
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                   ],
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.15),
-                      ),
+                      color: theme.neonPrimary.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: theme.stroke),
                     ),
                     child: TabBar(
                       controller: _tabs,
                       indicator: BoxDecoration(
-                        color: theme.accentColor.withValues(alpha: 0.85),
-                        borderRadius: BorderRadius.circular(16),
+                        color: theme.neonPrimary.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      labelColor: Colors.white,
-                      unselectedLabelColor:
-                          Colors.white.withValues(alpha: 0.7),
+                      labelColor: const Color(0xFF03040A),
+                      unselectedLabelColor: theme.textMuted,
                       labelStyle: const TextStyle(
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
                       dividerColor: Colors.transparent,
@@ -120,14 +115,14 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   SizedBox(
-                    height: 360,
+                    height: 300,
                     child: TabBarView(
                       controller: _tabs,
                       children: [
-                        _buildSignInForm(theme.accentColor),
-                        _buildCreateForm(theme.accentColor),
+                        _buildSignInForm(theme),
+                        _buildCreateForm(theme),
                       ],
                     ),
                   ),
@@ -140,50 +135,53 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
     );
   }
 
-  Widget _buildSignInForm(Color accent) {
+  Widget _buildSignInForm(GameTheme theme) {
     return Form(
       key: _signInFormKey,
       child: Column(
         children: [
           _emailField(_signInEmail),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           _passwordField(
             controller: _signInPassword,
             obscure: !_showSignInPassword,
             onToggle: () =>
                 setState(() => _showSignInPassword = !_showSignInPassword),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: _busy ? null : _onForgotPassword,
               child: Text(
                 'Forgot password?',
-                style: TextStyle(color: accent),
+                style: TextStyle(color: theme.neonPrimary),
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          _primaryButton(
-            label: widget.linkFromAnonymous
-                ? 'Link to Existing Account'
-                : 'Sign In',
-            color: accent,
+          const SizedBox(height: 8),
+          NeonButton(
             onPressed: _busy ? null : _onSignInOrLink,
+            label: _busy
+                ? '...'
+                : (widget.linkFromAnonymous
+                    ? 'Link to Existing Account'
+                    : 'Sign In'),
+            theme: theme,
+            expand: true,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCreateForm(Color accent) {
+  Widget _buildCreateForm(GameTheme theme) {
     return Form(
       key: _createFormKey,
       child: Column(
         children: [
           _emailField(_createEmail),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           _passwordField(
             controller: _createPassword,
             obscure: !_showCreatePassword,
@@ -192,13 +190,16 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
             minLength: 8,
             helper: 'At least 8 characters',
           ),
-          const SizedBox(height: 24),
-          _primaryButton(
-            label: widget.linkFromAnonymous
-                ? 'Create & Link Account'
-                : 'Create Account',
-            color: accent,
+          const SizedBox(height: 20),
+          NeonButton(
             onPressed: _busy ? null : _onCreateOrLink,
+            label: _busy
+                ? '...'
+                : (widget.linkFromAnonymous
+                    ? 'Create & Link Account'
+                    : 'Create Account'),
+            theme: theme,
+            expand: true,
           ),
         ],
       ),
@@ -287,44 +288,6 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-      ),
-    );
-  }
-
-  Widget _primaryButton({
-    required String label,
-    required Color color,
-    required VoidCallback? onPressed,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: color.withValues(alpha: 0.4),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child: _busy
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
       ),
     );
   }
