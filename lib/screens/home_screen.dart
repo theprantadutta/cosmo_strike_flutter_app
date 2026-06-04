@@ -357,7 +357,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                                       theme,
                                                     ),
                                                   ),
-                                                  const SizedBox(height: 12),
+                                                  const SizedBox(height: 4),
                                                   ConstrainedBox(
                                                     constraints:
                                                         const BoxConstraints(
@@ -660,17 +660,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // lands on Home rather than the loader.
         context.push(AppRoutes.playLoading);
       },
-      child: GlassPanel(
-        // Walkthrough targets the whole launch bay panel now.
+      // No GlassPanel — its backdrop blur frosts the starfield into a visible
+      // box. A plain transparent Container (opaque hit-test on the parent
+      // GestureDetector) keeps the whole bay tappable while the emblem + glow
+      // alone define the launch button, fully see-through behind it.
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        // Walkthrough targets the whole launch bay now.
         key: HomeWalkthrough.playButtonKey,
-        theme: theme,
-        glow: true,
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Expanded(
-              child: Center(
+              // Push the emblem toward the bottom of its slot so it sits close
+              // to the LAUNCH text instead of floating with a big gap below.
+              child: Align(
+                alignment: const Alignment(0, 0.7),
                 child: LayoutBuilder(
                   builder: (ctx, cons) {
                     final s =
@@ -680,7 +686,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             ShaderMask(
               shaderCallback: (b) => LinearGradient(
                 colors: [theme.neonPrimary, theme.neonSecondary],
@@ -923,13 +929,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // scales with the button instead of staying frozen at the old
         // 48-px values. The clamps keep the geometry within sensible
         // bounds on extreme screen sizes.
-        final iconBgPadding = (buttonHeight * 0.12).clamp(5.0, 8.0);
-        final iconSize = (buttonHeight * 0.27).clamp(14.0, 19.0);
-        final labelSize = (buttonHeight * 0.30).clamp(14.0, 19.0);
-        final iconTextGap = (buttonHeight * 0.18).clamp(8.0, 12.0);
+        final iconBgPadding = (buttonHeight * 0.10).clamp(4.0, 7.0);
+        final iconSize = (buttonHeight * 0.26).clamp(14.0, 18.0);
+        final labelSize = (buttonHeight * 0.21).clamp(11.0, 14.0);
 
         return GestureDetector(
           onTap: onTap,
+          // Whole area tappable even though the fill is transparent now.
+          behavior: HitTestBehavior.opaque,
           child: Container(
             key: widgetKey,
             height: buttonHeight,
@@ -941,32 +948,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               maxWidth: constraints.maxWidth,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  gradient[0].withValues(alpha: 0.2),
-                  gradient[1].withValues(alpha: 0.1),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: gradient[0].withValues(alpha: 0.4),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: gradient[0].withValues(alpha: 0.22),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
+            // Fully transparent — no fill, no border. The coloured icon disc +
+            // label carry the button; clean look per the minimal direction.
+            decoration: const BoxDecoration(),
+            child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Icon disc on top, label below — gives the label the full
+                // button width so PRO / STORE / COINS all render at the SAME
+                // fixed size (no per-button FittedBox scaling).
                 Container(
                   padding: EdgeInsets.all(iconBgPadding),
                   decoration: BoxDecoration(
@@ -982,19 +973,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                   child: Icon(icon, color: Colors.white, size: iconSize),
                 ),
-                SizedBox(width: iconTextGap),
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: labelSize,
-                        fontWeight: FontWeight.w800,
-                        color: gradient[0],
-                        letterSpacing: 0.9,
-                      ),
-                    ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: labelSize,
+                    fontWeight: FontWeight.w800,
+                    color: gradient[0],
+                    letterSpacing: 0.9,
                   ),
                 ),
               ],
