@@ -316,8 +316,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                     // intact); only the composition changes.
                                     Expanded(
                                       child: Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: screenWidth * 0.03,
+                                        // Bottom gap keeps the command deck
+                                        // (esp. the PRO/STORE/COINS row) clear
+                                        // of the banner ad sitting underneath.
+                                        padding: EdgeInsets.fromLTRB(
+                                          screenWidth * 0.03,
+                                          0,
+                                          screenWidth * 0.03,
+                                          12,
                                         ),
                                         child: Row(
                                           crossAxisAlignment:
@@ -459,7 +465,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 icon: Icons.emoji_events,
                 label:
                     'BEST ${context.watch<GameSettingsCubit>().state.highScore}',
-                dense: true,
+                dense: false,
               ),
             ),
             gap,
@@ -475,7 +481,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     accent: Colors.amber,
                     icon: Icons.monetization_on,
                     label: _formatCoins(coinsState.total),
-                    dense: true,
+                    dense: false,
                   ),
                 );
               },
@@ -539,13 +545,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       onTap: onTap,
       child: Container(
         key: key,
-        padding: EdgeInsets.all(isSmallScreen ? 7 : 9),
+        padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(isSmallScreen ? 13 : 15),
+          borderRadius: BorderRadius.circular(isSmallScreen ? 14 : 16),
           border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
         ),
-        child: Icon(icon, color: color, size: isSmallScreen ? 18 : 20),
+        child: Icon(icon, color: color, size: isSmallScreen ? 20 : 22),
       ),
     );
   }
@@ -668,7 +674,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: LayoutBuilder(
                   builder: (ctx, cons) {
                     final s =
-                        (cons.biggest.shortestSide).clamp(80.0, 184.0);
+                        (cons.biggest.shortestSide).clamp(76.0, 164.0);
                     return LaunchEmblem(theme: theme, size: s);
                   },
                 ),
@@ -682,10 +688,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               child: const Text(
                 'LAUNCH',
                 style: TextStyle(
-                  fontSize: 26,
+                  fontSize: 24,
                   fontWeight: FontWeight.w900,
                   color: Colors.white,
-                  letterSpacing: 5,
+                  letterSpacing: 4,
                 ),
               ),
             ),
@@ -1052,8 +1058,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       }),
     ];
 
-    // Compact icon rail: 2 rows × 4 columns of neon icon chips. Each row is
-    // an Expanded so the two rows split the column height; each cell is an
+    // Icon rail: 2 rows × 4 columns of neon icon chips. Each row is an
+    // Expanded so the two rows split the column height; each cell is an
     // Expanded so the four chips split the row width evenly.
     const cols = 4;
     final rows = <Widget>[];
@@ -1064,7 +1070,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         cells.add(
           Expanded(
             child: i < navigationItems.length
-                ? _buildNavChip(navigationItems[i], theme, i)
+                ? _buildNavChip(
+                    navigationItems[i],
+                    theme,
+                    i,
+                    // Top row pulls down, bottom row pulls up → rows sit closer.
+                    alignY: r == 0 ? 0.55 : -0.55,
+                  )
                 : const SizedBox.shrink(),
           ),
         );
@@ -1083,94 +1095,98 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return Column(children: rows);
   }
 
-  Widget _buildNavChip(_NavItem item, GameTheme theme, int index) {
+  Widget _buildNavChip(
+    _NavItem item,
+    GameTheme theme,
+    int index, {
+    double alignY = 0,
+  }) {
     // Unified Command-HUD palette: alternate the two neon accents per cell so
     // the rail reads as an intentional cyan/magenta console (no rainbow).
     final accent = index.isEven ? theme.neonPrimary : theme.neonSecondary;
+    // Icon + label live together as one tight group INSIDE the card. [alignY]
+    // pulls the group vertically toward the rail's centre (top row nudged
+    // down, bottom row nudged up) so the two rows sit closer together.
+    // No GlassPanel here on purpose: its BackdropFilter blur smears the
+    // starfield into a dark frosted rectangle even with a transparent fill.
+    // A plain opaque-hit-test GestureDetector keeps the whole cell tappable
+    // while letting the background show straight through behind the chip.
     return GestureDetector(
       key: item.widgetKey,
       onTap: item.onTap,
-      child: Column(
-        children: [
-          Expanded(
-            // Angled "hull-plate" card: corners cut on the diagonal with a
-            // neon edge + glow, evoking a ship-console panel instead of a
-            // plain rounded tile.
-            child: CustomPaint(
-              painter: _ShipCardPainter(
-                accent: accent,
-                fill: theme.surfaceGlass,
-              ),
-              child: Center(
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // Smaller neon icon disc.
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: accent.withValues(alpha: 0.12),
-                        border: Border.all(
-                          color: accent.withValues(alpha: 0.5),
-                          width: 1.2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: accent.withValues(alpha: 0.28),
-                            blurRadius: 10,
-                            spreadRadius: -3,
-                          ),
-                        ],
-                      ),
-                      child: Icon(item.icon, color: accent, size: 20),
+      behavior: HitTestBehavior.opaque,
+      child: Align(
+        alignment: Alignment(0, alignY),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Compact neon icon disc.
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: accent.withValues(alpha: 0.12),
+                    border: Border.all(
+                      color: accent.withValues(alpha: 0.5),
+                      width: 1.2,
                     ),
-                    if (item.badge != null && item.badge! > 0)
-                      Positioned(
-                        right: -6,
-                        top: -6,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 18,
-                            minHeight: 18,
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${item.badge}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.28),
+                        blurRadius: 9,
+                        spreadRadius: -3,
+                      ),
+                    ],
+                  ),
+                  child: Icon(item.icon, color: accent, size: 21),
+                ),
+                if (item.badge != null && item.badge! > 0)
+                  Positioned(
+                    right: -6,
+                    top: -6,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${item.badge}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
               ),
             ),
-          ),
-          const SizedBox(height: 7),
-          Text(
-            item.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     ).gameGridItem(index);
   }
@@ -1338,63 +1354,6 @@ class _NavItem {
     this.badge,
     this.widgetKey,
   });
-}
-
-/// Paints a sci-fi "hull-plate" panel for the nav rail chips: a rectangle with
-/// two opposite corners sliced off on the diagonal, filled with the glass
-/// surface and outlined with a glowing neon edge. Reads as a ship-console
-/// segment rather than a plain rounded tile.
-class _ShipCardPainter extends CustomPainter {
-  _ShipCardPainter({required this.accent, required this.fill});
-
-  final Color accent;
-  final Color fill;
-
-  Path _panel(Size size) {
-    // Corner cut scales gently with the smaller side so the angle reads on
-    // both wide and narrow cells without ever eating the whole corner.
-    final cut = (size.shortestSide * 0.26).clamp(8.0, 16.0);
-    return Path()
-      ..moveTo(cut, 0)
-      ..lineTo(size.width, 0)
-      ..lineTo(size.width, size.height - cut)
-      ..lineTo(size.width - cut, size.height)
-      ..lineTo(0, size.height)
-      ..lineTo(0, cut)
-      ..close();
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = _panel(size);
-
-    // Glass fill.
-    canvas.drawPath(path, Paint()..color = fill);
-
-    // Soft outer glow on the edge.
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = accent.withValues(alpha: 0.45)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-    );
-
-    // Crisp neon edge.
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.3
-        ..strokeJoin = StrokeJoin.round
-        ..color = accent.withValues(alpha: 0.7),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_ShipCardPainter old) =>
-      old.accent != accent || old.fill != fill;
 }
 
 /// First-launch bottom sheet that asks the user to pick a default game mode.
