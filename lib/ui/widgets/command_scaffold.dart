@@ -27,6 +27,7 @@ class CommandScaffold extends StatelessWidget {
       GameTokens.space16,
       GameTokens.space16,
     ),
+    this.bottomBar,
   });
 
   final Widget body;
@@ -39,6 +40,9 @@ class CommandScaffold extends StatelessWidget {
   final bool showGrid;
   final EdgeInsetsGeometry bodyPadding;
 
+  /// Optional bar pinned below the body (e.g. a banner ad).
+  final Widget? bottomBar;
+
   @override
   Widget build(BuildContext context) {
     final t = theme ?? GameTheme.classic;
@@ -50,6 +54,7 @@ class CommandScaffold extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: t.backgroundColor,
+      bottomNavigationBar: bottomBar,
       body: StarfieldBackground(
         theme: t,
         animated: animatedBackground,

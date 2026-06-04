@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/providers/leaderboard_provider.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
 class LeaderboardScreen extends ConsumerStatefulWidget {
@@ -76,16 +75,13 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
       }
     });
 
-    return Scaffold(
-      bottomNavigationBar: const ShipBannerAd(),
-      body: AppBackground(
-        theme: theme,
-        child: SafeArea(
-          child: Column(
+    return CommandScaffold(
+      theme: theme,
+      title: 'Leaderboards',
+      bottomBar: const ShipBannerAd(),
+      bodyPadding: EdgeInsets.zero,
+      body: Column(
             children: [
-              // Header
-              _buildHeader(theme),
-
               // Tab Bar
               _buildTabBar(theme),
 
@@ -123,8 +119,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 
@@ -152,40 +146,25 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
     );
   }
 
-  Widget _buildHeader(GameTheme theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => context.pop(),
-            icon: Icon(Icons.arrow_back, color: theme.accentColor, size: 24),
-          ),
-          const SizedBox(width: 8),
-          Icon(Icons.leaderboard, color: theme.accentColor, size: 28),
-          const SizedBox(width: 12),
-          Text(
-            'Leaderboards',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: theme.accentColor,
-            ),
-          ),
-          const Spacer(),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTabBar(GameTheme theme) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      decoration: BoxDecoration(
+        color: theme.surfaceGlass,
+        borderRadius: GameTokens.brMd,
+        border: Border.all(color: theme.stroke),
+      ),
       child: TabBar(
         controller: _tabController,
-        indicatorColor: theme.accentColor,
-        labelColor: theme.accentColor,
-        unselectedLabelColor: Colors.white.withValues(alpha: 0.6),
+        indicator: BoxDecoration(
+          color: theme.neonPrimary.withValues(alpha: 0.85),
+          borderRadius: GameTokens.brMd,
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: const Color(0xFF03040A),
+        unselectedLabelColor: theme.textMuted,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
         tabs: const [
           Tab(text: 'Global'),
           Tab(text: 'Weekly'),
@@ -403,10 +382,11 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
               ),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
+            NeonButton(
               onPressed: _loadGlobalLeaderboard,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: 'Retry',
+              icon: Icons.refresh,
+              theme: theme,
             ),
           ],
         ),
@@ -486,10 +466,11 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
               ),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
+            NeonButton(
               onPressed: _loadWeeklyLeaderboard,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: 'Retry',
+              icon: Icons.refresh,
+              theme: theme,
             ),
           ],
         ),
