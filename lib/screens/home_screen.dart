@@ -351,11 +351,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                                       theme,
                                                     ),
                                                   ),
-                                                  const SizedBox(height: 10),
+                                                  const SizedBox(height: 12),
                                                   ConstrainedBox(
                                                     constraints:
                                                         const BoxConstraints(
-                                                            maxHeight: 52),
+                                                            maxHeight: 68),
                                                     child:
                                                         _buildActionButtonsRow(
                                                       context: context,
@@ -696,7 +696,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: LayoutBuilder(
                   builder: (ctx, cons) {
                     final s =
-                        (cons.biggest.shortestSide).clamp(90.0, 220.0);
+                        (cons.biggest.shortestSide).clamp(80.0, 184.0);
                     return LaunchEmblem(theme: theme, size: s);
                   },
                 ),
@@ -710,10 +710,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               child: const Text(
                 'LAUNCH',
                 style: TextStyle(
-                  fontSize: 30,
+                  fontSize: 26,
                   fontWeight: FontWeight.w900,
                   color: Colors.white,
-                  letterSpacing: 6,
+                  letterSpacing: 5,
                 ),
               ),
             ),
@@ -939,7 +939,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // 48 before). Clamped to keep small-screen sanity; on a 750+ px
         // device this lands at ~64 px tall.
         final buttonHeight = constraints.maxHeight > 0
-            ? (constraints.maxHeight * 0.92).clamp(48.0, 66.0)
+            ? (constraints.maxHeight * 0.95).clamp(48.0, 72.0)
             : 56.0;
         // Drive icon + text sizing off the height so the visual weight
         // scales with the button instead of staying frozen at the old
