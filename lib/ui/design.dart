@@ -10,5 +10,6 @@ export 'widgets/glass_panel.dart';
 export 'widgets/holo_card.dart';
 export 'widgets/holo_logo.dart';
 export 'widgets/hud_chip.dart';
+export 'widgets/launch_emblem.dart';
 export 'widgets/neon_button.dart';
 export 'widgets/starfield_background.dart';

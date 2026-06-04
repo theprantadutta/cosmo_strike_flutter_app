@@ -28,7 +28,6 @@ import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
 import 'package:cosmo_strike_flutter_app/widgets/credits_dialog.dart';
 import 'package:cosmo_strike_flutter_app/widgets/daily_bonus_popup.dart';
 import 'package:cosmo_strike_flutter_app/widgets/player_progression.dart';
-import 'package:cosmo_strike_flutter_app/widgets/sync_status_indicator.dart';
 import 'package:cosmo_strike_flutter_app/widgets/theme_transition_system.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
 import 'package:cosmo_strike_flutter_app/widgets/walkthrough/home_walkthrough.dart';
@@ -45,8 +44,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with TickerProviderStateMixin {
   late AnimationController _logoController;
-  late AnimationController _playButtonPulseController;
-  late Animation<double> _playButtonPulseAnimation;
   bool _dailyBonusChecked = false;
   bool _walkthroughChecked = false;
 
@@ -58,19 +55,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       duration: const Duration(milliseconds: 1500), // Reduced duration
       vsync: this,
     );
-
-    // Play button pulse animation - calm breathing
-    _playButtonPulseController = AnimationController(
-      duration: const Duration(milliseconds: 2500),
-      vsync: this,
-    );
-    _playButtonPulseAnimation = Tween<double>(begin: 1.0, end: 1.04).animate(
-      CurvedAnimation(
-        parent: _playButtonPulseController,
-        curve: Curves.easeInOut,
-      ),
-    );
-    _playButtonPulseController.repeat(reverse: true);
 
     // Theme transitions are handled by ThemeTransitionWidget directly
 
@@ -273,7 +257,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void dispose() {
     _logoController.dispose();
-    _playButtonPulseController.dispose();
     super.dispose();
   }
 
@@ -325,13 +308,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                       ),
                                     ),
 
-                                    // Landscape command deck: left identity +
-                                    // hero PLAY column, right 8-tile nav grid.
-                                    // Reuses the existing sub-builders (so the
-                                    // walkthrough keys / daily-bonus / game-mode
-                                    // logic stay intact); only the composition
-                                    // changes from a vertical stack to a wide
-                                    // two-region row.
+                                    // Landscape command deck: LEFT brand +
+                                    // nav grid + action row, RIGHT big hero
+                                    // LAUNCH bay. Reuses the existing
+                                    // sub-builders (so the walkthrough keys /
+                                    // daily-bonus / game-mode logic stay
+                                    // intact); only the composition changes.
                                     Expanded(
                                       child: Padding(
                                         padding: EdgeInsets.symmetric(
@@ -341,27 +323,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                           crossAxisAlignment:
                                               CrossAxisAlignment.stretch,
                                           children: [
-                                            // Left — identity + hero play.
-                                            Expanded(
-                                              flex: 5,
-                                              child: _buildPlayColumn(
-                                                context,
-                                                authState,
-                                                theme,
-                                                screenHeight,
-                                                screenWidth,
-                                                isVerySmallScreen,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 16),
-                                            // Right — command deck (nav grid) +
-                                            // the PRO/STORE/COINS action row,
-                                            // which has full width here (it was
-                                            // cramped in the left launch column).
+                                            // Left — brand/telemetry header,
+                                            // nav grid, and PRO/STORE/COINS row.
                                             Expanded(
                                               flex: 6,
                                               child: Column(
                                                 children: [
+                                                  // Compact brand + BEST chip.
+                                                  Row(
+                                                    children: [
+                                                      Flexible(
+                                                        child: _buildGameTitle(
+                                                          theme,
+                                                          screenHeight,
+                                                        ),
+                                                      ),
+                                                      const Spacer(),
+                                                      GestureDetector(
+                                                        onTap: () => context
+                                                            .push(AppRoutes
+                                                                .statistics),
+                                                        child: HudChip(
+                                                          theme: theme,
+                                                          accent: Colors.amber,
+                                                          icon: Icons
+                                                              .emoji_events,
+                                                          label:
+                                                              'BEST ${context.watch<GameSettingsCubit>().state.highScore}',
+                                                          dense: true,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 8),
                                                   Expanded(
                                                     child:
                                                         _buildBottomNavigation(
@@ -376,7 +370,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                                   ConstrainedBox(
                                                     constraints:
                                                         const BoxConstraints(
-                                                            maxHeight: 58),
+                                                            maxHeight: 56),
                                                     child:
                                                         _buildActionButtonsRow(
                                                       context: context,
@@ -387,6 +381,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                                     ),
                                                   ),
                                                 ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 16),
+                                            // Right — big hero LAUNCH bay.
+                                            Expanded(
+                                              flex: 5,
+                                              child: _buildLaunchHero(
+                                                context,
+                                                theme,
                                               ),
                                             ),
                                           ],
@@ -701,258 +704,75 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  /// Landscape "launch bay" — the left half of the command deck.
+  /// Landscape hero "launch bay" — the RIGHT half of the command deck.
   ///
-  /// Layout (top → bottom):
-  ///   • compact game title (logo + "Cosmo Strike")
-  ///   • Expanded → centered hero PLAY button (sizes itself from the slack
-  ///     space; NO <200px spinner guard, NO fixed height that can overflow)
-  ///   • compact telemetry footer: high-score chip + loadout chip, then the
-  ///     PRO / STORE / COINS action row (STORE carries the walkthrough key)
-  ///
-  /// Everything below the title is wrapped so a short (~340px) landscape
-  /// viewport never overflows: the PLAY button is the only Expanded child,
-  /// so it simply shrinks to absorb whatever the title + min-sized footer
-  /// leave behind.
-  Widget _buildPlayColumn(
-    BuildContext context,
-    AuthState authState,
-    GameTheme theme,
-    double screenHeight,
-    double screenWidth,
-    bool isVerySmallScreen,
-  ) {
-    final isSmallScreen = screenHeight < 750;
-    // High score reads from GameSettingsCubit only — same pattern as
-    // CoinsCubit. The cubit's state is backed by the local Drift settings
-    // table (monotonic via the never-decrease guard) and refreshed from
-    // the server on each online launch via GameSettingsCubit.syncWithBackend.
-    final highScore = context.watch<GameSettingsCubit>().state.highScore;
-
-    // spaceBetween pins the title to the top and the telemetry footer to
-    // the bottom, leaving the Expanded PLAY button to own the centre. This
-    // gives a clean, balanced vertical rhythm (top / centre / bottom)
-    // instead of center-alignment bunching everything in the middle with
-    // awkward slack above and below.
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        // Compact identity at the top of the launch bay.
-        _buildGameTitle(theme, screenHeight),
-
-        // Hero PLAY button — fills the middle and sizes itself off the
-        // Expanded slack. Wrapped in Center so it stays circular even when
-        // the available width is wider than the available height.
-        Expanded(
-          child: Center(
-            child: _buildHeroPlayButton(
-              context,
-              theme,
-              screenHeight,
-              screenWidth,
-            ),
-          ),
-        ),
-
-        // Telemetry + quick actions footer — min-sized so it never steals
-        // height from the PLAY button above, and FittedBox-shrunk so it
-        // can't overflow horizontally in the narrow left column.
-        Padding(
-          padding: EdgeInsets.only(
-            top: isVerySmallScreen ? 4 : 8,
-            bottom: isVerySmallScreen ? 2 : 6,
-          ),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                GestureDetector(
-                  onTap: () => context.push(AppRoutes.statistics),
-                  child: HudChip(
-                    theme: theme,
-                    accent: Colors.amber,
-                    icon: Icons.emoji_events,
-                    label: 'BEST $highScore',
-                    dense: isSmallScreen,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (authState.isSignedIn)
-                  SyncStatusIndicator(size: isSmallScreen ? 16 : 18),
-                // Loadout chip already self-hides when the user owns no
-                // power-ups, so it's safe to always include here.
-                _buildPowerUpLoadoutChip(theme),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHeroPlayButton(
-    BuildContext context,
-    GameTheme theme,
-    double screenHeight,
-    double screenWidth,
-  ) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Use constraints to determine button size - make it much bigger
-        final maxSize = constraints.maxHeight > 0
-            ? constraints.maxHeight * 0.95
-            : 200.0;
-        final buttonSize = screenHeight < 650
-            ? (maxSize > 160 ? 160.0 : maxSize)
-            : screenHeight < 750
-            ? (maxSize > 200 ? 200.0 : maxSize)
-            : (maxSize > 240 ? 240.0 : maxSize);
-
-        final isSmallButton = buttonSize < 120;
-
-        return GestureDetector(
-          onTap: () async {
-            // Show the one-time game-mode picker before launching the
-            // first game; no-op for users who've already picked.
-            await _maybeShowGameModePrompt();
-            if (!context.mounted) return;
-            // Detour through the themed pre-game loader. It self-advances
-            // to /game on completion via pushReplacement so back from the
-            // game lands on Home rather than the loader.
-            context.push(AppRoutes.playLoading);
-          },
-          child: AnimatedBuilder(
-            animation: _playButtonPulseAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _playButtonPulseAnimation.value,
-                child: child,
-              );
-            },
-            child: Container(
-              key: HomeWalkthrough.playButtonKey,
-              width: buttonSize,
-              height: buttonSize,
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  colors: [
-                    theme.accentColor,
-                    theme.foodColor,
-                    theme.accentColor.withValues(alpha: 0.8),
-                  ],
-                  stops: const [0.0, 0.6, 1.0],
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.accentColor.withValues(alpha: 0.4),
-                    blurRadius: isSmallButton ? 20 : 30,
-                    spreadRadius: isSmallButton ? 3 : 5,
-                    offset: const Offset(0, 6),
-                  ),
-                  BoxShadow(
-                    color: theme.foodColor.withValues(alpha: 0.3),
-                    blurRadius: isSmallButton ? 30 : 50,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Animated pulse ring
-                  Container(
-                    width: buttonSize - (isSmallButton ? 8 : 10),
-                    height: buttonSize - (isSmallButton ? 8 : 10),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.4),
-                        width: isSmallButton ? 2 : 3,
-                      ),
-                    ),
-                  ),
-                  // Inner content. mainAxisSize: min + Stack's
-                  // Alignment.center keeps the icon+text block precisely
-                  // in the middle of the circle. Transform.translate on
-                  // the text counteracts the icon glyph's intrinsic
-                  // bottom padding (Material icons leave ~15% empty
-                  // space below the visible symbol). Text height: 1.0
-                  // strips the default 1.2 line-height multiplier so
-                  // the text's own glyph box doesn't add extra padding
-                  // on top.
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.play_arrow_rounded,
-                        size: isSmallButton
-                            ? 60
-                            : buttonSize < 180
-                            ? 80
-                            : buttonSize < 220
-                            ? 100
-                            : 120,
-                        color: Colors.white,
-                        shadows: [
-                          Shadow(
-                            offset: const Offset(0, 3),
-                            blurRadius: 12,
-                            color: Colors.black.withValues(alpha: 0.4),
-                          ),
-                        ],
-                      ),
-                      Transform.translate(
-                        // Pull text up just enough to neutralize most of
-                        // the icon's intrinsic bottom padding, leaving a
-                        // small (~4-5px) visible gap instead of either
-                        // a big space OR an overlap.
-                        offset: Offset(
-                          0,
-                          isSmallButton
-                              ? -4.0
-                              : buttonSize < 180
-                              ? -6.0
-                              : buttonSize < 220
-                              ? -8.0
-                              : -10.0,
-                        ),
-                        child: Text(
-                          'PLAY',
-                          style: TextStyle(
-                            fontSize: isSmallButton
-                                ? 14
-                                : buttonSize < 180
-                                ? 18
-                                : buttonSize < 220
-                                ? 22
-                                : 26,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: 2,
-                            height: 1.0,
-                            shadows: [
-                              Shadow(
-                                offset: const Offset(0, 2),
-                                blurRadius: 6,
-                                color: Colors.black.withValues(alpha: 0.4),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
+  /// A big tappable glass panel that fills the right column: a self-animating
+  /// neon [LaunchEmblem] (sized from the available space via LayoutBuilder so
+  /// it never overflows), a gradient "LAUNCH" CTA, and the loadout chip
+  /// (which self-hides when the user owns no power-ups). Tapping anywhere on
+  /// the panel runs the one-time game-mode prompt then routes to playLoading.
+  Widget _buildLaunchHero(BuildContext context, GameTheme theme) {
+    return GestureDetector(
+      onTap: () async {
+        // Show the one-time game-mode picker before launching the first
+        // game; no-op for users who've already picked.
+        await _maybeShowGameModePrompt();
+        if (!context.mounted) return;
+        // Detour through the themed pre-game loader. It self-advances to
+        // /game on completion via pushReplacement so back from the game
+        // lands on Home rather than the loader.
+        context.push(AppRoutes.playLoading);
       },
+      child: GlassPanel(
+        // Walkthrough targets the whole launch bay panel now.
+        key: HomeWalkthrough.playButtonKey,
+        theme: theme,
+        glow: true,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Center(
+                child: LayoutBuilder(
+                  builder: (ctx, cons) {
+                    final s =
+                        (cons.biggest.shortestSide).clamp(90.0, 220.0);
+                    return LaunchEmblem(theme: theme, size: s);
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ShaderMask(
+              shaderCallback: (b) => LinearGradient(
+                colors: [theme.neonPrimary, theme.neonSecondary],
+              ).createShader(b),
+              child: const Text(
+                'LAUNCH',
+                style: TextStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 6,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Tap to deploy',
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 13,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Loadout chip self-hides when the user owns no power-ups.
+            _buildPowerUpLoadoutChip(theme),
+          ],
+        ),
+      ),
     );
   }
 
