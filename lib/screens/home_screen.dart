@@ -465,47 +465,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             gap,
             BlocBuilder<CoinsCubit, CoinsState>(
               builder: (context, coinsState) {
+                // Same HudChip as the BEST pill (dense + amber accent) so the
+                // two telemetry cards share identical height and styling.
                 return GestureDetector(
                   onTap: () => context.push(AppRoutes.store),
-                  child: Container(
+                  child: HudChip(
                     key: HomeWalkthrough.coinsKey,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSmallScreen ? 10 : 12,
-                      vertical: isSmallScreen ? 6 : 7,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.amber.withValues(alpha: 0.15),
-                          Colors.orange.withValues(alpha: 0.08),
-                        ],
-                      ),
-                      borderRadius:
-                          BorderRadius.circular(isSmallScreen ? 14 : 16),
-                      border: Border.all(
-                        color: Colors.amber.withValues(alpha: 0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.monetization_on,
-                          color: Colors.amber,
-                          size: isSmallScreen ? 16 : 18,
-                        ),
-                        SizedBox(width: isSmallScreen ? 4 : 6),
-                        Text(
-                          _formatCoins(coinsState.total),
-                          style: TextStyle(
-                            color: Colors.amber,
-                            fontSize: isSmallScreen ? 13 : 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
+                    theme: theme,
+                    accent: Colors.amber,
+                    icon: Icons.monetization_on,
+                    label: _formatCoins(coinsState.total),
+                    dense: true,
                   ),
                 );
               },
@@ -513,11 +483,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ],
         ),
 
-        // RIGHT: tool icons — settings, profile, about, help.
+        // RIGHT: tools, ordered from the right edge inward as
+        // profile, settings, help, about — i.e. left-to-right:
+        // about, help, settings, profile.
         Expanded(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              _buildTopIconButton(
+                icon: Icons.info_outline,
+                color: theme.accentColor,
+                isSmallScreen: isSmallScreen,
+                onTap: () => showCreditsDialog(context, theme),
+              ),
+              gap,
+              _buildTopIconButton(
+                icon: Icons.help_outline,
+                color: theme.foodColor,
+                isSmallScreen: isSmallScreen,
+                onTap: () => context.push(AppRoutes.instructions),
+              ),
+              gap,
               _buildTopIconButton(
                 key: HomeWalkthrough.settingsKey,
                 icon: Icons.settings_rounded,
@@ -532,20 +518,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 isSmallScreen: true,
                 photoUrl: authState.isSignedIn ? authState.photoURL : null,
                 onTap: () => context.push(AppRoutes.profile),
-              ),
-              gap,
-              _buildTopIconButton(
-                icon: Icons.info_outline,
-                color: theme.accentColor,
-                isSmallScreen: isSmallScreen,
-                onTap: () => showCreditsDialog(context, theme),
-              ),
-              gap,
-              _buildTopIconButton(
-                icon: Icons.help_outline,
-                color: theme.foodColor,
-                isSmallScreen: isSmallScreen,
-                onTap: () => context.push(AppRoutes.instructions),
               ),
             ],
           ),
