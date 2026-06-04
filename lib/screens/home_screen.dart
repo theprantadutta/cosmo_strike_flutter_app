@@ -366,11 +366,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                                       screenWidth,
                                                     ),
                                                   ),
-                                                  const SizedBox(height: 8),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 16),
+                                            // Right — big hero LAUNCH bay.
+                                            Expanded(
+                                              flex: 5,
+                                              child: Column(
+                                                children: [
+                                                  Expanded(
+                                                    child: _buildLaunchHero(
+                                                      context,
+                                                      theme,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 10),
                                                   ConstrainedBox(
                                                     constraints:
                                                         const BoxConstraints(
-                                                            maxHeight: 56),
+                                                            maxHeight: 52),
                                                     child:
                                                         _buildActionButtonsRow(
                                                       context: context,
@@ -381,15 +396,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                                     ),
                                                   ),
                                                 ],
-                                              ),
-                                            ),
-                                            const SizedBox(width: 16),
-                                            // Right — big hero LAUNCH bay.
-                                            Expanded(
-                                              flex: 5,
-                                              child: _buildLaunchHero(
-                                                context,
-                                                theme,
                                               ),
                                             ),
                                           ],
@@ -1157,19 +1163,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       key: item.widgetKey,
       theme: theme,
       onTap: item.onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         children: [
           Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
-                padding: const EdgeInsets.all(7),
+                padding: const EdgeInsets.all(9),
                 decoration: BoxDecoration(
                   color: item.color.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(item.icon, color: item.color, size: 20),
+                child: Icon(item.icon, color: item.color, size: 26),
               ),
               if (item.badge != null && item.badge! > 0)
                 Positioned(
@@ -1200,7 +1206,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ),
             ],
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               item.label,
@@ -1208,7 +1214,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: theme.textPrimary,
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
               ),
