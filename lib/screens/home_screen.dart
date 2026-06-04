@@ -945,9 +945,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // scales with the button instead of staying frozen at the old
         // 48-px values. The clamps keep the geometry within sensible
         // bounds on extreme screen sizes.
-        final iconBgPadding = (buttonHeight * 0.14).clamp(6.0, 9.0);
-        final iconSize = (buttonHeight * 0.32).clamp(16.0, 22.0);
-        final labelSize = (buttonHeight * 0.24).clamp(12.0, 16.0);
+        final iconBgPadding = (buttonHeight * 0.12).clamp(5.0, 8.0);
+        final iconSize = (buttonHeight * 0.27).clamp(14.0, 19.0);
+        final labelSize = (buttonHeight * 0.30).clamp(14.0, 19.0);
         final iconTextGap = (buttonHeight * 0.18).clamp(8.0, 12.0);
 
         return GestureDetector(
