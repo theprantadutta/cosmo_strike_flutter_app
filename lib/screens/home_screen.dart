@@ -17,6 +17,7 @@ import 'package:cosmo_strike_flutter_app/providers/daily_challenges_provider.dar
 import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/walkthrough_service.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
@@ -343,26 +344,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                             // Left — identity + hero play.
                                             Expanded(
                                               flex: 5,
-                                              child: Column(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  _buildGameTitle(
-                                                    theme,
-                                                    screenHeight,
-                                                  ),
-                                                  Expanded(
-                                                    child: _buildMainPlayArea(
-                                                      context,
-                                                      gameState,
-                                                      authState,
-                                                      theme,
-                                                      screenHeight,
-                                                      screenWidth,
-                                                      screenHeight,
-                                                    ),
-                                                  ),
-                                                ],
+                                              child: _buildPlayColumn(
+                                                context,
+                                                authState,
+                                                theme,
+                                                screenHeight,
+                                                screenWidth,
+                                                isVerySmallScreen,
                                               ),
                                             ),
                                             const SizedBox(width: 16),
@@ -691,122 +679,94 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  Widget _buildMainPlayArea(
+  /// Landscape "launch bay" — the left half of the command deck.
+  ///
+  /// Layout (top → bottom):
+  ///   • compact game title (logo + "Cosmo Strike")
+  ///   • Expanded → centered hero PLAY button (sizes itself from the slack
+  ///     space; NO <200px spinner guard, NO fixed height that can overflow)
+  ///   • compact telemetry footer: high-score chip + loadout chip, then the
+  ///     PRO / STORE / COINS action row (STORE carries the walkthrough key)
+  ///
+  /// Everything below the title is wrapped so a short (~340px) landscape
+  /// viewport never overflows: the PLAY button is the only Expanded child,
+  /// so it simply shrinks to absorb whatever the title + min-sized footer
+  /// leave behind.
+  Widget _buildPlayColumn(
     BuildContext context,
-    GameCubitState gameCubitState,
     AuthState authState,
     GameTheme theme,
     double screenHeight,
     double screenWidth,
-    double actualScreenHeight,
+    bool isVerySmallScreen,
   ) {
     final isSmallScreen = screenHeight < 750;
     // High score reads from GameSettingsCubit only — same pattern as
     // CoinsCubit. The cubit's state is backed by the local Drift settings
     // table (monotonic via the never-decrease guard) and refreshed from
     // the server on each online launch via GameSettingsCubit.syncWithBackend.
-    // Once an online session lands the server value into the DB, every
-    // subsequent offline session shows the right number. No dual-source
-    // max needed.
     final highScore = context.watch<GameSettingsCubit>().state.highScore;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final availableHeight = constraints.maxHeight;
-        final availableWidth = constraints.maxWidth;
-        final spacing = (availableHeight * 0.02).clamp(8.0, 16.0);
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Compact identity at the top of the launch bay.
+        _buildGameTitle(theme, screenHeight),
 
-        // Ensure minimum height constraints
-        if (availableHeight < 200) {
-          return const SizedBox(
-            height: 200,
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
+        // Hero PLAY button — fills the middle and sizes itself off the
+        // Expanded slack. Wrapped in Center so it stays circular even when
+        // the available width is wider than the available height.
+        Expanded(
+          child: Center(
+            child: _buildHeroPlayButton(
+              context,
+              theme,
+              screenHeight,
+              screenWidth,
+            ),
+          ),
+        ),
 
-        return Padding(
-          padding: EdgeInsets.symmetric(
-            vertical: (availableHeight * 0.02).clamp(8.0, 20.0),
-            horizontal: 16,
+        // Telemetry + quick actions footer — min-sized so it never steals
+        // height from the PLAY button above, and FittedBox-shrunk so it
+        // can't overflow horizontally in the narrow left column.
+        Padding(
+          padding: EdgeInsets.only(
+            top: isVerySmallScreen ? 4 : 8,
+            bottom: isVerySmallScreen ? 2 : 6,
           ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Power-up loadout chip — only renders when the user has
-              // any inventory. Sits directly above the play button so
-              // it's the last thing they see before tapping PLAY.
-              _buildPowerUpLoadoutChip(theme),
-
-              // Hero Play Button - Main focal point, now at the top so
-              // the user's eye lands on the call-to-action first.
-              Flexible(
-                flex: 5,
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxHeight: availableHeight > 0
-                        ? availableHeight * 0.4
-                        : 200,
-                    maxWidth: availableWidth * 0.8,
-                  ),
-                  child: _buildHeroPlayButton(
-                    context,
-                    theme,
-                    screenHeight,
-                    screenWidth,
-                  ),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () => context.push(AppRoutes.statistics),
+                      child: HudChip(
+                        theme: theme,
+                        accent: Colors.amber,
+                        icon: Icons.emoji_events,
+                        label: 'BEST $highScore',
+                        dense: isSmallScreen,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (authState.isSignedIn)
+                      SyncStatusIndicator(size: isSmallScreen ? 16 : 18),
+                    // Loadout chip already self-hides when the user owns no
+                    // power-ups, so it's safe to always include here.
+                    _buildPowerUpLoadoutChip(theme),
+                  ],
                 ),
               ),
-
-              SizedBox(height: spacing),
-
-              // Compact stats row (high score + quick actions) — moved
-              // under the play button so it reads as 'your best so far'
-              // commentary on the primary CTA above.
-              Flexible(
-                flex: 3,
-                child: Container(
-                  // maxHeight is clamped to be at least 80 (the minHeight
-                  // floor) so a transient small availableHeight on Android
-                  // resume — when SafeArea/system-bars haven't resettled —
-                  // can't produce minHeight > maxHeight and trip the
-                  // BoxConstraints assertion. The 0.25 ratio is preserved
-                  // for the common case; the clamp only kicks in below
-                  // ~320 px of available height.
-                  constraints: BoxConstraints(
-                    minHeight: 80,
-                    maxHeight: (availableHeight > 0
-                            ? availableHeight * 0.25
-                            : 120.0)
-                        .clamp(80.0, double.infinity),
-                  ),
-                  child: _buildCompactStatsRow(
-                    context: context,
-                    highScore: highScore,
-                    theme: theme,
-                    screenWidth: screenWidth,
-                    isSmallScreen: isSmallScreen,
-                    hasSync: authState.isSignedIn,
-                  ),
-                ),
-              ),
-
-              // Tighter gap directly above the action buttons so the
-              // taller button row below doesn't grow the column —
-              // ~half of the standard inter-section spacing, clamped so
-              // a very tall screen doesn't open the gap back up.
-              SizedBox(
-                height: (spacing * 0.4).clamp(2.0, 6.0),
-              ),
-
-              // Action buttons row - Store and Pro. Taller container
-              // (~20 px more) for a more tappable target; the column's
-              // spaceEvenly distribution absorbs the extra height by
-              // shrinking the implicit gap below, keeping the total
-              // play-area height constant. Both maxHeight and minHeight
-              // grow together so the constraint stays responsive on the
-              // smallest screens.
-              Container(
-                constraints: const BoxConstraints(maxHeight: 72, minHeight: 56),
+              SizedBox(height: isVerySmallScreen ? 6 : 10),
+              // Action buttons row — PRO / STORE / COINS. STORE carries
+              // HomeWalkthrough.storeKey, so this stays rendered.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 64),
                 child: _buildActionButtonsRow(
                   context: context,
                   theme: theme,
@@ -816,8 +776,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ],
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
@@ -1093,149 +1053,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           iconFor: _loadoutIconFor,
         );
       },
-    );
-  }
-
-  Widget _buildCompactStatsRow({
-    required BuildContext context,
-    required int highScore,
-    required GameTheme theme,
-    required double screenWidth,
-    required bool isSmallScreen,
-    required bool hasSync,
-  }) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isSmallScreen ? 12 : 16,
-        vertical: isSmallScreen ? 10 : 14,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [
-            theme.accentColor.withValues(alpha: 0.08),
-            Colors.amber.withValues(alpha: 0.12),
-            theme.accentColor.withValues(alpha: 0.08),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(isSmallScreen ? 20 : 24),
-        border: Border.all(
-          color: Colors.amber.withValues(alpha: 0.25),
-          width: 1.5,
-        ),
-      ),
-      child: Row(
-        children: [
-          // Stats button (left)
-          _buildCircularNavButton(
-            icon: Icons.analytics,
-            color: theme.accentColor,
-            isSmallScreen: isSmallScreen,
-            onTap: () => context.push(AppRoutes.statistics),
-          ),
-
-          // Center: High Score display. Wrapped in FittedBox so a
-          // marginal vertical squeeze (Row + spacer + score Text can
-          // exceed the parent's 61.2px slot by sub-pixel amounts on
-          // some screens) scales the whole stack down instead of
-          // tripping a RenderFlex overflow.
-          Expanded(
-            child: GestureDetector(
-              onTap: () => context.push(AppRoutes.statistics),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.emoji_events,
-                          color: Colors.amber,
-                          size: isSmallScreen ? 18 : 22,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'HIGH SCORE',
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 10 : 12,
-                            fontWeight: FontWeight.w600,
-                            color: theme.accentColor.withValues(alpha: 0.7),
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        if (hasSync) ...[
-                          const SizedBox(width: 6),
-                          SyncStatusIndicator(size: isSmallScreen ? 14 : 16),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$highScore',
-                      style: TextStyle(
-                        fontSize: isSmallScreen ? 28 : 34,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.amber,
-                        height: 1.0,
-                        shadows: [
-                          Shadow(
-                            color: Colors.amber.withValues(alpha: 0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Replays button (right). Replaces the leaderboard entry
-          // point — online leaderboards are disabled in the offline-first
-          // build; the local replay history is the closest analog.
-          _buildCircularNavButton(
-            icon: Icons.video_library,
-            color: Colors.amber,
-            isSmallScreen: isSmallScreen,
-            onTap: () => context.push(AppRoutes.replays),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCircularNavButton({
-    required IconData icon,
-    required Color color,
-    required bool isSmallScreen,
-    required VoidCallback onTap,
-  }) {
-    final size = isSmallScreen ? 44.0 : 52.0;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
-          shape: BoxShape.circle,
-          border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Icon(icon, color: color, size: isSmallScreen ? 20 : 24),
-      ),
     );
   }
 

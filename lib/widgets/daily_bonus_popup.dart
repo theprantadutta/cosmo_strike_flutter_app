@@ -223,7 +223,8 @@ class _DailyBonusPopupState extends State<DailyBonusPopup>
                 ),
               ],
             ),
-            child: Column(
+            child: SingleChildScrollView(
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Header
@@ -252,6 +253,7 @@ class _DailyBonusPopupState extends State<DailyBonusPopup>
 
                 const SizedBox(height: 16),
               ],
+            ),
             ),
           ).animate().scale(
             begin: const Offset(0.8, 0.8),
