@@ -328,34 +328,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                             Expanded(
                                               flex: 6,
                                               child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
-                                                  // Compact brand + BEST chip.
-                                                  Row(
-                                                    children: [
-                                                      Flexible(
-                                                        child: _buildGameTitle(
-                                                          theme,
-                                                          screenHeight,
-                                                        ),
-                                                      ),
-                                                      const Spacer(),
-                                                      GestureDetector(
-                                                        onTap: () => context
-                                                            .push(AppRoutes
-                                                                .statistics),
-                                                        child: HudChip(
-                                                          theme: theme,
-                                                          accent: Colors.amber,
-                                                          icon: Icons
-                                                              .emoji_events,
-                                                          label:
-                                                              'BEST ${context.watch<GameSettingsCubit>().state.highScore}',
-                                                          dense: true,
-                                                        ),
-                                                      ),
-                                                    ],
+                                                  // Slim telemetry header — the
+                                                  // brand now lives in the top
+                                                  // command bar, so the left
+                                                  // column leads with the BEST
+                                                  // high-score chip.
+                                                  GestureDetector(
+                                                    onTap: () => context.push(
+                                                        AppRoutes.statistics),
+                                                    child: HudChip(
+                                                      theme: theme,
+                                                      accent: Colors.amber,
+                                                      icon: Icons.emoji_events,
+                                                      label:
+                                                          'BEST ${context.watch<GameSettingsCubit>().state.highScore}',
+                                                      dense: true,
+                                                    ),
                                                   ),
-                                                  const SizedBox(height: 8),
+                                                  const SizedBox(height: 10),
                                                   Expanded(
                                                     child:
                                                         _buildBottomNavigation(
@@ -463,10 +456,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     GameTheme theme,
     bool isSmallScreen,
   ) {
+    final gap = SizedBox(width: isSmallScreen ? 8 : 10);
+    final screenHeight = MediaQuery.of(context).size.height;
     return Row(
       children: [
-        // Left: player identity (profile) + About — two tools, mirroring the
-        // settings + how-to-play pair on the right.
+        // Brand lockup owns the LEFT of the command bar — it gets all the
+        // leftover width (the controls cluster is fixed-width on the right),
+        // and its wordmark uses a FittedBox so it scales down instead of ever
+        // truncating.
+        Flexible(child: _buildGameTitle(theme, screenHeight)),
+        const SizedBox(width: 12),
+
+        // Right cluster: identity + tools, grouped so the bar reads as
+        // [brand] ........ [profile] [about] [coins] [settings] [how-to].
         PlayerIdentityBadge(
           key: HomeWalkthrough.profileKey,
           theme: theme,
@@ -474,140 +476,108 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           photoUrl: authState.isSignedIn ? authState.photoURL : null,
           onTap: () => context.push(AppRoutes.profile),
         ),
-
-        SizedBox(width: isSmallScreen ? 8 : 12),
+        gap,
 
         // About & credits (app version, credits, links).
-        GestureDetector(
+        _buildTopIconButton(
+          icon: Icons.info_outline,
+          color: theme.accentColor,
+          isSmallScreen: isSmallScreen,
           onTap: () => showCreditsDialog(context, theme),
-          child: Container(
-            padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
-            decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
-              border: Border.all(
-                color: theme.accentColor.withValues(alpha: 0.2),
-                width: 1,
-              ),
-            ),
-            child: Icon(
-              Icons.info_outline,
-              color: theme.accentColor,
-              size: isSmallScreen ? 20 : 24,
-            ),
-          ),
         ),
+        gap,
 
-        // Center: coins pill → store.
-        Expanded(
-          child: Center(
-            child: BlocBuilder<CoinsCubit, CoinsState>(
-              builder: (context, coinsState) {
-                return GestureDetector(
-                  onTap: () {
-                    context.push(AppRoutes.store);
-                  },
-                  child: Container(
-                    key: HomeWalkthrough.coinsKey,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSmallScreen ? 10 : 14,
-                      vertical: isSmallScreen ? 6 : 8,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.amber.withValues(alpha: 0.15),
-                          Colors.orange.withValues(alpha: 0.08),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(
-                        isSmallScreen ? 16 : 20,
-                      ),
-                      border: Border.all(
-                        color: Colors.amber.withValues(alpha: 0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.monetization_on,
-                          color: Colors.amber,
-                          size: isSmallScreen ? 18 : 22,
-                        ),
-                        SizedBox(width: isSmallScreen ? 4 : 6),
-                        Text(
-                          _formatCoins(coinsState.total),
-                          style: TextStyle(
-                            color: Colors.amber,
-                            fontSize: isSmallScreen ? 14 : 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-
-        // Right: tools — settings + how-to-play.
-        Row(
-          children: [
-            // Settings
-            GestureDetector(
-              onTap: () {
-                context.push(AppRoutes.settings);
-              },
+        // Coins pill → store.
+        BlocBuilder<CoinsCubit, CoinsState>(
+          builder: (context, coinsState) {
+            return GestureDetector(
+              onTap: () => context.push(AppRoutes.store),
               child: Container(
-                key: HomeWalkthrough.settingsKey,
-                padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
+                key: HomeWalkthrough.coinsKey,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSmallScreen ? 10 : 14,
+                  vertical: isSmallScreen ? 6 : 8,
+                ),
                 decoration: BoxDecoration(
-                  color: theme.accentColor.withValues(alpha: 0.1),
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.amber.withValues(alpha: 0.15),
+                      Colors.orange.withValues(alpha: 0.08),
+                    ],
+                  ),
                   borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
                   border: Border.all(
-                    color: theme.accentColor.withValues(alpha: 0.2),
+                    color: Colors.amber.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
-                child: Icon(
-                  Icons.settings_rounded,
-                  color: theme.accentColor,
-                  size: isSmallScreen ? 20 : 24,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.monetization_on,
+                      color: Colors.amber,
+                      size: isSmallScreen ? 18 : 22,
+                    ),
+                    SizedBox(width: isSmallScreen ? 4 : 6),
+                    Text(
+                      _formatCoins(coinsState.total),
+                      style: TextStyle(
+                        color: Colors.amber,
+                        fontSize: isSmallScreen ? 14 : 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
+            );
+          },
+        ),
+        gap,
 
-            SizedBox(width: isSmallScreen ? 8 : 12),
+        // Settings.
+        _buildTopIconButton(
+          key: HomeWalkthrough.settingsKey,
+          icon: Icons.settings_rounded,
+          color: theme.accentColor,
+          isSmallScreen: isSmallScreen,
+          onTap: () => context.push(AppRoutes.settings),
+        ),
+        gap,
 
-            // How to play
-            GestureDetector(
-              onTap: () {
-                context.push(AppRoutes.instructions);
-              },
-              child: Container(
-                padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
-                decoration: BoxDecoration(
-                  color: theme.foodColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
-                  border: Border.all(
-                    color: theme.foodColor.withValues(alpha: 0.2),
-                    width: 1,
-                  ),
-                ),
-                child: Icon(
-                  Icons.help_outline,
-                  color: theme.foodColor,
-                  size: isSmallScreen ? 20 : 24,
-                ),
-              ),
-            ),
-          ],
+        // How to play.
+        _buildTopIconButton(
+          icon: Icons.help_outline,
+          color: theme.foodColor,
+          isSmallScreen: isSmallScreen,
+          onTap: () => context.push(AppRoutes.instructions),
         ),
       ],
+    );
+  }
+
+  /// A square neon icon tool for the top command bar (about / settings /
+  /// how-to). Centralises the bordered-glass icon button styling.
+  Widget _buildTopIconButton({
+    Key? key,
+    required IconData icon,
+    required Color color,
+    required bool isSmallScreen,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        key: key,
+        padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
+          border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
+        ),
+        child: Icon(icon, color: color, size: isSmallScreen ? 20 : 24),
+      ),
     );
   }
 
@@ -617,8 +587,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // a tiny HUD subtitle. Replaces the old big centered logo-over-text stack
     // that crowded the top of the command deck and read as misaligned next to
     // the BEST chip.
-    final logoSize = screenHeight < 650 ? 36.0 : 44.0;
-    final titleSize = screenHeight < 650 ? 20.0 : 24.0;
+    final logoSize = screenHeight < 650 ? 38.0 : 46.0;
+    final titleSize = screenHeight < 650 ? 22.0 : 26.0;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -657,51 +627,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   )
                   .gameHero(),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
+        // "COSMO STRIKE" wordmark — gradient-shaded to match the hero look
+        // used elsewhere (game-over screen, About dialog). Wrapped in a
+        // FittedBox(scaleDown) so it shrinks to fit the available width
+        // instead of EVER truncating the name.
         Flexible(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // "COSMO STRIKE" wordmark — gradient-shaded to match the hero
-              // look used elsewhere (game-over screen, About dialog).
-              ShaderMask(
-                shaderCallback: (bounds) => LinearGradient(
-                  colors: [theme.primaryColor, theme.accentColor],
-                ).createShader(bounds),
-                child: Text(
-                  'COSMO STRIKE',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: titleSize,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white, // base for ShaderMask
-                    letterSpacing: 1.5,
-                    height: 1.0,
-                    shadows: [
-                      Shadow(
-                        color: theme.accentColor.withValues(alpha: 0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                'COMMAND DECK',
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: ShaderMask(
+              shaderCallback: (bounds) => LinearGradient(
+                colors: [theme.primaryColor, theme.accentColor],
+              ).createShader(bounds),
+              child: Text(
+                'COSMO STRIKE',
                 maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                softWrap: false,
                 style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  color: theme.textMuted,
-                  letterSpacing: 3,
+                  fontSize: titleSize,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white, // base for ShaderMask
+                  letterSpacing: 2,
+                  height: 1.0,
+                  shadows: [
+                    Shadow(
+                      color: theme.accentColor.withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ],
