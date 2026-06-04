@@ -1087,84 +1087,91 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // Unified Command-HUD palette: alternate the two neon accents per cell so
     // the rail reads as an intentional cyan/magenta console (no rainbow).
     final accent = index.isEven ? theme.neonPrimary : theme.neonSecondary;
-    return Column(
-      children: [
-        Expanded(
-          child: HoloCard(
-            key: item.widgetKey,
-            theme: theme,
-            onTap: item.onTap,
-            padding: EdgeInsets.zero,
-            child: Center(
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Neon icon disc — a glowing HUD button.
-                  Container(
-                    padding: const EdgeInsets.all(11),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accent.withValues(alpha: 0.12),
-                      border: Border.all(
-                        color: accent.withValues(alpha: 0.55),
-                        width: 1.4,
+    return GestureDetector(
+      key: item.widgetKey,
+      onTap: item.onTap,
+      child: Column(
+        children: [
+          Expanded(
+            // Angled "hull-plate" card: corners cut on the diagonal with a
+            // neon edge + glow, evoking a ship-console panel instead of a
+            // plain rounded tile.
+            child: CustomPaint(
+              painter: _ShipCardPainter(
+                accent: accent,
+                fill: theme.surfaceGlass,
+              ),
+              child: Center(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Smaller neon icon disc.
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accent.withValues(alpha: 0.12),
+                        border: Border.all(
+                          color: accent.withValues(alpha: 0.5),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.28),
+                            blurRadius: 10,
+                            spreadRadius: -3,
+                          ),
+                        ],
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withValues(alpha: 0.30),
-                          blurRadius: 12,
-                          spreadRadius: -2,
-                        ),
-                      ],
+                      child: Icon(item.icon, color: accent, size: 20),
                     ),
-                    child: Icon(item.icon, color: accent, size: 26),
-                  ),
-                  if (item.badge != null && item.badge! > 0)
-                    Positioned(
-                      right: -6,
-                      top: -6,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 1.5),
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 18,
-                          minHeight: 18,
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${item.badge}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
+                    if (item.badge != null && item.badge! > 0)
+                      Positioned(
+                        right: -6,
+                        top: -6,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${item.badge}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 7),
-        Text(
-          item.label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: theme.textMuted,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.8,
+          const SizedBox(height: 7),
+          Text(
+            item.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: theme.textMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     ).gameGridItem(index);
   }
 
@@ -1331,6 +1338,63 @@ class _NavItem {
     this.badge,
     this.widgetKey,
   });
+}
+
+/// Paints a sci-fi "hull-plate" panel for the nav rail chips: a rectangle with
+/// two opposite corners sliced off on the diagonal, filled with the glass
+/// surface and outlined with a glowing neon edge. Reads as a ship-console
+/// segment rather than a plain rounded tile.
+class _ShipCardPainter extends CustomPainter {
+  _ShipCardPainter({required this.accent, required this.fill});
+
+  final Color accent;
+  final Color fill;
+
+  Path _panel(Size size) {
+    // Corner cut scales gently with the smaller side so the angle reads on
+    // both wide and narrow cells without ever eating the whole corner.
+    final cut = (size.shortestSide * 0.26).clamp(8.0, 16.0);
+    return Path()
+      ..moveTo(cut, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width, size.height - cut)
+      ..lineTo(size.width - cut, size.height)
+      ..lineTo(0, size.height)
+      ..lineTo(0, cut)
+      ..close();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _panel(size);
+
+    // Glass fill.
+    canvas.drawPath(path, Paint()..color = fill);
+
+    // Soft outer glow on the edge.
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = accent.withValues(alpha: 0.45)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+
+    // Crisp neon edge.
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3
+        ..strokeJoin = StrokeJoin.round
+        ..color = accent.withValues(alpha: 0.7),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ShipCardPainter old) =>
+      old.accent != accent || old.fill != fill;
 }
 
 /// First-launch bottom sheet that asks the user to pick a default game mode.
