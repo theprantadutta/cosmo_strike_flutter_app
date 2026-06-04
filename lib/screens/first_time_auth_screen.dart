@@ -10,6 +10,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart'
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
 
 class FirstTimeAuthScreen extends StatefulWidget {
@@ -402,242 +403,164 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
     bool isNarrowScreen,
   ) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: isNarrowScreen ? 16.0 : 24.0),
+      padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // LEFT — the actual privacy policy, large and scrollable so the user
-          // can read/scroll the whole thing (it was a cramped sliver in the old
-          // portrait-stacked layout).
+          // LEFT — branding, the accept toggle, and the launch CTA.
           Expanded(
-            flex: 6,
-            child:
-                Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            theme.backgroundColor.withValues(alpha: 0.4),
-                            theme.backgroundColor.withValues(alpha: 0.2),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: theme.accentColor.withValues(alpha: 0.2),
-                          width: 1,
-                        ),
-                      ),
-                      child: SingleChildScrollView(
-                        primary: false,
-                        child: Text(
-                          _privacyPolicyContent,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: isSmallScreen ? 12 : 14,
-                            height: 1.5,
-                          ),
-                        ),
-                      ),
-                    )
-                    .gameZoomIn(delay: 200.ms),
-          ),
-
-          const SizedBox(width: 16),
-
-          // RIGHT — title + accept controls.
-          Expanded(
-            flex: 4,
+            flex: 5,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                  // Header
-                  Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+                const SizedBox(height: 4),
+                HoloLogo(size: isSmallScreen ? 52 : 68, theme: theme)
+                    .gameEntrance(),
+                const SizedBox(height: 14),
+                Text(
+                  'COSMO STRIKE',
+                  style: TextStyle(
+                    color: theme.textPrimary,
+                    fontSize: isSmallScreen ? 24 : 30,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 3,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Before you launch, take a moment with our Privacy Policy & '
+                  "Terms — then you're cleared for takeoff.",
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+                const Spacer(),
+                // The whole card toggles acceptance.
+                GlassPanel(
+                  theme: theme,
+                  glow: _privacyAccepted,
+                  borderColor:
+                      _privacyAccepted ? theme.neonPrimary : theme.stroke,
+                  padding: const EdgeInsets.all(14),
+                  onTap: () {
+                    setState(() => _privacyAccepted = !_privacyAccepted);
+                    if (_privacyAccepted) PrivacyPolicy.recordAccepted();
+                  },
+                  child: Row(
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        width: 26,
+                        height: 26,
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              theme.accentColor.withValues(alpha: 0.2),
-                              theme.accentColor.withValues(alpha: 0.1),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
+                          color: _privacyAccepted
+                              ? theme.neonPrimary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(7),
                           border: Border.all(
-                            color: theme.accentColor.withValues(alpha: 0.3),
-                            width: 1.5,
+                            color: _privacyAccepted
+                                ? theme.neonPrimary
+                                : theme.stroke,
+                            width: 2,
                           ),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: theme.accentColor.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                Icons.privacy_tip_outlined,
-                                color: theme.accentColor,
-                                size: 28,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Privacy Policy',
-                                    style: TextStyle(
-                                      color: theme.accentColor,
-                                      fontSize: isSmallScreen ? 20 : 24,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Please review, then accept to continue',
-                                    style: TextStyle(
-                                      color: theme.accentColor
-                                          .withValues(alpha: 0.7),
-                                      fontSize: isSmallScreen ? 12 : 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                        child: _privacyAccepted
+                            ? const Icon(Icons.check,
+                                size: 18, color: Color(0xFF03040A))
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'I have read and agree to the Privacy Policy and '
+                          'Terms of Service.',
+                          style: TextStyle(
+                            color: theme.textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            height: 1.3,
+                          ),
                         ),
-                      )
-                      .gameEntrance(),
-
-                  const SizedBox(height: 16),
-
-                  // Acceptance Checkbox
-                  Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      theme.accentColor.withValues(alpha: 0.15),
-                      theme.accentColor.withValues(alpha: 0.1),
+                      ),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: theme.accentColor.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
                 ),
-                child: Row(
-                  children: [
-                    Transform.scale(
-                      scale: 1.2,
-                      child: Checkbox(
-                        value: _privacyAccepted,
-                        onChanged: (value) async {
-                          setState(() {
-                            _privacyAccepted = value ?? false;
-                          });
-                          // Save privacy acceptance (by version) when checked.
-                          if (_privacyAccepted) {
-                            await PrivacyPolicy.recordAccepted();
-                          }
-                        },
-                        activeColor: theme.accentColor,
-                        checkColor: Colors.white,
-                        side: BorderSide(
-                          color: theme.accentColor.withValues(alpha: 0.6),
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'I have read and agree to the Privacy Policy and Terms of Service',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          fontSize: isSmallScreen ? 14 : 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-              .gameZoomIn(delay: 300.ms),
-
-          const SizedBox(height: 20),
-
-          // Continue Button
-          Container(
-                width: double.infinity,
-                height: 60,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: _privacyAccepted
-                        ? [theme.primaryColor, theme.accentColor]
-                        : [Colors.grey.shade600, Colors.grey.shade700],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: _privacyAccepted
-                      ? [
-                          BoxShadow(
-                            color: theme.accentColor.withValues(alpha: 0.4),
-                            blurRadius: 15,
-                            spreadRadius: 1,
-                            offset: const Offset(0, 6),
-                          ),
-                        ]
+                const SizedBox(height: 12),
+                NeonButton(
+                  onPressed: _privacyAccepted
+                      ? () => setState(() => _showPrivacyPolicy = false)
                       : null,
+                  label: 'Agree & Continue',
+                  icon: Icons.rocket_launch,
+                  theme: theme,
+                  expand: true,
                 ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: _privacyAccepted
-                        ? () {
-                            setState(() {
-                              _showPrivacyPolicy = false;
-                            });
-                          }
-                        : null,
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+          const SizedBox(width: 18),
+          // RIGHT — the policy itself, prominent and scrollable.
+          Expanded(
+            flex: 6,
+            child: GlassPanel(
+              theme: theme,
+              padding: const EdgeInsets.fromLTRB(18, 14, 8, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.check_circle_outline,
-                          color: _privacyAccepted
-                              ? Colors.white
-                              : Colors.white.withValues(alpha: 0.5),
-                          size: 24,
-                        ),
-                        const SizedBox(width: 12),
+                        Icon(Icons.privacy_tip_outlined,
+                            color: theme.neonPrimary, size: 22),
+                        const SizedBox(width: 10),
                         Text(
-                          'Continue to Sign In',
+                          'Privacy Policy',
                           style: TextStyle(
-                            color: _privacyAccepted
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.5),
+                            color: theme.textPrimary,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
                           ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          'v${PrivacyPolicy.currentPrivacyPolicyVersion}',
+                          style:
+                              TextStyle(color: theme.textMuted, fontSize: 12),
                         ),
                       ],
                     ),
                   ),
-                ),
-              )
-              .gameZoomIn(delay: 400.ms),
+                  const SizedBox(height: 10),
+                  Divider(color: theme.stroke, height: 1),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: _privacyPolicyContent.isEmpty
+                        ? Center(
+                            child: CircularProgressIndicator(
+                                color: theme.neonPrimary),
+                          )
+                        : SingleChildScrollView(
+                            primary: false,
+                            padding: const EdgeInsets.only(right: 10),
+                            child: Text(
+                              _privacyPolicyContent,
+                              style: TextStyle(
+                                color: theme.textMuted,
+                                fontSize: isSmallScreen ? 12 : 13,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                  ),
                 ],
               ),
+            ).gameZoomIn(delay: 150.ms),
           ),
         ],
       ),
