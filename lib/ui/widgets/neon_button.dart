@@ -25,6 +25,7 @@ class NeonButton extends StatefulWidget {
     required this.onPressed,
     required this.label,
     this.icon,
+    this.leading,
     this.theme,
     this.variant = NeonButtonVariant.solid,
     this.width,
@@ -35,6 +36,9 @@ class NeonButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final String label;
   final IconData? icon;
+
+  /// Optional leading widget (e.g. a brand FaIcon). Takes precedence over [icon].
+  final Widget? leading;
   final GameTheme? theme;
   final NeonButtonVariant variant;
   final double? width;
@@ -124,7 +128,10 @@ class _NeonButtonState extends State<NeonButton>
                         widget.expand ? MainAxisSize.max : MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      if (widget.icon != null) ...[
+                      if (widget.leading != null) ...[
+                        widget.leading!,
+                        const SizedBox(width: GameTokens.space8),
+                      ] else if (widget.icon != null) ...[
                         Icon(widget.icon, color: fg, size: 20),
                         const SizedBox(width: GameTokens.space8),
                       ],
