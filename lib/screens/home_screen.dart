@@ -612,101 +612,99 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   Widget _buildGameTitle(GameTheme theme, double screenHeight) {
-    // Tighter logo sizes (~30% smaller than before) so the new title
-    // text below has room to breathe without pushing the play button
-    // off the bottom on small screens.
-    final logoSize = screenHeight < 650
-        ? 70.0
-        : screenHeight < 750
-        ? 85.0
-        : 100.0;
+    // Compact HORIZONTAL brand lockup for the wide-short landscape header:
+    // a small glowing logo beside the gradient wordmark (left-aligned), with
+    // a tiny HUD subtitle. Replaces the old big centered logo-over-text stack
+    // that crowded the top of the command deck and read as misaligned next to
+    // the BEST chip.
+    final logoSize = screenHeight < 650 ? 36.0 : 44.0;
+    final titleSize = screenHeight < 650 ? 20.0 : 24.0;
 
-    // Title font scales with the logo so they read as a unit.
-    final titleSize = screenHeight < 650
-        ? 28.0
-        : screenHeight < 750
-        ? 32.0
-        : 36.0;
-
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(
-        vertical: screenHeight < 650 ? 2 : 4,
-        horizontal: 12,
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.accentColor.withValues(alpha: 0.3),
-                    blurRadius: 30,
-                    spreadRadius: 5,
-                  ),
-                ],
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: theme.accentColor.withValues(alpha: 0.3),
+                blurRadius: 24,
+                spreadRadius: 2,
               ),
-              child:
-                  Image.asset(
-                        'assets/images/cosmo_strike_transparent.png',
-                        width: logoSize,
-                        height: logoSize,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.games,
-                            size: logoSize * 0.5,
-                            color: theme.accentColor,
-                          );
-                        },
-                      )
-                      .animate(
-                        onPlay: (controller) =>
-                            controller.repeat(reverse: true),
-                      )
-                      .shimmer(
-                        duration: 2500.ms,
-                        color: theme.accentColor.withValues(alpha: 0.25),
-                      )
-                      .gameHero(),
-            ),
-            // Tight gap so the logo + "Cosmo Strike" text read as a
-            // single unit. The wider gap between this title block and
-            // the play button below comes from _buildGameTitle's outer
-            // vertical padding + _buildMainPlayArea's top padding,
-            // creating the desired hierarchy: tight logo+text, looser
-            // text→play-button.
-            SizedBox(height: screenHeight < 650 ? 0 : 2),
-            // "Cosmo Strike" title — gradient-shaded text styled to
-            // match the game's hero look. ShaderMask gives it the same
-            // primary→accent gradient used elsewhere in the app
-            // (game-over screen, About dialog).
-            ShaderMask(
-              shaderCallback: (bounds) => LinearGradient(
-                colors: [theme.primaryColor, theme.accentColor],
-              ).createShader(bounds),
-              child: Text(
-                'Cosmo Strike',
-                style: TextStyle(
-                  fontSize: titleSize,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white, // base for ShaderMask
-                  letterSpacing: 1.5,
-                  shadows: [
-                    Shadow(
-                      color: theme.accentColor.withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+            ],
+          ),
+          child:
+              Image.asset(
+                    'assets/images/cosmo_strike_transparent.png',
+                    width: logoSize,
+                    height: logoSize,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(
+                        Icons.games,
+                        size: logoSize * 0.7,
+                        color: theme.accentColor,
+                      );
+                    },
+                  )
+                  .animate(
+                    onPlay: (controller) => controller.repeat(reverse: true),
+                  )
+                  .shimmer(
+                    duration: 2500.ms,
+                    color: theme.accentColor.withValues(alpha: 0.25),
+                  )
+                  .gameHero(),
+        ),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // "COSMO STRIKE" wordmark — gradient-shaded to match the hero
+              // look used elsewhere (game-over screen, About dialog).
+              ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  colors: [theme.primaryColor, theme.accentColor],
+                ).createShader(bounds),
+                child: Text(
+                  'COSMO STRIKE',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: titleSize,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white, // base for ShaderMask
+                    letterSpacing: 1.5,
+                    height: 1.0,
+                    shadows: [
+                      Shadow(
+                        color: theme.accentColor.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 3),
+              Text(
+                'COMMAND DECK',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: theme.textMuted,
+                  letterSpacing: 3,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
