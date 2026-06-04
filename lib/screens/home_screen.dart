@@ -354,17 +354,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                               ),
                                             ),
                                             const SizedBox(width: 16),
-                                            // Right — command deck (nav grid).
+                                            // Right — command deck (nav grid) +
+                                            // the PRO/STORE/COINS action row,
+                                            // which has full width here (it was
+                                            // cramped in the left launch column).
                                             Expanded(
                                               flex: 6,
-                                              child: Center(
-                                                child: _buildBottomNavigation(
-                                                  context,
-                                                  themeState,
-                                                  theme,
-                                                  screenHeight,
-                                                  screenWidth,
-                                                ),
+                                              child: Column(
+                                                children: [
+                                                  Expanded(
+                                                    child: Center(
+                                                      child:
+                                                          _buildBottomNavigation(
+                                                        context,
+                                                        themeState,
+                                                        theme,
+                                                        screenHeight,
+                                                        screenWidth,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  ConstrainedBox(
+                                                    constraints:
+                                                        const BoxConstraints(
+                                                            maxHeight: 58),
+                                                    child:
+                                                        _buildActionButtonsRow(
+                                                      context: context,
+                                                      theme: theme,
+                                                      screenWidth: screenWidth,
+                                                      isSmallScreen:
+                                                          screenHeight < 750,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ],
@@ -735,46 +759,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             top: isVerySmallScreen ? 4 : 8,
             bottom: isVerySmallScreen ? 2 : 6,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector(
-                      onTap: () => context.push(AppRoutes.statistics),
-                      child: HudChip(
-                        theme: theme,
-                        accent: Colors.amber,
-                        icon: Icons.emoji_events,
-                        label: 'BEST $highScore',
-                        dense: isSmallScreen,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (authState.isSignedIn)
-                      SyncStatusIndicator(size: isSmallScreen ? 16 : 18),
-                    // Loadout chip already self-hides when the user owns no
-                    // power-ups, so it's safe to always include here.
-                    _buildPowerUpLoadoutChip(theme),
-                  ],
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: () => context.push(AppRoutes.statistics),
+                  child: HudChip(
+                    theme: theme,
+                    accent: Colors.amber,
+                    icon: Icons.emoji_events,
+                    label: 'BEST $highScore',
+                    dense: isSmallScreen,
+                  ),
                 ),
-              ),
-              SizedBox(height: isVerySmallScreen ? 6 : 10),
-              // Action buttons row — PRO / STORE / COINS. STORE carries
-              // HomeWalkthrough.storeKey, so this stays rendered.
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 64),
-                child: _buildActionButtonsRow(
-                  context: context,
-                  theme: theme,
-                  screenWidth: screenWidth,
-                  isSmallScreen: isSmallScreen,
-                ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                if (authState.isSignedIn)
+                  SyncStatusIndicator(size: isSmallScreen ? 16 : 18),
+                // Loadout chip already self-hides when the user owns no
+                // power-ups, so it's safe to always include here.
+                _buildPowerUpLoadoutChip(theme),
+              ],
+            ),
           ),
         ),
       ],
@@ -1167,7 +1174,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             key: widgetKey,
             height: buttonHeight,
             constraints: BoxConstraints(
-              minWidth: 100,
+              // Clamp so minWidth can never exceed the (narrow, in landscape)
+              // available width — otherwise BoxConstraints is non-normalized
+              // and asserts.
+              minWidth: constraints.maxWidth.clamp(0.0, 100.0),
               maxWidth: constraints.maxWidth,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 12),
