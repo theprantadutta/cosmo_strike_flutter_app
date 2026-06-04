@@ -9,7 +9,7 @@ import 'package:cosmo_strike_flutter_app/providers/tournaments_provider.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 
 class TournamentsScreen extends ConsumerStatefulWidget {
   const TournamentsScreen({super.key});
@@ -47,86 +47,70 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
       builder: (context, themeState) {
         final theme = themeState.currentTheme;
 
-        return Scaffold(
-          bottomNavigationBar: const ShipBannerAd(),
-          body: AppBackground(
-            theme: theme,
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _buildHeader(theme),
-                  _buildTabBar(theme),
-                  // "Updated X ago" chip — surfaces Drift cache
-                  // freshness for the currently-active tab so the user
-                  // can tell if they're looking at stale offline data.
-                  AnimatedBuilder(
-                    animation: _tabController,
-                    builder: (context, _) =>
-                        _buildStalenessChip(theme, tournamentsState),
-                  ),
-                  Expanded(
-                    child: tournamentsState.isLoading
-                        ? _buildLoadingIndicator(theme)
-                        : TabBarView(
-                            controller: _tabController,
-                            children: [
-                              _buildActiveTournaments(theme, tournamentsState.activeTournaments),
-                              _buildTournamentHistory(theme, tournamentsState.historyTournaments),
-                              _buildUserStats(theme, tournamentsState.userStats),
-                            ],
-                          ),
-                  ),
-                ],
+        return CommandScaffold(
+          theme: theme,
+          title: 'Tournaments',
+          bottomBar: const ShipBannerAd(),
+          bodyPadding: EdgeInsets.zero,
+          actions: [
+            IconButton(
+              onPressed: _loadData,
+              icon: Icon(
+                Icons.refresh,
+                color: theme.accentColor.withValues(alpha: 0.7),
+                size: 24,
               ),
             ),
+          ],
+          body: Column(
+            children: [
+              _buildTabBar(theme),
+              // "Updated X ago" chip — surfaces Drift cache
+              // freshness for the currently-active tab so the user
+              // can tell if they're looking at stale offline data.
+              AnimatedBuilder(
+                animation: _tabController,
+                builder: (context, _) =>
+                    _buildStalenessChip(theme, tournamentsState),
+              ),
+              Expanded(
+                child: tournamentsState.isLoading
+                    ? _buildLoadingIndicator(theme)
+                    : TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildActiveTournaments(theme, tournamentsState.activeTournaments),
+                          _buildTournamentHistory(theme, tournamentsState.historyTournaments),
+                          _buildUserStats(theme, tournamentsState.userStats),
+                        ],
+                      ),
+              ),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildHeader(GameTheme theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => context.pop(),
-            icon: Icon(Icons.arrow_back, color: theme.accentColor, size: 24),
-          ),
-          const SizedBox(width: 8),
-          Icon(Icons.emoji_events, color: theme.accentColor, size: 28),
-          const SizedBox(width: 12),
-          Text(
-            'Tournaments',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: theme.accentColor,
-            ),
-          ),
-          const Spacer(),
-          IconButton(
-            onPressed: _loadData,
-            icon: Icon(
-              Icons.refresh,
-              color: theme.accentColor.withValues(alpha: 0.7),
-              size: 24,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTabBar(GameTheme theme) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      decoration: BoxDecoration(
+        color: theme.surfaceGlass,
+        borderRadius: GameTokens.brMd,
+        border: Border.all(color: theme.stroke),
+      ),
       child: TabBar(
         controller: _tabController,
-        indicatorColor: theme.accentColor,
-        labelColor: theme.accentColor,
-        unselectedLabelColor: Colors.white.withValues(alpha: 0.6),
+        indicator: BoxDecoration(
+          color: theme.neonPrimary.withValues(alpha: 0.85),
+          borderRadius: GameTokens.brMd,
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: const Color(0xFF03040A),
+        unselectedLabelColor: theme.textMuted,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
         tabs: const [
           Tab(text: 'Active'),
           Tab(text: 'History'),
@@ -308,25 +292,17 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
     bool showResults = false,
     required VoidCallback onTap,
   }) {
-    return Card(
-      color: theme.backgroundColor.withValues(alpha: 0.5),
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: _getTournamentStatusColor(
-            tournament.status,
-          ).withValues(alpha: 0.3),
-        ),
-      ),
-      child: InkWell(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassPanel(
+        theme: theme,
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        borderColor: _getTournamentStatusColor(
+          tournament.status,
+        ).withValues(alpha: 0.3),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
               // Header row
               Row(
                 children: [
@@ -591,18 +567,13 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildStatsOverview(GameTheme theme, Map<String, dynamic> userStats) {
-    return Container(
+    return GlassPanel(
+      theme: theme,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -666,13 +637,9 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
   }
 
   Widget _buildStatsDetails(GameTheme theme, Map<String, dynamic> userStats) {
-    return Container(
+    return GlassPanel(
+      theme: theme,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

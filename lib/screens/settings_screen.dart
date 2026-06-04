@@ -20,8 +20,7 @@ import 'package:cosmo_strike_flutter_app/services/username_service.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/services/walkthrough_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/widgets/gradient_button.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/widgets/credits_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -199,35 +198,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     builder: (context, premiumState) {
                       final theme = themeState.currentTheme;
 
-                    return Scaffold(
-                      bottomNavigationBar: const ShipBannerAd(),
-                      extendBodyBehindAppBar: true,
-                      appBar: AppBar(
-                        title: Text(
-                          'SETTINGS',
-                          style: TextStyle(
-                            color: theme.accentColor,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 2,
-                            shadows: [
-                              Shadow(
-                                offset: const Offset(0, 2),
-                                blurRadius: 4,
-                                color: Colors.black.withValues(alpha: 0.3),
-                              ),
-                            ],
-                          ),
-                        ),
-                        backgroundColor: Colors.transparent,
-                        elevation: 0,
-                        iconTheme: IconThemeData(color: theme.accentColor),
-                      ),
-                      body: AppBackground(
-                        theme: theme,
-                        child: SafeArea(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: SingleChildScrollView(
+                    return CommandScaffold(
+                      theme: theme,
+                      title: 'Settings',
+                      bottomBar: const ShipBannerAd(),
+                      bodyPadding: EdgeInsets.zero,
+                      body: SingleChildScrollView(
+                              padding: const EdgeInsets.all(24.0),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -510,20 +487,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   const SizedBox(height: 16),
 
                                   // Back Button — full width
-                                  GradientButton(
+                                  NeonButton(
                                     onPressed: () => context.pop(),
-                                    text: 'BACK TO GAME',
-                                    primaryColor: theme.accentColor,
-                                    secondaryColor: theme.foodColor,
+                                    label: 'BACK TO GAME',
+                                    theme: theme,
                                     icon: Icons.arrow_back,
-                                    width: double.infinity,
+                                    expand: true,
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                        ),
-                      ),
                     );
                   },
                 );
@@ -550,15 +523,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
+        GlassPanel(
+          theme: theme,
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: theme.backgroundColor.withValues(alpha: 0.3),
-            border: Border.all(color: theme.accentColor.withValues(alpha: 0.3)),
-            borderRadius: BorderRadius.circular(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: children,
           ),
-          child: Column(children: children),
         ),
       ],
     );
@@ -632,16 +603,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         const SizedBox(height: 16),
 
-        GradientButton(
+        NeonButton(
           // Routes to the Themes tab of the unified store (tab index 2:
           // Pro / Coins / Themes / Skins / Trails / Power-Ups).
           onPressed: () => context.push('${AppRoutes.store}?tab=2'),
-          text: 'BROWSE THEMES',
-          primaryColor: theme.accentColor,
-          secondaryColor: theme.primaryColor,
+          label: 'BROWSE THEMES',
+          theme: theme,
+          variant: NeonButtonVariant.outline,
           icon: Icons.palette,
-          width: double.infinity,
-          outlined: true,
+          expand: true,
         ),
       ],
     );
@@ -1330,14 +1300,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // Username actions
         if (authState.isGuestUser) ...[
           // For guest users, allow username change
-          GradientButton(
+          NeonButton(
             onPressed: () => _showUsernameDialog(authState, theme),
-            text: 'CHANGE USERNAME',
-            primaryColor: Colors.orange,
-            secondaryColor: Colors.deepOrange,
+            label: 'CHANGE USERNAME',
+            theme: theme,
+            variant: NeonButtonVariant.outline,
             icon: Icons.edit,
-            width: double.infinity,
-            outlined: true,
+            expand: true,
           ),
           const SizedBox(height: 12),
           Text(
@@ -1351,14 +1320,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ] else ...[
           // For authenticated users
-          GradientButton(
+          NeonButton(
             onPressed: () => _showUsernameDialog(authState, theme),
-            text: 'CHANGE USERNAME',
-            primaryColor: theme.accentColor,
-            secondaryColor: theme.primaryColor,
+            label: 'CHANGE USERNAME',
+            theme: theme,
+            variant: NeonButtonVariant.outline,
             icon: Icons.edit,
-            width: double.infinity,
-            outlined: true,
+            expand: true,
           ),
           const SizedBox(height: 12),
           Text(
@@ -1390,14 +1358,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        GradientButton(
+        NeonButton(
           onPressed: _sendTestLocalNotification,
-          text: 'SEND LOCAL TEST',
-          primaryColor: theme.accentColor,
-          secondaryColor: theme.foodColor,
+          label: 'SEND LOCAL TEST',
+          theme: theme,
+          variant: NeonButtonVariant.outline,
           icon: Icons.notifications_active,
-          width: double.infinity,
-          outlined: true,
+          expand: true,
         ),
         const SizedBox(height: 4),
         Text(
@@ -1409,14 +1376,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        GradientButton(
+        NeonButton(
           onPressed: hasFcmToken ? _sendTestPushViaBackend : null,
-          text: hasFcmToken ? 'SEND PUSH VIA BACKEND' : 'NO FCM TOKEN',
-          primaryColor: theme.accentColor,
-          secondaryColor: theme.foodColor,
+          label: hasFcmToken ? 'SEND PUSH VIA BACKEND' : 'NO FCM TOKEN',
+          theme: theme,
+          variant: NeonButtonVariant.outline,
           icon: Icons.cloud_upload,
-          width: double.infinity,
-          outlined: true,
+          expand: true,
         ),
         const SizedBox(height: 4),
         Text(
@@ -1432,14 +1398,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         if (kDebugMode) ...[
           const SizedBox(height: 16),
-          GradientButton(
+          NeonButton(
             onPressed: hasFcmToken ? _copyFcmTokenToClipboard : null,
-            text: 'COPY FCM TOKEN',
-            primaryColor: theme.accentColor,
-            secondaryColor: theme.foodColor,
+            label: 'COPY FCM TOKEN',
+            theme: theme,
+            variant: NeonButtonVariant.outline,
             icon: Icons.content_copy,
-            width: double.infinity,
-            outlined: true,
+            expand: true,
           ),
           const SizedBox(height: 4),
           Text(
@@ -1451,14 +1416,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          GradientButton(
+          NeonButton(
             onPressed: _scheduleTestAtTime,
-            text: 'SCHEDULE TEST AT TIME',
-            primaryColor: theme.accentColor,
-            secondaryColor: theme.foodColor,
+            label: 'SCHEDULE TEST AT TIME',
+            theme: theme,
+            variant: NeonButtonVariant.outline,
             icon: Icons.schedule,
-            width: double.infinity,
-            outlined: true,
+            expand: true,
           ),
           const SizedBox(height: 4),
           Text(
@@ -1472,24 +1436,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          GradientButton(
+          NeonButton(
             onPressed: _cancelScheduledTest,
-            text: 'CANCEL SCHEDULED TEST',
-            primaryColor: theme.accentColor.withValues(alpha: 0.5),
-            secondaryColor: theme.foodColor.withValues(alpha: 0.5),
+            label: 'CANCEL SCHEDULED TEST',
+            theme: theme,
+            variant: NeonButtonVariant.ghost,
             icon: Icons.cancel_outlined,
-            width: double.infinity,
-            outlined: true,
+            expand: true,
           ),
           const SizedBox(height: 16),
-          GradientButton(
+          NeonButton(
             onPressed: _previewDailyReminder,
-            text: 'PREVIEW DAILY REMINDER',
-            primaryColor: theme.accentColor,
-            secondaryColor: theme.foodColor,
+            label: 'PREVIEW DAILY REMINDER',
+            theme: theme,
+            variant: NeonButtonVariant.outline,
             icon: Icons.alarm_on,
-            width: double.infinity,
-            outlined: true,
+            expand: true,
           ),
           const SizedBox(height: 4),
           Text(
@@ -1654,7 +1616,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 16),
-        GradientButton(
+        NeonButton(
           onPressed: () async {
             final messenger = ScaffoldMessenger.of(context);
             final shown = await ads.showPrivacyOptions();
@@ -1667,12 +1629,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             }
           },
-          text: 'PRIVACY & AD CHOICES',
-          primaryColor: theme.accentColor,
-          secondaryColor: theme.foodColor,
+          label: 'PRIVACY & AD CHOICES',
+          theme: theme,
+          variant: NeonButtonVariant.outline,
           icon: Icons.privacy_tip,
-          width: double.infinity,
-          outlined: true,
+          expand: true,
         ),
         const SizedBox(height: 8),
         Text(
@@ -1690,14 +1651,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        GradientButton(
+        NeonButton(
           onPressed: () => showCreditsDialog(context, theme),
-          text: 'ABOUT & CREDITS',
-          primaryColor: theme.accentColor,
-          secondaryColor: theme.foodColor,
+          label: 'ABOUT & CREDITS',
+          theme: theme,
+          variant: NeonButtonVariant.outline,
           icon: Icons.info_outline,
-          width: double.infinity,
-          outlined: true,
+          expand: true,
         ),
         const SizedBox(height: 8),
         Text(
@@ -1715,14 +1675,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        GradientButton(
+        NeonButton(
           onPressed: () => _showReplayTutorialDialog(theme),
-          text: 'REPLAY TUTORIAL',
-          primaryColor: theme.accentColor,
-          secondaryColor: theme.foodColor,
+          label: 'REPLAY TUTORIAL',
+          theme: theme,
+          variant: NeonButtonVariant.outline,
           icon: Icons.school,
-          width: double.infinity,
-          outlined: true,
+          expand: true,
         ),
         const SizedBox(height: 8),
         Text(
@@ -2198,15 +2157,12 @@ extension _SettingsPremium on _SettingsScreenState {
     // dialog locked the user to monthly with no upsell or comparison.
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      child: SizedBox(
-        width: double.infinity,
-        child: GradientButton(
-          onPressed: () => context.push(AppRoutes.premiumBenefits),
-          text: 'Upgrade to Pro',
-          primaryColor: const Color(0xFFFFD700),
-          secondaryColor: const Color(0xFFFFA500),
-          icon: Icons.star,
-        ),
+      child: NeonButton(
+        onPressed: () => context.push(AppRoutes.premiumBenefits),
+        label: 'Upgrade to Pro',
+        theme: theme,
+        icon: Icons.star,
+        expand: true,
       ),
     );
   }

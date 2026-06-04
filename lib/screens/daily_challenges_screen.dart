@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/models/daily_challenge.dart';
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
@@ -16,7 +15,7 @@ import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 
 class DailyChallengesScreen extends ConsumerStatefulWidget {
   const DailyChallengesScreen({super.key});
@@ -142,76 +141,64 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
     final hasUnclaimedRewards = challengesState.hasUnclaimedRewards;
     final allCompleted = challengesState.allCompleted;
 
-    return Scaffold(
-      bottomNavigationBar: const ShipBannerAd(),
-      appBar: AppBar(
-        title: const Text(
-          'Daily Challenges',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: theme.primaryColor),
-          onPressed: () => context.pop(),
-        ),
-        actions: [
-          if (hasUnclaimedRewards)
-            TextButton.icon(
-              onPressed: _claimAllRewards,
-              icon: Icon(Icons.redeem, color: Colors.amber),
-              label: Text('Claim All', style: TextStyle(color: Colors.amber)),
-            ),
-          IconButton(
-            icon: isRefreshing
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation(theme.accentColor),
-                      strokeWidth: 2,
-                    ),
-                  )
-                : Icon(Icons.refresh, color: theme.accentColor),
-            onPressed: isRefreshing ? null : _refreshChallenges,
+    return CommandScaffold(
+      theme: theme,
+      title: 'Daily Challenges',
+      bottomBar: const ShipBannerAd(),
+      bodyPadding: EdgeInsets.zero,
+      actions: [
+        if (hasUnclaimedRewards)
+          TextButton.icon(
+            onPressed: _claimAllRewards,
+            icon: Icon(Icons.redeem, color: Colors.amber),
+            label: Text('Claim All', style: TextStyle(color: Colors.amber)),
           ),
-        ],
-      ),
-      body: AppBackground(
-        theme: theme,
-        child: RefreshIndicator(
-          onRefresh: _refreshChallenges,
-          color: theme.accentColor,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Progress summary card
-                _buildProgressSummary(theme, challengesState),
-                const SizedBox(height: 20),
-
-                // Challenges list
-                if (isRefreshing && challenges.isEmpty)
-                  _buildLoadingState(theme)
-                else if (challenges.isEmpty)
-                  _buildEmptyState(theme)
-                else
-                  ...challenges.asMap().entries.map(
-                    (e) => _buildChallengeCard(e.value, e.key, theme),
+        IconButton(
+          icon: isRefreshing
+              ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation(theme.accentColor),
+                    strokeWidth: 2,
                   ),
+                )
+              : Icon(Icons.refresh, color: theme.accentColor),
+          onPressed: isRefreshing ? null : _refreshChallenges,
+        ),
+      ],
+      body: RefreshIndicator(
+        onRefresh: _refreshChallenges,
+        color: theme.accentColor,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Progress summary card
+              _buildProgressSummary(theme, challengesState),
+              const SizedBox(height: 20),
 
-                // All complete bonus
-                if (allCompleted)
-                  _buildAllCompleteBonusCard(theme, challengesState),
+              // Challenges list
+              if (isRefreshing && challenges.isEmpty)
+                _buildLoadingState(theme)
+              else if (challenges.isEmpty)
+                _buildEmptyState(theme)
+              else
+                ...challenges.asMap().entries.map(
+                  (e) => _buildChallengeCard(e.value, e.key, theme),
+                ),
 
-                const SizedBox(height: 20),
+              // All complete bonus
+              if (allCompleted)
+                _buildAllCompleteBonusCard(theme, challengesState),
 
-                // Info section
-                _buildInfoSection(theme),
-              ],
-            ),
+              const SizedBox(height: 20),
+
+              // Info section
+              _buildInfoSection(theme),
+            ],
           ),
         ),
       ),
@@ -550,27 +537,12 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
 
                         // Claim button
                         if (canClaim)
-                          ElevatedButton(
+                          NeonButton(
                             onPressed: () => _claimReward(challenge),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.amber,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.redeem, size: 18),
-                                const SizedBox(width: 4),
-                                Text('Claim'),
-                              ],
-                            ),
+                            label: 'Claim',
+                            icon: Icons.redeem,
+                            theme: theme,
+                            height: 40,
                           ),
                         if (challenge.claimedReward)
                           Container(
@@ -757,13 +729,8 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
   }
 
   Widget _buildInfoSection(GameTheme theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.primaryColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.primaryColor.withValues(alpha: 0.2)),
-      ),
+    return GlassPanel(
+      theme: theme,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

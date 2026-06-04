@@ -9,8 +9,8 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dar
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
 import 'package:cosmo_strike_flutter_app/widgets/player_progression.dart';
 import 'package:cosmo_strike_flutter_app/widgets/themed_loading.dart';
 
@@ -81,54 +81,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         listenable: _appCache,
         builder: (context, _) => BlocBuilder<AuthCubit, AuthState>(
         builder: (context, authState) {
-          return Scaffold(
-            bottomNavigationBar: const ShipBannerAd(),
-            extendBodyBehindAppBar: true,
-            appBar: AppBar(
-              title: Text(
-                'Profile',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                  color: theme.primaryColor,
-                  shadows: [
-                    Shadow(
-                      offset: const Offset(0, 2),
-                      blurRadius: 4,
-                      color: Colors.black.withValues(alpha: 0.3),
-                    ),
-                  ],
-                ),
-              ),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              leading: Container(
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.backgroundColor.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: theme.accentColor.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: IconButton(
-                  icon: Icon(
-                    Icons.arrow_back_rounded,
-                    color: theme.primaryColor,
-                  ),
-                  onPressed: () => context.pop(),
-                ),
-              ),
-            ),
-            body: AnimatedAppBackground(
-              theme: theme,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                  child: _buildBody(context, authState, themeState),
-                ),
-              ),
-            ),
+          return CommandScaffold(
+            theme: theme,
+            title: 'Profile',
+            bottomBar: const ShipBannerAd(),
+            bodyPadding: const EdgeInsets.symmetric(horizontal: 10.0),
+            body: _buildBody(context, authState, themeState),
           );
         },
       ),
@@ -192,40 +150,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 20),
 
           // Enhanced Profile Header
-          Container(
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  theme.accentColor.withValues(alpha: 0.15),
-                  theme.backgroundColor.withValues(alpha: 0.8),
-                  theme.backgroundColor.withValues(alpha: 0.9),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: theme.accentColor.withValues(alpha: 0.4),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 8),
-                ),
-                BoxShadow(
-                  color: theme.accentColor.withValues(alpha: 0.2),
-                  blurRadius: 30,
-                  spreadRadius: -5,
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: GlassPanel(
+              theme: theme,
+              glow: true,
+              child: Column(
+                children: [
                 // Enhanced avatar with glow effect
                 Container(
                   decoration: BoxDecoration(
@@ -328,7 +259,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -380,33 +312,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 24),
 
           // Enhanced Stats Section
-          Container(
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  theme.backgroundColor.withValues(alpha: 0.8),
-                  theme.backgroundColor.withValues(alpha: 0.6),
-                  theme.accentColor.withValues(alpha: 0.05),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: theme.accentColor.withValues(alpha: 0.3),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 15,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Column(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: GlassPanel(
+              theme: theme,
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
@@ -548,39 +458,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ],
               ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
 
           // Recent Achievements Section
           if (_recentAchievements.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    theme.backgroundColor.withValues(alpha: 0.8),
-                    theme.backgroundColor.withValues(alpha: 0.6),
-                    Colors.amber.withValues(alpha: 0.05),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.amber.withValues(alpha: 0.3),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 15,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Column(
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: GlassPanel(
+                theme: theme,
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
@@ -653,6 +542,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       )
                       .toList()),
                 ],
+                ),
               ),
             ),
 
@@ -660,33 +550,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // Google Sign-In Upgrade Section (for guest users only)
           if (authState.isAnonymous && !authState.isGoogleUser)
-            Container(
-              padding: const EdgeInsets.all(24),
-              margin: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.blue.withValues(alpha: 0.15),
-                    Colors.blue.withValues(alpha: 0.1),
-                    theme.backgroundColor.withValues(alpha: 0.8),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.blue.withValues(alpha: 0.4),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 15,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Column(
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: GlassPanel(
+                theme: theme,
+                borderColor: Colors.blue.withValues(alpha: 0.4),
+                child: Column(
                 children: [
                   Row(
                     children: [
@@ -759,19 +628,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 20),
 
                   // Upgrade button
-                  _buildEnhancedButton(
-                    context,
-                    'Sign in with Google',
-                    const FaIcon(
-                      FontAwesomeIcons.google,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    Colors.blue,
-                    Colors.blue.shade700,
-                    () => _handleGoogleUpgrade(context, theme),
+                  NeonButton(
+                    onPressed: () => _handleGoogleUpgrade(context, theme),
+                    label: 'Sign in with Google',
+                    icon: Icons.login_rounded,
+                    theme: theme,
+                    expand: true,
                   ),
                 ],
+                ),
               ),
             ),
 
@@ -779,32 +644,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 24),
 
           // Recent Replays Section
-          Container(
-            padding: const EdgeInsets.all(24),
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  theme.backgroundColor.withValues(alpha: 0.8),
-                  theme.backgroundColor.withValues(alpha: 0.6),
-                  Colors.purple.withValues(alpha: 0.05),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.purple.withValues(alpha: 0.3),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 15,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: GlassPanel(
+            theme: theme,
+            borderColor: Colors.purple.withValues(alpha: 0.4),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -919,25 +763,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ],
             ),
+            ),
           ),
           const SizedBox(height: 32),
 
           // Enhanced Sign Out Section
           if (!authState.isLoading)
-            Container(
-              padding: const EdgeInsets.all(20),
-              margin: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.red.withValues(alpha: 0.1),
-                    Colors.red.withValues(alpha: 0.05),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-              ),
-              child: Column(
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: GlassPanel(
+                theme: theme,
+                borderColor: Colors.red.withValues(alpha: 0.3),
+                child: Column(
                 children: [
                   const Text(
                     'Account Management',
@@ -949,19 +786,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  _buildEnhancedButton(
-                    context,
-                    'Sign Out',
-                    const Icon(
-                      Icons.logout_rounded,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    Colors.red,
-                    Colors.red.shade700,
-                    () => _showSignOutDialog(context, theme),
+                  NeonButton(
+                    onPressed: () => _showSignOutDialog(context, theme),
+                    label: 'Sign Out',
+                    icon: Icons.logout_rounded,
+                    theme: theme,
+                    variant: NeonButtonVariant.outline,
+                    expand: true,
                   ),
                 ],
+                ),
               ),
             ),
 
@@ -1030,58 +864,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildEnhancedButton(
-    BuildContext context,
-    String text,
-    Widget icon,
-    Color primaryColor,
-    Color secondaryColor,
-    VoidCallback onPressed,
-  ) {
-    return Container(
-      width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [primaryColor, secondaryColor],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: primaryColor.withValues(alpha: 0.4),
-            blurRadius: 15,
-            spreadRadius: 1,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onPressed,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              icon,
-              const SizedBox(width: 12),
-              Text(
-                text,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

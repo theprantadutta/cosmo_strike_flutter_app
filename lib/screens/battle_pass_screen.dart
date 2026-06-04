@@ -10,9 +10,9 @@ import 'package:cosmo_strike_flutter_app/models/battle_pass.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/battle_pass_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
 import 'package:cosmo_strike_flutter_app/widgets/themed_loading.dart';
 
 /// Reward-Showcase battle pass — the hero is **what you're about to earn**,
@@ -129,21 +129,19 @@ class _BattlePassScreenState extends State<BattlePassScreen> {
             final season = bpState.season;
 
             if (bpState.status == BattlePassStatus.loading && season == null) {
-              return Scaffold(
-                body: AppBackground(
-                  theme: theme,
-                  child: SafeArea(
-                    child: Column(children: [
-                      _TopBar(theme: theme, title: 'Battle Pass'),
-                      Expanded(
-                        child: ThemedLoading(
-                          theme: theme,
-                          label: 'Loading battle pass...',
-                        ),
-                      ),
-                    ]),
+              return CommandScaffold(
+                theme: theme,
+                showTopBar: false,
+                bodyPadding: EdgeInsets.zero,
+                body: Column(children: [
+                  _TopBar(theme: theme, title: 'Battle Pass'),
+                  Expanded(
+                    child: ThemedLoading(
+                      theme: theme,
+                      label: 'Loading battle pass...',
+                    ),
                   ),
-                ),
+                ]),
               );
             }
 
@@ -151,14 +149,14 @@ class _BattlePassScreenState extends State<BattlePassScreen> {
               return _NoActiveSeasonScreen(theme: theme);
             }
 
-            return Scaffold(
-              bottomNavigationBar: const ShipBannerAd(),
-              body: AppBackground(
-                theme: theme,
-                child: SafeArea(
-                  child: CustomScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    slivers: [
+            return CommandScaffold(
+              theme: theme,
+              showTopBar: false,
+              bodyPadding: EdgeInsets.zero,
+              bottomBar: const ShipBannerAd(),
+              body: CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
                       SliverToBoxAdapter(
                         child: _TopBar(
                           theme: theme,
@@ -280,10 +278,8 @@ class _BattlePassScreenState extends State<BattlePassScreen> {
                         const SliverToBoxAdapter(
                           child: SizedBox(height: 24),
                         ),
-                    ],
-                  ),
+                  ],
                 ),
-              ),
             );
           },
         );
@@ -385,23 +381,12 @@ class _StateStrip extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Container(
+      child: GlassPanel(
+        theme: theme,
+        glow: true,
+        radius: GameTokens.radiusLg,
+        width: double.infinity,
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              theme.primaryColor.withValues(alpha: 0.22),
-              theme.accentColor.withValues(alpha: 0.10),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: theme.accentColor.withValues(alpha: 0.30),
-            width: 1.2,
-          ),
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -577,18 +562,14 @@ class _ComingNextSection extends StatelessWidget {
       // already says "Season complete"; render a celebratory card.
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-        child: Container(
+        child: GlassPanel(
+          theme: theme,
+          glow: true,
+          radius: GameTokens.radiusLg,
+          width: double.infinity,
+          borderColor: Colors.amber.withValues(alpha: 0.45),
+          fillColor: Colors.amber.withValues(alpha: 0.14),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.amber.withValues(alpha: 0.25),
-                Colors.orange.withValues(alpha: 0.18),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.amber.withValues(alpha: 0.45)),
-          ),
           child: Column(
             children: [
               const Text('🏆', style: TextStyle(fontSize: 56)),
@@ -626,34 +607,16 @@ class _ComingNextSection extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-      child: GestureDetector(
+      child: GlassPanel(
+        theme: theme,
+        glow: true,
+        radius: GameTokens.radiusLg,
+        width: double.infinity,
         onTap: () => onTap(r, tier),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                accent.withValues(alpha: 0.30),
-                theme.primaryColor.withValues(alpha: 0.20),
-                accent.withValues(alpha: 0.10),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: accent.withValues(alpha: 0.55),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: 0.25),
-                blurRadius: 18,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Column(
+        borderColor: accent.withValues(alpha: 0.55),
+        fillColor: accent.withValues(alpha: 0.12),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+        child: Column(
             children: [
               Row(
                 children: [
@@ -763,7 +726,6 @@ class _ComingNextSection extends StatelessWidget {
               ],
             ],
           ),
-        ),
       ).gameEntrance(),
     );
   }
@@ -1624,11 +1586,11 @@ class _NoActiveSeasonScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: AppBackground(
-        theme: theme,
-        child: SafeArea(
-          child: Column(
+    return CommandScaffold(
+      theme: theme,
+      showTopBar: false,
+      bodyPadding: EdgeInsets.zero,
+      body: Column(
             children: [
               _TopBar(theme: theme, title: 'BATTLE PASS'),
               Expanded(
@@ -1687,27 +1649,14 @@ class _NoActiveSeasonScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 28),
-                      OutlinedButton.icon(
-                        onPressed: () =>
-                            context.read<BattlePassCubit>().refresh(),
-                        icon: Icon(Icons.refresh_rounded,
-                            color: theme.accentColor),
-                        label: Text(
-                          'Check for new season',
-                          style: TextStyle(
-                            color: theme.accentColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 18, vertical: 12),
-                          side: BorderSide(
-                            color: theme.accentColor.withValues(alpha: 0.5),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                      Center(
+                        child: NeonButton(
+                          onPressed: () =>
+                              context.read<BattlePassCubit>().refresh(),
+                          label: 'Check for new season',
+                          icon: Icons.refresh_rounded,
+                          theme: theme,
+                          variant: NeonButtonVariant.outline,
                         ),
                       ),
                     ],
@@ -1716,8 +1665,6 @@ class _NoActiveSeasonScreen extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 }

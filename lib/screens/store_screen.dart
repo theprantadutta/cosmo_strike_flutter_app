@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_cosmetics.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_power_up.dart';
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
@@ -19,7 +18,7 @@ import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dar
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 
 class StoreScreen extends StatefulWidget {
   final int initialTab;
@@ -87,79 +86,29 @@ class _StoreScreenState extends State<StoreScreen>
             return BlocBuilder<CoinsCubit, CoinsState>(
               builder: (context, coinsState) {
                 final theme = themeState.currentTheme;
-                return Scaffold(
-                  bottomNavigationBar: const ShipBannerAd(),
-                  extendBodyBehindAppBar: true,
-                  appBar: AppBar(
-                    title: const Text(
-                      'Cosmo Store',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                      ),
-                    ),
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    leading: IconButton(
-                      icon: Icon(Icons.arrow_back, color: theme.primaryColor),
-                      onPressed: () => context.pop(),
-                    ),
-                  ),
-                  body: AppBackground(
-                    theme: theme,
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.of(context).padding.top +
-                              kToolbarHeight,
-                        ),
-                        _buildCoinsHeader(theme, coinsState),
-                        TabBar(
+                return CommandScaffold(
+                  theme: theme,
+                  title: 'Cosmo Store',
+                  bottomBar: const ShipBannerAd(),
+                  bodyPadding: EdgeInsets.zero,
+                  body: Column(
+                    children: [
+                      _buildCoinsHeader(theme, coinsState),
+                      _buildTabBar(theme),
+                      Expanded(
+                        child: TabBarView(
                           controller: _tabController,
-                          indicatorColor: theme.accentColor,
-                          labelColor: theme.accentColor,
-                          unselectedLabelColor:
-                              theme.accentColor.withValues(alpha: 0.6),
-                          isScrollable: true,
-                          tabs: const [
-                            Tab(text: 'Pro', icon: Icon(Icons.diamond, size: 16)),
-                            Tab(
-                              text: 'Coins',
-                              icon: Icon(Icons.monetization_on, size: 16),
-                            ),
-                            Tab(
-                              text: 'Themes',
-                              icon: Icon(Icons.color_lens, size: 16),
-                            ),
-                            Tab(
-                              text: 'Skins',
-                              icon: Icon(Icons.pets, size: 16),
-                            ),
-                            Tab(
-                              text: 'Trails',
-                              icon: Icon(Icons.auto_awesome, size: 16),
-                            ),
-                            Tab(
-                              text: 'Power-Ups',
-                              icon: Icon(Icons.flash_on, size: 16),
-                            ),
+                          children: [
+                            _buildProTab(theme, premiumState),
+                            _buildCoinsTab(theme, coinsState),
+                            _buildThemesTab(theme, premiumState),
+                            _buildSkinsTab(theme, premiumState),
+                            _buildTrailsTab(theme, premiumState),
+                            _buildPowerUpsTab(theme, premiumState, coinsState),
                           ],
                         ),
-                        Expanded(
-                          child: TabBarView(
-                            controller: _tabController,
-                            children: [
-                              _buildProTab(theme, premiumState),
-                              _buildCoinsTab(theme, coinsState),
-                              _buildThemesTab(theme, premiumState),
-                              _buildSkinsTab(theme, premiumState),
-                              _buildTrailsTab(theme, premiumState),
-                              _buildPowerUpsTab(theme, premiumState, coinsState),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -167,6 +116,42 @@ class _StoreScreenState extends State<StoreScreen>
           },
         );
       },
+    );
+  }
+
+  // ===========================================================================
+  // Neon glass tab bar
+  // ===========================================================================
+
+  Widget _buildTabBar(GameTheme theme) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      decoration: BoxDecoration(
+        color: theme.surfaceGlass,
+        borderRadius: GameTokens.brMd,
+        border: Border.all(color: theme.stroke),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicator: BoxDecoration(
+          color: theme.neonPrimary.withValues(alpha: 0.85),
+          borderRadius: GameTokens.brMd,
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: const Color(0xFF03040A),
+        unselectedLabelColor: theme.textMuted,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+        isScrollable: true,
+        tabs: const [
+          Tab(text: 'Pro', icon: Icon(Icons.diamond, size: 16)),
+          Tab(text: 'Coins', icon: Icon(Icons.monetization_on, size: 16)),
+          Tab(text: 'Themes', icon: Icon(Icons.color_lens, size: 16)),
+          Tab(text: 'Skins', icon: Icon(Icons.pets, size: 16)),
+          Tab(text: 'Trails', icon: Icon(Icons.auto_awesome, size: 16)),
+          Tab(text: 'Power-Ups', icon: Icon(Icons.flash_on, size: 16)),
+        ],
+      ),
     );
   }
 
@@ -593,59 +578,17 @@ class _StoreScreenState extends State<StoreScreen>
               ),
             ],
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: anyProPending
-                    ? null
-                    : () => _purchaseSubscription(productId, '$title plan'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: highlight
-                      ? Colors.amber
-                      : theme.primaryColor.withValues(alpha: 0.9),
-                  foregroundColor:
-                      highlight ? Colors.black : Colors.white,
-                  disabledBackgroundColor: (highlight
-                          ? Colors.amber
-                          : theme.primaryColor)
-                      .withValues(alpha: 0.45),
-                  disabledForegroundColor: highlight
-                      ? Colors.black.withValues(alpha: 0.7)
-                      : Colors.white.withValues(alpha: 0.85),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  elevation: 0,
-                ),
-                child: isPending
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation(
-                                highlight ? Colors.black : Colors.white,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Verifying…',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                        ],
-                      )
-                    : const Text(
-                        'Subscribe',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-              ),
+            NeonButton(
+              expand: true,
+              theme: theme,
+              variant: highlight
+                  ? NeonButtonVariant.solid
+                  : NeonButtonVariant.outline,
+              icon: isPending ? null : Icons.workspace_premium,
+              label: isPending ? 'Verifying…' : 'Subscribe',
+              onPressed: anyProPending
+                  ? null
+                  : () => _purchaseSubscription(productId, '$title plan'),
             ),
           ],
         ),
@@ -746,38 +689,25 @@ class _StoreScreenState extends State<StoreScreen>
             const SizedBox(height: 14),
             // Convert CTA — single tap straight into the plan picker. The
             // tab swap happens in-screen so the user doesn't lose context.
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  // Tap inside the Pro tab — toggle the "free trial active"
-                  // state away so the plan cards become visible (the Pro
-                  // tab's active-banner branch hides the plan cards).
-                  // Simplest: scroll the user's attention by showing a
-                  // dialog explaining their conversion options, OR just
-                  // route through the existing Pro plan purchase via the
-                  // monthly default. We'll fire the monthly purchase to
-                  // keep the path consistent with the Subscribe button.
-                  _purchaseSubscription(
-                    ProductIds.proMonthly,
-                    'Pro Monthly',
-                  );
-                },
-                icon: const Icon(Icons.workspace_premium, size: 18),
-                label: const Text(
-                  'Keep Pro — Subscribe',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber.shade700,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-              ),
+            NeonButton(
+              expand: true,
+              theme: theme,
+              icon: Icons.workspace_premium,
+              label: 'Keep Pro — Subscribe',
+              onPressed: () {
+                // Tap inside the Pro tab — toggle the "free trial active"
+                // state away so the plan cards become visible (the Pro
+                // tab's active-banner branch hides the plan cards).
+                // Simplest: scroll the user's attention by showing a
+                // dialog explaining their conversion options, OR just
+                // route through the existing Pro plan purchase via the
+                // monthly default. We'll fire the monthly purchase to
+                // keep the path consistent with the Subscribe button.
+                _purchaseSubscription(
+                  ProductIds.proMonthly,
+                  'Pro Monthly',
+                );
+              },
             ),
           ],
         ],

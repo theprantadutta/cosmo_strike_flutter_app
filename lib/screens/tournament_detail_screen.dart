@@ -14,7 +14,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit
 import 'package:cosmo_strike_flutter_app/screens/gameplay_screen.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:cosmo_strike_flutter_app/widgets/gradient_button.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/widgets/themed_loading.dart';
 
 class TournamentDetailScreen extends StatefulWidget {
@@ -161,24 +161,24 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
       builder: (context, themeState) {
         final theme = themeState.currentTheme;
 
-        return Scaffold(
-          bottomNavigationBar: const ShipBannerAd(),
-          body: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  theme.backgroundColor,
-                  theme.backgroundColor.withValues(alpha: 0.8),
-                  theme.accentColor.withValues(alpha: 0.1),
-                ],
-              ),
-            ),
-            child: SafeArea(
-              child: _buildContent(theme),
-            ),
-          ),
+        return CommandScaffold(
+          theme: theme,
+          title: _tournament?.name ?? 'Tournament',
+          bottomBar: const ShipBannerAd(),
+          bodyPadding: EdgeInsets.zero,
+          actions: _tournament != null
+              ? [
+                  IconButton(
+                    onPressed: _refreshTournament,
+                    icon: Icon(
+                      Icons.refresh,
+                      color: theme.accentColor.withValues(alpha: 0.7),
+                      size: 24,
+                    ),
+                  ),
+                ]
+              : null,
+          body: _buildContent(theme),
         );
       },
     );
@@ -210,12 +210,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
               ),
             ),
             const SizedBox(height: 24),
-            ElevatedButton(
+            NeonButton(
               onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.accentColor,
-              ),
-              child: const Text('Go Back'),
+              label: 'Go Back',
+              theme: theme,
             ),
           ],
         ),
@@ -225,7 +223,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
     final tournament = _tournament!;
     return Column(
       children: [
-        _buildHeader(theme),
         _buildTournamentInfo(theme),
         _buildTabBar(theme),
         Expanded(
@@ -244,68 +241,16 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
     );
   }
 
-  Widget _buildHeader(GameTheme theme) {
-    final tournament = _tournament!;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: Icon(Icons.arrow_back, color: theme.accentColor, size: 24),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tournament.name,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: theme.accentColor,
-                  ),
-                ),
-                Text(
-                  tournament.type.displayName,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: _getTournamentTypeColor(tournament.type),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: _refreshTournament,
-            icon: Icon(
-              Icons.refresh,
-              color: theme.accentColor.withValues(alpha: 0.7),
-              size: 24,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTournamentInfo(GameTheme theme) {
     final tournament = _tournament!;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: _getTournamentStatusColor(
-            tournament.status,
-          ).withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
+      child: GlassPanel(
+        theme: theme,
+        borderColor: _getTournamentStatusColor(
+          tournament.status,
+        ).withValues(alpha: 0.3),
+        child: Column(
         children: [
           Row(
             children: [
@@ -488,6 +433,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
             ),
           ],
         ],
+        ),
       ),
     );
   }
@@ -495,11 +441,22 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
   Widget _buildTabBar(GameTheme theme) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.surfaceGlass,
+        borderRadius: GameTokens.brMd,
+        border: Border.all(color: theme.stroke),
+      ),
       child: TabBar(
         controller: _tabController,
-        indicatorColor: theme.accentColor,
-        labelColor: theme.accentColor,
-        unselectedLabelColor: Colors.white.withValues(alpha: 0.6),
+        indicator: BoxDecoration(
+          color: theme.neonPrimary.withValues(alpha: 0.85),
+          borderRadius: GameTokens.brMd,
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: const Color(0xFF03040A),
+        unselectedLabelColor: theme.textMuted,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
         tabs: const [
           Tab(text: 'Overview'),
           Tab(text: 'Leaderboard'),
@@ -564,18 +521,11 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
                 ),
               ),
               const SizedBox(height: 20),
-              ElevatedButton.icon(
+              NeonButton(
                 onPressed: _loadLeaderboard,
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Retry'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.accentColor,
-                  foregroundColor: theme.backgroundColor,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 22,
-                    vertical: 12,
-                  ),
-                ),
+                label: 'Retry',
+                icon: Icons.refresh,
+                theme: theme,
               ),
             ],
           ),
@@ -647,13 +597,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
 
   Widget _buildDescriptionCard(GameTheme theme) {
     final tournament = _tournament!;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
-      ),
+    return GlassPanel(
+      theme: theme,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -707,13 +652,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
     final tournament = _tournament!;
     if (tournament.rewards.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-      ),
+    return GlassPanel(
+      theme: theme,
+      borderColor: Colors.amber.withValues(alpha: 0.3),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -793,13 +734,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
 
   Widget _buildGameModeCard(GameTheme theme) {
     final tournament = _tournament!;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
-      ),
+    return GlassPanel(
+      theme: theme,
+      borderColor: Colors.blue.withValues(alpha: 0.3),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -938,13 +875,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
   }
 
   Widget _buildRulesCard(GameTheme theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
-      ),
+    return GlassPanel(
+      theme: theme,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -998,13 +930,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
   }
 
   Widget _buildScoringCard(GameTheme theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-      ),
+    return GlassPanel(
+      theme: theme,
+      borderColor: Colors.amber.withValues(alpha: 0.3),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1067,24 +995,20 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           if (!tournament.hasJoined && tournament.status.canJoin)
-            GradientButton(
+            NeonButton(
               onPressed: _isJoining ? null : () => _joinTournament(),
-              text: _isJoining ? 'JOINING…' : 'JOIN TOURNAMENT',
-              primaryColor: Colors.blue,
-              secondaryColor: Colors.cyan,
+              label: _isJoining ? 'JOINING…' : 'JOIN TOURNAMENT',
               icon: Icons.person_add,
-              width: double.infinity,
-              height: 56,
+              theme: theme,
+              expand: true,
             )
           else if (tournament.status.canSubmitScore)
-            GradientButton(
+            NeonButton(
               onPressed: _playTournament,
-              text: 'PLAY NOW',
-              primaryColor: theme.accentColor,
-              secondaryColor: theme.foodColor,
+              label: 'PLAY NOW',
               icon: Icons.play_arrow,
-              width: double.infinity,
-              height: 56,
+              theme: theme,
+              expand: true,
             ),
 
           if (tournament.requiresEntry) ...[

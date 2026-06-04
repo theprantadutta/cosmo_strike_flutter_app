@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/models/user_profile.dart';
 import 'package:cosmo_strike_flutter_app/providers/friends_provider.dart';
@@ -10,7 +9,7 @@ import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/widgets/themed_loading.dart';
 
 class FriendsScreen extends ConsumerStatefulWidget {
@@ -55,77 +54,50 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
       builder: (context, themeState) {
         final theme = themeState.currentTheme;
 
-        return Scaffold(
-          bottomNavigationBar: const ShipBannerAd(),
-          body: AppBackground(
-            theme: theme,
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _buildHeader(theme),
-                  _buildSearchBar(theme, friendsState),
-                  _buildTabBar(theme, friendsState),
-                  // "Updated X ago" — Drift cache freshness signal so
-                  // an offline view doesn't look identical to a live
-                  // one. Hidden when no refresh has ever landed AND
-                  // there's no cached data to put a date on.
-                  AnimatedBuilder(
-                    animation: _tabController,
-                    builder: (context, _) =>
-                        _buildStalenessChip(theme, friendsState),
-                  ),
-                  Expanded(
-                    child: friendsState.isLoading
-                        ? _buildLoadingIndicator(theme)
-                        : TabBarView(
-                            controller: _tabController,
-                            children: [
-                              _buildFriendsList(theme, friendsState),
-                              _buildFriendRequestsList(theme, friendsState),
-                              _buildSearchResults(theme, friendsState),
-                            ],
-                          ),
-                  ),
-                ],
+        return CommandScaffold(
+          theme: theme,
+          title: 'Friends',
+          bottomBar: const ShipBannerAd(),
+          bodyPadding: EdgeInsets.zero,
+          actions: [
+            IconButton(
+              onPressed: _loadData,
+              icon: Icon(
+                Icons.refresh,
+                color: theme.accentColor.withValues(alpha: 0.7),
+                size: 24,
               ),
             ),
+          ],
+          body: Column(
+            children: [
+              _buildSearchBar(theme, friendsState),
+              _buildTabBar(theme, friendsState),
+              // "Updated X ago" — Drift cache freshness signal so
+              // an offline view doesn't look identical to a live
+              // one. Hidden when no refresh has ever landed AND
+              // there's no cached data to put a date on.
+              AnimatedBuilder(
+                animation: _tabController,
+                builder: (context, _) =>
+                    _buildStalenessChip(theme, friendsState),
+              ),
+              Expanded(
+                child: friendsState.isLoading
+                    ? _buildLoadingIndicator(theme)
+                    : TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildFriendsList(theme, friendsState),
+                          _buildFriendRequestsList(theme, friendsState),
+                          _buildSearchResults(theme, friendsState),
+                        ],
+                      ),
+              ),
+            ],
           ),
         );
       },
-    );
-  }
-
-  Widget _buildHeader(GameTheme theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => context.pop(),
-            icon: Icon(Icons.arrow_back, color: theme.accentColor, size: 24),
-          ),
-          const SizedBox(width: 8),
-          Icon(Icons.people, color: theme.accentColor, size: 28),
-          const SizedBox(width: 12),
-          Text(
-            'Friends',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: theme.accentColor,
-            ),
-          ),
-          const Spacer(),
-          IconButton(
-            onPressed: _loadData,
-            icon: Icon(
-              Icons.refresh,
-              color: theme.accentColor.withValues(alpha: 0.7),
-              size: 24,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -133,9 +105,9 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
+        color: theme.surfaceGlass,
+        borderRadius: GameTokens.brMd,
+        border: Border.all(color: theme.stroke),
       ),
       child: TextField(
         controller: _searchController,
@@ -181,12 +153,23 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
     final friendRequests = friendsState.friendRequests;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      decoration: BoxDecoration(
+        color: theme.surfaceGlass,
+        borderRadius: GameTokens.brMd,
+        border: Border.all(color: theme.stroke),
+      ),
       child: TabBar(
         controller: _tabController,
-        indicatorColor: theme.accentColor,
-        labelColor: theme.accentColor,
-        unselectedLabelColor: Colors.white.withValues(alpha: 0.6),
+        indicator: BoxDecoration(
+          color: theme.neonPrimary.withValues(alpha: 0.85),
+          borderRadius: GameTokens.brMd,
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: const Color(0xFF03040A),
+        unselectedLabelColor: theme.textMuted,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
         tabs: [
           Tab(
             child: Row(
@@ -490,15 +473,10 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
     required GameTheme theme,
     Widget? trailing,
   }) {
-    return Card(
-      color: theme.backgroundColor.withValues(alpha: 0.5),
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.accentColor.withValues(alpha: 0.2)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassPanel(
+        theme: theme,
         child: Row(
           children: [
             CircleAvatar(
@@ -604,15 +582,11 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
   }
 
   Widget _buildFriendRequestCard(FriendRequest request, GameTheme theme) {
-    return Card(
-      color: theme.backgroundColor.withValues(alpha: 0.5),
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.blue.withValues(alpha: 0.3)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassPanel(
+        theme: theme,
+        borderColor: Colors.blue.withValues(alpha: 0.3),
         child: Row(
           children: [
             CircleAvatar(
@@ -661,32 +635,17 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextButton(
+                NeonButton(
                   onPressed: () => _rejectFriendRequest(request.fromUserId),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                  ),
-                  child: const Text('Reject'),
+                  label: 'Reject',
+                  theme: theme,
+                  variant: NeonButtonVariant.ghost,
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton(
+                NeonButton(
                   onPressed: () => _acceptFriendRequest(request.fromUserId),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.accentColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text('Accept'),
+                  label: 'Accept',
+                  theme: theme,
                 ),
               ],
             ),
@@ -697,15 +656,10 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
   }
 
   Widget _buildSentRequestCard(FriendRequest request, GameTheme theme) {
-    return Card(
-      color: theme.backgroundColor.withValues(alpha: 0.3),
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.accentColor.withValues(alpha: 0.1)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassPanel(
+        theme: theme,
         child: Row(
           children: [
             CircleAvatar(
@@ -810,27 +764,19 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
     }
 
     if (hasReceivedRequest) {
-      return ElevatedButton(
+      return NeonButton(
         onPressed: () => _acceptFriendRequest(user.uid),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: theme.accentColor,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        child: const Text('Accept'),
+        label: 'Accept',
+        theme: theme,
       );
     }
 
-    return ElevatedButton(
+    return NeonButton(
       onPressed: () => _sendFriendRequest(user.uid),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      child: const Text('Add Friend'),
+      label: 'Add Friend',
+      icon: Icons.person_add,
+      theme: theme,
+      variant: NeonButtonVariant.outline,
     );
   }
 

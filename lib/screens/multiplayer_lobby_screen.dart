@@ -10,10 +10,9 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/multiplayer/multiplay
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:cosmo_strike_flutter_app/widgets/gradient_button.dart';
 
 class MultiplayerLobbyScreen extends StatefulWidget {
   final String? gameId;
@@ -140,39 +139,37 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
                     });
                   }
 
-                  return Scaffold(
-                    bottomNavigationBar: const ShipBannerAd(),
-                    body: AppBackground(
-                      theme: theme,
-                      child: SafeArea(
-                        child: multiplayerState.matchmakingTimedOut
-                            ? _buildMatchmakingTimeoutUI(
-                                context,
-                                multiplayerState,
-                                theme,
-                              )
-                            : multiplayerState.status ==
-                                  MultiplayerStatus.inMatchmaking
-                            ? _buildMatchmakingUI(
-                                context,
-                                multiplayerState,
-                                theme,
-                              )
-                            : multiplayerState.isInGame
-                            ? _buildGameLobby(
-                                context,
-                                multiplayerState,
-                                theme,
-                                authState,
-                              )
-                            : _buildMainLobby(
-                                context,
-                                multiplayerState,
-                                theme,
-                                authState,
-                              ),
-                      ),
-                    ),
+                  return CommandScaffold(
+                    theme: theme,
+                    title: 'Multiplayer',
+                    bottomBar: const ShipBannerAd(),
+                    bodyPadding: EdgeInsets.zero,
+                    body: multiplayerState.matchmakingTimedOut
+                        ? _buildMatchmakingTimeoutUI(
+                            context,
+                            multiplayerState,
+                            theme,
+                          )
+                        : multiplayerState.status ==
+                              MultiplayerStatus.inMatchmaking
+                        ? _buildMatchmakingUI(
+                            context,
+                            multiplayerState,
+                            theme,
+                          )
+                        : multiplayerState.isInGame
+                        ? _buildGameLobby(
+                            context,
+                            multiplayerState,
+                            theme,
+                            authState,
+                          )
+                        : _buildMainLobby(
+                            context,
+                            multiplayerState,
+                            theme,
+                            authState,
+                          ),
                   );
                 },
               );
@@ -189,39 +186,29 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
     GameTheme theme,
     AuthState authState,
   ) {
-    return Column(
-      children: [
-        // Header
-        _buildHeader(theme),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          // Quick Match Section
+          _buildQuickMatchSection(context, multiplayerState, theme),
 
-        // Main content
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                // Quick Match Section
-                _buildQuickMatchSection(context, multiplayerState, theme),
+          const SizedBox(height: 32),
 
-                const SizedBox(height: 32),
+          // Join Game Section
+          _buildJoinGameSection(context, multiplayerState, theme),
 
-                // Join Game Section
-                _buildJoinGameSection(context, multiplayerState, theme),
+          const SizedBox(height: 32),
 
-                const SizedBox(height: 32),
+          // Create Game Section
+          _buildCreateGameSection(context, multiplayerState, theme),
 
-                // Create Game Section
-                _buildCreateGameSection(context, multiplayerState, theme),
-
-                if (multiplayerState.availableGames.isNotEmpty) ...[
-                  const SizedBox(height: 32),
-                  _buildAvailableGamesSection(context, multiplayerState, theme),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ],
+          if (multiplayerState.availableGames.isNotEmpty) ...[
+            const SizedBox(height: 32),
+            _buildAvailableGamesSection(context, multiplayerState, theme),
+          ],
+        ],
+      ),
     );
   }
 
@@ -335,45 +322,6 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
     );
   }
 
-  Widget _buildHeader(GameTheme theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => context.pop(),
-            icon: Icon(Icons.arrow_back, color: theme.accentColor, size: 24),
-          ),
-
-          const SizedBox(width: 16),
-
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'MULTIPLAYER',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  color: theme.accentColor,
-                  letterSpacing: 2,
-                ),
-              ).gameEntrance(),
-
-              Text(
-                'Play with friends online',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: theme.accentColor.withValues(alpha: 0.7),
-                ),
-              ).gameEntrance(delay: 100.ms),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildGameHeader(GameTheme theme, MultiplayerGame game) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -465,19 +413,12 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
     MultiplayerState multiplayerState,
     GameTheme theme,
   ) {
-    return Container(
+    return GlassPanel(
+      theme: theme,
+      glow: true,
+      radius: GameTokens.radiusLg,
       width: double.infinity,
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.green.withValues(alpha: 0.15),
-            Colors.green.withValues(alpha: 0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-      ),
       child: Column(
         children: [
           Icon(Icons.flash_on, size: 40, color: Colors.green),
@@ -556,7 +497,7 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
 
           const SizedBox(height: 20),
 
-          GradientButton(
+          NeonButton(
             onPressed: multiplayerState.isLoading
                 ? null
                 : () {
@@ -565,10 +506,10 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
                       playerCount: _selectedPlayerCount,
                     );
                   },
-            text: multiplayerState.isLoading ? 'FINDING...' : 'FIND MATCH',
-            primaryColor: Colors.green,
-            secondaryColor: Colors.green.withValues(alpha: 0.8),
+            label: multiplayerState.isLoading ? 'FINDING...' : 'FIND MATCH',
             icon: Icons.search,
+            theme: theme,
+            expand: true,
           ),
         ],
       ),
@@ -584,26 +525,15 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
     final remaining = 60 - elapsed;
     final progress = elapsed / 60.0;
 
-    return Column(
-      children: [
-        _buildHeader(theme),
-
-        Expanded(
-          child: Center(
-            child: Container(
-              margin: const EdgeInsets.all(32),
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.green.withValues(alpha: 0.15),
-                    Colors.green.withValues(alpha: 0.05),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-              ),
-              child: Column(
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: GlassPanel(
+          theme: theme,
+          glow: true,
+          radius: GameTokens.radiusLg,
+          padding: const EdgeInsets.all(32),
+          child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Animated search indicator with timer
@@ -682,22 +612,19 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
 
                   const SizedBox(height: 32),
 
-                  GradientButton(
+                  NeonButton(
                     onPressed: () {
                       context.read<MultiplayerCubit>().cancelMatchmaking();
                     },
-                    text: 'CANCEL',
-                    primaryColor: Colors.red,
-                    secondaryColor: Colors.red.withValues(alpha: 0.8),
+                    label: 'CANCEL',
                     icon: Icons.close,
-                    outlined: true,
+                    theme: theme,
+                    variant: NeonButtonVariant.outline,
                   ),
                 ],
               ),
-            ),
-          ),
         ),
-      ],
+      ),
     );
   }
 
@@ -706,26 +633,16 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
     MultiplayerState multiplayerState,
     GameTheme theme,
   ) {
-    return Column(
-      children: [
-        _buildHeader(theme),
-
-        Expanded(
-          child: Center(
-            child: Container(
-              margin: const EdgeInsets.all(32),
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.orange.withValues(alpha: 0.15),
-                    Colors.orange.withValues(alpha: 0.05),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-              ),
-              child: Column(
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: GlassPanel(
+          theme: theme,
+          glow: true,
+          radius: GameTokens.radiusLg,
+          borderColor: Colors.orange.withValues(alpha: 0.3),
+          padding: const EdgeInsets.all(32),
+          child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Timeout icon
@@ -772,22 +689,22 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: GradientButton(
+                        child: NeonButton(
                           onPressed: () {
                             context
                                 .read<MultiplayerCubit>()
                                 .clearMatchmakingTimeout();
                           },
-                          text: 'GO BACK',
-                          primaryColor: Colors.grey,
-                          secondaryColor: Colors.grey.withValues(alpha: 0.8),
+                          label: 'GO BACK',
                           icon: Icons.arrow_back,
-                          outlined: true,
+                          theme: theme,
+                          variant: NeonButtonVariant.outline,
+                          expand: true,
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: GradientButton(
+                        child: NeonButton(
                           onPressed: () {
                             context
                                 .read<MultiplayerCubit>()
@@ -799,20 +716,18 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
                                   multiplayerState.matchmakingPlayerCount ?? 2,
                             );
                           },
-                          text: 'TRY AGAIN',
-                          primaryColor: Colors.green,
-                          secondaryColor: Colors.green.withValues(alpha: 0.8),
+                          label: 'TRY AGAIN',
                           icon: Icons.refresh,
+                          theme: theme,
+                          expand: true,
                         ),
                       ),
                     ],
                   ),
                 ],
               ),
-            ),
-          ),
         ),
-      ],
+      ),
     );
   }
 
@@ -821,19 +736,12 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
     MultiplayerState multiplayerState,
     GameTheme theme,
   ) {
-    return Container(
+    return GlassPanel(
+      theme: theme,
+      glow: true,
+      radius: GameTokens.radiusLg,
       width: double.infinity,
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.blue.withValues(alpha: 0.15),
-            Colors.blue.withValues(alpha: 0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
-      ),
       child: Column(
         children: [
           Icon(Icons.meeting_room, size: 40, color: Colors.blue),
@@ -895,7 +803,7 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
 
           const SizedBox(height: 16),
 
-          GradientButton(
+          NeonButton(
             onPressed:
                 multiplayerState.isLoading || _roomCodeController.text.isEmpty
                 ? null
@@ -904,10 +812,10 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
                       _roomCodeController.text.trim(),
                     );
                   },
-            text: 'JOIN ROOM',
-            primaryColor: Colors.blue,
-            secondaryColor: Colors.blue.withValues(alpha: 0.8),
+            label: 'JOIN ROOM',
             icon: Icons.login,
+            theme: theme,
+            expand: true,
           ),
         ],
       ),
@@ -919,19 +827,12 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
     MultiplayerState multiplayerState,
     GameTheme theme,
   ) {
-    return Container(
+    return GlassPanel(
+      theme: theme,
+      glow: true,
+      radius: GameTokens.radiusLg,
       width: double.infinity,
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.purple.withValues(alpha: 0.15),
-            Colors.purple.withValues(alpha: 0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.purple.withValues(alpha: 0.3)),
-      ),
       child: Column(
         children: [
           Icon(Icons.add_circle, size: 40, color: Colors.purple),
@@ -963,32 +864,33 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
           Row(
             children: [
               Expanded(
-                child: GradientButton(
+                child: NeonButton(
                   onPressed: multiplayerState.isLoading
                       ? null
                       : () {
                           _showCreateGameDialog(context, theme, false);
                         },
-                  text: 'PUBLIC',
-                  primaryColor: Colors.purple,
-                  secondaryColor: Colors.purple.withValues(alpha: 0.8),
+                  label: 'PUBLIC',
                   icon: Icons.public,
+                  theme: theme,
+                  expand: true,
                 ),
               ),
 
               const SizedBox(width: 12),
 
               Expanded(
-                child: GradientButton(
+                child: NeonButton(
                   onPressed: multiplayerState.isLoading
                       ? null
                       : () {
                           _showCreateGameDialog(context, theme, true);
                         },
-                  text: 'PRIVATE',
-                  primaryColor: Colors.purple,
-                  secondaryColor: Colors.purple.withValues(alpha: 0.8),
+                  label: 'PRIVATE',
                   icon: Icons.lock,
+                  theme: theme,
+                  variant: NeonButtonVariant.outline,
+                  expand: true,
                 ),
               ),
             ],
@@ -1032,13 +934,11 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
   ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
-      ),
-      child: Row(
+      child: GlassPanel(
+        theme: theme,
+        radius: GameTokens.radiusPanel,
+        width: double.infinity,
+        child: Row(
         children: [
           Container(
             width: 50,
@@ -1077,35 +977,28 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
             ),
           ),
 
-          GradientButton(
+          NeonButton(
             onPressed: () {
               context.read<MultiplayerCubit>().joinGame(game.id);
             },
-            text: 'JOIN',
-            primaryColor: theme.accentColor,
-            secondaryColor: theme.foodColor,
-            width: 80,
-            height: 40,
+            label: 'JOIN',
+            theme: theme,
+            width: 90,
+            height: 44,
           ),
         ],
+        ),
       ),
     );
   }
 
   Widget _buildGameModeCard(GameTheme theme, MultiplayerGame game) {
-    return Container(
+    return GlassPanel(
+      theme: theme,
+      glow: true,
+      radius: GameTokens.radiusPanel,
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.orange.withValues(alpha: 0.15),
-            Colors.orange.withValues(alpha: 0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-      ),
       child: Row(
         children: [
           Container(
@@ -1155,14 +1048,11 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
     MultiplayerGame game,
     AuthState authState,
   ) {
-    return Container(
+    return GlassPanel(
+      theme: theme,
+      radius: GameTokens.radiusPanel,
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1346,16 +1236,16 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
       children: [
         // Show Start Game button for host when all players are ready
         if (canStartGame) ...[
-          GradientButton(
+          NeonButton(
             onPressed: multiplayerState.isLoading
                 ? null
                 : () {
                     context.read<MultiplayerCubit>().startGame();
                   },
-            text: 'START GAME',
-            primaryColor: Colors.green,
-            secondaryColor: Colors.green.shade700,
+            label: 'START GAME',
             icon: Icons.play_arrow,
+            theme: theme,
+            expand: true,
           ),
           const SizedBox(height: 12),
         ],
@@ -1394,34 +1284,32 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
         Row(
           children: [
             Expanded(
-              child: GradientButton(
+              child: NeonButton(
                 onPressed: () {
                   context.read<MultiplayerCubit>().leaveGame();
                   context.pop();
                 },
-                text: 'LEAVE',
-                primaryColor: Colors.red,
-                secondaryColor: Colors.red.withValues(alpha: 0.8),
+                label: 'LEAVE',
                 icon: Icons.exit_to_app,
-                outlined: true,
+                theme: theme,
+                variant: NeonButtonVariant.outline,
+                expand: true,
               ),
             ),
 
             const SizedBox(width: 16),
 
             Expanded(
-              child: GradientButton(
+              child: NeonButton(
                 onPressed: multiplayerState.isLoading || isReady
                     ? null
                     : () {
                         context.read<MultiplayerCubit>().markPlayerReady();
                       },
-                text: isReady ? 'READY!' : 'READY',
-                primaryColor: isReady ? Colors.green : theme.accentColor,
-                secondaryColor: isReady
-                    ? Colors.green.withValues(alpha: 0.8)
-                    : theme.foodColor,
+                label: isReady ? 'READY!' : 'READY',
                 icon: isReady ? Icons.check : Icons.check_circle,
+                theme: theme,
+                expand: true,
               ),
             ),
           ],
@@ -1521,7 +1409,7 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
                 ),
               ),
             ),
-            GradientButton(
+            NeonButton(
               onPressed: () {
                 context.pop();
                 context.read<MultiplayerCubit>().createGame(
@@ -1529,11 +1417,10 @@ class _MultiplayerLobbyScreenState extends State<MultiplayerLobbyScreen> {
                   isPrivate: isPrivate,
                 );
               },
-              text: 'CREATE',
-              primaryColor: theme.accentColor,
-              secondaryColor: theme.foodColor,
-              width: 100,
-              height: 40,
+              label: 'CREATE',
+              theme: theme,
+              width: 110,
+              height: 44,
             ),
           ],
         ),

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/models/achievement.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/achievement_service.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
 class AchievementsScreen extends StatefulWidget {
@@ -52,60 +51,68 @@ class _AchievementsScreenState extends State<AchievementsScreen>
   }
 
   Widget _buildContent(BuildContext context, GameTheme theme) {
-    return Scaffold(
-      bottomNavigationBar: const ShipBannerAd(),
-      appBar: AppBar(
-        title: const Text(
-          'Achievements',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: theme.primaryColor),
-          onPressed: () => context.pop(),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: theme.accentColor,
-          labelColor: theme.accentColor,
-          unselectedLabelColor: theme.accentColor.withValues(alpha: 0.6),
-          tabs: const [
-            Tab(text: 'All'),
-            Tab(text: 'Unlocked'),
-            Tab(text: 'Locked'),
-          ],
-        ),
-      ),
-      body: AppBackground(
-        theme: theme,
-        child: Column(
-          children: [
-            // Progress Summary
-            _buildProgressSummary(theme),
+    return CommandScaffold(
+      theme: theme,
+      title: 'Achievements',
+      bottomBar: const ShipBannerAd(),
+      bodyPadding: EdgeInsets.zero,
+      body: Column(
+        children: [
+          // Tab Bar
+          _buildTabBar(theme),
 
-            // Achievements List
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildAchievementsList(
-                    _achievementService.achievements,
-                    theme,
-                  ),
-                  _buildAchievementsList(
-                    _achievementService.getUnlockedAchievements(),
-                    theme,
-                  ),
-                  _buildAchievementsList(
-                    _achievementService.getLockedAchievements(),
-                    theme,
-                  ),
-                ],
-              ),
+          // Progress Summary
+          _buildProgressSummary(theme),
+
+          // Achievements List
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildAchievementsList(
+                  _achievementService.achievements,
+                  theme,
+                ),
+                _buildAchievementsList(
+                  _achievementService.getUnlockedAchievements(),
+                  theme,
+                ),
+                _buildAchievementsList(
+                  _achievementService.getLockedAchievements(),
+                  theme,
+                ),
+              ],
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabBar(GameTheme theme) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      decoration: BoxDecoration(
+        color: theme.surfaceGlass,
+        borderRadius: GameTokens.brMd,
+        border: Border.all(color: theme.stroke),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicator: BoxDecoration(
+          color: theme.neonPrimary.withValues(alpha: 0.85),
+          borderRadius: GameTokens.brMd,
         ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: const Color(0xFF03040A),
+        unselectedLabelColor: theme.textMuted,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+        tabs: const [
+          Tab(text: 'All'),
+          Tab(text: 'Unlocked'),
+          Tab(text: 'Locked'),
+        ],
       ),
     );
   }
@@ -127,15 +134,9 @@ class _AchievementsScreenState extends State<AchievementsScreen>
     final completionPct = (completionPercentage * 100).round();
 
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.primaryColor.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.primaryColor.withValues(alpha: 0.3),
-        ),
-      ),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: GlassPanel(
+      theme: theme,
       child: Column(
         children: [
           // 4-tile grid — same labels and counting logic as the dashboard
@@ -203,6 +204,7 @@ class _AchievementsScreenState extends State<AchievementsScreen>
           ),
         ],
       ),
+      ),
     ).gameEntrance();
   }
 
@@ -251,19 +253,15 @@ class _AchievementsScreenState extends State<AchievementsScreen>
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: isUnlocked
-            ? achievement.rarityColor.withValues(alpha: 0.2)
-            : theme.primaryColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isUnlocked
-              ? achievement.rarityColor.withValues(alpha: 0.5)
-              : theme.primaryColor.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      child: GlassPanel(
+        theme: theme,
+        glow: isUnlocked,
+        borderColor: isUnlocked
+            ? achievement.rarityColor.withValues(alpha: 0.5)
+            : theme.stroke,
+        fillColor: isUnlocked
+            ? achievement.rarityColor.withValues(alpha: 0.16)
+            : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

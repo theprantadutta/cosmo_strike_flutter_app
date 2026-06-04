@@ -11,7 +11,7 @@ import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/widgets/themed_loading.dart';
 
 class ReplaysScreen extends StatefulWidget {
@@ -102,75 +102,70 @@ class _ReplaysScreenState extends State<ReplaysScreen>
     final themeState = context.watch<ThemeCubit>().state;
     final theme = themeState.currentTheme;
 
-    return Scaffold(
-      bottomNavigationBar: const ShipBannerAd(),
-      appBar: AppBar(
-        title: Row(
-          children: [
-            const Text(
-              'Game Replays',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
-            ),
-            if (!_isLoading && _replays.isNotEmpty) ...[
-              const SizedBox(width: 10),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: theme.accentColor.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: theme.accentColor.withValues(alpha: 0.4),
+    return CommandScaffold(
+      theme: theme,
+      title: 'Game Replays',
+      bottomBar: const ShipBannerAd(),
+      bodyPadding: EdgeInsets.zero,
+      actions: [
+        if (!_isLoading && _replays.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: HudChip(label: '${_replays.length}', theme: theme, dense: true),
+          ),
+      ],
+      // No refresh button: the screen subscribes to Drift's reactive
+      // replay stream, so the list updates the instant a row changes.
+      body: Column(
+        children: [
+          _buildTabBar(theme),
+          Expanded(
+            child: _isLoading
+                ? ThemedLoading(theme: theme, label: 'Loading replays...')
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildReplayList(
+                          _recentReplays, 'No recent replays', theme),
+                      _buildReplayList(
+                        _highScoreReplays,
+                        'No high-score replays',
+                        theme,
+                      ),
+                      _buildReplayList(
+                          _crashReplays, 'No crash replays', theme),
+                    ],
                   ),
-                ),
-                child: Text(
-                  '${_replays.length}',
-                  style: TextStyle(
-                    color: theme.accentColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: theme.primaryColor),
-          onPressed: () => context.pop(),
-        ),
-        // No refresh button: the screen subscribes to Drift's reactive
-        // replay stream, so the list updates the instant a row changes.
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: theme.accentColor,
-          labelColor: theme.accentColor,
-          unselectedLabelColor: Colors.white.withValues(alpha: 0.6),
-          tabs: const [
-            Tab(text: 'Recent'),
-            Tab(text: 'Best'),
-            Tab(text: 'Crashes'),
-          ],
-        ),
+          ),
+        ],
       ),
-      body: AppBackground(
-        theme: theme,
-        child: _isLoading
-            ? ThemedLoading(theme: theme, label: 'Loading replays...')
-            : TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildReplayList(_recentReplays, 'No recent replays', theme),
-                  _buildReplayList(
-                    _highScoreReplays,
-                    'No high-score replays',
-                    theme,
-                  ),
-                  _buildReplayList(_crashReplays, 'No crash replays', theme),
-                ],
-              ),
+    );
+  }
+
+  Widget _buildTabBar(GameTheme theme) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      decoration: BoxDecoration(
+        color: theme.surfaceGlass,
+        borderRadius: GameTokens.brMd,
+        border: Border.all(color: theme.stroke),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicator: BoxDecoration(
+          color: theme.neonPrimary.withValues(alpha: 0.85),
+          borderRadius: GameTokens.brMd,
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: const Color(0xFF03040A),
+        unselectedLabelColor: theme.textMuted,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+        tabs: const [
+          Tab(text: 'Recent'),
+          Tab(text: 'Best'),
+          Tab(text: 'Crashes'),
+        ],
       ),
     );
   }
@@ -224,24 +219,17 @@ class _ReplaysScreenState extends State<ReplaysScreen>
   Widget _buildReplayCard(GameReplay replay, GameTheme theme) {
     final summary = replay.getSummary();
 
-    return Card(
-      color: theme.primaryColor.withValues(alpha: 0.1),
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.primaryColor.withValues(alpha: 0.2)),
-      ),
-      child: InkWell(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: HoloCard(
+        theme: theme,
         onTap: () {
           getIt<AnalyticsFacade>().trackReplayViewed();
           context.push(AppRoutes.replayViewerPath(replay.id), extra: replay);
         },
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
               // Header row
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -364,20 +352,15 @@ class _ReplaysScreenState extends State<ReplaysScreen>
               Row(
                 children: [
                   Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => context.push(AppRoutes.replayViewerPath(replay.id), extra: replay),
-                      icon: const Icon(Icons.play_arrow, size: 16),
-                      label: const Text('Watch'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.accentColor.withValues(
-                          alpha: 0.8,
-                        ),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
+                    child: NeonButton(
+                      onPressed: () => context.push(
+                          AppRoutes.replayViewerPath(replay.id),
+                          extra: replay),
+                      label: 'Watch',
+                      icon: Icons.play_arrow,
+                      theme: theme,
+                      expand: true,
+                      height: 44,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -392,8 +375,7 @@ class _ReplaysScreenState extends State<ReplaysScreen>
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildStatChip(

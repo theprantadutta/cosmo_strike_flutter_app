@@ -9,10 +9,9 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dar
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
-import 'package:cosmo_strike_flutter_app/widgets/gradient_button.dart';
 
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
@@ -51,128 +50,86 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       builder: (context, state) {
         final theme = state.currentTheme;
 
-        return Scaffold(
-          bottomNavigationBar: const ShipBannerAd(),
-          body: AppBackground(
-            theme: theme,
-            child: SafeArea(
-              child: _isLoading
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              theme.accentColor,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Loading Statistics...',
-                            style: TextStyle(
-                              color: theme.accentColor.withValues(alpha: 0.8),
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : Column(
-                      children: [
-                        // Header
-                        _buildHeader(theme),
-
-                        // Statistics Content
-                        Expanded(
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              children: [
-                                // Performance Overview
-                                _buildPerformanceOverview(theme),
-
-                                const SizedBox(height: 24),
-
-                                // Game Activity
-                                _buildGameActivity(theme),
-
-                                const SizedBox(height: 24),
-
-                                // Kills & Power-Ups
-                                _buildConsumptionStats(theme),
-
-                                const SizedBox(height: 24),
-
-                                // Performance Trends
-                                _buildPerformanceTrends(theme),
-
-                                const SizedBox(height: 24),
-
-                                // Play Patterns
-                                _buildPlayPatterns(theme),
-
-                                const SizedBox(height: 24),
-
-                                // Achievement Progress
-                                _buildAchievementProgress(theme),
-
-                                const SizedBox(height: 32),
-
-                                // Action Buttons
-                                _buildActionButtons(theme),
-
-                                const SizedBox(height: 24),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+        return CommandScaffold(
+          theme: theme,
+          title: 'Statistics',
+          bottomBar: const ShipBannerAd(),
+          bodyPadding: EdgeInsets.zero,
+          actions: [
+            IconButton(
+              onPressed: _refreshStatistics,
+              icon: Icon(
+                Icons.refresh,
+                color: theme.accentColor.withValues(alpha: 0.8),
+                size: 22,
+              ),
             ),
-          ),
+          ],
+          body: _isLoading
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          theme.accentColor,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Loading Statistics...',
+                        style: TextStyle(
+                          color: theme.accentColor.withValues(alpha: 0.8),
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      // Performance Overview
+                      _buildPerformanceOverview(theme),
+
+                      const SizedBox(height: 24),
+
+                      // Game Activity
+                      _buildGameActivity(theme),
+
+                      const SizedBox(height: 24),
+
+                      // Kills & Power-Ups
+                      _buildConsumptionStats(theme),
+
+                      const SizedBox(height: 24),
+
+                      // Performance Trends
+                      _buildPerformanceTrends(theme),
+
+                      const SizedBox(height: 24),
+
+                      // Play Patterns
+                      _buildPlayPatterns(theme),
+
+                      const SizedBox(height: 24),
+
+                      // Achievement Progress
+                      _buildAchievementProgress(theme),
+
+                      const SizedBox(height: 32),
+
+                      // Action Buttons
+                      _buildActionButtons(theme),
+
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
         );
       },
     ),
-    );
-  }
-
-  Widget _buildHeader(GameTheme theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => context.pop(),
-            icon: Icon(Icons.arrow_back, color: theme.accentColor, size: 24),
-          ),
-
-          const SizedBox(width: 8),
-
-          Icon(Icons.analytics, color: theme.accentColor, size: 28),
-
-          const SizedBox(width: 12),
-
-          Text(
-            'Statistics',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: theme.accentColor,
-            ),
-          ),
-
-          const Spacer(),
-
-          IconButton(
-            onPressed: _refreshStatistics,
-            icon: Icon(
-              Icons.refresh,
-              color: theme.accentColor.withValues(alpha: 0.7),
-              size: 24,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -714,28 +671,23 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             if (constraints.maxWidth < 400) {
               return Column(
                 children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: GradientButton(
-                      onPressed: () => context.push(AppRoutes.achievements),
-                      text: 'VIEW ACHIEVEMENTS',
-                      primaryColor: Colors.amber,
-                      secondaryColor: Colors.orange,
-                      icon: Icons.emoji_events,
-                    ),
+                  NeonButton(
+                    onPressed: () => context.push(AppRoutes.achievements),
+                    label: 'View Achievements',
+                    icon: Icons.emoji_events,
+                    theme: theme,
+                    expand: true,
                   ),
 
                   const SizedBox(height: 16),
 
-                  SizedBox(
-                    width: double.infinity,
-                    child: GradientButton(
-                      onPressed: () => context.push(AppRoutes.replays),
-                      text: 'REPLAYS',
-                      primaryColor: theme.accentColor,
-                      secondaryColor: theme.foodColor,
-                      icon: Icons.video_library,
-                    ),
+                  NeonButton(
+                    onPressed: () => context.push(AppRoutes.replays),
+                    label: 'Replays',
+                    icon: Icons.video_library,
+                    theme: theme,
+                    variant: NeonButtonVariant.outline,
+                    expand: true,
                   ),
                 ],
               );
@@ -743,24 +695,25 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             return Row(
               children: [
                 Expanded(
-                  child: GradientButton(
+                  child: NeonButton(
                     onPressed: () => context.push(AppRoutes.achievements),
-                    text: 'VIEW ACHIEVEMENTS',
-                    primaryColor: Colors.amber,
-                    secondaryColor: Colors.orange,
+                    label: 'View Achievements',
                     icon: Icons.emoji_events,
+                    theme: theme,
+                    expand: true,
                   ),
                 ),
 
                 const SizedBox(width: 16),
 
                 Expanded(
-                  child: GradientButton(
+                  child: NeonButton(
                     onPressed: () => context.push(AppRoutes.replays),
-                    text: 'REPLAYS',
-                    primaryColor: theme.accentColor,
-                    secondaryColor: theme.foodColor,
+                    label: 'Replays',
                     icon: Icons.video_library,
+                    theme: theme,
+                    variant: NeonButtonVariant.outline,
+                    expand: true,
                   ),
                 ),
               ],
@@ -770,15 +723,13 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
         const SizedBox(height: 16),
 
-        SizedBox(
-          width: double.infinity,
-          child: GradientButton(
-            onPressed: _showResetDialog,
-            text: 'RESET STATISTICS',
-            primaryColor: Colors.red.shade400,
-            secondaryColor: Colors.red.shade600,
-            icon: Icons.refresh,
-          ),
+        NeonButton(
+          onPressed: _showResetDialog,
+          label: 'Reset Statistics',
+          icon: Icons.refresh,
+          theme: theme,
+          variant: NeonButtonVariant.ghost,
+          expand: true,
         ),
       ],
     );
@@ -790,48 +741,35 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     required GameTheme theme,
     required Widget child,
   }) {
-    return Container(
+    return GlassPanel(
+      theme: theme,
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: theme.accentColor.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: theme.accentColor, size: 24),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: theme.accentColor,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: theme.accentColor, size: 24),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: theme.accentColor,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
 
-            const SizedBox(height: 16),
+          const SizedBox(height: 16),
 
-            child,
-          ],
-        ),
+          child,
+        ],
       ),
     ).gameZoomIn();
   }

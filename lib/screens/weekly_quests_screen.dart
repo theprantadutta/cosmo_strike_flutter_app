@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/models/daily_challenge.dart' show ChallengeDifficulty;
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/models/weekly_quest.dart';
@@ -11,7 +10,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dar
 import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
 import 'package:cosmo_strike_flutter_app/services/weekly_quest_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 
 class WeeklyQuestsScreen extends StatefulWidget {
   const WeeklyQuestsScreen({super.key});
@@ -74,84 +73,52 @@ class _WeeklyQuestsScreenState extends State<WeeklyQuestsScreen> {
         return ListenableBuilder(
           listenable: _service,
           builder: (context, _) {
-            return Scaffold(
-              bottomNavigationBar: const ShipBannerAd(),
-              body: AppBackground(
-                theme: theme,
-                child: SafeArea(
-                  child: Column(
-                    children: [
-                      _Header(theme: theme),
-                      _SummaryStrip(theme: theme, service: _service),
-                      Expanded(
-                        child: _service.isLoading && _service.quests.isEmpty
-                            ? const Center(child: CircularProgressIndicator())
-                            : RefreshIndicator(
-                                onRefresh: _service.refresh,
-                                child: _service.quests.isEmpty
-                                    ? Center(
-                                        child: Text(
-                                          "No weekly quests yet — check back Monday",
-                                          style: TextStyle(
-                                              color: theme.accentColor
-                                                  .withValues(alpha: 0.7)),
-                                        ),
-                                      )
-                                    : ListView.builder(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 8),
-                                        itemCount: _service.quests.length,
-                                        itemBuilder: (context, i) {
-                                          final quest = _service.quests[i];
-                                          return _QuestCard(
-                                            quest: quest,
-                                            theme: theme,
-                                            onClaim: () => _claimReward(quest),
-                                          );
-                                        },
-                                      ),
-                              ),
-                      ),
-                    ],
+            return CommandScaffold(
+              theme: theme,
+              title: 'Weekly Quests',
+              bottomBar: const ShipBannerAd(),
+              bodyPadding: EdgeInsets.zero,
+              actions: [
+                Icon(Icons.calendar_view_week, color: theme.accentColor),
+              ],
+              body: Column(
+                children: [
+                  _SummaryStrip(theme: theme, service: _service),
+                  Expanded(
+                    child: _service.isLoading && _service.quests.isEmpty
+                        ? const Center(child: CircularProgressIndicator())
+                        : RefreshIndicator(
+                            onRefresh: _service.refresh,
+                            child: _service.quests.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      "No weekly quests yet — check back Monday",
+                                      style: TextStyle(
+                                          color: theme.accentColor
+                                              .withValues(alpha: 0.7)),
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    itemCount: _service.quests.length,
+                                    itemBuilder: (context, i) {
+                                      final quest = _service.quests[i];
+                                      return _QuestCard(
+                                        quest: quest,
+                                        theme: theme,
+                                        onClaim: () => _claimReward(quest),
+                                      );
+                                    },
+                                  ),
+                          ),
                   ),
-                ),
+                ],
               ),
             );
           },
         );
       },
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  final GameTheme theme;
-  const _Header({required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => context.pop(),
-            icon: Icon(Icons.arrow_back_ios_new_rounded,
-                color: theme.accentColor, size: 20),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            'Weekly Quests',
-            style: TextStyle(
-              color: theme.accentColor,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const Spacer(),
-          Icon(Icons.calendar_view_week, color: theme.accentColor),
-        ],
-      ),
     );
   }
 }
@@ -166,14 +133,11 @@ class _SummaryStrip extends StatelessWidget {
     final claimable = service.claimableCount;
     final completed = service.completedCount;
     final total = service.quests.length;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: GlassPanel(
+      theme: theme,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.accentColor.withValues(alpha: 0.08),
-        border: Border.all(color: theme.accentColor.withValues(alpha: 0.25)),
-        borderRadius: BorderRadius.circular(12),
-      ),
       child: Row(
         children: [
           Icon(Icons.flag_rounded, color: theme.accentColor, size: 18),
@@ -190,6 +154,7 @@ class _SummaryStrip extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -216,14 +181,11 @@ class _QuestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final progress = quest.progressPercentage;
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: GlassPanel(
+      theme: theme,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
-        borderRadius: BorderRadius.circular(14),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -317,17 +279,13 @@ class _QuestCard extends StatelessWidget {
           if (quest.canClaim)
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: onClaim,
-                  icon: const Icon(Icons.card_giftcard, size: 16),
-                  label: const Text('Claim Reward'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade700,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
+              child: NeonButton(
+                onPressed: onClaim,
+                label: 'Claim Reward',
+                icon: Icons.card_giftcard,
+                theme: theme,
+                expand: true,
+                height: 44,
               ),
             )
           else if (quest.claimedReward)
@@ -350,6 +308,7 @@ class _QuestCard extends StatelessWidget {
               ),
             ),
         ],
+      ),
       ),
     );
   }

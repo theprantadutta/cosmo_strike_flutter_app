@@ -11,9 +11,9 @@ import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
 import 'package:cosmo_strike_flutter_app/services/progression_service.dart';
 import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
 
 /// Pre-game loading screen shown between the Home Play tap and the Game screen.
 ///
@@ -205,61 +205,59 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
           // Allow Android back to bail out to Home — there's no game state
           // to protect yet. _navigated guards against double navigation.
           canPop: true,
-          child: Scaffold(
-            body: AppBackground(
-              theme: theme,
-              child: Stack(
-                children: [
-                  // Themed particles streaming upward.
-                  _ParticleLayer(
-                    controller: _particleController,
-                    particles: _particles,
-                    theme: theme,
-                  ),
+          child: CommandScaffold(
+            theme: theme,
+            showTopBar: false,
+            bodyPadding: EdgeInsets.zero,
+            body: Stack(
+              children: [
+                // Themed particles streaming upward.
+                _ParticleLayer(
+                  controller: _particleController,
+                  particles: _particles,
+                  theme: theme,
+                ),
 
-                  SafeArea(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isSmallScreen = constraints.maxHeight < 700;
-                        final logoSize = isSmallScreen ? 120.0 : 150.0;
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isSmallScreen = constraints.maxHeight < 700;
+                    final logoSize = isSmallScreen ? 120.0 : 150.0;
 
-                        return Column(
-                          children: [
-                            _buildTopBanner(theme, isSmallScreen),
-                            Expanded(
-                              child: SingleChildScrollView(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: isSmallScreen ? 8 : 16,
-                                ),
-                                child: Column(
-                                  children: [
-                                    SizedBox(height: isSmallScreen ? 8 : 20),
-                                    _buildHeroLogo(theme, logoSize),
-                                    SizedBox(height: isSmallScreen ? 18 : 28),
-                                    _buildModeCard(
-                                      theme,
-                                      activeMode,
-                                      settingsMode,
-                                    ),
-                                    SizedBox(height: isSmallScreen ? 14 : 20),
-                                    _buildControlChip(theme, dPadEnabled),
-                                    SizedBox(height: isSmallScreen ? 16 : 24),
-                                    _buildStatsStrip(theme, highScore),
-                                    SizedBox(height: isSmallScreen ? 16 : 24),
-                                    _buildTipCard(theme),
-                                  ],
-                                ),
-                              ),
+                    return Column(
+                      children: [
+                        _buildTopBanner(theme, isSmallScreen),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: isSmallScreen ? 8 : 16,
                             ),
-                            _buildProgressFooter(theme, isSmallScreen),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
+                            child: Column(
+                              children: [
+                                SizedBox(height: isSmallScreen ? 8 : 20),
+                                _buildHeroLogo(theme, logoSize),
+                                SizedBox(height: isSmallScreen ? 18 : 28),
+                                _buildModeCard(
+                                  theme,
+                                  activeMode,
+                                  settingsMode,
+                                ),
+                                SizedBox(height: isSmallScreen ? 14 : 20),
+                                _buildControlChip(theme, dPadEnabled),
+                                SizedBox(height: isSmallScreen ? 16 : 24),
+                                _buildStatsStrip(theme, highScore),
+                                SizedBox(height: isSmallScreen ? 16 : 24),
+                                _buildTipCard(theme),
+                              ],
+                            ),
+                          ),
+                        ),
+                        _buildProgressFooter(theme, isSmallScreen),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         );
@@ -395,31 +393,12 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
     // Surface that so the player knows the rules are not their picked mode.
     final isOverride = activeMode != settingsMode;
 
-    return Container(
+    return GlassPanel(
+      theme: theme,
+      glow: true,
+      radius: GameTokens.radiusLg,
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            theme.accentColor.withValues(alpha: 0.14),
-            theme.foodColor.withValues(alpha: 0.10),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.accentColor.withValues(alpha: 0.32),
-          width: 1.4,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: theme.accentColor.withValues(alpha: 0.10),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -535,24 +514,11 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
     final level = ProgressionService().level;
     final games = StatisticsService().statistics.totalGamesPlayed;
 
-    return Container(
+    return GlassPanel(
+      theme: theme,
+      radius: GameTokens.radiusPanel,
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            theme.backgroundColor.withValues(alpha: 0.50),
-            theme.backgroundColor.withValues(alpha: 0.28),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: theme.accentColor.withValues(alpha: 0.28),
-          width: 1.2,
-        ),
-      ),
       child: Row(
         children: [
           Expanded(
@@ -655,32 +621,13 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
           child: SlideTransition(position: slide, child: child),
         );
       },
-      child: Container(
+      child: GlassPanel(
         key: ValueKey<int>(_tipIndex),
+        theme: theme,
+        radius: GameTokens.radiusPanel,
         width: double.infinity,
+        borderColor: theme.foodColor.withValues(alpha: 0.35),
         padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              theme.backgroundColor.withValues(alpha: 0.55),
-              theme.backgroundColor.withValues(alpha: 0.30),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: theme.foodColor.withValues(alpha: 0.35),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: theme.foodColor.withValues(alpha: 0.10),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

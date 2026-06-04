@@ -11,6 +11,7 @@ import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/services/social_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 
 class FriendsLeaderboardScreen extends StatefulWidget {
   const FriendsLeaderboardScreen({super.key});
@@ -105,107 +106,46 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen>
         final authState = context.watch<AuthCubit>().state;
         final currentUid = authState.isSignedIn ? authState.userId : null;
 
-        return Scaffold(
-          bottomNavigationBar: const ShipBannerAd(),
-          body: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  theme.backgroundColor,
-                  theme.backgroundColor.withValues(alpha: 0.8),
-                  theme.accentColor.withValues(alpha: 0.1),
-                ],
+        return CommandScaffold(
+          theme: theme,
+          title: 'Friends Leaderboard',
+          bottomBar: const ShipBannerAd(),
+          bodyPadding: EdgeInsets.zero,
+          actions: [
+            IconButton(
+              onPressed: _loadLeaderboard,
+              icon: Icon(
+                Icons.refresh,
+                color: theme.accentColor.withValues(alpha: 0.7),
+                size: 24,
               ),
             ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _buildHeader(theme),
-                  Expanded(
-                    child: _isLoading
-                        ? _buildLoadingIndicator(theme)
-                        : _buildLeaderboard(theme, currentUid),
-                  ),
-                ],
+          ],
+          body: Column(
+            children: [
+              _buildSubtitle(theme),
+              Expanded(
+                child: _isLoading
+                    ? _buildLoadingIndicator(theme)
+                    : _buildLeaderboard(theme, currentUid),
               ),
-            ),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildHeader(GameTheme theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => context.pop(),
-                icon: Icon(
-                  Icons.arrow_back,
-                  color: theme.accentColor,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.leaderboard, color: theme.accentColor, size: 28),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Friends Leaderboard',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: theme.accentColor,
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: _loadLeaderboard,
-                icon: Icon(
-                  Icons.refresh,
-                  color: theme.accentColor.withValues(alpha: 0.7),
-                  size: 24,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: theme.accentColor.withValues(alpha: 0.2),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.people,
-                  size: 16,
-                  color: theme.accentColor.withValues(alpha: 0.8),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Compete with your friends',
-                  style: TextStyle(
-                    color: theme.accentColor.withValues(alpha: 0.8),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+  Widget _buildSubtitle(GameTheme theme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Align(
+        alignment: Alignment.center,
+        child: HudChip(
+          label: 'Compete with your friends',
+          icon: Icons.people,
+          theme: theme,
+        ),
       ),
     );
   }
@@ -494,14 +434,10 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen>
                 ],
               )
             : null,
-        color: isCurrentUser
-            ? null
-            : theme.backgroundColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
+        color: isCurrentUser ? null : theme.surfaceGlass,
+        borderRadius: GameTokens.brMd,
         border: Border.all(
-          color: isCurrentUser
-              ? theme.accentColor
-              : theme.accentColor.withValues(alpha: 0.2),
+          color: isCurrentUser ? theme.accentColor : theme.stroke,
           width: isCurrentUser ? 1.5 : 1.0,
         ),
         boxShadow: isCurrentUser
@@ -746,18 +682,11 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen>
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
-          ElevatedButton.icon(
+          NeonButton(
             onPressed: () => context.push(AppRoutes.friends),
-            icon: const Icon(Icons.person_add),
-            label: const Text('Add Friends'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.accentColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+            label: 'Add Friends',
+            icon: Icons.person_add,
+            theme: theme,
           ),
         ],
       ),

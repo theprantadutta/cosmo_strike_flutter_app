@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 
 class PremiumBenefitsScreen extends StatefulWidget {
   const PremiumBenefitsScreen({super.key});
@@ -49,59 +48,34 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
           builder: (context, themeState) {
             final theme = themeState.currentTheme;
 
-            return Scaffold(
-              extendBodyBehindAppBar: true,
-              appBar: AppBar(
-                title: const Text(
-                  'Cosmo Strike Pro',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
-                ),
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                leading: IconButton(
-                  icon: Icon(Icons.arrow_back, color: theme.primaryColor),
-                  onPressed: () => context.pop(),
-                ),
-              ),
-              body: AppBackground(
-                theme: theme,
+            return CommandScaffold(
+              theme: theme,
+              title: 'Cosmo Strike Pro',
+              bodyPadding: EdgeInsets.zero,
+              bottomBar: premiumState.hasPremium
+                  ? null
+                  : _buildBottomButton(theme, premiumState),
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    // Add top padding to account for AppBar
-                    SizedBox(
-                      height:
-                          MediaQuery.of(context).padding.top + kToolbarHeight,
-                    ),
-
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            if (premiumState.hasPremium) ...[
-                              _buildPremiumActiveCard(theme),
-                            ] else ...[
-                              _buildPremiumHeaderCard(theme),
-                              const SizedBox(height: 20),
-                              _buildPricingToggle(theme),
-                              const SizedBox(height: 16),
-                              _buildPricingCards(theme),
-                              const SizedBox(height: 20),
-                              _buildFeaturesList(theme),
-                              const SizedBox(height: 20),
-                              _buildTrialInfo(theme),
-                              const SizedBox(height: 8),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
+                    if (premiumState.hasPremium) ...[
+                      _buildPremiumActiveCard(theme),
+                    ] else ...[
+                      _buildPremiumHeaderCard(theme),
+                      const SizedBox(height: 20),
+                      _buildPricingToggle(theme),
+                      const SizedBox(height: 16),
+                      _buildPricingCards(theme),
+                      const SizedBox(height: 20),
+                      _buildFeaturesList(theme),
+                      const SizedBox(height: 20),
+                      _buildTrialInfo(theme),
+                      const SizedBox(height: 8),
+                    ],
                   ],
                 ),
               ),
-              bottomNavigationBar: premiumState.hasPremium
-                  ? null
-                  : _buildBottomButton(theme, premiumState),
             );
           },
         );
@@ -110,24 +84,13 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
   }
 
   Widget _buildPremiumActiveCard(GameTheme theme) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
+      child: GlassPanel(
+      theme: theme,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.green.withValues(alpha: 0.15),
-            Colors.teal.withValues(alpha: 0.08),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.green.withValues(alpha: 0.3),
-          width: 1.5,
-        ),
-      ),
+      borderColor: Colors.green.withValues(alpha: 0.4),
+      fillColor: Colors.green.withValues(alpha: 0.10),
       child: Column(
         children: [
           Container(
@@ -165,35 +128,19 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
           ),
         ],
       ),
+      ),
     );
   }
 
   Widget _buildPremiumHeaderCard(GameTheme theme) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
+      child: GlassPanel(
+      theme: theme,
+      glow: true,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.purple.shade400.withValues(alpha: 0.15),
-            Colors.indigo.shade400.withValues(alpha: 0.08),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.purple.shade400.withValues(alpha: 0.3),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.shade400.withValues(alpha: 0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
+      borderColor: Colors.purple.shade400.withValues(alpha: 0.4),
+      fillColor: Colors.purple.shade400.withValues(alpha: 0.10),
       child: Column(
         children: [
           Container(
@@ -233,20 +180,14 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
           ),
         ],
       ),
+      ),
     );
   }
 
   Widget _buildPricingToggle(GameTheme theme) {
-    return Container(
+    return GlassPanel(
+      theme: theme,
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.accentColor.withValues(alpha: 0.2),
-          width: 1,
-        ),
-      ),
       child: Row(
         children: [
           Expanded(child: _buildToggleOption('Monthly', false, theme)),
@@ -255,6 +196,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
       ),
     );
   }
+
 
   Widget _buildToggleOption(String label, bool isYearly, GameTheme theme) {
     final isSelected = _isYearly == isYearly;
@@ -336,31 +278,14 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
     required bool isPopular,
     required GameTheme theme,
   }) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
+      child: GlassPanel(
+      theme: theme,
+      glow: isPopular,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            accentColor.withValues(alpha: 0.15),
-            accentColor.withValues(alpha: 0.08),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: accentColor.withValues(alpha: isPopular ? 0.4 : 0.3),
-          width: isPopular ? 2 : 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: accentColor.withValues(alpha: 0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
+      borderColor: accentColor.withValues(alpha: isPopular ? 0.5 : 0.35),
+      fillColor: accentColor.withValues(alpha: 0.10),
       child: Column(
         children: [
           if (isPopular)
@@ -429,6 +354,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
             ],
           ),
         ],
+      ),
       ),
     );
   }
@@ -513,18 +439,10 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
   }
 
   Widget _buildFeatureCard(_FeatureItem feature, GameTheme theme) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: theme.accentColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.accentColor.withValues(alpha: 0.2),
-          width: 1,
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: HoloCard(
+      theme: theme,
       child: Row(
         children: [
           Container(
@@ -561,28 +479,17 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
           ),
         ],
       ),
+      ),
     );
   }
 
   Widget _buildTrialInfo(GameTheme theme) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.green.withValues(alpha: 0.15),
-            Colors.teal.withValues(alpha: 0.08),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.green.withValues(alpha: 0.3),
-          width: 1.5,
-        ),
-      ),
+      child: GlassPanel(
+      theme: theme,
+      borderColor: Colors.green.withValues(alpha: 0.4),
+      fillColor: Colors.green.withValues(alpha: 0.10),
       child: Row(
         children: [
           Container(
@@ -622,6 +529,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -653,85 +561,33 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             // Primary CTA — honest about payment
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _subscribe,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 0,
-                ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.purple.shade400, Colors.indigo.shade400],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.purple.shade400.withValues(alpha: 0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  alignment: Alignment.center,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Subscribe — $price$period',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$_selectedTrialDays-day free trial via Google Play',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+            NeonButton(
+              onPressed: _subscribe,
+              label: 'Subscribe — $price$period',
+              theme: theme,
+              expand: true,
+              height: 52,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$_selectedTrialDays-day free trial via Google Play',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: theme.accentColor.withValues(alpha: 0.7),
               ),
+              textAlign: TextAlign.center,
             ),
             // Secondary CTA — in-app trial, no payment. Hidden once trial used.
             if (canStartInAppTrial) ...[
               const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
+              NeonButton(
+                onPressed: _startInAppTrial,
+                label: 'Try 3 days free',
+                theme: theme,
+                variant: NeonButtonVariant.outline,
+                expand: true,
                 height: 48,
-                child: OutlinedButton(
-                  onPressed: _startInAppTrial,
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(
-                      color: theme.accentColor.withValues(alpha: 0.5),
-                      width: 1.5,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Text(
-                    'Try 3 days free',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: theme.accentColor,
-                    ),
-                  ),
-                ),
               ),
             ],
             const SizedBox(height: 12),

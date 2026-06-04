@@ -4,8 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/utils/privacy_policy.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
 
 /// Re-consent gate shown to EXISTING (already-onboarded) users when the
 /// privacy policy version has changed since they last accepted it. New users
@@ -55,33 +55,52 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
     return PopScope(
       // Block back-out — the user must accept the updated policy to proceed.
       canPop: false,
-      child: Scaffold(
-        body: AnimatedAppBackground(
-          theme: theme,
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: CommandScaffold(
+        theme: theme,
+        showTopBar: false,
+        body: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // LEFT — the updated policy, large and scrollable.
+            Expanded(
+              flex: 6,
+              child: GlassPanel(
+                theme: theme,
+                width: double.infinity,
+                child: _content.isEmpty
+                    ? Center(
+                        child: CircularProgressIndicator(
+                          color: theme.accentColor,
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        primary: false,
+                        child: Text(
+                          _content,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: isSmall ? 12 : 14,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+
+            const SizedBox(width: 16),
+
+            // RIGHT — title + accept controls, centered.
+            Expanded(
+              flex: 4,
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Header
-                  Container(
+                  GlassPanel(
+                    theme: theme,
+                    glow: true,
                     width: double.infinity,
                     padding: EdgeInsets.all(isSmall ? 16 : 20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          theme.accentColor.withValues(alpha: 0.2),
-                          theme.accentColor.withValues(alpha: 0.1),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: theme.accentColor.withValues(alpha: 0.3),
-                        width: 1.5,
-                      ),
-                    ),
                     child: Row(
                       children: [
                         Container(
@@ -122,63 +141,11 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Policy content
-                  Expanded(
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            theme.backgroundColor.withValues(alpha: 0.4),
-                            theme.backgroundColor.withValues(alpha: 0.2),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: theme.accentColor.withValues(alpha: 0.2),
-                          width: 1,
-                        ),
-                      ),
-                      child: _content.isEmpty
-                          ? Center(
-                              child: CircularProgressIndicator(
-                                color: theme.accentColor,
-                              ),
-                            )
-                          : SingleChildScrollView(
-                              child: Text(
-                                _content,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  fontSize: 13,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
                   // Acceptance checkbox
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          theme.accentColor.withValues(alpha: 0.15),
-                          theme.accentColor.withValues(alpha: 0.1),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: theme.accentColor.withValues(alpha: 0.3),
-                        width: 1,
-                      ),
-                    ),
+                  GlassPanel(
+                    theme: theme,
+                    radius: GameTokens.radiusMd,
+                    width: double.infinity,
                     child: Row(
                       children: [
                         Transform.scale(
@@ -210,38 +177,20 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
                   // Continue button
-                  GestureDetector(
-                    onTap: _accepted ? _accept : null,
-                    child: Opacity(
-                      opacity: _accepted ? 1 : 0.4,
-                      child: Container(
-                        width: double.infinity,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [theme.primaryColor, theme.accentColor],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Text(
-                          'Continue',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
+                  NeonButton(
+                    onPressed: _accepted ? _accept : null,
+                    label: 'Continue',
+                    icon: Icons.check_circle_outline,
+                    theme: theme,
+                    expand: true,
                   ),
                 ],
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

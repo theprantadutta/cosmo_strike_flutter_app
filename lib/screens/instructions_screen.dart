@@ -5,9 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/widgets/gradient_button.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
 
 class InstructionsScreen extends StatelessWidget {
   const InstructionsScreen({super.key});
@@ -18,42 +17,17 @@ class InstructionsScreen extends StatelessWidget {
       builder: (context, state) {
         final theme = state.currentTheme;
 
-        return Scaffold(
-          bottomNavigationBar: const ShipBannerAd(),
-          extendBodyBehindAppBar: true,
-          appBar: AppBar(
-            title: Text(
-              'HOW TO PLAY',
-              style: TextStyle(
-                color: theme.accentColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 24,
-                letterSpacing: 2,
-                shadows: [
-                  Shadow(
-                    offset: const Offset(0, 2),
-                    blurRadius: 4,
-                    color: Colors.black.withValues(alpha: 0.3),
-                  ),
-                ],
-              ),
-            ),
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-              icon: Icon(Icons.arrow_back, color: theme.accentColor),
-              onPressed: () => context.pop(),
-            ),
-          ),
-          body: AppBackground(
-            theme: theme,
-            child: SafeArea(
-              child: Padding(
+        return CommandScaffold(
+          theme: theme,
+          title: 'How to Play',
+          bottomBar: const ShipBannerAd(),
+          bodyPadding: EdgeInsets.zero,
+          body: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 8),
 
                       // Game Objective
                       _buildSection(
@@ -212,12 +186,11 @@ class InstructionsScreen extends StatelessWidget {
 
                       // Back to Game Button
                       Center(
-                            child: GradientButton(
+                            child: NeonButton(
                               onPressed: () => context.pop(),
-                              text: 'BACK TO GAME',
-                              primaryColor: theme.accentColor,
-                              secondaryColor: theme.foodColor,
+                              label: 'Back to Game',
                               icon: Icons.arrow_back,
+                              theme: theme,
                               width: 250,
                             ),
                           )
@@ -228,8 +201,6 @@ class InstructionsScreen extends StatelessWidget {
                   ),
                 ),
               ),
-            ),
-          ),
         );
       },
     );
@@ -243,25 +214,11 @@ class InstructionsScreen extends StatelessWidget {
     int index, {
     List<Widget>? children,
   }) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
+      child: GlassPanel(
+      theme: theme,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.3),
-        border: Border.all(
-          color: theme.accentColor.withValues(alpha: 0.3),
-          width: 1,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: theme.accentColor.withValues(alpha: 0.1),
-            blurRadius: 8,
-            spreadRadius: 1,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -300,6 +257,7 @@ class InstructionsScreen extends StatelessWidget {
           ],
           if (children != null) ...[const SizedBox(height: 16), ...children],
         ],
+      ),
       ),
     ).gameListItem(index);
   }

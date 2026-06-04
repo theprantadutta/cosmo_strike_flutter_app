@@ -9,8 +9,7 @@ import 'package:cosmo_strike_flutter_app/models/game_replay.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-
-import '../widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/design.dart';
 
 class ReplayViewerScreen extends StatefulWidget {
   /// The replay ID for deep link support.
@@ -102,36 +101,14 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
     final themeState = context.watch<ThemeCubit>().state;
     final theme = themeState.currentTheme;
 
-    return Scaffold(
-      bottomNavigationBar: const ShipBannerAd(),
-      appBar: AppBar(
-        title: Text(
-          _replay != null ? 'Replay: ${_replay!.playerName}' : 'Loading Replay...',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: theme.primaryColor),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: AnimatedAppBackground(
-        theme: theme,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                theme.backgroundColor,
-                theme.backgroundColor.withValues(alpha: 0.8),
-              ],
-            ),
-          ),
-          child: _buildContent(theme),
-        ),
-      ),
+    return CommandScaffold(
+      theme: theme,
+      title: _replay != null
+          ? 'Replay: ${_replay!.playerName}'
+          : 'Loading Replay...',
+      bottomBar: const ShipBannerAd(),
+      bodyPadding: EdgeInsets.zero,
+      body: _buildContent(theme),
     );
   }
 
@@ -178,12 +155,11 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            ElevatedButton(
+            NeonButton(
               onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.accentColor,
-              ),
-              child: const Text('Go Back'),
+              label: 'Go Back',
+              icon: Icons.arrow_back,
+              theme: theme,
             ),
           ],
         ),
@@ -214,14 +190,10 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
     final replay = _replay!;
     final frame = _currentFrame;
 
-    return Container(
-      margin: const EdgeInsets.all(16),
+    return Padding(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.primaryColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.primaryColor.withValues(alpha: 0.2)),
-      ),
+      child: GlassPanel(
+      theme: theme,
       child: Column(
         children: [
           Row(
@@ -284,6 +256,7 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -356,14 +329,10 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
 
   Widget _buildPlaybackControls(GameTheme theme) {
     final replay = _replay!;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.primaryColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.primaryColor.withValues(alpha: 0.2)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GlassPanel(
+      theme: theme,
       child: Column(
         children: [
           // Progress slider
@@ -496,6 +465,7 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
             ],
           ),
         ],
+      ),
       ),
     );
   }
