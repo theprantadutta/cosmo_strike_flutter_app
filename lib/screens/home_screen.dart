@@ -363,15 +363,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                               child: Column(
                                                 children: [
                                                   Expanded(
-                                                    child: Center(
-                                                      child:
-                                                          _buildBottomNavigation(
-                                                        context,
-                                                        themeState,
-                                                        theme,
-                                                        screenHeight,
-                                                        screenWidth,
-                                                      ),
+                                                    child:
+                                                        _buildBottomNavigation(
+                                                      context,
+                                                      themeState,
+                                                      theme,
+                                                      screenHeight,
+                                                      screenWidth,
                                                     ),
                                                   ),
                                                   const SizedBox(height: 8),
@@ -624,8 +622,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
-        vertical: screenHeight < 650 ? 4 : 8,
-        horizontal: 16,
+        vertical: screenHeight < 650 ? 2 : 4,
+        horizontal: 12,
       ),
       child: Center(
         child: Column(
@@ -731,8 +729,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // the server on each online launch via GameSettingsCubit.syncWithBackend.
     final highScore = context.watch<GameSettingsCubit>().state.highScore;
 
+    // spaceBetween pins the title to the top and the telemetry footer to
+    // the bottom, leaving the Expanded PLAY button to own the centre. This
+    // gives a clean, balanced vertical rhythm (top / centre / bottom)
+    // instead of center-alignment bunching everything in the middle with
+    // awkward slack above and below.
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         // Compact identity at the top of the launch bay.
         _buildGameTitle(theme, screenHeight),
@@ -1252,14 +1255,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     double screenHeight,
     double screenWidth,
   ) {
-    // Dynamic sizing based on screen height
-    final isVerySmallScreen = screenHeight < 650;
-    final isSmallScreen = screenHeight < 750;
-    // Note: isMediumScreen not needed in bottom navigation
-    // 8 items split 4+4 across two rows. STATS is duplicated in the
-    // compact stats row above the nav (left of high score) AND in the
-    // grid here — the upper instance keeps stats one tap away from the
-    // home eyeline, the grid instance makes the 4x4 layout balance.
+    // 8 items laid out as a 4×2 grid of glass tiles that FILL the right
+    // command-deck column. Each row is an Expanded so the four rows share
+    // the column height evenly; each tile is an Expanded so the two tiles
+    // share the row width evenly. STATS is duplicated in the compact stats
+    // row above the nav (left of high score) AND in the grid here — the
+    // upper instance keeps stats one tap away from the home eyeline.
     final navigationItems = [
       _NavItem(
         Icons.calendar_today,
@@ -1300,107 +1301,57 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       }),
     ];
 
-    // Two-row layout, balanced. Ceiling-divide so 7 items become 4+3,
-    // 6 stays 3+3, 8 becomes 4+4, etc. — keeps the larger row on top
-    // visually anchoring the grid.
-    final firstRowCount = (navigationItems.length + 1) ~/ 2;
-    final firstRow = navigationItems.take(firstRowCount).toList();
-    final secondRow = navigationItems.skip(firstRowCount).toList();
-
-    Widget buildRow(List<_NavItem> items, int indexOffset) => Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: items.asMap().entries.map((entry) {
-            final index = entry.key + indexOffset;
-            final item = entry.value;
-            return _buildNavButton(
-                  icon: item.icon,
-                  label: item.label,
-                  color: item.color,
-                  onTap: item.onTap,
-                  theme: theme,
-                  isSmallScreen: isVerySmallScreen || isSmallScreen,
-                  screenHeight: screenHeight,
-                  badge: item.badge,
-                  widgetKey: item.widgetKey,
-                )
-                .gameGridItem(index);
-          }).toList(),
-        );
-
-    return Column(
-      children: [
-        buildRow(firstRow, 0),
-        SizedBox(
-          height: isVerySmallScreen
-              ? 8
-              : isSmallScreen
-              ? 12
-              : 16,
+    // 4 rows × 2 tiles. Build the rows by pairing items so each pair maps
+    // to an Expanded row of two Expanded tiles, evenly filling the column.
+    final rows = <Widget>[];
+    for (var i = 0; i < navigationItems.length; i += 2) {
+      final left = navigationItems[i];
+      final right = i + 1 < navigationItems.length
+          ? navigationItems[i + 1]
+          : null;
+      rows.add(
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Expanded(child: _buildNavTile(left, theme, i)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: right != null
+                      ? _buildNavTile(right, theme, i + 1)
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+          ),
         ),
-        buildRow(secondRow, firstRowCount),
-      ],
-    );
+      );
+    }
+
+    return Column(children: rows);
   }
 
-  Widget _buildNavButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-    required GameTheme theme,
-    required bool isSmallScreen,
-    required double screenHeight,
-    int? badge,
-    GlobalKey? widgetKey,
-  }) {
-    final buttonSize = _getResponsiveNavButtonSize(screenHeight);
-    // Icon size tracks the button bump from _getResponsiveNavButtonSize
-    // so the icon-to-button ratio stays balanced (~40-45% of the button
-    // width). Going too big crowds the rounded-corner padding; this is
-    // the sweet spot.
-    final iconSize = screenHeight < 600
-        ? 20.0
-        : screenHeight < 700
-        ? 22.0
-        : 26.0;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
+  Widget _buildNavTile(_NavItem item, GameTheme theme, int index) {
+    return HoloCard(
+      key: item.widgetKey,
+      theme: theme,
+      onTap: item.onTap,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Row(
         children: [
           Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
-                key: widgetKey,
-                width: buttonSize,
-                height: buttonSize,
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      color.withValues(alpha: 0.15),
-                      color.withValues(alpha: 0.1),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 18),
-                  border: Border.all(
-                    color: color.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.2),
-                      blurRadius: 8,
-                      spreadRadius: 0,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  color: item.color.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: color, size: iconSize),
+                child: Icon(item.icon, color: item.color, size: 20),
               ),
-              if (badge != null && badge > 0)
+              if (item.badge != null && item.badge! > 0)
                 Positioned(
                   right: -4,
                   top: -4,
@@ -1417,7 +1368,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     ),
                     child: Center(
                       child: Text(
-                        '$badge',
+                        '${item.badge}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -1429,21 +1380,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ),
             ],
           ),
-
-          SizedBox(height: isSmallScreen ? 4 : 6),
-
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: isSmallScreen ? 8 : 9,
-              fontWeight: FontWeight.w600,
-              color: theme.accentColor.withValues(alpha: 0.8),
-              letterSpacing: 0.5,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: theme.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
             ),
           ),
         ],
       ),
-    );
+    ).gameGridItem(index);
   }
 
 
@@ -1578,17 +1531,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       return '${value.toStringAsFixed(value >= 10 ? 0 : 1)}K';
     }
     return '$coins';
-  }
-
-  double _getResponsiveNavButtonSize(double screenHeight) {
-    // Each tier bumped ~6dp from the previous values (38/44/50/56) to
-    // make the buttons easier to hit. The small-screen size now lands
-    // close to the Material Design 48dp minimum tap target, and the
-    // large-screen size reads more solidly without crowding the row.
-    if (screenHeight < 600) return 44.0;
-    if (screenHeight < 700) return 50.0;
-    if (screenHeight < 850) return 56.0;
-    return 62.0;
   }
 
   /// Get the badge count for daily challenges (unclaimed rewards).
