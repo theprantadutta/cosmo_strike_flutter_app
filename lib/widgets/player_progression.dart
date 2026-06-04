@@ -140,12 +140,18 @@ class PlayerIdentityBadge extends StatelessWidget {
                   child: Container(
                     width: avatarSize,
                     height: avatarSize,
-                    padding: const EdgeInsets.all(2),
+                    // Gradient ring frames a real profile photo; with only the
+                    // fallback icon we drop the ring for the cleaner look.
+                    padding: photoUrl != null
+                        ? const EdgeInsets.all(2)
+                        : EdgeInsets.zero,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [theme.accentColor, theme.foodColor],
-                      ),
+                      gradient: photoUrl != null
+                          ? LinearGradient(
+                              colors: [theme.accentColor, theme.foodColor],
+                            )
+                          : null,
                     ),
                     child: ClipOval(
                       child: photoUrl != null

@@ -26,7 +26,10 @@ class AppBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) => StarfieldBackground(
         theme: theme,
-        animated: false,
+        // Animate by default so the deep-space scene drifts on every screen
+        // (the parallax starfield + comet give the "flying through space" feel;
+        // the celestial bodies stay put).
+        animated: true,
         showGrid: showPattern,
         child: child,
       );

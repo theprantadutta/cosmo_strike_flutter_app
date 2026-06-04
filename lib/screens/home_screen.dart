@@ -466,6 +466,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 label:
                     'BEST ${context.watch<GameSettingsCubit>().state.highScore}',
                 dense: false,
+                bordered: false,
               ),
             ),
             gap,
@@ -482,6 +483,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     icon: Icons.monetization_on,
                     label: _formatCoins(coinsState.total),
                     dense: false,
+                    bordered: false,
                   ),
                 );
               },
@@ -546,10 +548,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       child: Container(
         key: key,
         padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
+        // Borderless per the clean design — just a faint tinted disc.
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(isSmallScreen ? 14 : 16),
-          border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
         ),
         child: Icon(icon, color: color, size: isSmallScreen ? 20 : 22),
       ),

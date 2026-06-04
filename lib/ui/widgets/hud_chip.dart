@@ -14,6 +14,7 @@ class HudChip extends StatelessWidget {
     this.theme,
     this.accent,
     this.dense = false,
+    this.bordered = true,
   });
 
   final String label;
@@ -21,6 +22,7 @@ class HudChip extends StatelessWidget {
   final GameTheme? theme;
   final Color? accent;
   final bool dense;
+  final bool bordered;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +36,9 @@ class HudChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: t.surfaceGlass,
         borderRadius: GameTokens.brPill,
-        border: Border.all(color: c.withValues(alpha: 0.5), width: 1),
+        border: bordered
+            ? Border.all(color: c.withValues(alpha: 0.5), width: 1)
+            : null,
         boxShadow: softGlow(c, intensity: 0.25),
       ),
       child: Row(
