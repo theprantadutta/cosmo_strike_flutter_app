@@ -327,39 +327,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                             // nav grid, and PRO/STORE/COINS row.
                                             Expanded(
                                               flex: 6,
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  // Slim telemetry header — the
-                                                  // brand now lives in the top
-                                                  // command bar, so the left
-                                                  // column leads with the BEST
-                                                  // high-score chip.
-                                                  GestureDetector(
-                                                    onTap: () => context.push(
-                                                        AppRoutes.statistics),
-                                                    child: HudChip(
-                                                      theme: theme,
-                                                      accent: Colors.amber,
-                                                      icon: Icons.emoji_events,
-                                                      label:
-                                                          'BEST ${context.watch<GameSettingsCubit>().state.highScore}',
-                                                      dense: true,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 10),
-                                                  Expanded(
-                                                    child:
-                                                        _buildBottomNavigation(
-                                                      context,
-                                                      themeState,
-                                                      theme,
-                                                      screenHeight,
-                                                      screenWidth,
-                                                    ),
-                                                  ),
-                                                ],
+                                              // BEST + coins now live in the top
+                                              // command bar, so the left column
+                                              // is given entirely to the icon
+                                              // rail.
+                                              child: _buildBottomNavigation(
+                                                context,
+                                                themeState,
+                                                theme,
+                                                screenHeight,
+                                                screenWidth,
                                               ),
                                             ),
                                             const SizedBox(width: 16),
@@ -456,102 +433,122 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     GameTheme theme,
     bool isSmallScreen,
   ) {
-    final gap = SizedBox(width: isSmallScreen ? 8 : 10);
+    final gap = SizedBox(width: isSmallScreen ? 6 : 8);
     final screenHeight = MediaQuery.of(context).size.height;
     return Row(
       children: [
-        // Brand lockup owns the LEFT of the command bar — it gets all the
-        // leftover width (the controls cluster is fixed-width on the right),
-        // and its wordmark uses a FittedBox so it scales down instead of ever
-        // truncating.
-        Flexible(child: _buildGameTitle(theme, screenHeight)),
-        const SizedBox(width: 12),
-
-        // Right cluster: identity + tools, grouped so the bar reads as
-        // [brand] ........ [profile] [about] [coins] [settings] [how-to].
-        PlayerIdentityBadge(
-          key: HomeWalkthrough.profileKey,
-          theme: theme,
-          isSmallScreen: isSmallScreen,
-          photoUrl: authState.isSignedIn ? authState.photoURL : null,
-          onTap: () => context.push(AppRoutes.profile),
+        // LEFT: brand (logo + COSMO STRIKE). Expanded so it owns the left
+        // third; FittedBox inside scales the name instead of truncating.
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: _buildGameTitle(theme, screenHeight),
+          ),
         ),
-        gap,
 
-        // About & credits (app version, credits, links).
-        _buildTopIconButton(
-          icon: Icons.info_outline,
-          color: theme.accentColor,
-          isSmallScreen: isSmallScreen,
-          onTap: () => showCreditsDialog(context, theme),
-        ),
-        gap,
-
-        // Coins pill → store.
-        BlocBuilder<CoinsCubit, CoinsState>(
-          builder: (context, coinsState) {
-            return GestureDetector(
-              onTap: () => context.push(AppRoutes.store),
-              child: Container(
-                key: HomeWalkthrough.coinsKey,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isSmallScreen ? 10 : 14,
-                  vertical: isSmallScreen ? 6 : 8,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.amber.withValues(alpha: 0.15),
-                      Colors.orange.withValues(alpha: 0.08),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
-                  border: Border.all(
-                    color: Colors.amber.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.monetization_on,
-                      color: Colors.amber,
-                      size: isSmallScreen ? 18 : 22,
+        // CENTER: live telemetry — BEST high score + coins. The equal-flex
+        // Expanded zones on either side keep this group dead-centred.
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: () => context.push(AppRoutes.statistics),
+              child: HudChip(
+                theme: theme,
+                accent: Colors.amber,
+                icon: Icons.emoji_events,
+                label:
+                    'BEST ${context.watch<GameSettingsCubit>().state.highScore}',
+                dense: true,
+              ),
+            ),
+            gap,
+            BlocBuilder<CoinsCubit, CoinsState>(
+              builder: (context, coinsState) {
+                return GestureDetector(
+                  onTap: () => context.push(AppRoutes.store),
+                  child: Container(
+                    key: HomeWalkthrough.coinsKey,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isSmallScreen ? 10 : 12,
+                      vertical: isSmallScreen ? 6 : 7,
                     ),
-                    SizedBox(width: isSmallScreen ? 4 : 6),
-                    Text(
-                      _formatCoins(coinsState.total),
-                      style: TextStyle(
-                        color: Colors.amber,
-                        fontSize: isSmallScreen ? 14 : 16,
-                        fontWeight: FontWeight.w700,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.amber.withValues(alpha: 0.15),
+                          Colors.orange.withValues(alpha: 0.08),
+                        ],
+                      ),
+                      borderRadius:
+                          BorderRadius.circular(isSmallScreen ? 14 : 16),
+                      border: Border.all(
+                        color: Colors.amber.withValues(alpha: 0.3),
+                        width: 1,
                       ),
                     ),
-                  ],
-                ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.monetization_on,
+                          color: Colors.amber,
+                          size: isSmallScreen ? 16 : 18,
+                        ),
+                        SizedBox(width: isSmallScreen ? 4 : 6),
+                        Text(
+                          _formatCoins(coinsState.total),
+                          style: TextStyle(
+                            color: Colors.amber,
+                            fontSize: isSmallScreen ? 13 : 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+
+        // RIGHT: tool icons — settings, profile, about, help.
+        Expanded(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              _buildTopIconButton(
+                key: HomeWalkthrough.settingsKey,
+                icon: Icons.settings_rounded,
+                color: theme.accentColor,
+                isSmallScreen: isSmallScreen,
+                onTap: () => context.push(AppRoutes.settings),
               ),
-            );
-          },
-        ),
-        gap,
-
-        // Settings.
-        _buildTopIconButton(
-          key: HomeWalkthrough.settingsKey,
-          icon: Icons.settings_rounded,
-          color: theme.accentColor,
-          isSmallScreen: isSmallScreen,
-          onTap: () => context.push(AppRoutes.settings),
-        ),
-        gap,
-
-        // How to play.
-        _buildTopIconButton(
-          icon: Icons.help_outline,
-          color: theme.foodColor,
-          isSmallScreen: isSmallScreen,
-          onTap: () => context.push(AppRoutes.instructions),
+              gap,
+              PlayerIdentityBadge(
+                key: HomeWalkthrough.profileKey,
+                theme: theme,
+                isSmallScreen: true,
+                photoUrl: authState.isSignedIn ? authState.photoURL : null,
+                onTap: () => context.push(AppRoutes.profile),
+              ),
+              gap,
+              _buildTopIconButton(
+                icon: Icons.info_outline,
+                color: theme.accentColor,
+                isSmallScreen: isSmallScreen,
+                onTap: () => showCreditsDialog(context, theme),
+              ),
+              gap,
+              _buildTopIconButton(
+                icon: Icons.help_outline,
+                color: theme.foodColor,
+                isSmallScreen: isSmallScreen,
+                onTap: () => context.push(AppRoutes.instructions),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -570,13 +567,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       onTap: onTap,
       child: Container(
         key: key,
-        padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
+        padding: EdgeInsets.all(isSmallScreen ? 7 : 9),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
+          borderRadius: BorderRadius.circular(isSmallScreen ? 13 : 15),
           border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
         ),
-        child: Icon(icon, color: color, size: isSmallScreen ? 20 : 24),
+        child: Icon(icon, color: color, size: isSmallScreen ? 18 : 20),
       ),
     );
   }
