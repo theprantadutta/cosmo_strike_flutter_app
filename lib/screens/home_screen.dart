@@ -1112,7 +1112,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       }),
       _NavItem(
         Icons.palette,
-        'COSMETICS',
+        'SKINS',
         Colors.indigo,
         () {
           context.push(AppRoutes.cosmetics);
@@ -1127,29 +1127,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       }),
     ];
 
-    // 4 rows × 2 tiles. Build the rows by pairing items so each pair maps
-    // to an Expanded row of two Expanded tiles, evenly filling the column.
+    // Compact icon rail: 2 rows × 4 columns of neon icon chips. Each row is
+    // an Expanded so the two rows split the column height; each cell is an
+    // Expanded so the four chips split the row width evenly.
+    const cols = 4;
     final rows = <Widget>[];
-    for (var i = 0; i < navigationItems.length; i += 2) {
-      final left = navigationItems[i];
-      final right = i + 1 < navigationItems.length
-          ? navigationItems[i + 1]
-          : null;
+    for (var r = 0; r * cols < navigationItems.length; r++) {
+      final cells = <Widget>[];
+      for (var c = 0; c < cols; c++) {
+        final i = r * cols + c;
+        cells.add(
+          Expanded(
+            child: i < navigationItems.length
+                ? _buildNavChip(navigationItems[i], theme, i)
+                : const SizedBox.shrink(),
+          ),
+        );
+        if (c < cols - 1) cells.add(const SizedBox(width: 10));
+      }
       rows.add(
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                Expanded(child: _buildNavTile(left, theme, i)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: right != null
-                      ? _buildNavTile(right, theme, i + 1)
-                      : const SizedBox.shrink(),
-                ),
-              ],
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(children: cells),
           ),
         ),
       );
@@ -1158,70 +1158,88 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return Column(children: rows);
   }
 
-  Widget _buildNavTile(_NavItem item, GameTheme theme, int index) {
-    return HoloCard(
-      key: item.widgetKey,
-      theme: theme,
-      onTap: item.onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Row(
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: item.color.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(item.icon, color: item.color, size: 26),
-              ),
-              if (item.badge != null && item.badge! > 0)
-                Positioned(
-                  right: -4,
-                  top: -4,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
+  Widget _buildNavChip(_NavItem item, GameTheme theme, int index) {
+    // Unified Command-HUD palette: alternate the two neon accents per cell so
+    // the rail reads as an intentional cyan/magenta console (no rainbow).
+    final accent = index.isEven ? theme.neonPrimary : theme.neonSecondary;
+    return Column(
+      children: [
+        Expanded(
+          child: HoloCard(
+            key: item.widgetKey,
+            theme: theme,
+            onTap: item.onTap,
+            padding: EdgeInsets.zero,
+            child: Center(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Neon icon disc — a glowing HUD button.
+                  Container(
+                    padding: const EdgeInsets.all(11),
                     decoration: BoxDecoration(
-                      color: Colors.red,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.5),
+                      color: accent.withValues(alpha: 0.12),
+                      border: Border.all(
+                        color: accent.withValues(alpha: 0.55),
+                        width: 1.4,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withValues(alpha: 0.30),
+                          blurRadius: 12,
+                          spreadRadius: -2,
+                        ),
+                      ],
                     ),
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${item.badge}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                    child: Icon(item.icon, color: accent, size: 26),
+                  ),
+                  if (item.badge != null && item.badge! > 0)
+                    Positioned(
+                      right: -6,
+                      top: -6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${item.badge}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              item.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
+                ],
               ),
             ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          item.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: theme.textMuted,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+          ),
+        ),
+      ],
     ).gameGridItem(index);
   }
 
