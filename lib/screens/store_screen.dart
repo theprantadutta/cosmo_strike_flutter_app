@@ -455,7 +455,7 @@ class _StoreScreenState extends State<StoreScreen>
           ),
           const SizedBox(height: 6),
           Text(
-            'All premium themes, skins & trails · big boards · 2× coins · '
+            'All premium themes, skins & trails · 2× coins · '
             'premium power-ups · tournament entries · Battle Pass Premium',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -808,7 +808,6 @@ class _StoreScreenState extends State<StoreScreen>
       (Icons.color_lens, 'All 6 premium themes'),
       (Icons.rocket_launch, 'All 11 premium ship skins'),
       (Icons.gradient, 'All 11 premium trail effects'),
-      (Icons.grid_4x4, 'Premium board sizes (35×35, 40×40, 50×50)'),
       (Icons.monetization_on, '2× coin earnings'),
       (Icons.flash_on, '5× premium power-ups every cycle'),
       (Icons.emoji_events, 'Bronze + Silver + Gold tournament entries each cycle'),

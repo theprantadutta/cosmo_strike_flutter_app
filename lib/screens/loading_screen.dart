@@ -56,8 +56,8 @@ class _LoadingScreenState extends State<LoadingScreen>
     'Chain kills without a break to build a combo multiplier.',
     'Pinned down? Slip to the screen edge to buy yourself a moment.',
     'Daily challenges and weekly quests stack up coins fast.',
-    'Cosmo Strike Pro unlocks bigger arenas and removes all ads.',
-    'Time Attack rewards speed — and you can watch an ad for +30 seconds.',
+    'Cosmo Strike Pro removes all ads and doubles your coin rewards.',
+    'Time Attack: three minutes on the clock — score as fast as you can.',
     'Power-ups stack: arm a shield before charging a tight gap.',
     'Switch themes, skins, and engine trails anytime in the store for a fresh look.',
   ];

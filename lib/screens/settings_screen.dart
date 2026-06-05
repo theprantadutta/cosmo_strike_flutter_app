@@ -46,8 +46,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _dPadEnabled = false;
   bool _screenShakeEnabled = false;
   DPadPosition _dPadPosition = DPadPosition.bottomCenter;
-  BoardSize _selectedBoardSize =
-      GameConstants.availableBoardSizes[1]; // Default to Classic
   GameMode _selectedGameMode = GameMode.classic;
   Duration _selectedCrashFeedbackDuration =
       GameConstants.defaultCrashFeedbackDuration;
@@ -101,7 +99,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _dPadEnabled != s.dPadEnabled ||
         _dPadPosition != s.dPadPosition ||
         _screenShakeEnabled != s.screenShakeEnabled ||
-        _selectedBoardSize != s.boardSize ||
         _selectedGameMode != s.gameMode ||
         _selectedCrashFeedbackDuration != s.crashFeedbackDuration;
     if (!changed) return;
@@ -109,7 +106,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _dPadEnabled = s.dPadEnabled;
       _dPadPosition = s.dPadPosition;
       _screenShakeEnabled = s.screenShakeEnabled;
-      _selectedBoardSize = s.boardSize;
       _selectedGameMode = s.gameMode;
       _selectedCrashFeedbackDuration = s.crashFeedbackDuration;
     });
@@ -150,8 +146,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _screenShakeEnabled = settingsData['screenShakeEnabled'] ?? false;
         _dPadPosition =
             settingsData['dPadPosition'] ?? DPadPosition.bottomCenter;
-        _selectedBoardSize =
-            settingsData['boardSize'] ?? GameConstants.availableBoardSizes[1];
         _selectedCrashFeedbackDuration =
             settingsData['crashFeedbackDuration'] ??
             GameConstants.defaultCrashFeedbackDuration;
@@ -168,7 +162,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettingsDirectly() async {
     await _audioService.initialize();
-    final boardSize = await _storageService.getBoardSize();
     final crashFeedbackDuration = await _storageService
         .getCrashFeedbackDuration();
     final dPadEnabled = await _storageService.isDPadEnabled();
@@ -181,7 +174,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _dPadEnabled = dPadEnabled;
       _screenShakeEnabled = screenShakeEnabled;
       _dPadPosition = dPadPosition;
-      _selectedBoardSize = boardSize;
       _selectedCrashFeedbackDuration = crashFeedbackDuration;
       _selectedGameMode = gameMode;
     });
@@ -200,7 +192,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           prev.dPadEnabled != curr.dPadEnabled ||
           prev.dPadPosition != curr.dPadPosition ||
           prev.screenShakeEnabled != curr.screenShakeEnabled ||
-          prev.boardSize != curr.boardSize ||
           prev.gameMode != curr.gameMode ||
           prev.crashFeedbackDuration != curr.crashFeedbackDuration,
       listener: (context, settingsState) =>
@@ -435,13 +426,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ], theme),
         ];
 
-      // 2. Gameplay (mode + board size + crash feedback + effects)
+      // 2. Gameplay (mode + crash feedback + effects). Board size was a
+      // snake-era grid setting with no meaning in the shooter — removed.
       case 1:
         return [
           _buildSection('GAMEPLAY', [
             _buildGameModeSelector(gameState, theme),
-            const SizedBox(height: 20),
-            _buildBoardSizeSelector(gameState, theme),
             const SizedBox(height: 20),
             _buildCrashFeedbackDurationSelector(gameState, theme),
             const SizedBox(height: 20),
@@ -1002,134 +992,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 12),
           Text(
             'Complete current game to change game mode',
-            style: TextStyle(
-              color: Colors.orange.withValues(alpha: 0.8),
-              fontSize: 11,
-              fontStyle: FontStyle.italic,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildBoardSizeSelector(GameCubitState gameState, GameTheme theme) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Current Size',
-                    style: TextStyle(color: theme.textMuted, fontSize: 14),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _selectedBoardSize.name,
-                    style: TextStyle(
-                      color: theme.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${_selectedBoardSize.width} × ${_selectedBoardSize.height}',
-                    style: TextStyle(color: theme.textMuted, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-
-            // Board size preview — the dark fill is the board canvas the
-            // painter draws on; no halo around it.
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: theme.backgroundColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: CustomPaint(
-                painter: _BoardSizePainter(theme, _selectedBoardSize),
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 16),
-
-        Text(
-          _selectedBoardSize.description,
-          style: TextStyle(
-            color: theme.textMuted,
-            fontSize: 12,
-            fontStyle: FontStyle.italic,
-          ),
-          textAlign: TextAlign.center,
-        ),
-
-        const SizedBox(height: 16),
-
-        // Board size selection buttons. Every size is FREE — pick any one.
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: GameConstants.availableBoardSizes.map((boardSize) {
-            final isSelected = _selectedBoardSize == boardSize;
-            final isCurrentlyPlaying = gameState.isPlaying;
-
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: isCurrentlyPlaying
-                  ? null
-                  : () async {
-                      setState(() {
-                        _selectedBoardSize = boardSize;
-                      });
-                      await context.read<GameSettingsCubit>().updateBoardSize(
-                        boardSize,
-                      );
-                      _analytics.trackSettingChanged(
-                        settingName: 'board_size',
-                        value: boardSize.name,
-                      );
-                    },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                // No background at all — the selected option reads through
-                // its neon text color alone.
-                decoration: const BoxDecoration(),
-                child: Text(
-                  '${boardSize.name}\n${boardSize.width}×${boardSize.height}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: isCurrentlyPlaying
-                        ? theme.textMuted.withValues(alpha: 0.5)
-                        : (isSelected ? theme.neonPrimary : theme.textMuted),
-                    fontSize: 11,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-
-        if (gameState.isPlaying) ...[
-          const SizedBox(height: 12),
-          Text(
-            'Complete current game to change board size',
             style: TextStyle(
               color: Colors.orange.withValues(alpha: 0.8),
               fontSize: 11,
@@ -1994,56 +1856,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       },
     );
   }
-}
-
-class _BoardSizePainter extends CustomPainter {
-  final GameTheme theme;
-  final BoardSize boardSize;
-
-  _BoardSizePainter(this.theme, this.boardSize);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = theme.accentColor.withValues(alpha: 0.3)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.5;
-
-    // Draw a grid representation
-    final cellSize = size.width / boardSize.width.toDouble();
-
-    // Draw vertical lines
-    for (int i = 0; i <= boardSize.width; i++) {
-      if (i % 5 == 0) {
-        // Only draw every 5th line to avoid clutter
-        canvas.drawLine(
-          Offset(i * cellSize, 0),
-          Offset(i * cellSize, size.height),
-          paint,
-        );
-      }
-    }
-
-    // Draw horizontal lines
-    for (int i = 0; i <= boardSize.height; i++) {
-      if (i % 5 == 0) {
-        // Only draw every 5th line to avoid clutter
-        canvas.drawLine(
-          Offset(0, i * cellSize),
-          Offset(size.width, i * cellSize),
-          paint,
-        );
-      }
-    }
-
-    // Draw a small ship representation
-    final shipPaint = Paint()..color = theme.shipColor;
-    final center = Offset(size.width / 2, size.height / 2);
-    canvas.drawCircle(center, 2, shipPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // Premium UI Components

@@ -46,7 +46,7 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
   /// The progress controller advances linearly across the full duration;
   /// the label is picked by finding the largest stage we've crossed.
   static const List<_Stage> _stages = [
-    _Stage(0.00, 'Initializing arena...'),
+    _Stage(0.00, 'Initializing flight systems...'),
     _Stage(0.18, 'Calibrating controls...'),
     _Stage(0.36, 'Spooling thrusters...'),
     _Stage(0.54, 'Scanning for hostiles...'),
@@ -64,8 +64,8 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
     'Score Multiplier stacks with combos for monster scores.',
     'Power-Ups are rare — when one appears, prioritize it.',
     'Time Attack speeds up fast. Pace your maneuvers.',
-    'In Zen Mode, the edges wrap. Use it to slip out of a pinch.',
-    'Perfect Run: clear a wave without taking a single hit.',
+    'Zen Mode: enemies never fire — cruise, dodge, and practice.',
+    'Perfect Game: a single hit ends the run — fly flawless.',
     'The D-Pad gives precise steering; swipe is faster.',
     'Pause anytime from the HUD — your timer holds with you.',
   ];
@@ -296,7 +296,7 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
           ),
           const SizedBox(width: 10),
           Text(
-            'PREPARING ARENA',
+            'PREPARING LAUNCH',
             style: TextStyle(
               fontSize: isSmallScreen ? 11 : 13,
               fontWeight: FontWeight.w800,

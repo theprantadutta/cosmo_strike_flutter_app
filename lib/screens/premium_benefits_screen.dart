@@ -381,11 +381,6 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
         'Particle, Glow, Rainbow, Fire, Cosmic, Crystal & 5 more',
       ),
       _FeatureItem(
-        Icons.grid_on,
-        'Large Game Boards',
-        'Play on 35x35, 40x40 & 50x50 boards',
-      ),
-      _FeatureItem(
         Icons.monetization_on,
         '2x Coin Rewards',
         'Double Star Coins from every run',
@@ -401,7 +396,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
       _FeatureItem(
         Icons.bolt,
         'More In-Game Power-ups',
-        '+30% spawn rate for on-board power-ups during gameplay',
+        '+30% spawn rate for in-game power-ups during gameplay',
       ),
       _FeatureItem(
         Icons.flash_on,
