@@ -91,24 +91,44 @@ class _StoreScreenState extends State<StoreScreen>
                   title: 'Cosmo Store',
                   bottomBar: const ShipBannerAd(),
                   bodyPadding: EdgeInsets.zero,
-                  body: Column(
-                    children: [
-                      _buildCoinsHeader(theme, coinsState),
-                      _buildTabBar(theme),
-                      Expanded(
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: [
-                            _buildProTab(theme, premiumState),
-                            _buildCoinsTab(theme, coinsState),
-                            _buildThemesTab(theme, premiumState),
-                            _buildSkinsTab(theme, premiumState),
-                            _buildTrailsTab(theme, premiumState),
-                            _buildPowerUpsTab(theme, premiumState, coinsState),
-                          ],
+                  body: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // LEFT — balance telemetry + section rail. Never
+                        // scrolls: rendered at natural size and scaled down
+                        // to fit the short landscape viewport.
+                        Expanded(
+                          flex: 3,
+                          child: Center(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: SizedBox(
+                                width: 220,
+                                child: _buildLeftPanel(theme, coinsState),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 20),
+                        // RIGHT — the selected section's content (swipeable).
+                        Expanded(
+                          flex: 7,
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: [
+                              _buildProTab(theme, premiumState),
+                              _buildCoinsTab(theme, coinsState),
+                              _buildThemesTab(theme, premiumState),
+                              _buildSkinsTab(theme, premiumState),
+                              _buildTrailsTab(theme, premiumState),
+                              _buildPowerUpsTab(theme, premiumState, coinsState),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -120,139 +140,141 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   // ===========================================================================
-  // Neon glass tab bar
+  // Left panel — balance telemetry + borderless section rail
   // ===========================================================================
 
-  Widget _buildTabBar(GameTheme theme) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-      decoration: BoxDecoration(
-        color: theme.surfaceGlass,
-        borderRadius: GameTokens.brMd,
-        border: Border.all(color: theme.stroke),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicator: BoxDecoration(
-          color: theme.neonPrimary.withValues(alpha: 0.85),
-          borderRadius: GameTokens.brMd,
-        ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerColor: Colors.transparent,
-        labelColor: const Color(0xFF03040A),
-        unselectedLabelColor: theme.textMuted,
-        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-        isScrollable: true,
-        tabs: const [
-          Tab(text: 'Pro', icon: Icon(Icons.diamond, size: 16)),
-          Tab(text: 'Coins', icon: Icon(Icons.monetization_on, size: 16)),
-          Tab(text: 'Themes', icon: Icon(Icons.color_lens, size: 16)),
-          Tab(text: 'Skins', icon: Icon(Icons.pets, size: 16)),
-          Tab(text: 'Trails', icon: Icon(Icons.auto_awesome, size: 16)),
-          Tab(text: 'Power-Ups', icon: Icon(Icons.flash_on, size: 16)),
-        ],
-      ),
+  /// Vertical left region: the Star Coins balance readout up top and a
+  /// borderless nav rail below it. Driven by the existing [_tabController]
+  /// so rail taps and TabBarView swipes stay in sync.
+  Widget _buildLeftPanel(GameTheme theme, CoinsState coinsState) {
+    const items = [
+      (Icons.diamond, 'Pro'),
+      (Icons.monetization_on, 'Coins'),
+      (Icons.color_lens, 'Themes'),
+      (Icons.rocket_launch, 'Skins'),
+      (Icons.auto_awesome, 'Trails'),
+      (Icons.flash_on, 'Power-Ups'),
+    ];
+
+    return AnimatedBuilder(
+      animation: _tabController,
+      builder: (context, _) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Balance telemetry — floats straight on the starfield.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'BALANCE',
+                    style: TextStyle(
+                      color: theme.accentColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.8,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.monetization_on,
+                        color: Colors.amber,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${coinsState.balance.total}',
+                        style: TextStyle(
+                          color: theme.textPrimary,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      if (coinsState.hasPremiumBonus) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.purple.shade400,
+                                Colors.indigo.shade400,
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${coinsState.earningMultiplier}x BONUS',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            for (var i = 0; i < items.length; i++)
+              _buildNavItem(theme, i, items[i].$1, items[i].$2),
+          ],
+        );
+      },
     );
   }
 
-  // ===========================================================================
-  // Coins header (top of every tab)
-  // ===========================================================================
-
-  Widget _buildCoinsHeader(GameTheme theme, CoinsState coinsState) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.amber.withValues(alpha: 0.15),
-              Colors.orange.withValues(alpha: 0.08),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.amber.withValues(alpha: 0.3),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.amber.withValues(alpha: 0.2),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
+  Widget _buildNavItem(GameTheme theme, int i, IconData icon, String label) {
+    final selected = _tabController.index == i;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _tabController.animateTo(i),
+      // No background at all — selection reads purely through the neon icon,
+      // brighter text, and a small glowing indicator dot.
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Colors.amber, Colors.orange],
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.amber.withValues(alpha: 0.4),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.monetization_on,
-                color: Colors.white,
-                size: 20,
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? theme.neonPrimary : theme.textMuted,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? theme.textPrimary : theme.textMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Your Star Coins',
-                    style: TextStyle(
-                      color: theme.accentColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    '${coinsState.balance.total}',
-                    style: const TextStyle(
-                      color: Colors.amber,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (coinsState.hasPremiumBonus)
+            const Spacer(),
+            if (selected)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                width: 6,
+                height: 6,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.purple.shade400,
-                      Colors.indigo.shade400,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${coinsState.earningMultiplier}x BONUS',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  color: theme.neonPrimary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.neonPrimary.withValues(alpha: 0.7),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
                 ),
               ),
           ],
@@ -299,11 +321,12 @@ class _StoreScreenState extends State<StoreScreen>
             _buildProFeatureGrid(theme),
             const SizedBox(height: 24),
             Text(
-              'Subscribe before the trial ends',
+              'SUBSCRIBE BEFORE THE TRIAL ENDS',
               style: TextStyle(
                 color: theme.accentColor,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.8,
               ),
             ),
             const SizedBox(height: 12),
@@ -344,14 +367,14 @@ class _StoreScreenState extends State<StoreScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildProHero(theme),
-          const SizedBox(height: 20),
+          // Plans lead the tab — price first, pitch after.
           Text(
-            'Choose your plan',
+            'CHOOSE YOUR PLAN',
             style: TextStyle(
               color: theme.accentColor,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
             ),
           ),
           const SizedBox(height: 12),
@@ -384,13 +407,16 @@ class _StoreScreenState extends State<StoreScreen>
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+          _buildProHero(theme),
+          const SizedBox(height: 20),
           Text(
-            "What you get",
+            'WHAT YOU GET',
             style: TextStyle(
               color: theme.accentColor,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
             ),
           ),
           const SizedBox(height: 12),
@@ -401,31 +427,11 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   Widget _buildProHero(GameTheme theme) {
+    // Fully transparent per the clean design — the gradient diamond disc and
+    // typography carry the hero; no boxed background.
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.purple.shade400.withValues(alpha: 0.18),
-            Colors.indigo.shade400.withValues(alpha: 0.10),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.purple.shade400.withValues(alpha: 0.35),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.shade400.withValues(alpha: 0.18),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
       child: Column(
         children: [
           Container(
@@ -442,7 +448,7 @@ class _StoreScreenState extends State<StoreScreen>
           Text(
             'Cosmo Strike Pro',
             style: TextStyle(
-              color: theme.accentColor,
+              color: theme.textPrimary,
               fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
@@ -453,7 +459,7 @@ class _StoreScreenState extends State<StoreScreen>
             'premium power-ups · tournament entries · Battle Pass Premium',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: theme.accentColor.withValues(alpha: 0.75),
+              color: theme.textMuted,
               fontSize: 13,
             ),
           ),
@@ -482,29 +488,15 @@ class _StoreScreenState extends State<StoreScreen>
     final anyProPending = _pendingProductIds
             .contains(ProductIds.proMonthly) ||
         _pendingProductIds.contains(ProductIds.proYearly);
-    final borderColor = highlight
-        ? Colors.amber.withValues(alpha: 0.6)
-        : theme.accentColor.withValues(alpha: 0.25);
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: anyProPending
           ? null
           : () => _purchaseSubscription(productId, '$title plan'),
+      // Fully transparent card per the clean design — the price typography,
+      // savings chip, and the gradient subscribe pill carry the plan.
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: theme.accentColor.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor, width: highlight ? 2 : 1),
-          boxShadow: highlight
-              ? [
-                  BoxShadow(
-                    color: Colors.amber.withValues(alpha: 0.25),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -514,7 +506,7 @@ class _StoreScreenState extends State<StoreScreen>
                 Text(
                   title,
                   style: TextStyle(
-                    color: theme.accentColor,
+                    color: theme.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -544,7 +536,7 @@ class _StoreScreenState extends State<StoreScreen>
             Text(
               price,
               style: TextStyle(
-                color: theme.accentColor,
+                color: theme.textPrimary,
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
               ),
@@ -552,7 +544,7 @@ class _StoreScreenState extends State<StoreScreen>
             Text(
               cadence,
               style: TextStyle(
-                color: theme.accentColor.withValues(alpha: 0.6),
+                color: theme.textMuted,
                 fontSize: 12,
               ),
             ),
@@ -578,17 +570,68 @@ class _StoreScreenState extends State<StoreScreen>
               ),
             ],
             const SizedBox(height: 12),
-            NeonButton(
-              expand: true,
-              theme: theme,
-              variant: highlight
-                  ? NeonButtonVariant.solid
-                  : NeonButtonVariant.outline,
-              icon: isPending ? null : Icons.workspace_premium,
-              label: isPending ? 'Verifying…' : 'Subscribe',
-              onPressed: anyProPending
-                  ? null
-                  : () => _purchaseSubscription(productId, '$title plan'),
+            // Gradient subscribe pill — purely visual; the whole card is the
+            // tap target (outer GestureDetector). Featured plan = amber,
+            // sibling = the neon cyan→magenta ramp. No borders, glow only.
+            Container(
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                gradient: isPending
+                    ? null
+                    : LinearGradient(
+                        colors: highlight
+                            ? [Colors.amber, Colors.orange.shade400]
+                            : [theme.neonPrimary, theme.neonSecondary],
+                      ),
+                color:
+                    isPending ? Colors.white.withValues(alpha: 0.08) : null,
+                borderRadius: BorderRadius.circular(21),
+                boxShadow: isPending
+                    ? null
+                    : [
+                        BoxShadow(
+                          color:
+                              (highlight ? Colors.amber : theme.neonPrimary)
+                                  .withValues(alpha: 0.35),
+                          blurRadius: 14,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+              ),
+              child: isPending
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation(theme.textMuted),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Verifying…',
+                          style: TextStyle(
+                            color: theme.textMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    )
+                  : const Text(
+                      'SUBSCRIBE',
+                      style: TextStyle(
+                        color: Color(0xFF03040A),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
             ),
           ],
         ),
@@ -614,9 +657,6 @@ class _StoreScreenState extends State<StoreScreen>
             Colors.green.withValues(alpha: 0.18),
             Colors.teal.withValues(alpha: 0.10),
           ];
-    final borderColor = isPromo
-        ? Colors.amber.withValues(alpha: 0.45)
-        : Colors.green.withValues(alpha: 0.35);
     final iconGradient = isPromo
         ? const LinearGradient(colors: [Colors.amber, Colors.orange])
         : const LinearGradient(colors: [Colors.green, Colors.teal]);
@@ -631,7 +671,6 @@ class _StoreScreenState extends State<StoreScreen>
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: gradientColors),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor, width: 1.5),
       ),
       child: Column(
         children: [
@@ -656,7 +695,7 @@ class _StoreScreenState extends State<StoreScreen>
                           child: Text(
                             title,
                             style: TextStyle(
-                              color: theme.accentColor,
+                              color: theme.textPrimary,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
@@ -674,7 +713,7 @@ class _StoreScreenState extends State<StoreScreen>
                       Text(
                         expiryLabel,
                         style: TextStyle(
-                          color: theme.accentColor.withValues(alpha: 0.78),
+                          color: theme.textMuted,
                           fontSize: 12,
                           fontWeight: isPromo ? FontWeight.w600 : FontWeight.normal,
                         ),
@@ -767,7 +806,7 @@ class _StoreScreenState extends State<StoreScreen>
     final features = const [
       (Icons.block, 'No ads — play completely ad-free'),
       (Icons.color_lens, 'All 6 premium themes'),
-      (Icons.pets, 'All 11 premium ship skins'),
+      (Icons.rocket_launch, 'All 11 premium ship skins'),
       (Icons.gradient, 'All 11 premium trail effects'),
       (Icons.grid_4x4, 'Premium board sizes (35×35, 40×40, 50×50)'),
       (Icons.monetization_on, '2× coin earnings'),
@@ -785,9 +824,6 @@ class _StoreScreenState extends State<StoreScreen>
               decoration: BoxDecoration(
                 color: theme.accentColor.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: theme.accentColor.withValues(alpha: 0.18),
-                ),
               ),
               child: Row(
                 children: [
@@ -797,7 +833,7 @@ class _StoreScreenState extends State<StoreScreen>
                     child: Text(
                       f.$2,
                       style: TextStyle(
-                        color: theme.accentColor,
+                        color: theme.textPrimary,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -877,11 +913,12 @@ class _StoreScreenState extends State<StoreScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Buy Star Coins',
+            'BUY STAR COINS',
             style: TextStyle(
               color: theme.accentColor,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
             ),
           ),
           const SizedBox(height: 16),
@@ -890,11 +927,12 @@ class _StoreScreenState extends State<StoreScreen>
           ),
           const SizedBox(height: 24),
           Text(
-            'Earn Free Coins',
+            'EARN FREE COINS',
             style: TextStyle(
               color: theme.accentColor,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
             ),
           ),
           const SizedBox(height: 16),
@@ -983,6 +1021,7 @@ class _StoreScreenState extends State<StoreScreen>
 
   Widget _buildCoinPackCard(CoinPurchaseOption option, GameTheme theme) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => _purchaseCoinPack(option, theme),
       child: Container(
         width: double.infinity,
@@ -998,12 +1037,6 @@ class _StoreScreenState extends State<StoreScreen>
             ],
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: option.isPopular
-                ? Colors.red.withValues(alpha: 0.4)
-                : Colors.amber.withValues(alpha: 0.3),
-            width: option.isPopular ? 2 : 1.5,
-          ),
         ),
         child: Row(
           children: [
@@ -1031,7 +1064,7 @@ class _StoreScreenState extends State<StoreScreen>
                       Text(
                         option.name,
                         style: TextStyle(
-                          color: theme.accentColor,
+                          color: theme.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1063,7 +1096,7 @@ class _StoreScreenState extends State<StoreScreen>
                   Text(
                     option.displayCoins,
                     style: TextStyle(
-                      color: theme.accentColor.withValues(alpha: 0.7),
+                      color: theme.textMuted,
                       fontSize: 14,
                     ),
                   ),
@@ -1096,11 +1129,8 @@ class _StoreScreenState extends State<StoreScreen>
       padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: theme.accentColor.withValues(alpha: 0.1),
+        color: theme.accentColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.accentColor.withValues(alpha: 0.2),
-        ),
       ),
       child: Row(
         children: [
@@ -1117,7 +1147,7 @@ class _StoreScreenState extends State<StoreScreen>
             child: Text(
               title,
               style: TextStyle(
-                color: theme.accentColor,
+                color: theme.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),
@@ -1151,6 +1181,7 @@ class _StoreScreenState extends State<StoreScreen>
   ) {
     final isPro = premiumState.hasPremium;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: isPro ? null : () => _tabController.animateTo(0),
       child: Container(
         width: double.infinity,
@@ -1163,8 +1194,6 @@ class _StoreScreenState extends State<StoreScreen>
             ],
           ),
           borderRadius: BorderRadius.circular(14),
-          border:
-              Border.all(color: Colors.purple.shade300.withValues(alpha: 0.45)),
         ),
         child: Row(
           children: [
@@ -1244,11 +1273,12 @@ class _StoreScreenState extends State<StoreScreen>
           _buildThemesBundleCard(theme, premiumState),
           const SizedBox(height: 20),
           Text(
-            'Premium themes',
+            'PREMIUM THEMES',
             style: TextStyle(
               color: theme.accentColor,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
             ),
           ),
           const SizedBox(height: 10),
@@ -1263,18 +1293,19 @@ class _StoreScreenState extends State<StoreScreen>
             ),
           const SizedBox(height: 18),
           Text(
-            'Free themes',
+            'FREE THEMES',
             style: TextStyle(
               color: theme.accentColor,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             'Always available — switch back any time.',
             style: TextStyle(
-              color: theme.accentColor.withValues(alpha: 0.65),
+              color: theme.textMuted,
               fontSize: 12,
             ),
           ),
@@ -1350,6 +1381,7 @@ class _StoreScreenState extends State<StoreScreen>
       7.99,
     );
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: (bundleOwned || isPending)
           ? null
           : () => _purchaseThemeProduct(
@@ -1367,10 +1399,6 @@ class _StoreScreenState extends State<StoreScreen>
             ],
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.amber.withValues(alpha: 0.5),
-            width: 2,
-          ),
         ),
         child: Row(
           children: [
@@ -1393,7 +1421,7 @@ class _StoreScreenState extends State<StoreScreen>
                   Text(
                     'All Themes Bundle',
                     style: TextStyle(
-                      color: theme.accentColor,
+                      color: theme.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1402,7 +1430,7 @@ class _StoreScreenState extends State<StoreScreen>
                   Text(
                     'All 6 premium themes · save 33%',
                     style: TextStyle(
-                      color: theme.accentColor.withValues(alpha: 0.7),
+                      color: theme.textMuted,
                       fontSize: 12,
                     ),
                   ),
@@ -1487,6 +1515,7 @@ class _StoreScreenState extends State<StoreScreen>
         ? 'FREE'
         : PurchaseService().getStorePriceOrDefault(productId, 1.99);
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: isPending
           ? null
           : () {
@@ -1501,12 +1530,17 @@ class _StoreScreenState extends State<StoreScreen>
         decoration: BoxDecoration(
           color: currentTheme.accentColor.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isActive
-                ? currentTheme.accentColor
-                : currentTheme.accentColor.withValues(alpha: 0.2),
-            width: isActive ? 2 : 1,
-          ),
+          // Active theme reads through a soft accent glow (plus the
+          // ACTIVE pill) instead of an outline.
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: currentTheme.accentColor.withValues(alpha: 0.25),
+                    blurRadius: 14,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           children: [
@@ -1530,7 +1564,7 @@ class _StoreScreenState extends State<StoreScreen>
                   Text(
                     target.name,
                     style: TextStyle(
-                      color: currentTheme.accentColor,
+                      color: currentTheme.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1541,8 +1575,7 @@ class _StoreScreenState extends State<StoreScreen>
                   Text(
                     _shortThemeDescription(target),
                     style: TextStyle(
-                      color:
-                          currentTheme.accentColor.withValues(alpha: 0.65),
+                      color: currentTheme.textMuted,
                       fontSize: 11,
                     ),
                     maxLines: 1,
@@ -1857,20 +1890,14 @@ class _StoreScreenState extends State<StoreScreen>
     final headerEnd = palette.last.withValues(alpha: 0.35);
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: isPending ? null : onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         decoration: BoxDecoration(
           color: theme.backgroundColor.withValues(alpha: 0.55),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected
-                ? theme.accentColor
-                : isUnlocked
-                    ? Colors.white.withValues(alpha: 0.10)
-                    : palette.last.withValues(alpha: 0.45),
-            width: isSelected ? 2 : 1,
-          ),
+          // Selected skin reads through the accent glow alone — no outline.
           boxShadow: isSelected
               ? [
                   BoxShadow(
@@ -1962,7 +1989,7 @@ class _StoreScreenState extends State<StoreScreen>
                   Text(
                     skin.displayName,
                     style: TextStyle(
-                      color: theme.accentColor,
+                      color: theme.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.2,
@@ -1974,7 +2001,7 @@ class _StoreScreenState extends State<StoreScreen>
                   Text(
                     skin.description,
                     style: TextStyle(
-                      color: theme.accentColor.withValues(alpha: 0.65),
+                      color: theme.textMuted,
                       fontSize: 10,
                       height: 1.2,
                     ),
@@ -2092,22 +2119,15 @@ class _StoreScreenState extends State<StoreScreen>
     final headerEnd = palette.last.withValues(alpha: 0.35);
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: isPending ? null : onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         decoration: BoxDecoration(
           color: theme.backgroundColor.withValues(alpha: 0.55),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected
-                ? theme.accentColor
-                : isUnlocked
-                    ? Colors.white.withValues(alpha: 0.10)
-                    : palette.last.withValues(alpha: 0.45),
-            width: isSelected ? 2 : 1,
-          ),
           // Soft outer glow for the active trail so the selection state
-          // pops without flooding the surrounding grid.
+          // pops without an outline or flooding the surrounding grid.
           boxShadow: isSelected
               ? [
                   BoxShadow(
@@ -2204,7 +2224,7 @@ class _StoreScreenState extends State<StoreScreen>
                   Text(
                     trail.displayName,
                     style: TextStyle(
-                      color: theme.accentColor,
+                      color: theme.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.2,
@@ -2216,7 +2236,7 @@ class _StoreScreenState extends State<StoreScreen>
                   Text(
                     trail.description,
                     style: TextStyle(
-                      color: theme.accentColor.withValues(alpha: 0.65),
+                      color: theme.textMuted,
                       fontSize: 10,
                       height: 1.2,
                     ),
@@ -2392,6 +2412,7 @@ class _StoreScreenState extends State<StoreScreen>
     return Opacity(
       opacity: ready ? 1 : 0.5,
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: ready
             ? () {
                 final powerUps = context.read<PowerUpCubit>();
@@ -2403,11 +2424,10 @@ class _StoreScreenState extends State<StoreScreen>
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             gradient: LinearGradient(colors: [
-              theme.accentColor.withValues(alpha: 0.18),
-              theme.foodColor.withValues(alpha: 0.10),
+              theme.accentColor.withValues(alpha: 0.14),
+              theme.foodColor.withValues(alpha: 0.08),
             ]),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.accentColor.withValues(alpha: 0.4)),
           ),
           child: Row(
             children: [
@@ -2420,7 +2440,7 @@ class _StoreScreenState extends State<StoreScreen>
                     Text(
                       'Watch an ad — free Speed Boost',
                       style: TextStyle(
-                        color: theme.accentColor,
+                        color: theme.textPrimary,
                         fontWeight: FontWeight.w800,
                         fontSize: 15,
                       ),
@@ -2431,7 +2451,7 @@ class _StoreScreenState extends State<StoreScreen>
                           ? 'Adds 1 Speed Boost to your loadout'
                           : 'No ad available right now',
                       style: TextStyle(
-                        color: theme.accentColor.withValues(alpha: 0.65),
+                        color: theme.textMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -2501,9 +2521,6 @@ class _StoreScreenState extends State<StoreScreen>
                 decoration: BoxDecoration(
                   color: theme.accentColor.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: theme.accentColor.withValues(alpha: 0.18),
-                  ),
                 ),
                 child: Row(
                   children: [
@@ -2515,7 +2532,7 @@ class _StoreScreenState extends State<StoreScreen>
                         'Buy with coins, then arm one from the home screen '
                         'loadout chip — it activates 5s into your next game.',
                         style: TextStyle(
-                          color: theme.accentColor.withValues(alpha: 0.85),
+                          color: theme.textMuted,
                           fontSize: 12,
                           height: 1.3,
                         ),
@@ -2528,11 +2545,12 @@ class _StoreScreenState extends State<StoreScreen>
               // Rewarded ad — free Speed Boost. Self-hides for Pro / no ad.
               _buildFreePowerUpAdCard(context, theme),
               Text(
-                'Power-Ups',
+                'POWER-UPS',
                 style: TextStyle(
                   color: theme.accentColor,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.8,
                 ),
               ),
               const SizedBox(height: 12),
@@ -2541,18 +2559,19 @@ class _StoreScreenState extends State<StoreScreen>
               ),
               const SizedBox(height: 24),
               Text(
-                'Power-Up Bundles',
+                'POWER-UP BUNDLES',
                 style: TextStyle(
                   color: theme.accentColor,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.8,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 'Unlock multiple power-up types at a discount.',
                 style: TextStyle(
-                  color: theme.accentColor.withValues(alpha: 0.7),
+                  color: theme.textMuted,
                   fontSize: 12,
                 ),
               ),
@@ -2581,9 +2600,6 @@ class _StoreScreenState extends State<StoreScreen>
       decoration: BoxDecoration(
         color: theme.accentColor.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: theme.accentColor.withValues(alpha: 0.2),
-        ),
       ),
       child: Row(
         children: [
@@ -2610,7 +2626,6 @@ class _StoreScreenState extends State<StoreScreen>
                     decoration: BoxDecoration(
                       color: Colors.green,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white, width: 1.5),
                     ),
                     child: Text(
                       'x$owned',
@@ -2632,7 +2647,7 @@ class _StoreScreenState extends State<StoreScreen>
                 Text(
                   item.name,
                   style: TextStyle(
-                    color: theme.accentColor,
+                    color: theme.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -2641,7 +2656,7 @@ class _StoreScreenState extends State<StoreScreen>
                 Text(
                   item.description,
                   style: TextStyle(
-                    color: theme.accentColor.withValues(alpha: 0.7),
+                    color: theme.textMuted,
                     fontSize: 12,
                   ),
                 ),
@@ -2775,12 +2790,6 @@ class _StoreScreenState extends State<StoreScreen>
           ],
         ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isOwned
-              ? Colors.green.withValues(alpha: 0.4)
-              : Colors.purple.withValues(alpha: 0.3),
-          width: isOwned ? 2 : 1,
-        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2805,7 +2814,7 @@ class _StoreScreenState extends State<StoreScreen>
                     Text(
                       bundle.name,
                       style: TextStyle(
-                        color: theme.accentColor,
+                        color: theme.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
@@ -2814,7 +2823,7 @@ class _StoreScreenState extends State<StoreScreen>
                     Text(
                       bundle.description,
                       style: TextStyle(
-                        color: theme.accentColor.withValues(alpha: 0.7),
+                        color: theme.textMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -2841,7 +2850,7 @@ class _StoreScreenState extends State<StoreScreen>
                     child: Text(
                       '${p.icon} ${p.displayName}',
                       style: TextStyle(
-                        color: theme.accentColor,
+                        color: theme.textPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.w500,
                       ),
@@ -2857,7 +2866,7 @@ class _StoreScreenState extends State<StoreScreen>
                 Text(
                   '${bundle.originalPrice.toInt()} coins',
                   style: TextStyle(
-                    color: theme.accentColor.withValues(alpha: 0.5),
+                    color: theme.textMuted,
                     fontSize: 12,
                     decoration: TextDecoration.lineThrough,
                   ),

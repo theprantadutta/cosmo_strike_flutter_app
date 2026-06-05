@@ -69,32 +69,51 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
               ),
             ),
           ],
-          body: Column(
-            children: [
-              _buildSearchBar(theme, friendsState),
-              _buildTabBar(theme, friendsState),
-              // "Updated X ago" — Drift cache freshness signal so
-              // an offline view doesn't look identical to a live
-              // one. Hidden when no refresh has ever landed AND
-              // there's no cached data to put a date on.
-              AnimatedBuilder(
-                animation: _tabController,
-                builder: (context, _) =>
-                    _buildStalenessChip(theme, friendsState),
-              ),
-              Expanded(
-                child: friendsState.isLoading
-                    ? _buildLoadingIndicator(theme)
-                    : TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildFriendsList(theme, friendsState),
-                          _buildFriendRequestsList(theme, friendsState),
-                          _buildSearchResults(theme, friendsState),
-                        ],
+          body: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // LEFT — search field on top (fixed: a TextField must not
+                // live inside a FittedBox or focus/keyboard sizing breaks),
+                // then the section rail + cache-freshness chip, scaled to
+                // fit so the panel itself never scrolls.
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    children: [
+                      _buildSearchBar(theme, friendsState),
+                      Expanded(
+                        child: Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: SizedBox(
+                              width: 230,
+                              child: _buildNavRail(theme, friendsState),
+                            ),
+                          ),
+                        ),
                       ),
-              ),
-            ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 20),
+                // RIGHT — the selected section's content (swipeable).
+                Expanded(
+                  flex: 7,
+                  child: friendsState.isLoading
+                      ? _buildLoadingIndicator(theme)
+                      : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildFriendsList(theme, friendsState),
+                            _buildFriendRequestsList(theme, friendsState),
+                            _buildSearchResults(theme, friendsState),
+                          ],
+                        ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -102,21 +121,22 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
   }
 
   Widget _buildSearchBar(GameTheme theme, FriendsState friendsState) {
+    // Functional input — a faint borderless fill is allowed here as the
+    // affordance; everything else on this screen stays fully transparent.
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.only(top: 4, bottom: 4),
       decoration: BoxDecoration(
-        color: theme.surfaceGlass,
-        borderRadius: GameTokens.brMd,
-        border: Border.all(color: theme.stroke),
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
           hintText: 'Search by name or email...',
-          hintStyle: TextStyle(color: theme.accentColor.withValues(alpha: 0.5)),
+          hintStyle: TextStyle(color: theme.textMuted),
           prefixIcon: Icon(
             Icons.search,
-            color: theme.accentColor.withValues(alpha: 0.7),
+            color: theme.textMuted,
           ),
           suffixIcon: friendsState.searchQuery.isNotEmpty
               ? IconButton(
@@ -127,7 +147,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
                   },
                   icon: Icon(
                     Icons.clear,
-                    color: theme.accentColor.withValues(alpha: 0.7),
+                    color: theme.textMuted,
                   ),
                 )
               : null,
@@ -137,7 +157,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
             vertical: 12,
           ),
         ),
-        style: TextStyle(color: theme.accentColor),
+        style: TextStyle(color: theme.textPrimary),
         onChanged: (value) {
           _searchUsers(value);
           if (value.isNotEmpty) {
@@ -148,81 +168,117 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
     );
   }
 
-  Widget _buildTabBar(GameTheme theme, FriendsState friendsState) {
+  /// Vertical, borderless section rail for the left region. Driven by
+  /// the existing [_tabController] so taps and TabBarView swipes stay
+  /// in sync; the cache-freshness chip lives at the bottom of the rail.
+  Widget _buildNavRail(GameTheme theme, FriendsState friendsState) {
     final friends = friendsState.friends;
     final friendRequests = friendsState.friendRequests;
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      decoration: BoxDecoration(
-        color: theme.surfaceGlass,
-        borderRadius: GameTokens.brMd,
-        border: Border.all(color: theme.stroke),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicator: BoxDecoration(
-          color: theme.neonPrimary.withValues(alpha: 0.85),
-          borderRadius: GameTokens.brMd,
+    final items = [
+      (Icons.people, 'Friends', friends.length),
+      (Icons.person_add, 'Requests', friendRequests.length),
+      (Icons.search, 'Search', null),
+    ];
+
+    return AnimatedBuilder(
+      animation: _tabController,
+      builder: (context, _) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < items.length; i++)
+              _buildNavItem(theme, i, items[i].$1, items[i].$2, items[i].$3),
+            const SizedBox(height: 8),
+            // "Updated X ago" chip — surfaces Drift cache freshness
+            // for the currently-active tab so the user can tell if
+            // they're looking at stale offline data.
+            _buildStalenessChip(theme, friendsState),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildNavItem(
+    GameTheme theme,
+    int i,
+    IconData icon,
+    String label,
+    int? count,
+  ) {
+    final selected = _tabController.index == i;
+    // The Requests badge stays SOLID red — it's a functional notification
+    // badge, not decoration.
+    final isRequestsBadge = i == 1;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _tabController.animateTo(i),
+      // No background at all — selection reads purely through the neon icon,
+      // brighter text, and a small glowing indicator dot.
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? theme.neonPrimary : theme.textMuted,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? theme.textPrimary : theme.textMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const Spacer(),
+            if (count != null && count > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: isRequestsBadge
+                      ? Colors.red
+                      : theme.accentColor.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isRequestsBadge ? Colors.white : theme.textMuted,
+                  ),
+                ),
+              ),
+            if (selected) ...[
+              const SizedBox(width: 4),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: theme.neonPrimary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.neonPrimary.withValues(alpha: 0.7),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerColor: Colors.transparent,
-        labelColor: const Color(0xFF03040A),
-        unselectedLabelColor: theme.textMuted,
-        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-        tabs: [
-          Tab(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Friends'),
-                if (friends.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.accentColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${friends.length}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Tab(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Requests'),
-                if (friendRequests.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${friendRequests.length}',
-                      style: const TextStyle(fontSize: 12, color: Colors.white),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const Tab(text: 'Search'),
-        ],
       ),
     );
   }
@@ -252,42 +308,35 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
     if (ts == null && !hasData) return const SizedBox.shrink();
     final label = ts == null ? 'No cache yet' : 'Updated ${_relativeAge(ts)}';
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: InkWell(
-          onTap: () => ref.read(friendsProvider.notifier).refresh(),
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: theme.accentColor.withValues(alpha: 0.18),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => ref.read(friendsProvider.notifier).refresh(),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: theme.accentColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.refresh_rounded,
+                color: theme.accentColor.withValues(alpha: 0.7),
+                size: 12,
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.refresh_rounded,
-                  color: theme.accentColor.withValues(alpha: 0.7),
-                  size: 12,
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  color: theme.accentColor.withValues(alpha: 0.75),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
                 ),
-                const SizedBox(width: 5),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: theme.accentColor.withValues(alpha: 0.75),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -315,7 +364,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
           Text(
             'Loading friends...',
             style: TextStyle(
-              color: theme.accentColor.withValues(alpha: 0.8),
+              color: theme.textMuted,
               fontSize: 16,
             ),
           ),
@@ -396,31 +445,35 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
       children: [
         if (receivedRequests.isNotEmpty) ...[
           Text(
-            'Received (${receivedRequests.length})',
+            'RECEIVED (${receivedRequests.length})',
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
               color: theme.accentColor,
             ),
           ),
           const SizedBox(height: 12),
-          ...receivedRequests.map(
-            (request) => _buildFriendRequestCard(request, theme),
+          ...receivedRequests.indexed.map(
+            (entry) =>
+                _buildFriendRequestCard(entry.$2, theme).gameListItem(entry.$1),
           ),
           const SizedBox(height: 20),
         ],
         if (sentRequests.isNotEmpty) ...[
           Text(
-            'Sent (${sentRequests.length})',
+            'SENT (${sentRequests.length})',
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: theme.accentColor.withValues(alpha: 0.7),
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
+              color: theme.accentColor,
             ),
           ),
           const SizedBox(height: 12),
-          ...sentRequests.map(
-            (request) => _buildSentRequestCard(request, theme),
+          ...sentRequests.indexed.map(
+            (entry) => _buildSentRequestCard(entry.$2, theme)
+                .gameListItem(entry.$1 + receivedRequests.length),
           ),
         ],
       ],
@@ -475,107 +528,119 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GlassPanel(
-        theme: theme,
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: theme.accentColor.withValues(alpha: 0.2),
-              backgroundImage: user.photoUrl != null
-                  ? NetworkImage(user.photoUrl!)
-                  : null,
-              onBackgroundImageError: user.photoUrl != null ? (e, s) {} : null,
-              child: user.photoUrl == null
-                  ? Text(
-                      user.publicLabel.isNotEmpty
-                          ? user.publicLabel[0].toUpperCase()
-                          : 'U',
-                      style: TextStyle(
-                        color: theme.accentColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          user.publicLabel,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: null,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: theme.accentColor.withValues(alpha: 0.14),
+                  backgroundImage: user.photoUrl != null
+                      ? NetworkImage(user.photoUrl!)
+                      : null,
+                  onBackgroundImageError:
+                      user.photoUrl != null ? (e, s) {} : null,
+                  child: user.photoUrl == null
+                      ? Text(
+                          user.publicLabel.isNotEmpty
+                              ? user.publicLabel[0].toUpperCase()
+                              : 'U',
                           style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
                             color: theme.accentColor,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              user.publicLabel,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: theme.textPrimary,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            user.status.emoji,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            user.status.displayName,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _getStatusColor(user.status),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.emoji_events,
+                            size: 14,
+                            color: Colors.amber,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${user.highScore}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: theme.textMuted,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Icon(
+                            Icons.games,
+                            size: 14,
+                            color: theme.textMuted,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${user.totalGamesPlayed} games',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: theme.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (user.statusMessage != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          user.statusMessage!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.textMuted,
+                            fontStyle: FontStyle.italic,
                           ),
                         ),
-                      ),
-                      Text(
-                        user.status.emoji,
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        user.status.displayName,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _getStatusColor(user.status),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.emoji_events, size: 14, color: Colors.amber),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${user.highScore}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: theme.accentColor.withValues(alpha: 0.8),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Icon(
-                        Icons.games,
-                        size: 14,
-                        color: theme.accentColor.withValues(alpha: 0.6),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${user.totalGamesPlayed} games',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: theme.accentColor.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (user.statusMessage != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      user.statusMessage!,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: theme.accentColor.withValues(alpha: 0.5),
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+                ),
+                ?trailing,
+              ],
             ),
-            ?trailing,
-          ],
+          ),
         ),
       ),
     );
@@ -584,72 +649,79 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
   Widget _buildFriendRequestCard(FriendRequest request, GameTheme theme) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GlassPanel(
-        theme: theme,
-        borderColor: Colors.blue.withValues(alpha: 0.3),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: theme.accentColor.withValues(alpha: 0.2),
-              backgroundImage: request.fromUserPhotoUrl != null
-                  ? NetworkImage(request.fromUserPhotoUrl!)
-                  : null,
-              onBackgroundImageError: request.fromUserPhotoUrl != null ? (e, s) {} : null,
-              child: request.fromUserPhotoUrl == null
-                  ? Text(
-                      request.fromUserName.isNotEmpty
-                          ? request.fromUserName[0].toUpperCase()
-                          : 'U',
-                      style: TextStyle(
-                        color: theme.accentColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    request.fromUserName,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: theme.accentColor,
-                    ),
-                  ),
-                  Text(
-                    'Sent ${request.formattedDate}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: theme.accentColor.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: null,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
               children: [
-                NeonButton(
-                  onPressed: () => _rejectFriendRequest(request.fromUserId),
-                  label: 'Reject',
-                  theme: theme,
-                  variant: NeonButtonVariant.ghost,
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: theme.accentColor.withValues(alpha: 0.14),
+                  backgroundImage: request.fromUserPhotoUrl != null
+                      ? NetworkImage(request.fromUserPhotoUrl!)
+                      : null,
+                  onBackgroundImageError:
+                      request.fromUserPhotoUrl != null ? (e, s) {} : null,
+                  child: request.fromUserPhotoUrl == null
+                      ? Text(
+                          request.fromUserName.isNotEmpty
+                              ? request.fromUserName[0].toUpperCase()
+                              : 'U',
+                          style: TextStyle(
+                            color: theme.accentColor,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
                 ),
-                const SizedBox(width: 8),
-                NeonButton(
-                  onPressed: () => _acceptFriendRequest(request.fromUserId),
-                  label: 'Accept',
-                  theme: theme,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        request.fromUserName,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: theme.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'Sent ${request.formattedDate}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    NeonButton(
+                      onPressed: () => _rejectFriendRequest(request.fromUserId),
+                      label: 'Reject',
+                      theme: theme,
+                      variant: NeonButtonVariant.ghost,
+                    ),
+                    const SizedBox(width: 8),
+                    NeonButton(
+                      onPressed: () => _acceptFriendRequest(request.fromUserId),
+                      label: 'Accept',
+                      theme: theme,
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -658,63 +730,73 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
   Widget _buildSentRequestCard(FriendRequest request, GameTheme theme) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GlassPanel(
-        theme: theme,
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: theme.accentColor.withValues(alpha: 0.1),
-              child: Text(
-                request.toUserName.isNotEmpty
-                    ? request.toUserName[0].toUpperCase()
-                    : 'U',
-                style: TextStyle(
-                  color: theme.accentColor.withValues(alpha: 0.7),
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    request.toUserName,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: null,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: theme.accentColor.withValues(alpha: 0.14),
+                  child: Text(
+                    request.toUserName.isNotEmpty
+                        ? request.toUserName[0].toUpperCase()
+                        : 'U',
                     style: TextStyle(
+                      color: theme.accentColor.withValues(alpha: 0.7),
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: theme.accentColor.withValues(alpha: 0.8),
                     ),
                   ),
-                  Text(
-                    'Sent ${request.formattedDate}',
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        request.toUserName,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: theme.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'Sent ${request.formattedDate}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Pending',
                     style: TextStyle(
                       fontSize: 12,
-                      color: theme.accentColor.withValues(alpha: 0.5),
+                      color: Colors.orange,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                'Pending',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.orange,
-                  fontWeight: FontWeight.w600,
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -731,7 +813,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.green.withValues(alpha: 0.2),
+          color: Colors.green.withValues(alpha: 0.16),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
@@ -749,7 +831,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.orange.withValues(alpha: 0.2),
+          color: Colors.orange.withValues(alpha: 0.16),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
@@ -797,7 +879,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: theme.accentColor.withValues(alpha: 0.7),
+              color: theme.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
@@ -805,7 +887,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
             subtitle,
             style: TextStyle(
               fontSize: 14,
-              color: theme.accentColor.withValues(alpha: 0.5),
+              color: theme.textMuted,
             ),
             textAlign: TextAlign.center,
           ),
@@ -929,7 +1011,6 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
         backgroundColor: theme.backgroundColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accentColor.withValues(alpha: 0.3)),
         ),
         title: Text(
           'Remove Friend',
