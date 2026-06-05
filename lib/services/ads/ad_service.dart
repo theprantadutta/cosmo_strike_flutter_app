@@ -312,7 +312,7 @@ class AdService {
   };
 
   /// Coins granted per "watch for coins" ad.
-  static const int freeCoinsPerAd = 25;
+  static const int freeCoinsPerAd = 30;
 
   String _todayKey() {
     final n = DateTime.now();

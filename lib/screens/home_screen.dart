@@ -488,6 +488,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 );
               },
             ),
+            // EARN chip — rewarded ad for free coins, free users only.
+            if (getIt.isRegistered<AdService>() &&
+                getIt<AdService>().adsEnabled) ...[
+              gap,
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _watchForCoins(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  // Borderless amber tint — reads as an offer next to the
+                  // coins balance.
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.play_circle_fill,
+                        color: Colors.amber,
+                        size: 15,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'EARN ${AdService.freeCoinsPerAd}',
+                        style: const TextStyle(
+                          color: Colors.amber,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
 
@@ -581,19 +622,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ],
           ),
+          // The official brand mark: the rocket_launch glyph in neon cyan —
+          // same mark as the loading screen and About dialog.
           child:
-              Image.asset(
-                    'assets/images/cosmo_strike_transparent.png',
+              SizedBox(
                     width: logoSize,
                     height: logoSize,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(
-                        Icons.games,
-                        size: logoSize * 0.7,
-                        color: theme.accentColor,
-                      );
-                    },
+                    child: Icon(
+                      Icons.rocket_launch,
+                      size: logoSize * 0.78,
+                      color: theme.accentColor,
+                    ),
                   )
                   .animate(
                     onPlay: (controller) => controller.repeat(reverse: true),
@@ -837,9 +876,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     required double screenWidth,
     required bool isSmallScreen,
   }) {
+    // Compact pair, centred under the launch emblem — fixed widths instead
+    // of Expanded so the two buttons sit tight side by side rather than
+    // stretching to the column edges. (Watch-for-coins moved to the top
+    // bar's EARN chip beside the coins pill.)
     return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Expanded(
+        SizedBox(
+          width: 132,
           child: _buildModernActionButton(
             context: context,
             theme: theme,
@@ -850,8 +895,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             onTap: () => context.push(AppRoutes.premiumBenefits),
           ),
         ),
-        SizedBox(width: isSmallScreen ? 12 : 16),
-        Expanded(
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 132,
           child: _buildModernActionButton(
             context: context,
             theme: theme,
@@ -863,22 +909,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             widgetKey: HomeWalkthrough.storeKey,
           ),
         ),
-        // Watch-for-coins — only for free users with ads enabled (Pro keeps
-        // the clean 2-button row).
-        if (getIt.isRegistered<AdService>() && getIt<AdService>().adsEnabled) ...[
-          SizedBox(width: isSmallScreen ? 12 : 16),
-          Expanded(
-            child: _buildModernActionButton(
-              context: context,
-              theme: theme,
-              icon: Icons.play_circle_fill,
-              label: 'COINS',
-              gradient: [Colors.amber.shade400, Colors.yellow.shade700],
-              isSmallScreen: isSmallScreen,
-              onTap: () => _watchForCoins(context),
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -898,13 +928,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       return;
     }
     final coins = context.read<CoinsCubit>();
+    // Capture the messenger up front — onCoins fires after the ad is
+    // dismissed (an async gap), so reading context then isn't safe.
+    final messenger = ScaffoldMessenger.of(context);
     await ads.showRewardedForCoins(
-      onCoins: (amount) => coins.earnCoins(
-        CoinEarningSource.watchedAd,
-        customAmount: amount,
-        itemName: 'Watched ad',
-        metadata: const {'placement': 'home_free_coins'},
-      ),
+      onCoins: (amount) async {
+        // Deposit first (offline-first via CoinsCubit), confirm after.
+        await coins.earnCoins(
+          CoinEarningSource.watchedAd,
+          customAmount: amount,
+          itemName: 'Watched ad',
+          metadata: const {'placement': 'home_free_coins'},
+        );
+        messenger.showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.monetization_on,
+                    color: Colors.amber, size: 20),
+                const SizedBox(width: 10),
+                Text(
+                  '+$amount coins added to your balance!',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            duration: const Duration(seconds: 2),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      },
     );
   }
 
