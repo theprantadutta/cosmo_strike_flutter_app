@@ -105,6 +105,14 @@ Build new screens with `CommandScaffold` + these widgets. Reference screens:
 ## Workflow
 - Run `flutter analyze <file>` after edits and fix until **"No issues found!"**
   before committing.
+- ⚠️ **`dart run flutter_native_splash:create` rewrites AndroidManifest.xml and
+  STRIPS `android:screenOrientation="sensorLandscape"` from MainActivity** —
+  after every icon/splash regeneration, re-add it or the app boots in portrait.
+  Icon/splash config lives in the standalone `flutter_launcher_icons.yaml` and
+  `flutter_native_splash.yaml` files at the app root (these override pubspec —
+  keep config ONLY there, never duplicated in pubspec.yaml).
+  Brand mark = Material `Icons.rocket_launch` in neon cyan; sources in
+  `assets/icon/` (not bundled).
 - Drift schema is currently collapsed to **schemaVersion 1**; changing tables may
   require an `adb shell pm clear com.pranta.cosmostrike` on dev devices.
 - Keep home-screen walkthrough `GlobalKey`s (`HomeWalkthrough.*`) attached to their
