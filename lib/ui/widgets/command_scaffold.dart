@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../utils/constants.dart';
 import '../design/tokens.dart';
-import 'glass_panel.dart';
 import 'starfield_background.dart';
 
 /// The command-HUD app shell. Every screen wraps its body in a
@@ -91,21 +90,11 @@ class _CommandBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canPop = Navigator.of(context).canPop();
+    // Fully transparent per the clean design — no glass blur, no fill, no
+    // stroke. The chevron/title/actions float straight on the space scene.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        GameTokens.space12,
-        GameTokens.space8,
-        GameTokens.space12,
-        0,
-      ),
-      child: GlassPanel(
-        theme: theme,
-        radius: GameTokens.radiusMd,
-        padding: const EdgeInsets.symmetric(
-          horizontal: GameTokens.space12,
-          vertical: GameTokens.space8,
-        ),
-        child: Row(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+      child: Row(
           children: [
             leading ??
                 (canPop
@@ -137,7 +126,6 @@ class _CommandBar extends StatelessWidget {
             ],
           ],
         ),
-      ),
     );
   }
 }
@@ -152,15 +140,13 @@ class _BarIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        // Bare chevron — no background at all; the box only preserves a
+        // comfortable tap target.
         width: 36,
         height: 36,
-        decoration: BoxDecoration(
-          color: theme.neonPrimary.withValues(alpha: 0.08),
-          borderRadius: GameTokens.brSm,
-          border: Border.all(color: theme.stroke, width: 1),
-        ),
-        child: Icon(icon, color: theme.neonPrimary, size: 22),
+        child: Icon(icon, color: theme.neonPrimary, size: 24),
       ),
     );
   }

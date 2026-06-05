@@ -155,6 +155,13 @@ class _SpaceScenePainter extends CustomPainter {
     nebula(const Alignment(-0.4, 0.85), 0.6, const Color(0xFF2BD1C4), 0.05);
 
     // 3. Celestial bodies. The sun also drives every body's lighting.
+    // The whole set is composited through a translucent layer so the bodies
+    // read as DISTANT scenery — bright enough to sell the scene, dim enough
+    // that foreground text stays readable when it passes over them.
+    canvas.saveLayer(
+      rect,
+      Paint()..color = Colors.white.withValues(alpha: 0.5),
+    );
     // Nudged a touch toward the lower-left so it clears the brand logo.
     final sun = const Alignment(-0.88, -0.62).alongSize(size);
     _drawSun(canvas, sun, short * 0.045);
@@ -187,6 +194,9 @@ class _SpaceScenePainter extends CustomPainter {
       const Color(0xFF3A4A6B),
       const Color(0xFFC9B391),
     );
+
+    // Close the translucent celestial-bodies layer.
+    canvas.restore();
   }
 
   // Unit vector from a body toward the sun (its light direction).
@@ -427,7 +437,9 @@ class _StarLayerPainter extends CustomPainter {
       // wrap count keeps it seamless across the loop.
       final x = ((s.dx - t * s.wraps) % 1.0 + 1.0) % 1.0 * size.width;
       final p = Offset(x, s.dy * size.height);
-      final a = (0.55 * twinkle * s.depth).clamp(0.0, 1.0);
+      // Capped softer than full white so drifting stars never wash out
+      // foreground text as they pass beneath it.
+      final a = (0.42 * twinkle * s.depth).clamp(0.0, 1.0);
       dot.color = base.withValues(alpha: a);
       canvas.drawCircle(p, s.radius * s.depth, dot);
 

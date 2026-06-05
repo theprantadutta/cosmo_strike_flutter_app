@@ -138,7 +138,6 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
   Widget _buildContent(BuildContext context, GameTheme theme, DailyChallengesState challengesState) {
     final isRefreshing = challengesState.isLoading;
     final challenges = challengesState.challenges;
-    final hasUnclaimedRewards = challengesState.hasUnclaimedRewards;
     final allCompleted = challengesState.allCompleted;
 
     return CommandScaffold(
@@ -147,12 +146,6 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
       bottomBar: const ShipBannerAd(),
       bodyPadding: EdgeInsets.zero,
       actions: [
-        if (hasUnclaimedRewards)
-          TextButton.icon(
-            onPressed: _claimAllRewards,
-            icon: Icon(Icons.redeem, color: Colors.amber),
-            label: Text('Claim All', style: TextStyle(color: Colors.amber)),
-          ),
         IconButton(
           icon: isRefreshing
               ? SizedBox(
@@ -167,39 +160,55 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
           onPressed: isRefreshing ? null : _refreshChallenges,
         ),
       ],
-      body: RefreshIndicator(
-        onRefresh: _refreshChallenges,
-        color: theme.accentColor,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Progress summary card
-              _buildProgressSummary(theme, challengesState),
-              const SizedBox(height: 20),
-
-              // Challenges list
-              if (isRefreshing && challenges.isEmpty)
-                _buildLoadingState(theme)
-              else if (challenges.isEmpty)
-                _buildEmptyState(theme)
-              else
-                ...challenges.asMap().entries.map(
-                  (e) => _buildChallengeCard(e.value, e.key, theme),
+      // Landscape command deck: LEFT = today's telemetry (completion ring +
+      // claim-all + hints), RIGHT = the scrollable challenge list. Both float
+      // borderless on the starfield per the clean design.
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 4,
+              // Never scrolls: the telemetry column renders at its natural
+              // size and FittedBox scales it down to exactly fit the
+              // available height, so it always uses the column responsively.
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SizedBox(
+                    width: 270,
+                    child: _buildProgressSummary(theme, challengesState),
+                  ),
                 ),
-
-              // All complete bonus
-              if (allCompleted)
-                _buildAllCompleteBonusCard(theme, challengesState),
-
-              const SizedBox(height: 20),
-
-              // Info section
-              _buildInfoSection(theme),
-            ],
-          ),
+              ),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              flex: 6,
+              child: RefreshIndicator(
+                onRefresh: _refreshChallenges,
+                color: theme.accentColor,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  children: [
+                    if (isRefreshing && challenges.isEmpty)
+                      _buildLoadingState(theme)
+                    else if (challenges.isEmpty)
+                      _buildEmptyState(theme)
+                    else ...[
+                      ...challenges.asMap().entries.map(
+                        (e) => _buildChallengeCard(e.value, e.key, theme),
+                      ),
+                      if (allCompleted)
+                        _buildAllCompleteBonusCard(theme, challengesState),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -210,104 +219,75 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
     final total = challengesState.totalCount;
     final progress = total > 0 ? completed / total : 0.0;
     final allCompleted = challengesState.allCompleted;
+    final hasUnclaimedRewards = challengesState.hasUnclaimedRewards;
+    final ringColor = allCompleted ? Colors.green : theme.neonPrimary;
 
-    return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                theme.primaryColor.withValues(alpha: 0.3),
-                theme.accentColor.withValues(alpha: 0.2),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: theme.primaryColor.withValues(alpha: 0.3),
-            ),
-          ),
-          child: Column(
+    // Borderless telemetry column — the big completion ring floats straight
+    // on the starfield, with claim-all and the hints beneath it.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 96,
+          height: 96,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              Row(
+              SizedBox(
+                width: 96,
+                height: 96,
+                child: CircularProgressIndicator(
+                  value: progress,
+                  strokeWidth: 7,
+                  strokeCap: StrokeCap.round,
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  valueColor: AlwaysStoppedAnimation(ringColor),
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.calendar_today,
-                    color: theme.accentColor,
-                    size: 32,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Today's Progress",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Text(
-                          '$completed of $total challenges completed',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white.withValues(alpha: 0.7),
-                          ),
-                        ),
-                      ],
+                  Text(
+                    '${(progress * 100).toInt()}%',
+                    style: TextStyle(
+                      color: theme.textPrimary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 22,
                     ),
                   ),
-                  SizedBox(
-                    width: 60,
-                    height: 60,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        CircularProgressIndicator(
-                          value: progress,
-                          backgroundColor: theme.primaryColor.withValues(
-                            alpha: 0.2,
-                          ),
-                          valueColor: AlwaysStoppedAnimation(
-                            allCompleted
-                                ? Colors.green
-                                : theme.accentColor,
-                          ),
-                          strokeWidth: 6,
-                        ),
-                        Text(
-                          '${(progress * 100).toInt()}%',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
+                  Text(
+                    '$completed of $total',
+                    style: TextStyle(color: theme.textMuted, fontSize: 11),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: Colors.white.withValues(alpha: 0.1),
-                  valueColor: AlwaysStoppedAnimation(
-                    allCompleted
-                        ? Colors.green
-                        : theme.accentColor,
-                  ),
-                  minHeight: 8,
-                ),
-              ),
             ],
           ),
-        )
-        .gameZoomIn();
+        ),
+        const SizedBox(height: 12),
+        Text(
+          "TODAY'S PROGRESS",
+          style: TextStyle(
+            color: theme.textMuted,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2,
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (hasUnclaimedRewards) ...[
+          NeonButton(
+            onPressed: _claimAllRewards,
+            label: 'Claim All',
+            icon: Icons.redeem,
+            theme: theme,
+            height: 44,
+          ),
+          const SizedBox(height: 16),
+        ],
+        _buildInfoSection(theme),
+      ],
+    ).gameZoomIn();
   }
 
   Widget _buildChallengeCard(
@@ -331,22 +311,13 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
         break;
     }
 
+    final accent = isCompleted ? Colors.green : theme.neonPrimary;
+
     return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: isCompleted
-                ? Colors.green.withValues(alpha: 0.15)
-                : theme.primaryColor.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: canClaim
-                  ? Colors.amber.withValues(alpha: 0.8)
-                  : isCompleted
-                  ? Colors.green.withValues(alpha: 0.5)
-                  : theme.primaryColor.withValues(alpha: 0.3),
-              width: canClaim ? 2 : 1,
-            ),
-          ),
+          margin: const EdgeInsets.only(bottom: 10),
+          // Fully transparent per the clean design — the rows float straight
+          // on the starfield; the icon disc, bars, and Claim button carry the
+          // structure.
           child: Material(
             color: Colors.transparent,
             child: InkWell(
@@ -359,24 +330,23 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
                   children: [
                     Row(
                       children: [
-                        // Challenge type icon
+                        // Challenge type disc — borderless neon tint + glow.
                         Container(
-                          width: 48,
-                          height: 48,
+                          width: 42,
+                          height: 42,
                           decoration: BoxDecoration(
-                            color: isCompleted
-                                ? Colors.green.withValues(alpha: 0.2)
-                                : theme.primaryColor.withValues(alpha: 0.2),
+                            color: accent.withValues(alpha: 0.14),
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isCompleted
-                                  ? Colors.green
-                                  : theme.primaryColor,
-                              width: 2,
-                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: accent.withValues(alpha: 0.25),
+                                blurRadius: 10,
+                                spreadRadius: -3,
+                              ),
+                            ],
                           ),
                           child: isCompleted
-                              ? Icon(Icons.check, color: Colors.green, size: 28)
+                              ? Icon(Icons.check, color: Colors.green, size: 24)
                               : _getChallengeTypeIcon(challenge.type, theme),
                         ),
                         const SizedBox(width: 12),
@@ -392,8 +362,8 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
                                     child: Text(
                                       challenge.title,
                                       style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
+                                        color: theme.textPrimary,
+                                        fontSize: 15,
                                         fontWeight: FontWeight.bold,
                                         decoration: challenge.claimedReward
                                             ? TextDecoration.lineThrough
@@ -401,19 +371,17 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
                                       ),
                                     ),
                                   ),
+                                  // Difficulty pill — borderless tint.
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 8,
-                                      vertical: 2,
+                                      vertical: 3,
                                     ),
                                     decoration: BoxDecoration(
                                       color: difficultyColor.withValues(
-                                        alpha: 0.2,
+                                        alpha: 0.16,
                                       ),
                                       borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: difficultyColor,
-                                      ),
                                     ),
                                     child: Text(
                                       challenge.difficulty.displayName,
@@ -426,12 +394,12 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 3),
                               Text(
                                 challenge.description,
                                 style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.7),
-                                  fontSize: 13,
+                                  color: theme.textMuted,
+                                  fontSize: 12.5,
                                 ),
                               ),
                             ],
@@ -441,21 +409,19 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Progress bar
+                    // Slim neon progress bar.
                     Row(
                       children: [
                         Expanded(
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(3),
                             child: LinearProgressIndicator(
                               value: challenge.progressPercentage,
                               backgroundColor: Colors.white.withValues(
-                                alpha: 0.1,
+                                alpha: 0.08,
                               ),
-                              valueColor: AlwaysStoppedAnimation(
-                                isCompleted ? Colors.green : theme.accentColor,
-                              ),
-                              minHeight: 8,
+                              valueColor: AlwaysStoppedAnimation(accent),
+                              minHeight: 6,
                             ),
                           ),
                         ),
@@ -463,10 +429,8 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
                         Text(
                           '${challenge.currentProgress}/${challenge.targetValue}',
                           style: TextStyle(
-                            color: isCompleted
-                                ? Colors.green
-                                : Colors.white.withValues(alpha: 0.7),
-                            fontSize: 14,
+                            color: isCompleted ? Colors.green : theme.textMuted,
+                            fontSize: 13,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -544,35 +508,25 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
                             theme: theme,
                             height: 40,
                           ),
+                        // Claimed — plain green check + label, no boxed badge.
                         if (challenge.claimedReward)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.green),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.check_circle,
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                color: Colors.green,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Claimed',
+                                style: TextStyle(
                                   color: Colors.green,
-                                  size: 18,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Claimed',
-                                  style: TextStyle(
-                                    color: Colors.green,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                       ],
                     ),
@@ -586,33 +540,33 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
   }
 
   Widget _buildAllCompleteBonusCard(GameTheme theme, DailyChallengesState challengesState) {
+    // Borderless amber glow — the celebratory highlight at the end of the list.
     return Container(
-          margin: const EdgeInsets.only(top: 8),
-          padding: const EdgeInsets.all(20),
+          margin: const EdgeInsets.only(top: 4, bottom: 10),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.amber.withValues(alpha: 0.3),
-                Colors.orange.withValues(alpha: 0.3),
-              ],
-            ),
+            color: Colors.amber.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.amber, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.amber.withValues(alpha: 0.18),
+                blurRadius: 18,
+                spreadRadius: -2,
+              ),
+            ],
           ),
           child: Row(
             children: [
               Container(
-                width: 56,
-                height: 56,
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.3),
+                  color: Colors.amber.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.celebration, color: Colors.amber, size: 32),
+                child: Icon(Icons.celebration, color: Colors.amber, size: 26),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -621,7 +575,7 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
                       'All Challenges Complete!',
                       style: TextStyle(
                         color: Colors.amber,
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -629,44 +583,31 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
                       challengesState.isBonusClaimed
                           ? 'Bonus reward claimed'
                           : 'Bonus reward pending — claim any challenge',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: theme.textMuted, fontSize: 12.5),
                     ),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.amber,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      challengesState.isBonusClaimed
-                          ? Icons.check_circle
-                          : Icons.monetization_on,
-                      color: Colors.white,
-                      size: 20,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    challengesState.isBonusClaimed
+                        ? Icons.check_circle
+                        : Icons.monetization_on,
+                    color: Colors.amber,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '+${challengesState.bonusCoins}',
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '+${challengesState.bonusCoins}',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -729,41 +670,25 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
   }
 
   Widget _buildInfoSection(GameTheme theme) {
-    return GlassPanel(
-      theme: theme,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.info_outline, color: theme.accentColor, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'About Daily Challenges',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildInfoItem(
-            Icons.schedule,
-            'New challenges every day at midnight',
-          ),
-          _buildInfoItem(
-            Icons.monetization_on,
-            'Complete challenges to earn coins',
-          ),
-          _buildInfoItem(Icons.star, 'Gain XP to level up your profile'),
-          _buildInfoItem(
-            Icons.celebration,
-            'Complete all 3 for a bonus reward!',
-          ),
-        ],
-      ),
+    // Compact borderless hints under the telemetry ring — no panel chrome.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildInfoItem(
+          Icons.schedule,
+          'New challenges every day at midnight',
+        ),
+        _buildInfoItem(
+          Icons.monetization_on,
+          'Complete challenges to earn coins',
+        ),
+        _buildInfoItem(Icons.star, 'Gain XP to level up your profile'),
+        _buildInfoItem(
+          Icons.celebration,
+          'Complete all 3 for a bonus reward!',
+        ),
+      ],
     ).gameEntrance(delay: 300.ms);
   }
 
@@ -795,7 +720,8 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
         iconData = Icons.stars;
         break;
       case ChallengeType.foodEaten:
-        iconData = Icons.restaurant;
+        // Energy pickups — flare reads space-y (was the snake-era cutlery).
+        iconData = Icons.flare;
         break;
       case ChallengeType.gameMode:
         iconData = Icons.games;
@@ -807,6 +733,6 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
         iconData = Icons.play_circle_outline;
         break;
     }
-    return Icon(iconData, color: theme.primaryColor, size: 28);
+    return Icon(iconData, color: theme.neonPrimary, size: 22);
   }
 }

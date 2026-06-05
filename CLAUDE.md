@@ -69,10 +69,24 @@ accents, glassmorphic panels, a full custom-painted deep-space background
   `neonSecondary`, `glow`, `stroke`, `surface`, `surfaceGlass`, `textPrimary`,
   `textMuted`, `gridLine`.
 
-**Clean/minimal direction:** favor **borderless** surfaces (no hairline strokes),
-let the space background show through (transparent fills over heavy glass tints
-where it reads better), and lean on glow, spacing, and the neon accents for
-definition instead of outlines. Default new surfaces to no border.
+**Clean/minimal direction (hard rules, learned from the home/loading/daily
+redesigns — apply to every future screen):**
+- **No borders, ever**: no hairline strokes on cards, buttons, chips, pills,
+  app bars, or the back button.
+- **Prefer FULLY transparent over glass**: list cards, nav chips, top command
+  bars, and hero CTAs float straight on the starfield — no fills, no gradients,
+  and no `GlassPanel`/`BackdropFilter` behind them (the blur frosts the scene
+  into a visible dark box even with a transparent fill). Reserve subtle tinted
+  fills for deliberate highlights only (e.g. a gold celebration card).
+- **Keep tap targets**: transparent tappables need
+  `behavior: HitTestBehavior.opaque` (whole area tappable, not just the paint).
+- Definition comes from **neon icon discs, slim (≈6px) progress bars, glow,
+  spacing, and the cyan/magenta accents** — never outlines or boxes.
+- **Landscape two-region layouts** (e.g. telemetry/summary left, list right);
+  side panels must **never scroll** — render at natural size inside
+  `FittedBox(scaleDown)` so they use the height responsively.
+- Background scenery is dimmed (bodies ~50%, stars capped) so white/grey text
+  stays readable over it — don't brighten it back up under text.
 
 Build new screens with `CommandScaffold` + these widgets. Reference screens:
 `home_screen.dart` (menu hub), `leaderboard_screen.dart` (list/detail),
