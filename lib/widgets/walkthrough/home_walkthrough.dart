@@ -18,23 +18,29 @@ class HomeWalkthrough {
   /// Call this after the keys have been assigned to their widgets
   static List<WalkthroughStep> getSteps() {
     return [
-      // Step 1: Welcome and Play Button
+      // Step 1: Welcome and the launch bay. The bay fills the right column,
+      // so the tooltip goes to its LEFT (above/below have no room in the
+      // short landscape viewport).
       WalkthroughStep(
         id: 'home_play',
         title: 'Welcome to Cosmo Strike!',
-        message: 'Tap the PLAY button to start a game. Swipe to control your ship and eat food to grow!',
+        message:
+            'This is your launch bay — tap it to deploy. Steer your ship, '
+            'blast through enemy waves, and take down the stage boss.',
         targetKey: playButtonKey,
-        position: TooltipPosition.above,
-        icon: Icons.play_arrow_rounded,
-        spotlightPadding: 12,
-        spotlightBorderRadius: 100, // Circular button
+        position: TooltipPosition.left,
+        icon: Icons.rocket_launch,
+        spotlightPadding: 8,
+        spotlightBorderRadius: 24,
       ),
 
-      // Step 2: Coins Display
+      // Step 2: Coins display (top bar, centre).
       WalkthroughStep(
         id: 'home_coins',
         title: 'Your Coins',
-        message: 'Earn coins by playing games, completing challenges, and daily bonuses. Use them in the store!',
+        message:
+            'Earn coins from every run, daily challenges, and daily bonuses. '
+            'Spend them in the store!',
         targetKey: coinsKey,
         position: TooltipPosition.below,
         icon: Icons.monetization_on,
@@ -42,23 +48,27 @@ class HomeWalkthrough {
         spotlightBorderRadius: 20,
       ),
 
-      // Step 3: Daily Challenges
+      // Step 3: Daily challenges (nav rail, top row).
       WalkthroughStep(
         id: 'home_daily',
         title: 'Daily Challenges',
-        message: 'Complete daily challenges for bonus coins and rewards. New challenges every day!',
+        message:
+            'Complete daily challenges for bonus coins and XP. '
+            'Three fresh ones every day!',
         targetKey: dailyChallengesKey,
-        position: TooltipPosition.above,
+        position: TooltipPosition.below,
         icon: Icons.calendar_today,
         spotlightPadding: 6,
         spotlightBorderRadius: 18,
       ),
 
-      // Step 4: Store
+      // Step 4: Store (action row under the launch bay).
       WalkthroughStep(
         id: 'home_store',
         title: 'The Store',
-        message: 'Buy themes, ship skins, trails, and power-ups with your coins. Unlock Pro for premium boards and exclusive cosmetics.',
+        message:
+            'Buy themes, ship skins, trails, and power-ups with your coins. '
+            'Go Pro for 2× coins, no ads, and every premium cosmetic.',
         targetKey: storeKey,
         position: TooltipPosition.above,
         icon: Icons.store,
@@ -66,11 +76,13 @@ class HomeWalkthrough {
         spotlightBorderRadius: 14,
       ),
 
-      // Step 5: Cosmetics
+      // Step 5: Cosmetics (nav rail, bottom row).
       WalkthroughStep(
         id: 'home_cosmetics',
         title: 'Skins & Trails',
-        message: 'Customize your ship here. Skins change how the ship itself looks; trails leave a glow behind it. Earn with coins or unlock with Pro.',
+        message:
+            'Customize your ship here. Skins change how it looks; trails '
+            'leave a glow behind it. Earn with coins or unlock with Pro.',
         targetKey: cosmeticsKey,
         position: TooltipPosition.above,
         icon: Icons.palette,
@@ -78,11 +90,13 @@ class HomeWalkthrough {
         spotlightBorderRadius: 14,
       ),
 
-      // Step 7: Profile
+      // Step 6: Profile (top bar, right cluster).
       WalkthroughStep(
         id: 'home_profile',
         title: 'Your Profile',
-        message: "Stats, achievements, and high scores live here. Achievements unlock as you hit milestones — some require a specific mode (Classic, Hard, etc.). Sign in to sync across devices.",
+        message:
+            'Stats, achievements, and high scores live here. Sign in to keep '
+            'your progress safe across devices.',
         targetKey: profileKey,
         position: TooltipPosition.below,
         icon: Icons.account_circle,
@@ -90,11 +104,13 @@ class HomeWalkthrough {
         spotlightBorderRadius: 20,
       ),
 
-      // Step 8: Settings
+      // Step 7: Settings (top bar, right cluster).
       WalkthroughStep(
         id: 'home_settings',
         title: 'Settings',
-        message: 'Customize your game experience - change themes, controls, audio, and more!',
+        message:
+            'Game modes, controls, audio, themes, and more — '
+            'tune everything to your liking.',
         targetKey: settingsKey,
         position: TooltipPosition.below,
         icon: Icons.settings,

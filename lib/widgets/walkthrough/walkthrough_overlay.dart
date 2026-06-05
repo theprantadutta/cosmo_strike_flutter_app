@@ -178,20 +178,36 @@ class _WalkthroughOverlayState extends State<WalkthroughOverlay>
     // Calculate available space in each direction
     final spaceAbove = rect.top;
     final spaceBelow = screenSize.height - rect.bottom;
-    // Reserved for future left/right position auto-adjustment
-    // final spaceLeft = rect.left;
-    // final spaceRight = screenSize.width - rect.right;
+    final spaceLeft = rect.left;
+    final spaceRight = screenSize.width - rect.right;
 
     // Determine best position
     TooltipPosition effectivePosition = widget.step.position;
 
-    // If preferred position doesn't have enough space, try alternatives
+    // If the preferred position doesn't have enough space, try alternatives.
+    // In the short landscape viewport a tall target (e.g. the launch bay)
+    // can have NO room above or below — fall through to the sides, then
+    // centre, so the tooltip never renders clipped offscreen.
     const minSpace = 150.0;
+    const minSideSpace = tooltipMaxWidth + tooltipMargin * 2;
     if (effectivePosition == TooltipPosition.below && spaceBelow < minSpace) {
       effectivePosition = TooltipPosition.above;
-    } else if (effectivePosition == TooltipPosition.above &&
-        spaceAbove < minSpace) {
-      effectivePosition = TooltipPosition.below;
+    }
+    if (effectivePosition == TooltipPosition.above && spaceAbove < minSpace) {
+      effectivePosition =
+          spaceBelow >= minSpace ? TooltipPosition.below : TooltipPosition.left;
+    }
+    if (effectivePosition == TooltipPosition.left &&
+        spaceLeft < minSideSpace) {
+      effectivePosition = spaceRight >= minSideSpace
+          ? TooltipPosition.right
+          : TooltipPosition.center;
+    }
+    if (effectivePosition == TooltipPosition.right &&
+        spaceRight < minSideSpace) {
+      effectivePosition = spaceLeft >= minSideSpace
+          ? TooltipPosition.left
+          : TooltipPosition.center;
     }
 
     double? top, bottom, left, right;
@@ -251,11 +267,13 @@ class _WalkthroughOverlayState extends State<WalkthroughOverlay>
   double _calculateVerticalPosition(Rect rect, Size screenSize) {
     // Try to vertically center tooltip with target
     final targetCenter = rect.top + rect.height / 2;
-    const estimatedTooltipHeight = 150.0;
+    const estimatedTooltipHeight = 200.0;
 
-    // Clamp to screen bounds with padding
-    const minTop = 100.0; // Leave room for status bar
-    final maxTop = screenSize.height - estimatedTooltipHeight - 50;
+    // Clamp to screen bounds with padding. The app is fullscreen-immersive
+    // landscape — no status bar to dodge.
+    const minTop = 16.0;
+    final maxTop =
+        (screenSize.height - estimatedTooltipHeight - 16).clamp(minTop, 9999.0);
 
     return (targetCenter - estimatedTooltipHeight / 2).clamp(minTop, maxTop);
   }
@@ -298,27 +316,17 @@ class _SpotlightPainter extends CustomPainter {
 
       canvas.drawPath(combinedPath, paint);
 
-      // Draw glow around spotlight
+      // Soft neon glow around the spotlight — no hard border strokes,
+      // per the clean borderless design.
       final glowPaint = Paint()
-        ..color = glowColor.withValues(alpha: 0.3)
+        ..color = glowColor.withValues(alpha: 0.45)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3
-        ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 8);
+        ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 10);
 
       canvas.drawRRect(
         RRect.fromRectAndRadius(targetRect!, Radius.circular(borderRadius)),
         glowPaint,
-      );
-
-      // Draw inner border
-      final borderPaint = Paint()
-        ..color = glowColor.withValues(alpha: 0.5)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
-
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(targetRect!, Radius.circular(borderRadius)),
-        borderPaint,
       );
     } else {
       // No target - just draw the overlay
