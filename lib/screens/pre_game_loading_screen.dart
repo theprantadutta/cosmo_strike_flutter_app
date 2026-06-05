@@ -366,16 +366,12 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
             ),
             child: Padding(
               padding: const EdgeInsets.all(18),
-              child: Image.asset(
-                'assets/images/cosmo_strike_transparent.png',
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(
-                    Icons.videogame_asset_rounded,
-                    size: size * 0.55,
-                    color: theme.accentColor,
-                  );
-                },
+              // The official brand mark — same rocket glyph as the loading
+              // screen / home / About (the transparent PNG never shipped).
+              child: Icon(
+                Icons.rocket_launch,
+                size: size * 0.55,
+                color: theme.accentColor,
               ),
             ),
           ),

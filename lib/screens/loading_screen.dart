@@ -554,14 +554,15 @@ class _LoadingScreenState extends State<LoadingScreen>
               ),
             ],
           ),
-          child: Image.asset(
-            'assets/images/cosmo_strike_transparent.png',
+          // The official brand mark: the rocket_launch glyph in neon cyan.
+          // (Was an Image.asset whose PNG never shipped — the fallback icon
+          // became the brand.)
+          child: SizedBox(
             width: logoSize,
             height: logoSize,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) => Icon(
+            child: Icon(
               Icons.rocket_launch,
-              size: logoSize * 0.7,
+              size: logoSize * 0.78,
               color: theme.accentColor,
             ),
           )

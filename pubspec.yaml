@@ -135,6 +135,5 @@ flutter:
   assets:
     - assets/audio/
     - assets/images/
-    - assets/logo/
     - PRIVACY.md
     - .env

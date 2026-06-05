@@ -70,9 +70,14 @@ Future<void> showCreditsDialog(BuildContext context, GameTheme theme) async {
                               ],
                             ),
                             padding: const EdgeInsets.all(8),
-                            child: Image.asset(
-                              'assets/images/cosmo_strike_transparent.png',
-                              fit: BoxFit.contain,
+                            // The official brand mark — same rocket glyph as
+                            // the loading screen and home. (The PNG never
+                            // shipped; this also fixes the broken-image box
+                            // this dialog used to render.)
+                            child: Icon(
+                              Icons.rocket_launch,
+                              color: theme.accentColor,
+                              size: 42,
                             ),
                           ),
                           const SizedBox(height: 10),
