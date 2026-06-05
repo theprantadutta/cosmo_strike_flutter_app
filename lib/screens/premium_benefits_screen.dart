@@ -13,32 +13,18 @@ class PremiumBenefitsScreen extends StatefulWidget {
   State<PremiumBenefitsScreen> createState() => _PremiumBenefitsScreenState();
 }
 
-class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
-    with SingleTickerProviderStateMixin {
+class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
   // Trial lengths mirror the Play Console base-plan offers (monthly: 3-day,
-  // yearly: 7-day). Used to render trial copy in the pricing cards, trial
-  // info card, and Subscribe-button subtitle. Update here AND in Play
-  // Console together if the offer ever changes.
+  // yearly: 7-day). Used to render trial copy in the price readout and the
+  // Subscribe-button subtitle. Update here AND in Play Console together if
+  // the offer ever changes.
   static const int _monthlyTrialDays = 3;
   static const int _yearlyTrialDays = 7;
 
-  late TabController _tabController;
   bool _isYearly = true;
 
   int get _selectedTrialDays =>
       _isYearly ? _yearlyTrialDays : _monthlyTrialDays;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,30 +38,45 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
               theme: theme,
               title: 'Cosmo Strike Pro',
               bodyPadding: EdgeInsets.zero,
-              bottomBar: premiumState.hasPremium
-                  ? null
-                  : _buildBottomButton(theme, premiumState),
-              body: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    if (premiumState.hasPremium) ...[
-                      _buildPremiumActiveCard(theme),
-                    ] else ...[
-                      _buildPremiumHeaderCard(theme),
-                      const SizedBox(height: 20),
-                      _buildPricingToggle(theme),
-                      const SizedBox(height: 16),
-                      _buildPricingCards(theme),
-                      const SizedBox(height: 20),
-                      _buildFeaturesList(theme),
-                      const SizedBox(height: 20),
-                      _buildTrialInfo(theme),
-                      const SizedBox(height: 8),
-                    ],
-                  ],
-                ),
-              ),
+              // Landscape command deck: LEFT = the complete purchase column
+              // (identity, plan toggle, price, CTAs), RIGHT = the feature
+              // list. Everything floats borderless on the starfield per the
+              // clean design; the old bottom-docked subscribe bar is gone.
+              body: premiumState.hasPremium
+                  ? Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: _buildPremiumActiveBlock(theme),
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            flex: 4,
+                            child: Center(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: SizedBox(
+                                  width: 280,
+                                  child: _buildPurchasePanel(
+                                    theme,
+                                    premiumState,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            flex: 6,
+                            child: _buildFeaturesList(theme),
+                          ),
+                        ],
+                      ),
+                    ),
             );
           },
         );
@@ -83,67 +84,71 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
     );
   }
 
-  Widget _buildPremiumActiveCard(GameTheme theme) {
-    return SizedBox(
-      width: double.infinity,
-      child: GlassPanel(
-      theme: theme,
-      padding: const EdgeInsets.all(20),
-      borderColor: Colors.green.withValues(alpha: 0.4),
-      fillColor: Colors.green.withValues(alpha: 0.10),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [Colors.green, Colors.teal]),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.withValues(alpha: 0.4),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+  /// Shown when the user already owns Pro — a borderless centered block.
+  Widget _buildPremiumActiveBlock(GameTheme theme) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Colors.green, Colors.teal],
             ),
-            child: const Icon(Icons.verified, color: Colors.white, size: 32),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.green.withValues(alpha: 0.4),
+                blurRadius: 16,
+                spreadRadius: 1,
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Premium Active!',
-            style: TextStyle(
-              color: theme.accentColor,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+          child: const Icon(Icons.verified, color: Colors.white, size: 32),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Premium Active!',
+          style: TextStyle(
+            color: theme.textPrimary,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
           ),
-          const SizedBox(height: 8),
-          Text(
-            'You have access to all premium features',
-            style: TextStyle(
-              color: theme.accentColor.withValues(alpha: 0.7),
-              fontSize: 16,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-      ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'You have access to all premium features',
+          style: TextStyle(color: theme.textMuted, fontSize: 14),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 
-  Widget _buildPremiumHeaderCard(GameTheme theme) {
-    return SizedBox(
-      width: double.infinity,
-      child: GlassPanel(
-      theme: theme,
-      glow: true,
-      padding: const EdgeInsets.all(20),
-      borderColor: Colors.purple.shade400.withValues(alpha: 0.4),
-      fillColor: Colors.purple.shade400.withValues(alpha: 0.10),
-      child: Column(
-        children: [
-          Container(
+  /// LEFT column: Pro identity, plan toggle, live price readout, and the
+  /// purchase CTAs — fully borderless; only the diamond disc and the
+  /// subscribe pill carry color.
+  Widget _buildPurchasePanel(GameTheme theme, PremiumState premiumState) {
+    final productId =
+        _isYearly ? ProductIds.proYearly : ProductIds.proMonthly;
+    final price = PurchaseService().getStorePriceOrDefault(
+      productId,
+      _isYearly ? 39.99 : 4.99,
+    );
+    final period = _isYearly ? '/year' : '/month';
+    final badge = _isYearly
+        ? 'Save 33% • $_yearlyTrialDays-day free trial'
+        : '$_monthlyTrialDays-day free trial';
+    final canStartInAppTrial =
+        !premiumState.hasUsedTrial && !premiumState.isOnTrial;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Identity — gradient diamond disc + wordmark, no boxed background.
+        Center(
+          child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -153,212 +158,201 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
               boxShadow: [
                 BoxShadow(
                   color: Colors.purple.shade400.withValues(alpha: 0.4),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  blurRadius: 14,
+                  spreadRadius: 1,
                 ),
               ],
             ),
-            child: const Icon(Icons.diamond, color: Colors.white, size: 32),
+            child: const Icon(Icons.diamond, color: Colors.white, size: 28),
           ),
-          const SizedBox(height: 16),
-          Text(
+        ),
+        const SizedBox(height: 10),
+        Center(
+          child: Text(
             'Cosmo Strike Pro',
             style: TextStyle(
-              color: theme.accentColor,
-              fontSize: 24,
+              color: theme.textPrimary,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
+        ),
+        const SizedBox(height: 4),
+        Center(
+          child: Text(
             'Unlock everything the game has to offer',
-            style: TextStyle(
-              color: theme.accentColor.withValues(alpha: 0.7),
-              fontSize: 16,
-            ),
+            style: TextStyle(color: theme.textMuted, fontSize: 12),
             textAlign: TextAlign.center,
           ),
-        ],
-      ),
-      ),
-    );
-  }
-
-  Widget _buildPricingToggle(GameTheme theme) {
-    return GlassPanel(
-      theme: theme,
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        children: [
-          Expanded(child: _buildToggleOption('Monthly', false, theme)),
-          Expanded(child: _buildToggleOption('Yearly', true, theme)),
-        ],
-      ),
-    );
-  }
-
-
-  Widget _buildToggleOption(String label, bool isYearly, GameTheme theme) {
-    final isSelected = _isYearly == isYearly;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _isYearly = isYearly;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? theme.accentColor.withValues(alpha: 0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? Border.all(
-                  color: theme.accentColor.withValues(alpha: 0.3),
-                  width: 1,
-                )
-              : null,
         ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: isSelected
-                ? theme.accentColor
-                : theme.accentColor.withValues(alpha: 0.6),
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            fontSize: 16,
-          ),
-        ),
-      ),
-    );
-  }
+        const SizedBox(height: 14),
 
-  Widget _buildPricingCards(GameTheme theme) {
-    return Column(
-      children: [
-        _buildPricingCard(
-          title: 'Monthly Plan',
-          price: PurchaseService().getStorePriceOrDefault(
-              ProductIds.proMonthly, 4.99),
-          period: '/month',
-          badge: '$_monthlyTrialDays-day free trial',
-          accentColor: Colors.blue,
-          isPopular: false,
-          theme: theme,
+        // Monthly / Yearly toggle — borderless; selection reads via bright
+        // text and a glowing underline.
+        Row(
+          children: [
+            Expanded(child: _buildToggleOption('Monthly', false, theme)),
+            Expanded(child: _buildToggleOption('Yearly', true, theme)),
+          ],
         ),
         const SizedBox(height: 12),
-        _buildPricingCard(
-          title: 'Yearly Plan',
-          price: _isYearly
-              ? PurchaseService().getStorePriceOrDefault(
-                  ProductIds.proYearly, 39.99)
-              : PurchaseService().getStorePriceOrDefault(
-                  ProductIds.proMonthly, 4.99),
-          period: _isYearly ? '/year' : '/month',
-          badge: _isYearly
-              ? 'Save 33% • $_yearlyTrialDays-day free trial'
-              : '$_monthlyTrialDays-day free trial',
-          accentColor: Colors.green,
-          isPopular: _isYearly,
-          theme: theme,
+
+        // Live price readout for the selected plan.
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                price,
+                style: TextStyle(
+                  color: theme.textPrimary,
+                  fontSize: 30,
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3, left: 2),
+                child: Text(
+                  period,
+                  style: TextStyle(color: theme.textMuted, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Center(
+          child: Text(
+            badge,
+            style: TextStyle(
+              color: Colors.green.shade400,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Primary CTA — same gradient subscribe pill as the store: amber for
+        // the featured yearly plan, the neon ramp for monthly. Glow only.
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _subscribe,
+          child: Container(
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: _isYearly
+                    ? [Colors.amber, Colors.orange.shade400]
+                    : [theme.neonPrimary, theme.neonSecondary],
+              ),
+              borderRadius: BorderRadius.circular(23),
+              boxShadow: [
+                BoxShadow(
+                  color: (_isYearly ? Colors.amber : theme.neonPrimary)
+                      .withValues(alpha: 0.35),
+                  blurRadius: 14,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const Text(
+              'SUBSCRIBE',
+              style: TextStyle(
+                color: Color(0xFF03040A),
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Center(
+          child: Text(
+            '$_selectedTrialDays-day free trial via Google Play',
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w500,
+              color: theme.textMuted,
+            ),
+          ),
+        ),
+
+        // Secondary CTA — in-app trial, no payment. Hidden once trial used.
+        if (canStartInAppTrial) ...[
+          const SizedBox(height: 8),
+          NeonButton(
+            onPressed: _startInAppTrial,
+            label: 'Try 3 days free',
+            theme: theme,
+            variant: NeonButtonVariant.ghost,
+            expand: true,
+            height: 42,
+          ),
+        ],
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            'No commitment • Cancel anytime • Secure payment',
+            style: TextStyle(color: theme.textMuted, fontSize: 10.5),
+            textAlign: TextAlign.center,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildPricingCard({
-    required String title,
-    required String price,
-    required String period,
-    required String badge,
-    required Color accentColor,
-    required bool isPopular,
-    required GameTheme theme,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      child: GlassPanel(
-      theme: theme,
-      glow: isPopular,
-      padding: const EdgeInsets.all(20),
-      borderColor: accentColor.withValues(alpha: isPopular ? 0.5 : 0.35),
-      fillColor: accentColor.withValues(alpha: 0.10),
-      child: Column(
-        children: [
-          if (isPopular)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [Colors.amber, Colors.orange]),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Text(
-                'MOST POPULAR',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
+  Widget _buildToggleOption(String label, bool isYearly, GameTheme theme) {
+    final isSelected = _isYearly == isYearly;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _isYearly = isYearly),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isSelected ? theme.textPrimary : theme.textMuted,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                fontSize: 14,
               ),
             ),
-          if (isPopular) const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: theme.accentColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      badge,
-                      style: TextStyle(
-                        color: theme.accentColor.withValues(alpha: 0.7),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
+            const SizedBox(height: 5),
+            // Glowing underline marks the selected plan — no box, no border.
+            Container(
+              width: 28,
+              height: 2.5,
+              decoration: BoxDecoration(
+                color:
+                    isSelected ? theme.neonPrimary : Colors.transparent,
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: theme.neonPrimary.withValues(alpha: 0.7),
+                          blurRadius: 8,
+                          spreadRadius: 0.5,
+                        ),
+                      ]
+                    : null,
               ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    price,
-                    style: TextStyle(
-                      color: accentColor,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    period,
-                    style: TextStyle(
-                      color: accentColor.withValues(alpha: 0.7),
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  /// RIGHT column: the entitlement list as transparent rows.
   Widget _buildFeaturesList(GameTheme theme) {
     // Honest list — every entry maps to an entitlement the server actually
     // grants on Pro verify (VerifyPurchaseCommandHandler). The previous
@@ -377,7 +371,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
         'Crystal, Cyberpunk, Space, Ocean, Desert, Forest',
       ),
       _FeatureItem(
-        Icons.pets,
+        Icons.rocket_launch,
         'All Premium Ship Skins',
         'Golden, Galaxy, Dragon, Electric, Fire, Ice & 5 more',
       ),
@@ -421,39 +415,40 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
       ),
     ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
         Text(
-          'Premium Includes:',
+          'PREMIUM INCLUDES',
           style: TextStyle(
             color: theme.accentColor,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.8,
           ),
         ),
-        const SizedBox(height: 16),
-        ...features.map((feature) => _buildFeatureCard(feature, theme)),
+        const SizedBox(height: 12),
+        ...features.map((feature) => _buildFeatureRow(feature, theme)),
       ],
     );
   }
 
-  Widget _buildFeatureCard(_FeatureItem feature, GameTheme theme) {
+  Widget _buildFeatureRow(_FeatureItem feature, GameTheme theme) {
+    // Fully transparent row per the clean design.
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: HoloCard(
-      theme: theme,
+      padding: const EdgeInsets.only(bottom: 14),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.1),
+              color: theme.accentColor.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(feature.icon, color: theme.accentColor, size: 20),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -461,146 +456,20 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen>
                 Text(
                   feature.title,
                   style: TextStyle(
-                    color: theme.accentColor,
-                    fontSize: 16,
+                    color: theme.textPrimary,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   feature.description,
-                  style: TextStyle(
-                    color: theme.accentColor.withValues(alpha: 0.7),
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: theme.textMuted, fontSize: 12.5),
                 ),
               ],
             ),
           ),
         ],
-      ),
-      ),
-    );
-  }
-
-  Widget _buildTrialInfo(GameTheme theme) {
-    return SizedBox(
-      width: double.infinity,
-      child: GlassPanel(
-      theme: theme,
-      borderColor: Colors.green.withValues(alpha: 0.4),
-      fillColor: Colors.green.withValues(alpha: 0.10),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [Colors.green, Colors.teal]),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.card_giftcard,
-              color: Colors.white,
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$_selectedTrialDays-Day Free Trial',
-                  style: TextStyle(
-                    color: theme.accentColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                Text(
-                  'Try all premium features risk-free',
-                  style: TextStyle(
-                    color: theme.accentColor.withValues(alpha: 0.7),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      ),
-    );
-  }
-
-  Widget _buildBottomButton(GameTheme theme, PremiumState premiumState) {
-    final productId = _isYearly
-        ? ProductIds.proYearly
-        : ProductIds.proMonthly;
-    final price = PurchaseService().getStorePriceOrDefault(
-      productId,
-      _isYearly ? 39.99 : 4.99,
-    );
-    final period = _isYearly ? '/year' : '/month';
-    final canStartInAppTrial =
-        !premiumState.hasUsedTrial && !premiumState.isOnTrial;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.9),
-        border: Border(
-          top: BorderSide(
-            color: theme.accentColor.withValues(alpha: 0.2),
-            width: 1,
-          ),
-        ),
-      ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Primary CTA — honest about payment
-            NeonButton(
-              onPressed: _subscribe,
-              label: 'Subscribe — $price$period',
-              theme: theme,
-              expand: true,
-              height: 52,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '$_selectedTrialDays-day free trial via Google Play',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: theme.accentColor.withValues(alpha: 0.7),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            // Secondary CTA — in-app trial, no payment. Hidden once trial used.
-            if (canStartInAppTrial) ...[
-              const SizedBox(height: 10),
-              NeonButton(
-                onPressed: _startInAppTrial,
-                label: 'Try 3 days free',
-                theme: theme,
-                variant: NeonButtonVariant.outline,
-                expand: true,
-                height: 48,
-              ),
-            ],
-            const SizedBox(height: 12),
-            Text(
-              'No commitment • Cancel anytime • Secure payment',
-              style: TextStyle(
-                color: theme.accentColor.withValues(alpha: 0.6),
-                fontSize: 12,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
       ),
     );
   }

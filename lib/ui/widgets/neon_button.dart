@@ -10,10 +10,10 @@ enum NeonButtonVariant {
   /// Filled neon gradient — primary CTA.
   solid,
 
-  /// Transparent fill, neon stroke — secondary action.
+  /// Borderless neon tint fill — secondary action.
   outline,
 
-  /// Subtle glass, low emphasis.
+  /// Bare text, lowest emphasis.
   ghost,
 }
 
@@ -100,6 +100,9 @@ class _NeonButtonState extends State<NeonButton>
                 height: widget.height,
                 padding: const EdgeInsets.symmetric(
                     horizontal: GameTokens.space20),
+                // Borderless per the clean design — the fill and glow carry
+                // each variant: solid = full gradient + neon glow, outline =
+                // neon tint + soft glow, ghost = bare text.
                 decoration: BoxDecoration(
                   gradient: solid
                       ? LinearGradient(
@@ -109,18 +112,14 @@ class _NeonButtonState extends State<NeonButton>
                         )
                       : null,
                   color: outline
-                      ? primary.withValues(alpha: 0.06)
-                      : (solid ? null : t.surfaceGlass),
+                      ? primary.withValues(alpha: 0.12)
+                      : null,
                   borderRadius: GameTokens.brMd,
-                  border: Border.all(
-                    color: solid
-                        ? Colors.white.withValues(alpha: 0.18)
-                        : primary.withValues(alpha: 0.85),
-                    width: 1.4,
-                  ),
                   boxShadow: solid
                       ? neonGlow(primary, intensity: 0.6 + g * 0.4)
-                      : softGlow(primary, intensity: 0.3 + g * 0.3),
+                      : (outline
+                          ? softGlow(primary, intensity: 0.3 + g * 0.3)
+                          : null),
                 ),
                 child: Center(
                   child: Row(

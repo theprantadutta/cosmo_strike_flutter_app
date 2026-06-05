@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
@@ -8,8 +7,28 @@ import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
 
-class InstructionsScreen extends StatelessWidget {
+/// How-to-play, clean landscape Command-HUD layout: a section rail on the
+/// LEFT (Objective / Controls / Pickups / Rules / Pro Tips, no-background
+/// glowing-dot selection) with the Back button beneath it, and the selected
+/// section's content on the RIGHT. Everything floats borderless on the
+/// starfield.
+class InstructionsScreen extends StatefulWidget {
   const InstructionsScreen({super.key});
+
+  @override
+  State<InstructionsScreen> createState() => _InstructionsScreenState();
+}
+
+class _InstructionsScreenState extends State<InstructionsScreen> {
+  int _selected = 0;
+
+  static const _sections = [
+    (Icons.flag, 'Objective'),
+    (Icons.touch_app, 'Controls'),
+    (Icons.flare, 'Pickups'),
+    (Icons.rule, 'Rules'),
+    (Icons.lightbulb, 'Pro Tips'),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -23,283 +42,246 @@ class InstructionsScreen extends StatelessWidget {
           bottomBar: const ShipBannerAd(),
           bodyPadding: EdgeInsets.zero,
           body: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 8),
-
-                      // Game Objective
-                      _buildSection(
-                        'OBJECTIVE',
-                        'Pilot your ship to destroy enemies and survive as long as possible while dodging enemy fire and asteroids!',
-                        Icons.flag,
-                        theme,
-                        0,
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Controls Section
-                      _buildSection(
-                        'CONTROLS',
-                        '',
-                        Icons.touch_app,
-                        theme,
-                        1,
-                        children: [
-                          _buildControlItem(
-                            'Swipe Up ↑',
-                            'Move ship up',
-                            theme,
-                          ),
-                          _buildControlItem(
-                            'Swipe Down ↓',
-                            'Move ship down',
-                            theme,
-                          ),
-                          _buildControlItem(
-                            'Swipe Left ←',
-                            'Move ship left',
-                            theme,
-                          ),
-                          _buildControlItem(
-                            'Swipe Right →',
-                            'Move ship right',
-                            theme,
-                          ),
-                          _buildControlItem(
-                            'Tap Screen',
-                            'Pause/Resume game',
-                            theme,
-                          ),
-                          const SizedBox(height: 8),
-                          _buildControlItem(
-                            'Arrow Keys (Desktop)',
-                            'Change direction',
-                            theme,
-                          ),
-                          _buildControlItem(
-                            'WASD (Desktop)',
-                            'Change direction',
-                            theme,
-                          ),
-                          _buildControlItem(
-                            'Spacebar (Desktop)',
-                            'Pause/Resume game',
-                            theme,
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Pickup Types
-                      _buildSection(
-                        'PICKUP TYPES',
-                        '',
-                        Icons.apple,
-                        theme,
-                        2,
-                        children: [
-                          _buildFoodItem(
-                            'Pickup',
-                            '10 points',
-                            theme.foodColor,
-                            theme,
-                          ),
-                          _buildFoodItem(
-                            'Bonus Pickup',
-                            '25 points',
-                            Colors.orange,
-                            theme,
-                          ),
-                          _buildFoodItem(
-                            'Power-Up',
-                            '50 points + Level Up',
-                            const Color(0xFFFFD700),
-                            theme,
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Rules
-                      _buildSection(
-                        'RULES',
-                        '',
-                        Icons.rule,
-                        theme,
-                        3,
-                        children: [
-                          _buildRuleItem(
-                            '• Destroy enemies to increase your score',
-                            theme,
-                          ),
-                          _buildRuleItem(
-                            '• Enemy waves get faster as you level up',
-                            theme,
-                          ),
-                          _buildRuleItem(
-                            '• Game ends if your ship is destroyed',
-                            theme,
-                          ),
-                          _buildRuleItem(
-                            '• A Power-Up appears every 10 pickups',
-                            theme,
-                          ),
-                          _buildRuleItem(
-                            '• Bonus Pickups expire after 15 seconds',
-                            theme,
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Tips
-                      _buildSection(
-                        'PRO TIPS',
-                        '',
-                        Icons.lightbulb,
-                        theme,
-                        4,
-                        children: [
-                          _buildTipItem('Anticipate enemy waves before they arrive', theme),
-                          _buildTipItem(
-                            'Grab power-ups to upgrade your weapons',
-                            theme,
-                          ),
-                          _buildTipItem(
-                            'Weave between asteroids and enemy fire',
-                            theme,
-                          ),
-                          _buildTipItem(
-                            'Learn each boss\'s attack patterns',
-                            theme,
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // Back to Game Button
-                      Center(
-                            child: NeonButton(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // LEFT — section rail + back button. Never scrolls.
+                Expanded(
+                  flex: 3,
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: SizedBox(
+                        width: 210,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (var i = 0; i < _sections.length; i++)
+                              _buildNavItem(theme, i),
+                            const SizedBox(height: 14),
+                            NeonButton(
                               onPressed: () => context.pop(),
                               label: 'Back to Game',
                               icon: Icons.arrow_back,
                               theme: theme,
-                              width: 250,
+                              expand: true,
+                              height: 42,
                             ),
-                          )
-                          .gamePop(delay: 300.ms),
-
-                      const SizedBox(height: 20),
-                    ],
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 20),
+                // RIGHT — the selected section, cross-faded on change.
+                Expanded(
+                  flex: 7,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: ListView(
+                      key: ValueKey<int>(_selected),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      children: _buildSectionContent(theme),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
-  Widget _buildSection(
-    String title,
-    String description,
-    IconData icon,
-    GameTheme theme,
-    int index, {
-    List<Widget>? children,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      child: GlassPanel(
-      theme: theme,
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.accentColor.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: theme.accentColor, size: 24),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                title,
-                style: TextStyle(
-                  color: theme.accentColor,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-          if (description.isNotEmpty) ...[
-            const SizedBox(height: 12),
+  Widget _buildNavItem(GameTheme theme, int i) {
+    final selected = _selected == i;
+    final (icon, label) = _sections[i];
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _selected = i),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? theme.neonPrimary : theme.textMuted,
+            ),
+            const SizedBox(width: 10),
             Text(
-              description,
+              label,
               style: TextStyle(
-                color: theme.accentColor.withValues(alpha: 0.8),
-                fontSize: 16,
-                height: 1.5,
+                color: selected ? theme.textPrimary : theme.textMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
               ),
             ),
+            const Spacer(),
+            if (selected)
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: theme.neonPrimary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.neonPrimary.withValues(alpha: 0.7),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
           ],
-          if (children != null) ...[const SizedBox(height: 16), ...children],
-        ],
+        ),
       ),
-      ),
-    ).gameListItem(index);
+    );
   }
 
-  Widget _buildControlItem(String gesture, String action, GameTheme theme) {
+  List<Widget> _buildSectionContent(GameTheme theme) {
+    switch (_selected) {
+      case 0:
+        return [
+          _sectionLabel(theme, 'OBJECTIVE'),
+          const SizedBox(height: 12),
+          Text(
+            'Pilot your ship to destroy enemies and survive as long as '
+            'possible while dodging enemy fire and asteroids!',
+            style: TextStyle(
+              color: theme.textPrimary,
+              fontSize: 15,
+              height: 1.6,
+            ),
+          ).gameListItem(0),
+        ];
+      case 1:
+        return [
+          _sectionLabel(theme, 'CONTROLS'),
+          const SizedBox(height: 12),
+          _buildControlItem('Swipe Up ↑', 'Move ship up', theme, 0),
+          _buildControlItem('Swipe Down ↓', 'Move ship down', theme, 1),
+          _buildControlItem('Swipe Left ←', 'Move ship left', theme, 2),
+          _buildControlItem('Swipe Right →', 'Move ship right', theme, 3),
+          _buildControlItem('Tap Screen', 'Pause/Resume game', theme, 4),
+          const SizedBox(height: 8),
+          _buildControlItem(
+            'Arrow Keys (Desktop)',
+            'Change direction',
+            theme,
+            5,
+          ),
+          _buildControlItem('WASD (Desktop)', 'Change direction', theme, 6),
+          _buildControlItem(
+            'Spacebar (Desktop)',
+            'Pause/Resume game',
+            theme,
+            7,
+          ),
+        ];
+      case 2:
+        return [
+          _sectionLabel(theme, 'PICKUP TYPES'),
+          const SizedBox(height: 12),
+          _buildFoodItem('Pickup', '10 points', theme.foodColor, theme, 0),
+          _buildFoodItem('Bonus Pickup', '25 points', Colors.orange, theme, 1),
+          _buildFoodItem(
+            'Power-Up',
+            '50 points + Level Up',
+            const Color(0xFFFFD700),
+            theme,
+            2,
+          ),
+        ];
+      case 3:
+        return [
+          _sectionLabel(theme, 'RULES'),
+          const SizedBox(height: 12),
+          _buildRuleItem(
+            'Destroy enemies to increase your score',
+            theme,
+            0,
+          ),
+          _buildRuleItem(
+            'Enemy waves get faster as you level up',
+            theme,
+            1,
+          ),
+          _buildRuleItem('Game ends if your ship is destroyed', theme, 2),
+          _buildRuleItem('A Power-Up appears every 10 pickups', theme, 3),
+          _buildRuleItem('Bonus Pickups expire after 15 seconds', theme, 4),
+        ];
+      default:
+        return [
+          _sectionLabel(theme, 'PRO TIPS'),
+          const SizedBox(height: 12),
+          _buildTipItem(
+            'Anticipate enemy waves before they arrive',
+            theme,
+            0,
+          ),
+          _buildTipItem('Grab power-ups to upgrade your weapons', theme, 1),
+          _buildTipItem('Weave between asteroids and enemy fire', theme, 2),
+          _buildTipItem('Learn each boss\'s attack patterns', theme, 3),
+        ];
+    }
+  }
+
+  Widget _sectionLabel(GameTheme theme, String title) {
+    return Text(
+      title,
+      style: TextStyle(
+        color: theme.accentColor,
+        fontSize: 11,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1.8,
+      ),
+    );
+  }
+
+  Widget _buildControlItem(
+    String gesture,
+    String action,
+    GameTheme theme,
+    int index,
+  ) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
+          // Gesture chip — borderless tint.
           Container(
-            width: 140,
+            width: 150,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: theme.accentColor.withValues(alpha: 0.3),
-              ),
+              color: theme.accentColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               gesture,
               style: TextStyle(
-                color: theme.accentColor,
-                fontSize: 14,
+                color: theme.textPrimary,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
               textAlign: TextAlign.center,
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Text(
               action,
-              style: TextStyle(
-                color: theme.accentColor.withValues(alpha: 0.8),
-                fontSize: 14,
-              ),
+              style: TextStyle(color: theme.textMuted, fontSize: 13.5),
             ),
           ),
         ],
       ),
-    );
+    ).gameListItem(index);
   }
 
   Widget _buildFoodItem(
@@ -307,33 +289,35 @@ class InstructionsScreen extends StatelessWidget {
     String points,
     Color color,
     GameTheme theme,
+    int index,
   ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
+          // Glowing pickup orb.
           Container(
-            width: 24,
-            height: 24,
+            width: 22,
+            height: 22,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withValues(alpha: 0.4),
-                  blurRadius: 6,
+                  color: color.withValues(alpha: 0.5),
+                  blurRadius: 8,
                   spreadRadius: 2,
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Text(
               name,
               style: TextStyle(
-                color: theme.accentColor,
-                fontSize: 16,
+                color: theme.textPrimary,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -341,7 +325,7 @@ class InstructionsScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: theme.foodColor.withValues(alpha: 0.2),
+              color: theme.foodColor.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
@@ -355,43 +339,59 @@ class InstructionsScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ).gameListItem(index);
   }
 
-  Widget _buildRuleItem(String rule, GameTheme theme) {
+  Widget _buildRuleItem(String rule, GameTheme theme, int index) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Text(
-        rule,
-        style: TextStyle(
-          color: theme.accentColor.withValues(alpha: 0.8),
-          fontSize: 15,
-          height: 1.4,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTipItem(String tip, GameTheme theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.star, color: theme.foodColor, size: 16),
-          const SizedBox(width: 8),
+          Container(
+            width: 5,
+            height: 5,
+            margin: const EdgeInsets.only(top: 7, right: 10),
+            decoration: BoxDecoration(
+              color: theme.neonPrimary.withValues(alpha: 0.8),
+              shape: BoxShape.circle,
+            ),
+          ),
           Expanded(
             child: Text(
-              tip,
+              rule,
               style: TextStyle(
-                color: theme.accentColor.withValues(alpha: 0.8),
-                fontSize: 15,
+                color: theme.textMuted,
+                fontSize: 14,
                 height: 1.4,
               ),
             ),
           ),
         ],
       ),
-    );
+    ).gameListItem(index);
+  }
+
+  Widget _buildTipItem(String tip, GameTheme theme, int index) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.star, color: theme.foodColor, size: 15),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              tip,
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).gameListItem(index);
   }
 }

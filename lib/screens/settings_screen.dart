@@ -35,6 +35,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final StorageService _storageService = StorageService();
   late final AppDataCache _appCache;
   late final AnalyticsFacade _analytics;
+
+  /// Which section of the left rail is selected (drives the right pane).
+  int _selectedSection = 0;
+
+  /// Shared by the rail's ListView and its always-visible Scrollbar.
+  final ScrollController _railScrollController = ScrollController();
   bool _soundEnabled = true;
   bool _musicEnabled = true;
   bool _dPadEnabled = false;
@@ -80,12 +86,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _railScrollController.dispose();
+    super.dispose();
+  }
+
   /// Mirror the GameSettingsCubit state into our local UI fields. Used both
   /// for the post-frame initial sync and from the BlocListener below so the
   /// settings screen stays in lock-step with the cubit (source of truth).
   void _syncFromSettingsCubit(GameSettingsState s) {
     if (!s.isReady) return;
-    final changed = _dPadEnabled != s.dPadEnabled ||
+    final changed =
+        _dPadEnabled != s.dPadEnabled ||
         _dPadPosition != s.dPadPosition ||
         _screenShakeEnabled != s.screenShakeEnabled ||
         _selectedBoardSize != s.boardSize ||
@@ -135,9 +148,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _musicEnabled = _audioService.isMusicEnabled;
         _dPadEnabled = settingsData['dPadEnabled'] ?? false;
         _screenShakeEnabled = settingsData['screenShakeEnabled'] ?? false;
-        _dPadPosition = settingsData['dPadPosition'] ?? DPadPosition.bottomCenter;
-        _selectedBoardSize = settingsData['boardSize'] ?? GameConstants.availableBoardSizes[1];
-        _selectedCrashFeedbackDuration = settingsData['crashFeedbackDuration'] ?? GameConstants.defaultCrashFeedbackDuration;
+        _dPadPosition =
+            settingsData['dPadPosition'] ?? DPadPosition.bottomCenter;
+        _selectedBoardSize =
+            settingsData['boardSize'] ?? GameConstants.availableBoardSizes[1];
+        _selectedCrashFeedbackDuration =
+            settingsData['crashFeedbackDuration'] ??
+            GameConstants.defaultCrashFeedbackDuration;
       });
       // Game mode lives in SharedPreferences, not the cached settings map.
       _storageService.getGameMode().then((mode) {
@@ -198,317 +215,432 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     builder: (context, premiumState) {
                       final theme = themeState.currentTheme;
 
-                    return CommandScaffold(
-                      theme: theme,
-                      title: 'Settings',
-                      bottomBar: const ShipBannerAd(),
-                      bodyPadding: EdgeInsets.zero,
-                      body: SingleChildScrollView(
-                              padding: const EdgeInsets.all(24.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // 1. Controls Section (most frequently adjusted during gameplay)
-                                  _buildSection('CONTROLS', [
-                                    _buildAudioSwitch(
-                                      'D-Pad Controls',
-                                      _dPadEnabled,
-                                      (value) async {
-                                        setState(() {
-                                          _dPadEnabled = value;
-                                        });
-                                        await context
-                                            .read<GameSettingsCubit>()
-                                            .updateDPadEnabled(value);
-                                        _analytics.trackSettingChanged(settingName: 'dpad_enabled', value: '$value');
-                                      },
-                                      theme,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Show on-screen directional buttons during gameplay',
-                                      style: TextStyle(
-                                        color: theme.accentColor.withValues(
-                                          alpha: 0.6,
-                                        ),
-                                        fontSize: 12,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                    // D-Pad Position Selector (only show when D-Pad is enabled)
-                                    if (_dPadEnabled) ...[
-                                      const SizedBox(height: 16),
-                                      _buildDPadPositionSelector(
-                                        gameState,
-                                        theme,
-                                      ),
-                                    ],
-                                    const SizedBox(height: 16),
-                                    _buildControlInfo(theme),
-                                  ], theme),
-
-                                  const SizedBox(height: 32),
-
-                                  // 2. Gameplay Section (mode + board size + crash feedback + effects)
-                                  _buildSection('GAMEPLAY', [
-                                    _buildGameModeSelector(gameState, theme),
-                                    const SizedBox(height: 24),
-                                    const Divider(height: 1),
-                                    const SizedBox(height: 24),
-                                    _buildBoardSizeSelector(gameState, theme),
-                                    const SizedBox(height: 24),
-                                    const Divider(height: 1),
-                                    const SizedBox(height: 24),
-                                    _buildCrashFeedbackDurationSelector(
-                                      gameState,
-                                      theme,
-                                    ),
-                                    const SizedBox(height: 24),
-                                    const Divider(height: 1),
-                                    const SizedBox(height: 24),
-                                    _buildAudioSwitch(
-                                      'Screen Shake',
-                                      _screenShakeEnabled,
-                                      (value) async {
-                                        setState(() {
-                                          _screenShakeEnabled = value;
-                                        });
-                                        await context
-                                            .read<GameSettingsCubit>()
-                                            .setScreenShakeEnabled(value);
-                                        _analytics.trackSettingChanged(settingName: 'screen_shake', value: '$value');
-                                      },
-                                      theme,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Shake the screen on collisions and game events',
-                                      style: TextStyle(
-                                        color: theme.accentColor.withValues(
-                                          alpha: 0.6,
-                                        ),
-                                        fontSize: 12,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  ], theme),
-
-                                  const SizedBox(height: 32),
-
-                                  // 3. Audio Section
-                                  _buildSection('AUDIO', [
-                                    _buildAudioSwitch(
-                                      'Sound Effects',
-                                      _soundEnabled,
-                                      (value) async {
-                                        setState(() {
-                                          _soundEnabled = value;
-                                        });
-                                        await _audioService.setSoundEnabled(
-                                          value,
-                                        );
-                                        _analytics.trackSettingChanged(settingName: 'sound_effects', value: '$value');
-                                      },
-                                      theme,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    _buildAudioSwitch(
-                                      'Background Music',
-                                      _musicEnabled,
-                                      (value) async {
-                                        setState(() {
-                                          _musicEnabled = value;
-                                        });
-                                        await _audioService.setMusicEnabled(
-                                          value,
-                                        );
-                                        _analytics.trackSettingChanged(settingName: 'background_music', value: '$value');
-                                      },
-                                      theme,
-                                    ),
-                                  ], theme),
-
-                                  const SizedBox(height: 32),
-
-                                  // 4. Visual Section (theme + trail effects)
-                                  _buildSection('VISUAL', [
-                                    _buildThemeSelector(themeState, theme),
-                                    const SizedBox(height: 24),
-                                    const Divider(height: 1),
-                                    const SizedBox(height: 24),
-                                    _buildAudioSwitch(
-                                      'Engine Trail Effects',
-                                      themeState.isTrailSystemEnabled,
-                                      (value) async {
-                                        await context
-                                            .read<ThemeCubit>()
-                                            .setTrailSystemEnabled(value);
-                                      },
-                                      theme,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Enable particle trails behind your ship',
-                                      style: TextStyle(
-                                        color: theme.accentColor.withValues(
-                                          alpha: 0.6,
-                                        ),
-                                        fontSize: 12,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  ], theme),
-
-                                  const SizedBox(height: 32),
-
-                                  // 5. User Profile Section
-                                  _buildSection('NOTIFICATIONS', [
-                                    _buildAudioSwitch(
-                                      'Daily Reminder',
-                                      _notifDailyReminder,
-                                      (v) => _toggleNotification(
-                                        NotificationType.dailyReminder,
-                                        v,
-                                        (val) => _notifDailyReminder = val,
-                                      ),
-                                      theme,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    _buildAudioSwitch(
-                                      'Tournament Alerts',
-                                      _notifTournament,
-                                      (v) => _toggleNotification(
-                                        NotificationType.tournament,
-                                        v,
-                                        (val) => _notifTournament = val,
-                                      ),
-                                      theme,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    _buildAudioSwitch(
-                                      'Achievement Unlocks',
-                                      _notifAchievement,
-                                      (v) => _toggleNotification(
-                                        NotificationType.achievement,
-                                        v,
-                                        (val) => _notifAchievement = val,
-                                      ),
-                                      theme,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    _buildAudioSwitch(
-                                      'Social Updates',
-                                      _notifSocial,
-                                      (v) => _toggleNotification(
-                                        NotificationType.social,
-                                        v,
-                                        (val) => _notifSocial = val,
-                                      ),
-                                      theme,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    _buildAudioSwitch(
-                                      'Special Events',
-                                      _notifSpecialEvent,
-                                      (v) => _toggleNotification(
-                                        NotificationType.specialEvent,
-                                        v,
-                                        (val) => _notifSpecialEvent = val,
-                                      ),
-                                      theme,
-                                    ),
-                                  ], theme),
-
-                                  const SizedBox(height: 32),
-
-                                  // Diagnostic buttons that isolate each layer
-                                  // of the notification pipeline. Gated behind
-                                  // kDebugMode so production builds never see
-                                  // it — these are developer-facing controls
-                                  // for triage during development + Play Store
-                                  // internal testing, not user features. See
-                                  // NOTIFICATIONS_TESTING.md for triage guide.
-                                  if (kDebugMode) ...[
-                                    _buildSection('TEST NOTIFICATIONS', [
-                                      _buildNotificationTestPanel(theme),
-                                    ], theme),
-                                    const SizedBox(height: 32),
-                                  ],
-
-                                  _buildSection('USER PROFILE', [
-                                    _buildUserProfileSettings(authState, theme),
-                                  ], theme),
-
-                                  const SizedBox(height: 32),
-
-                                  // 6. Help & Tutorial Section
-                                  _buildSection('HELP & TUTORIAL', [
-                                    _buildReplayTutorialButton(theme),
-                                    const SizedBox(height: 16),
-                                    _buildCreditsButton(theme),
-                                    _buildPrivacyChoicesButton(theme),
-                                  ], theme),
-
-                                  const SizedBox(height: 32),
-
-                                  // 7. Premium Section (if available)
-                                  if (premiumState.isInitialized)
-                                    _buildSection('PREMIUM FEATURES', [
-                                      _buildPremiumStatusCard(
-                                        premiumState,
-                                        theme,
-                                      ),
-                                      if (!premiumState.hasPremium)
-                                        _buildUpgradeButton(
-                                          premiumState,
-                                          theme,
-                                        ),
-                                      _buildRestorePurchasesButton(
-                                        premiumState,
-                                        theme,
-                                      ),
-                                      _buildPurchaseHistoryButton(
-                                        premiumState,
-                                        theme,
-                                      ),
-                                      if (premiumState.hasPremium ||
-                                          premiumState.ownedSkins.isNotEmpty)
-                                        _buildCosmeticsButton(
-                                          premiumState,
-                                          theme,
-                                        ),
-                                      if (premiumState.hasBattlePass)
-                                        _buildBattlePassButton(
-                                          premiumState,
-                                          theme,
-                                        ),
-                                    ], theme),
-
-                                  const SizedBox(height: 16),
-
-                                  // Back Button — full width
-                                  NeonButton(
-                                    onPressed: () => context.pop(),
-                                    label: 'BACK TO GAME',
-                                    theme: theme,
-                                    icon: Icons.arrow_back,
-                                    expand: true,
-                                  ),
-                                ],
+                      return CommandScaffold(
+                        theme: theme,
+                        title: 'Settings',
+                        bottomBar: const ShipBannerAd(),
+                        bodyPadding: EdgeInsets.zero,
+                        body: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // LEFT — vertical section rail. Deliberate
+                              // exception to the no-scroll rule: 8 sections at
+                              // a readable size don't fit the short viewport,
+                              // so the rail scrolls, with edge fades hinting
+                              // that more items are above/below. The BACK
+                              // button stays pinned outside the scroll.
+                              Expanded(
+                                flex: 3,
+                                child: _buildNavRail(theme),
                               ),
-                            ),
-                    );
-                  },
-                );
-              },
-            );
-          },
-        );
-      },
-    ),
+                              const SizedBox(width: 20),
+                              // RIGHT — the selected section's content.
+                              Expanded(
+                                flex: 7,
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 250),
+                                  child: SingleChildScrollView(
+                                    key: ValueKey(_selectedSection),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: _buildSectionPane(
+                                        _selectedSection,
+                                        themeState,
+                                        gameState,
+                                        authState,
+                                        premiumState,
+                                        theme,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
+  /// Vertical, borderless section rail for the left region. Selection
+  /// reads purely through the neon icon, brighter text, and a glowing
+  /// indicator dot — no backgrounds, no borders.
+  ///
+  /// The item list SCROLLS (deliberate exception — 8 readable items don't
+  /// fit the short landscape viewport); top/bottom edge fades signal the
+  /// overflow, and the always-visible scrollbar thumb reinforces it.
+  Widget _buildNavRail(GameTheme theme) {
+    const items = [
+      (Icons.gamepad, 'Controls'),
+      (Icons.sports_esports, 'Gameplay'),
+      (Icons.volume_up, 'Audio'),
+      (Icons.palette, 'Visual'),
+      (Icons.notifications, 'Notifications'),
+      (Icons.person, 'Profile'),
+      (Icons.help_outline, 'Help'),
+      (Icons.workspace_premium, 'Premium'),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: ShaderMask(
+            // Fade the list out at the top/bottom edges so it reads as
+            // "more above / more below" — the scroll affordance.
+            shaderCallback: (rect) => const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.transparent,
+                Colors.white,
+                Colors.white,
+                Colors.transparent,
+              ],
+              stops: [0.0, 0.07, 0.9, 1.0],
+            ).createShader(rect),
+            blendMode: BlendMode.dstIn,
+            child: Scrollbar(
+              controller: _railScrollController,
+              thumbVisibility: true,
+              thickness: 2.5,
+              radius: const Radius.circular(2),
+              child: ListView(
+                controller: _railScrollController,
+                padding: const EdgeInsets.fromLTRB(0, 10, 8, 14),
+                children: [
+                  for (var i = 0; i < items.length; i++)
+                    _buildNavItem(theme, i, items[i].$1, items[i].$2),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        NeonButton(
+          onPressed: () => context.pop(),
+          label: 'BACK TO GAME',
+          theme: theme,
+          icon: Icons.arrow_back,
+          expand: true,
+          height: 44,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNavItem(GameTheme theme, int i, IconData icon, String label) {
+    final selected = _selectedSection == i;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _selectedSection = i),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 21,
+              color: selected ? theme.neonPrimary : theme.textMuted,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? theme.textPrimary : theme.textMuted,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const Spacer(),
+            if (selected)
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: theme.neonPrimary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.neonPrimary.withValues(alpha: 0.7),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Right-pane content for the selected rail section. Every control keeps
+  /// its exact handler / cubit wiring — only the layout moved from one long
+  /// scroll into per-section panes.
+  List<Widget> _buildSectionPane(
+    int section,
+    ThemeState themeState,
+    GameCubitState gameState,
+    AuthState authState,
+    PremiumState premiumState,
+    GameTheme theme,
+  ) {
+    switch (section) {
+      // 1. Controls (most frequently adjusted during gameplay)
+      case 0:
+        return [
+          _buildSection('CONTROLS', [
+            _buildAudioSwitch('D-Pad Controls', _dPadEnabled, (value) async {
+              setState(() {
+                _dPadEnabled = value;
+              });
+              await context.read<GameSettingsCubit>().updateDPadEnabled(value);
+              _analytics.trackSettingChanged(
+                settingName: 'dpad_enabled',
+                value: '$value',
+              );
+            }, theme),
+            const SizedBox(height: 8),
+            Text(
+              'Show on-screen directional buttons during gameplay',
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            // D-Pad Position Selector (only show when D-Pad is enabled)
+            if (_dPadEnabled) ...[
+              const SizedBox(height: 16),
+              _buildDPadPositionSelector(gameState, theme),
+            ],
+            const SizedBox(height: 16),
+            _buildControlInfo(theme),
+          ], theme),
+        ];
+
+      // 2. Gameplay (mode + board size + crash feedback + effects)
+      case 1:
+        return [
+          _buildSection('GAMEPLAY', [
+            _buildGameModeSelector(gameState, theme),
+            const SizedBox(height: 20),
+            _buildBoardSizeSelector(gameState, theme),
+            const SizedBox(height: 20),
+            _buildCrashFeedbackDurationSelector(gameState, theme),
+            const SizedBox(height: 20),
+            _buildAudioSwitch('Screen Shake', _screenShakeEnabled, (
+              value,
+            ) async {
+              setState(() {
+                _screenShakeEnabled = value;
+              });
+              await context.read<GameSettingsCubit>().setScreenShakeEnabled(
+                value,
+              );
+              _analytics.trackSettingChanged(
+                settingName: 'screen_shake',
+                value: '$value',
+              );
+            }, theme),
+            const SizedBox(height: 8),
+            Text(
+              'Shake the screen on collisions and game events',
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ], theme),
+        ];
+
+      // 3. Audio
+      case 2:
+        return [
+          _buildSection('AUDIO', [
+            _buildAudioSwitch('Sound Effects', _soundEnabled, (value) async {
+              setState(() {
+                _soundEnabled = value;
+              });
+              await _audioService.setSoundEnabled(value);
+              _analytics.trackSettingChanged(
+                settingName: 'sound_effects',
+                value: '$value',
+              );
+            }, theme),
+            const SizedBox(height: 16),
+            _buildAudioSwitch('Background Music', _musicEnabled, (value) async {
+              setState(() {
+                _musicEnabled = value;
+              });
+              await _audioService.setMusicEnabled(value);
+              _analytics.trackSettingChanged(
+                settingName: 'background_music',
+                value: '$value',
+              );
+            }, theme),
+          ], theme),
+        ];
+
+      // 4. Visual (theme + trail effects)
+      case 3:
+        return [
+          _buildSection('VISUAL', [
+            _buildThemeSelector(themeState, theme),
+            const SizedBox(height: 20),
+            _buildAudioSwitch(
+              'Engine Trail Effects',
+              themeState.isTrailSystemEnabled,
+              (value) async {
+                await context.read<ThemeCubit>().setTrailSystemEnabled(value);
+              },
+              theme,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Enable particle trails behind your ship',
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ], theme),
+        ];
+
+      // 5. Notifications (+ debug-only test panel)
+      case 4:
+        return [
+          _buildSection('NOTIFICATIONS', [
+            _buildAudioSwitch(
+              'Daily Reminder',
+              _notifDailyReminder,
+              (v) => _toggleNotification(
+                NotificationType.dailyReminder,
+                v,
+                (val) => _notifDailyReminder = val,
+              ),
+              theme,
+            ),
+            const SizedBox(height: 16),
+            _buildAudioSwitch(
+              'Tournament Alerts',
+              _notifTournament,
+              (v) => _toggleNotification(
+                NotificationType.tournament,
+                v,
+                (val) => _notifTournament = val,
+              ),
+              theme,
+            ),
+            const SizedBox(height: 16),
+            _buildAudioSwitch(
+              'Achievement Unlocks',
+              _notifAchievement,
+              (v) => _toggleNotification(
+                NotificationType.achievement,
+                v,
+                (val) => _notifAchievement = val,
+              ),
+              theme,
+            ),
+            const SizedBox(height: 16),
+            _buildAudioSwitch(
+              'Social Updates',
+              _notifSocial,
+              (v) => _toggleNotification(
+                NotificationType.social,
+                v,
+                (val) => _notifSocial = val,
+              ),
+              theme,
+            ),
+            const SizedBox(height: 16),
+            _buildAudioSwitch(
+              'Special Events',
+              _notifSpecialEvent,
+              (v) => _toggleNotification(
+                NotificationType.specialEvent,
+                v,
+                (val) => _notifSpecialEvent = val,
+              ),
+              theme,
+            ),
+          ], theme),
+
+          // Diagnostic buttons that isolate each layer of the notification
+          // pipeline. Gated behind kDebugMode so production builds never see
+          // it — these are developer-facing controls for triage during
+          // development + Play Store internal testing, not user features.
+          // See NOTIFICATIONS_TESTING.md for triage guide.
+          if (kDebugMode) ...[
+            const SizedBox(height: 32),
+            _buildSection('TEST NOTIFICATIONS', [
+              _buildNotificationTestPanel(theme),
+            ], theme),
+          ],
+        ];
+
+      // 6. User profile
+      case 5:
+        return [
+          _buildSection('USER PROFILE', [
+            _buildUserProfileSettings(authState, theme),
+          ], theme),
+        ];
+
+      // 7. Help & tutorial
+      case 6:
+        return [
+          _buildSection('HELP & TUTORIAL', [
+            _buildReplayTutorialButton(theme),
+            const SizedBox(height: 16),
+            _buildCreditsButton(theme),
+            _buildPrivacyChoicesButton(theme),
+          ], theme),
+        ];
+
+      // 8. Premium (if available)
+      case 7:
+        return [
+          if (premiumState.isInitialized)
+            _buildSection('PREMIUM FEATURES', [
+              _buildPremiumStatusCard(premiumState, theme),
+              if (!premiumState.hasPremium)
+                _buildUpgradeButton(premiumState, theme),
+              _buildRestorePurchasesButton(premiumState, theme),
+              _buildPurchaseHistoryButton(premiumState, theme),
+              if (premiumState.hasPremium || premiumState.ownedSkins.isNotEmpty)
+                _buildCosmeticsButton(premiumState, theme),
+              if (premiumState.hasBattlePass)
+                _buildBattlePassButton(premiumState, theme),
+            ], theme),
+        ];
+
+      default:
+        return const [];
+    }
+  }
+
+  /// Section pane: uppercase HUD label + content floating directly on the
+  /// starfield — no glass, no borders (the rail already names the section).
   Widget _buildSection(String title, List<Widget> children, GameTheme theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -517,20 +649,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title,
           style: TextStyle(
             color: theme.accentColor,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1,
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.8,
           ),
         ),
         const SizedBox(height: 16),
-        GlassPanel(
-          theme: theme,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: children,
-          ),
-        ),
+        ...children,
       ],
     );
   }
@@ -546,16 +671,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Text(
                     'Current Theme',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: theme.textMuted, fontSize: 14),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     theme.name,
                     style: TextStyle(
-                      color: theme.accentColor,
+                      color: theme.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -564,16 +686,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-            // Theme preview
+            // Theme preview swatch — the dark fill IS the preview content
+            // (it shows the skin's background colour); no halo around it.
             Container(
               width: 60,
               height: 40,
               decoration: BoxDecoration(
                 color: theme.backgroundColor,
-                border: Border.all(
-                  color: theme.accentColor.withValues(alpha: 0.5),
-                  width: 2,
-                ),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -626,13 +745,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: theme.accentColor.withValues(alpha: 0.8),
-            fontSize: 16,
-          ),
-        ),
+        Text(title, style: TextStyle(color: theme.textPrimary, fontSize: 16)),
         Switch(
           value: value,
           onChanged: onChanged,
@@ -649,16 +762,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         Row(
           children: [
-            Icon(
-              Icons.gamepad,
-              color: theme.accentColor.withValues(alpha: 0.8),
-              size: 20,
-            ),
+            Icon(Icons.gamepad, color: theme.neonPrimary, size: 20),
             const SizedBox(width: 8),
             Text(
               'D-Pad Position',
               style: TextStyle(
-                color: theme.accentColor,
+                color: theme.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -666,65 +775,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: theme.backgroundColor.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
-          ),
-          child: Row(
-            children: DPadPosition.values.map((position) {
-              final isSelected = _dPadPosition == position;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () async {
-                    setState(() {
-                      _dPadPosition = position;
-                    });
-                    await context.read<GameSettingsCubit>().updateDPadPosition(
-                      position,
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? theme.accentColor.withValues(alpha: 0.2)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                      border: isSelected
-                          ? Border.all(color: theme.accentColor, width: 1.5)
-                          : null,
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          position.icon,
-                          style: const TextStyle(fontSize: 20),
+        Row(
+          children: DPadPosition.values.map((position) {
+            final isSelected = _dPadPosition == position;
+            return Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () async {
+                  setState(() {
+                    _dPadPosition = position;
+                  });
+                  await context.read<GameSettingsCubit>().updateDPadPosition(
+                    position,
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 8,
+                  ),
+                  // No background — selection reads via the neon label.
+                  decoration: const BoxDecoration(),
+                  child: Column(
+                    children: [
+                      Text(position.icon, style: const TextStyle(fontSize: 20)),
+                      const SizedBox(height: 4),
+                      Text(
+                        position.displayName,
+                        style: TextStyle(
+                          color: isSelected
+                              ? theme.neonPrimary
+                              : theme.textMuted,
+                          fontSize: 12,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          position.displayName,
-                          style: TextStyle(
-                            color: isSelected
-                                ? theme.accentColor
-                                : theme.accentColor.withValues(alpha: 0.6),
-                            fontSize: 12,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            }).toList(),
-          ),
+              ),
+            );
+          }).toList(),
         ),
       ],
     );
@@ -742,7 +835,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text(
             'Desktop/Web Controls',
             style: TextStyle(
-              color: theme.accentColor,
+              color: theme.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
@@ -758,7 +851,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text(
               'Touch Controls (if available)',
               style: TextStyle(
-                color: theme.accentColor.withValues(alpha: 0.7),
+                color: theme.textMuted,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -772,7 +865,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text(
             'Touch Controls',
             style: TextStyle(
-              color: theme.accentColor,
+              color: theme.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
@@ -790,36 +883,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildControlItem(String control, String action, GameTheme theme) {
+    // Gesture chip: borderless faint tint + plain muted description.
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.keyboard_arrow_right,
-            color: theme.accentColor.withValues(alpha: 0.6),
-            size: 20,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: theme.accentColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              control,
+              style: TextStyle(
+                color: theme.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  control,
-                  style: TextStyle(
-                    color: theme.accentColor,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  action,
-                  style: TextStyle(
-                    color: theme.accentColor.withValues(alpha: 0.7),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+            child: Text(
+              action,
+              style: TextStyle(color: theme.textMuted, fontSize: 12),
             ),
           ),
         ],
@@ -838,16 +926,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Text(
                     'Game Mode',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: theme.textMuted, fontSize: 14),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '${_selectedGameMode.icon} ${_selectedGameMode.name}',
                     style: TextStyle(
-                      color: theme.accentColor,
+                      color: theme.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -861,7 +946,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Text(
           _selectedGameMode.description,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.7),
+            color: theme.textMuted,
             fontSize: 12,
             fontStyle: FontStyle.italic,
           ),
@@ -875,15 +960,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final isSelected = _selectedGameMode == mode;
             final isCurrentlyPlaying = gameState.isPlaying;
             return GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: isCurrentlyPlaying
                   ? null
                   : () async {
                       setState(() => _selectedGameMode = mode);
-                      await context
-                          .read<GameSettingsCubit>()
-                          .updateGameMode(mode);
+                      await context.read<GameSettingsCubit>().updateGameMode(
+                        mode,
+                      );
                       _analytics.trackSettingChanged(
-                          settingName: 'game_mode', value: mode.name);
+                        settingName: 'game_mode',
+                        value: mode.name,
+                      );
                     },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -891,29 +979,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   horizontal: 12,
                   vertical: 8,
                 ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? theme.accentColor.withValues(alpha: 0.2)
-                      : Colors.transparent,
-                  border: Border.all(
-                    color: isSelected
-                        ? theme.accentColor
-                        : theme.accentColor.withValues(alpha: 0.3),
-                    width: isSelected ? 2 : 1,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                // No background at all — the selected option reads through
+                // its neon text color alone.
+                decoration: const BoxDecoration(),
                 child: Text(
                   '${mode.icon} ${mode.name}',
                   style: TextStyle(
                     color: isCurrentlyPlaying
-                        ? theme.accentColor.withValues(alpha: 0.5)
-                        : (isSelected
-                            ? theme.accentColor
-                            : Colors.white.withValues(alpha: 0.8)),
+                        ? theme.textMuted.withValues(alpha: 0.5)
+                        : (isSelected ? theme.neonPrimary : theme.textMuted),
                     fontSize: 11,
-                    fontWeight:
-                        isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               ),
@@ -947,16 +1025,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Text(
                     'Current Size',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: theme.textMuted, fontSize: 14),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     _selectedBoardSize.name,
                     style: TextStyle(
-                      color: theme.accentColor,
+                      color: theme.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -964,25 +1039,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 2),
                   Text(
                     '${_selectedBoardSize.width} × ${_selectedBoardSize.height}',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: theme.textMuted, fontSize: 12),
                   ),
                 ],
               ),
             ),
 
-            // Board size preview
+            // Board size preview — the dark fill is the board canvas the
+            // painter draws on; no halo around it.
             Container(
               width: 60,
               height: 60,
               decoration: BoxDecoration(
                 color: theme.backgroundColor,
-                border: Border.all(
-                  color: theme.accentColor.withValues(alpha: 0.5),
-                  width: 2,
-                ),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: CustomPaint(
@@ -997,7 +1066,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Text(
           _selectedBoardSize.description,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.7),
+            color: theme.textMuted,
             fontSize: 12,
             fontStyle: FontStyle.italic,
           ),
@@ -1015,17 +1084,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final isCurrentlyPlaying = gameState.isPlaying;
 
             return GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: isCurrentlyPlaying
                   ? null
                   : () async {
                       setState(() {
                         _selectedBoardSize = boardSize;
                       });
-                      await context
-                          .read<GameSettingsCubit>()
-                          .updateBoardSize(boardSize);
+                      await context.read<GameSettingsCubit>().updateBoardSize(
+                        boardSize,
+                      );
                       _analytics.trackSettingChanged(
-                          settingName: 'board_size', value: boardSize.name);
+                        settingName: 'board_size',
+                        value: boardSize.name,
+                      );
                     },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -1033,30 +1105,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   horizontal: 12,
                   vertical: 8,
                 ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? theme.accentColor.withValues(alpha: 0.2)
-                      : Colors.transparent,
-                  border: Border.all(
-                    color: isSelected
-                        ? theme.accentColor
-                        : theme.accentColor.withValues(alpha: 0.3),
-                    width: isSelected ? 2 : 1,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                // No background at all — the selected option reads through
+                // its neon text color alone.
+                decoration: const BoxDecoration(),
                 child: Text(
                   '${boardSize.name}\n${boardSize.width}×${boardSize.height}',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: isCurrentlyPlaying
-                        ? theme.accentColor.withValues(alpha: 0.5)
-                        : (isSelected
-                            ? theme.accentColor
-                            : Colors.white.withValues(alpha: 0.8)),
+                        ? theme.textMuted.withValues(alpha: 0.5)
+                        : (isSelected ? theme.neonPrimary : theme.textMuted),
                     fontSize: 11,
-                    fontWeight:
-                        isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               ),
@@ -1094,10 +1156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Text(
                     'Current Duration',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: theme.textMuted, fontSize: 14),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -1105,7 +1164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _selectedCrashFeedbackDuration,
                     ),
                     style: TextStyle(
-                      color: theme.accentColor,
+                      color: theme.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1114,20 +1173,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-            // Timer icon preview
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: theme.backgroundColor,
-                border: Border.all(
-                  color: theme.accentColor.withValues(alpha: 0.5),
-                  width: 2,
-                ),
-                borderRadius: BorderRadius.circular(25),
-              ),
-              child: Icon(Icons.timer, color: theme.accentColor, size: 24),
-            ),
+            // Timer icon — bare, no disc.
+            Icon(Icons.timer, color: theme.accentColor, size: 28),
           ],
         ),
 
@@ -1136,7 +1183,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Text(
           'How long to show crash explanation',
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.7),
+            color: theme.textMuted,
             fontSize: 12,
             fontStyle: FontStyle.italic,
           ),
@@ -1155,6 +1202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final isSelected = _selectedCrashFeedbackDuration == duration;
 
             return GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () async {
                 setState(() {
                   _selectedCrashFeedbackDuration = duration;
@@ -1162,7 +1210,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await context
                     .read<GameSettingsCubit>()
                     .updateCrashFeedbackDuration(duration);
-                _analytics.trackSettingChanged(settingName: 'crash_feedback_duration', value: '${duration.inSeconds}');
+                _analytics.trackSettingChanged(
+                  settingName: 'crash_feedback_duration',
+                  value: '${duration.inSeconds}',
+                );
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -1170,24 +1221,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   horizontal: 12,
                   vertical: 8,
                 ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? theme.accentColor.withValues(alpha: 0.2)
-                      : Colors.transparent,
-                  border: Border.all(
-                    color: isSelected
-                        ? theme.accentColor
-                        : theme.accentColor.withValues(alpha: 0.3),
-                    width: isSelected ? 2 : 1,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                // No background at all — the selected option reads through
+                // its neon text color alone.
+                decoration: const BoxDecoration(),
                 child: Text(
                   GameConstants.getCrashFeedbackLabel(duration),
                   style: TextStyle(
-                    color: isSelected
-                        ? theme.accentColor
-                        : Colors.white.withValues(alpha: 0.8),
+                    color: isSelected ? theme.neonPrimary : theme.textMuted,
                     fontSize: 14,
                     fontWeight: isSelected
                         ? FontWeight.bold
@@ -1226,7 +1266,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Text(
                     'Username',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
+                      color: theme.textMuted,
                       fontSize: 12,
                       letterSpacing: 0.5,
                     ),
@@ -1248,7 +1288,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: Text(
                           '@$usernameLabel',
                           style: TextStyle(
-                            color: theme.accentColor,
+                            color: theme.textPrimary,
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1262,26 +1302,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     authState.isGuestUser
                         ? 'Guest Account'
                         : 'Authenticated Account',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.5),
-                      fontSize: 11,
-                    ),
+                    style: TextStyle(color: theme.textMuted, fontSize: 11),
                   ),
                 ],
               ),
             ),
 
-            // Profile type indicator
+            // Profile type indicator — borderless tinted status disc
             Container(
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: theme.backgroundColor,
-                border: Border.all(
-                  color: (authState.isGuestUser ? Colors.orange : Colors.green)
-                      .withValues(alpha: 0.5),
-                  width: 2,
-                ),
+                color: (authState.isGuestUser ? Colors.orange : Colors.green)
+                    .withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(25),
               ),
               child: Icon(
@@ -1312,7 +1345,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text(
             'Sign in to keep your progress and play with friends',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: theme.textMuted,
               fontSize: 12,
               fontStyle: FontStyle.italic,
             ),
@@ -1332,7 +1365,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text(
             'Your username is visible to friends and on leaderboards',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: theme.textMuted,
               fontSize: 12,
               fontStyle: FontStyle.italic,
             ),
@@ -1370,10 +1403,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Text(
           'Fires immediately. If you don\'t see it, OS permission is denied '
           'or the channel is blocked in system settings.',
-          style: TextStyle(
-            color: theme.accentColor.withValues(alpha: 0.6),
-            fontSize: 12,
-          ),
+          style: TextStyle(color: theme.textMuted, fontSize: 12),
         ),
         const SizedBox(height: 16),
         NeonButton(
@@ -1388,13 +1418,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Text(
           hasFcmToken
               ? 'Backend sends a push to your device via FCM. Should arrive '
-                  'within ~5 seconds if token + backend + delivery all work.'
+                    'within ~5 seconds if token + backend + delivery all work.'
               : 'FCM token not yet registered. Sign in or restart the app, '
-                  'then return to retry.',
-          style: TextStyle(
-            color: theme.accentColor.withValues(alpha: 0.6),
-            fontSize: 12,
-          ),
+                    'then return to retry.',
+          style: TextStyle(color: theme.textMuted, fontSize: 12),
         ),
         if (kDebugMode) ...[
           const SizedBox(height: 16),
@@ -1588,10 +1615,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ? 'No variant applied (no streak / no challenge / no high score yet, or no FCM token registered).'
         : 'Preview fired via backend (variant: $variant). Check your tray.';
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 4),
-      ),
+      SnackBar(content: Text(message), duration: const Duration(seconds: 4)),
     );
   }
 
@@ -1623,8 +1647,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (!shown) {
               messenger.showSnackBar(
                 const SnackBar(
-                  content:
-                      Text("Ad privacy options aren't available right now."),
+                  content: Text(
+                    "Ad privacy options aren't available right now.",
+                  ),
                 ),
               );
             }
@@ -1638,10 +1663,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 8),
         Text(
           'Manage personalized ad consent',
-          style: TextStyle(
-            color: theme.accentColor.withValues(alpha: 0.6),
-            fontSize: 12,
-          ),
+          style: TextStyle(color: theme.textMuted, fontSize: 12),
         ),
       ],
     );
@@ -1662,10 +1684,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 8),
         Text(
           'App version, credits, and links',
-          style: TextStyle(
-            color: theme.accentColor.withValues(alpha: 0.6),
-            fontSize: 12,
-          ),
+          style: TextStyle(color: theme.textMuted, fontSize: 12),
         ),
       ],
     );
@@ -1686,10 +1705,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 8),
         Text(
           'Watch the home tour or game tutorial again',
-          style: TextStyle(
-            color: theme.accentColor.withValues(alpha: 0.6),
-            fontSize: 12,
-          ),
+          style: TextStyle(color: theme.textMuted, fontSize: 12),
         ),
       ],
     );
@@ -1700,10 +1716,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: theme.backgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accentColor.withValues(alpha: 0.3)),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             Icon(Icons.school, color: theme.accentColor),
@@ -1711,7 +1724,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text(
               'Replay Tutorial',
               style: TextStyle(
-                color: theme.accentColor,
+                color: theme.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -1719,32 +1732,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         content: Text(
           'Which tutorial would you like to replay?',
-          style: TextStyle(color: theme.accentColor.withValues(alpha: 0.8)),
+          style: TextStyle(color: theme.textMuted),
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(dialogContext).pop();
             },
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: theme.accentColor.withValues(alpha: 0.6)),
-            ),
+            child: Text('Cancel', style: TextStyle(color: theme.textMuted)),
           ),
           TextButton(
             onPressed: () async {
               Navigator.of(dialogContext).pop();
               final walkthroughService = WalkthroughService();
               await walkthroughService.initialize();
-              await walkthroughService.reset(WalkthroughService.homeWalkthroughId);
+              await walkthroughService.reset(
+                WalkthroughService.homeWalkthroughId,
+              );
               if (mounted) {
                 context.go(AppRoutes.home);
               }
             },
-            child: Text(
-              'Home Tour',
-              style: TextStyle(color: theme.foodColor),
-            ),
+            child: Text('Home Tour', style: TextStyle(color: theme.foodColor)),
           ),
           TextButton(
             onPressed: () async {
@@ -1788,9 +1797,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               backgroundColor: theme.backgroundColor,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                  color: theme.accentColor.withValues(alpha: 0.3),
-                ),
               ),
               title: Text(
                 'Change Username',
@@ -1812,9 +1818,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         decoration: BoxDecoration(
                           color: theme.accentColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: theme.accentColor.withValues(alpha: 0.3),
-                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -1828,7 +1831,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             Text(
                               'Current: ',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.6),
+                                color: theme.textMuted,
                                 fontSize: 12,
                               ),
                             ),
@@ -1836,7 +1839,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               child: Text(
                                 currentUsername,
                                 style: TextStyle(
-                                  color: theme.accentColor,
+                                  color: theme.textPrimary,
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -1850,10 +1853,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                     Text(
                       'Choose a unique username that represents you in the game.',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: theme.textMuted, fontSize: 14),
                     ),
                     const SizedBox(height: 16),
 
@@ -1861,35 +1861,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       controller: usernameController,
                       decoration: InputDecoration(
                         labelText: 'Username',
-                        labelStyle: TextStyle(
-                          color: theme.accentColor.withValues(alpha: 0.7),
-                        ),
+                        labelStyle: TextStyle(color: theme.textMuted),
                         hintText: 'Enter new username',
-                        hintStyle: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.5),
-                        ),
+                        hintStyle: TextStyle(color: theme.textMuted),
+                        // Borderless filled input — definition comes from
+                        // the faint fill, not an outline.
                         filled: true,
-                        fillColor: theme.backgroundColor.withValues(alpha: 0.3),
+                        fillColor: Colors.white.withValues(alpha: 0.06),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: theme.accentColor.withValues(alpha: 0.3),
-                          ),
+                          borderSide: BorderSide.none,
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: theme.accentColor.withValues(alpha: 0.3),
-                          ),
+                          borderSide: BorderSide.none,
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: theme.accentColor),
+                          borderSide: BorderSide.none,
                         ),
                         errorText: errorMessage,
                         errorStyle: const TextStyle(color: Colors.red),
                       ),
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(color: theme.textPrimary),
                       maxLength: 20,
                     ),
 
@@ -1897,10 +1891,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     Text(
                       '• 3-20 characters\n• Must start with a letter\n• Letters, numbers, and underscores only',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.6),
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: theme.textMuted, fontSize: 12),
                     ),
                   ],
                 ),
@@ -1912,9 +1903,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       : () => Navigator.of(dialogContext).pop(),
                   child: Text(
                     'Cancel',
-                    style: TextStyle(
-                      color: theme.accentColor.withValues(alpha: 0.7),
-                    ),
+                    style: TextStyle(color: theme.textMuted),
                   ),
                 ),
                 ElevatedButton(
@@ -1931,8 +1920,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                           bool success = false;
                           final authCubit = context.read<AuthCubit>();
-                          final scaffoldMessenger =
-                              ScaffoldMessenger.of(context);
+                          final scaffoldMessenger = ScaffoldMessenger.of(
+                            context,
+                          );
 
                           if (authState.isGuestUser) {
                             success = await authCubit.updateGuestUsername(
@@ -2004,7 +1994,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       },
     );
   }
-
 }
 
 class _BoardSizePainter extends CustomPainter {
@@ -2075,11 +2064,6 @@ extension _SettingsPremium on _SettingsScreenState {
                 ],
               ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: premiumState.hasPremium
-              ? Colors.amber
-              : theme.accentColor.withValues(alpha: 0.3),
-        ),
       ),
       child: Row(
         children: [
@@ -2180,7 +2164,6 @@ extension _SettingsPremium on _SettingsScreenState {
           backgroundColor: theme.accentColor.withValues(alpha: 0.1),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: theme.accentColor.withValues(alpha: 0.3)),
           ),
         ),
         child: Row(
@@ -2214,7 +2197,6 @@ extension _SettingsPremium on _SettingsScreenState {
           backgroundColor: theme.accentColor.withValues(alpha: 0.1),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: theme.accentColor.withValues(alpha: 0.3)),
           ),
         ),
         child: Row(
@@ -2245,7 +2227,6 @@ extension _SettingsPremium on _SettingsScreenState {
           backgroundColor: theme.accentColor.withValues(alpha: 0.1),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: theme.accentColor.withValues(alpha: 0.3)),
           ),
         ),
         child: Row(
@@ -2295,7 +2276,6 @@ extension _SettingsPremium on _SettingsScreenState {
             ],
           ),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.purple.withValues(alpha: 0.5)),
         ),
         child: TextButton(
           onPressed: () => _openBattlePass(),
@@ -2500,11 +2480,15 @@ extension _SettingsPremium on _SettingsScreenState {
       return 'skin';
     } else if (bare.contains('trail')) {
       return 'trail';
-    } else if (bare.contains('bundle') || bare.contains('pack') || bare.contains('collection')) {
+    } else if (bare.contains('bundle') ||
+        bare.contains('pack') ||
+        bare.contains('collection')) {
       return 'bundle';
     } else if (bare.contains('battle_pass')) {
       return 'battlepass';
-    } else if (bare.contains('tournament') || bare.contains('championship') || bare.contains('vip')) {
+    } else if (bare.contains('tournament') ||
+        bare.contains('championship') ||
+        bare.contains('vip')) {
       return 'tournament';
     }
     return 'unknown';
