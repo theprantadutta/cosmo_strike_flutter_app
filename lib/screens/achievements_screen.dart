@@ -56,156 +56,207 @@ class _AchievementsScreenState extends State<AchievementsScreen>
       title: 'Achievements',
       bottomBar: const ShipBannerAd(),
       bodyPadding: EdgeInsets.zero,
-      body: Column(
-        children: [
-          // Tab Bar
-          _buildTabBar(theme),
-
-          // Progress Summary
-          _buildProgressSummary(theme),
-
-          // Achievements List
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildAchievementsList(
-                  _achievementService.achievements,
-                  theme,
+      // Landscape command deck: LEFT = completion ring + section rail,
+      // RIGHT = the achievement lists. Both float borderless on the
+      // starfield per the clean design.
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SizedBox(
+                    width: 230,
+                    child: _buildLeftPanel(theme),
+                  ),
                 ),
-                _buildAchievementsList(
-                  _achievementService.getUnlockedAchievements(),
-                  theme,
-                ),
-                _buildAchievementsList(
-                  _achievementService.getLockedAchievements(),
-                  theme,
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabBar(GameTheme theme) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      decoration: BoxDecoration(
-        color: theme.surfaceGlass,
-        borderRadius: GameTokens.brMd,
-        border: Border.all(color: theme.stroke),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicator: BoxDecoration(
-          color: theme.neonPrimary.withValues(alpha: 0.85),
-          borderRadius: GameTokens.brMd,
+            const SizedBox(width: 20),
+            Expanded(
+              flex: 7,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildAchievementsList(
+                    _achievementService.achievements,
+                    theme,
+                  ),
+                  _buildAchievementsList(
+                    _achievementService.getUnlockedAchievements(),
+                    theme,
+                  ),
+                  _buildAchievementsList(
+                    _achievementService.getLockedAchievements(),
+                    theme,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerColor: Colors.transparent,
-        labelColor: const Color(0xFF03040A),
-        unselectedLabelColor: theme.textMuted,
-        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-        tabs: const [
-          Tab(text: 'All'),
-          Tab(text: 'Unlocked'),
-          Tab(text: 'Locked'),
-        ],
       ),
     );
   }
 
-  Widget _buildProgressSummary(GameTheme theme) {
-    // Stat counts use the same logic as the dashboard's AchievementsGrid:
-    // - Total: every row in the catalog
-    // - Unlocked: isUnlocked = true
-    // - Claimed: rewardClaimed = true
-    // - Pending: isUnlocked = false (locked, regardless of progress)
+  /// LEFT panel: gold completion ring + claimed/pending readout + the
+  /// All/Unlocked/Locked rail (no-background, glowing-dot selection).
+  /// Stat counts use the same logic as the dashboard's AchievementsGrid.
+  Widget _buildLeftPanel(GameTheme theme) {
     final all = _achievementService.achievements;
     final total = all.length;
     final unlocked = all.where((a) => a.isUnlocked).length;
     final claimed = all.where((a) => a.rewardClaimed).length;
     final pending = all.where((a) => !a.isUnlocked).length;
     final completionPercentage = _achievementService.completionPercentage;
-    final claimedOfUnlocked =
-        unlocked > 0 ? ((claimed / unlocked) * 100).round() : 0;
     final completionPct = (completionPercentage * 100).round();
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: GlassPanel(
-      theme: theme,
-      child: Column(
+    return AnimatedBuilder(
+      animation: _tabController,
+      builder: (context, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 4-tile grid — same labels and counting logic as the dashboard
-          // AchievementsGrid header so the operator and the player see the
-          // same numbers when troubleshooting.
-          Row(
-            children: [
-              Expanded(
-                child: _StatTile(
-                  label: 'TOTAL',
-                  value: '$total',
-                  accent: Colors.white70,
+          Center(
+            child: SizedBox(
+              width: 96,
+              height: 96,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 96,
+                    height: 96,
+                    child: CircularProgressIndicator(
+                      value: completionPercentage,
+                      strokeWidth: 7,
+                      strokeCap: StrokeCap.round,
+                      backgroundColor: Colors.white.withValues(alpha: 0.08),
+                      valueColor: const AlwaysStoppedAnimation(Colors.amber),
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$completionPct%',
+                        style: TextStyle(
+                          color: theme.textPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 22,
+                        ),
+                      ),
+                      Text(
+                        '$unlocked of $total',
+                        style:
+                            TextStyle(color: theme.textMuted, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: Text(
+              'COMPLETION',
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Center(
+            child: Text(
+              '$claimed claimed · $pending pending',
+              style: TextStyle(color: theme.textMuted, fontSize: 11),
+            ),
+          ),
+          const SizedBox(height: 14),
+          _buildNavItem(theme, 0, Icons.apps, 'All', total),
+          _buildNavItem(theme, 1, Icons.emoji_events, 'Unlocked', unlocked),
+          _buildNavItem(theme, 2, Icons.lock_outline, 'Locked', pending),
+        ],
+      ),
+    ).gameEntrance();
+  }
+
+  Widget _buildNavItem(
+    GameTheme theme,
+    int i,
+    IconData icon,
+    String label,
+    int count,
+  ) {
+    final selected = _tabController.index == i;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _tabController.animateTo(i),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? theme.neonPrimary : theme.textMuted,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? theme.textPrimary : theme.textMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: theme.accentColor.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  color: theme.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
+            ),
+            if (selected) ...[
               const SizedBox(width: 8),
-              Expanded(
-                child: _StatTile(
-                  label: 'UNLOCKED',
-                  value: '$unlocked',
-                  accent: Colors.amber,
-                  hint: '$completionPct% complete',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _StatTile(
-                  label: 'CLAIMED',
-                  value: '$claimed',
-                  accent: Colors.green,
-                  hint:
-                      unlocked > 0 ? '$claimedOfUnlocked% of unlocked' : null,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _StatTile(
-                  label: 'PENDING',
-                  value: '$pending',
-                  accent: Colors.white70,
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: theme.neonPrimary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.neonPrimary.withValues(alpha: 0.7),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 14),
-
-          // Completion bar — gradient matches the dashboard's emerald→cyan.
-          Container(
-            height: 8,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: completionPercentage,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [theme.accentColor, theme.primaryColor],
-                  ),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
-      ),
-    ).gameEntrance();
+    );
   }
 
   Widget _buildAchievementsList(
@@ -226,7 +277,7 @@ class _AchievementsScreenState extends State<AchievementsScreen>
             Text(
               'No achievements here',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
+                color: theme.textMuted,
                 fontSize: 16,
               ),
             ),
@@ -251,18 +302,12 @@ class _AchievementsScreenState extends State<AchievementsScreen>
     final isUnlocked = achievement.isUnlocked;
     final progress = achievement.progressPercentage;
 
+    // Fully transparent row per the clean design — the rarity-coloured icon
+    // disc, badges, and reward pills carry the card.
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: GlassPanel(
-        theme: theme,
-        glow: isUnlocked,
-        borderColor: isUnlocked
-            ? achievement.rarityColor.withValues(alpha: 0.5)
-            : theme.stroke,
-        fillColor: isUnlocked
-            ? achievement.rarityColor.withValues(alpha: 0.16)
-            : null,
-        child: Column(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -273,10 +318,24 @@ class _AchievementsScreenState extends State<AchievementsScreen>
                   decoration: BoxDecoration(
                     color: isUnlocked
                         ? achievement.rarityColor
-                        : Colors.grey.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(8),
+                        : Colors.grey.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: isUnlocked
+                        ? [
+                            BoxShadow(
+                              color: achievement.rarityColor
+                                  .withValues(alpha: 0.35),
+                              blurRadius: 12,
+                              spreadRadius: -2,
+                            ),
+                          ]
+                        : null,
                   ),
-                  child: Icon(achievement.icon, color: Colors.white, size: 24),
+                  child: Icon(
+                    achievement.icon,
+                    color: isUnlocked ? Colors.white : theme.textMuted,
+                    size: 24,
+                  ),
                 ),
 
                 const SizedBox(width: 16),
@@ -292,11 +351,11 @@ class _AchievementsScreenState extends State<AchievementsScreen>
                             child: Text(
                               achievement.title,
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: 15,
                                 fontWeight: FontWeight.bold,
                                 color: isUnlocked
-                                    ? Colors.white
-                                    : Colors.white.withValues(alpha: 0.7),
+                                    ? theme.textPrimary
+                                    : theme.textMuted,
                               ),
                             ),
                           ),
@@ -330,8 +389,8 @@ class _AchievementsScreenState extends State<AchievementsScreen>
                       Text(
                         achievement.description,
                         style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withValues(alpha: 0.8),
+                          fontSize: 12.5,
+                          color: theme.textMuted,
                         ),
                       ),
 
@@ -367,7 +426,7 @@ class _AchievementsScreenState extends State<AchievementsScreen>
                               '${achievement.currentProgress}/${achievement.targetValue}',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.white.withValues(alpha: 0.6),
+                                color: theme.textMuted,
                               ),
                             ),
                           ],
@@ -472,7 +531,6 @@ class _AchievementsScreenState extends State<AchievementsScreen>
             ],
           ],
         ),
-      ),
     );
   }
 
@@ -489,72 +547,5 @@ class _AchievementsScreenState extends State<AchievementsScreen>
     } else {
       return 'just now';
     }
-  }
-}
-
-/// Compact stat tile used by the Achievements header grid. Mirrors the
-/// dashboard's StatTile primitive so a Total/Unlocked/Claimed/Pending
-/// row reads identically in both surfaces.
-class _StatTile extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color accent;
-  final String? hint;
-
-  const _StatTile({
-    required this.label,
-    required this.value,
-    required this.accent,
-    this.hint,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: accent.withValues(alpha: 0.30)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: accent,
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.0,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              height: 1.0,
-            ),
-          ),
-          if (hint != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              hint!,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.55),
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
-      ),
-    );
   }
 }
