@@ -62,60 +62,123 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
               ),
             ),
           ],
-          body: Column(
-            children: [
-              _buildTabBar(theme),
-              // "Updated X ago" chip — surfaces Drift cache
-              // freshness for the currently-active tab so the user
-              // can tell if they're looking at stale offline data.
-              AnimatedBuilder(
-                animation: _tabController,
-                builder: (context, _) =>
-                    _buildStalenessChip(theme, tournamentsState),
-              ),
-              Expanded(
-                child: tournamentsState.isLoading
-                    ? _buildLoadingIndicator(theme)
-                    : TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildActiveTournaments(theme, tournamentsState.activeTournaments),
-                          _buildTournamentHistory(theme, tournamentsState.historyTournaments),
-                          _buildUserStats(theme, tournamentsState.userStats),
-                        ],
+          body: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // LEFT — vertical section rail + cache-freshness chip.
+                // Never scrolls: rendered at natural size and scaled down.
+                Expanded(
+                  flex: 3,
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: SizedBox(
+                        width: 210,
+                        child: _buildNavRail(theme, tournamentsState),
                       ),
-              ),
-            ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                // RIGHT — the selected section's content (swipeable).
+                Expanded(
+                  flex: 7,
+                  child: tournamentsState.isLoading
+                      ? _buildLoadingIndicator(theme)
+                      : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildActiveTournaments(theme, tournamentsState.activeTournaments),
+                            _buildTournamentHistory(theme, tournamentsState.historyTournaments),
+                            _buildUserStats(theme, tournamentsState.userStats),
+                          ],
+                        ),
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildTabBar(GameTheme theme) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      decoration: BoxDecoration(
-        color: theme.surfaceGlass,
-        borderRadius: GameTokens.brMd,
-        border: Border.all(color: theme.stroke),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicator: BoxDecoration(
-          color: theme.neonPrimary.withValues(alpha: 0.85),
-          borderRadius: GameTokens.brMd,
+  /// Vertical, borderless section rail for the left region. Driven by
+  /// the existing [_tabController] so taps and TabBarView swipes stay
+  /// in sync; the cache-freshness chip lives at the bottom of the rail.
+  Widget _buildNavRail(GameTheme theme, TournamentsState state) {
+    const items = [
+      (Icons.emoji_events, 'Active'),
+      (Icons.history, 'History'),
+      (Icons.bar_chart, 'My Stats'),
+    ];
+
+    return AnimatedBuilder(
+      animation: _tabController,
+      builder: (context, _) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < items.length; i++)
+              _buildNavItem(theme, i, items[i].$1, items[i].$2),
+            const SizedBox(height: 8),
+            // "Updated X ago" chip — surfaces Drift cache freshness
+            // for the currently-active tab so the user can tell if
+            // they're looking at stale offline data.
+            _buildStalenessChip(theme, state),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildNavItem(GameTheme theme, int i, IconData icon, String label) {
+    final selected = _tabController.index == i;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _tabController.animateTo(i),
+      // No background at all — selection reads purely through the neon icon,
+      // brighter text, and a small glowing indicator dot.
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? theme.neonPrimary : theme.textMuted,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? theme.textPrimary : theme.textMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const Spacer(),
+            if (selected)
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: theme.neonPrimary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.neonPrimary.withValues(alpha: 0.7),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerColor: Colors.transparent,
-        labelColor: const Color(0xFF03040A),
-        unselectedLabelColor: theme.textMuted,
-        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-        tabs: const [
-          Tab(text: 'Active'),
-          Tab(text: 'History'),
-          Tab(text: 'My Stats'),
-        ],
       ),
     );
   }
@@ -143,42 +206,35 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
 
     final label = ts == null ? 'No cache yet' : 'Updated ${_relativeAge(ts)}';
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: InkWell(
-          onTap: () => ref.read(tournamentsProvider.notifier).refresh(),
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: theme.accentColor.withValues(alpha: 0.18),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => ref.read(tournamentsProvider.notifier).refresh(),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: theme.accentColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.refresh_rounded,
+                color: theme.accentColor.withValues(alpha: 0.7),
+                size: 12,
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.refresh_rounded,
-                  color: theme.accentColor.withValues(alpha: 0.7),
-                  size: 12,
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  color: theme.accentColor.withValues(alpha: 0.75),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
                 ),
-                const SizedBox(width: 5),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: theme.accentColor.withValues(alpha: 0.75),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -206,7 +262,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
           Text(
             'Loading tournaments...',
             style: TextStyle(
-              color: theme.accentColor.withValues(alpha: 0.8),
+              color: theme.textMuted,
               fontSize: 16,
             ),
           ),
@@ -294,15 +350,16 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GlassPanel(
-        theme: theme,
-        onTap: onTap,
-        borderColor: _getTournamentStatusColor(
-          tournament.status,
-        ).withValues(alpha: 0.3),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // Header row
               Row(
                 children: [
@@ -329,7 +386,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: theme.accentColor,
+                            color: theme.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -374,7 +431,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
                 tournament.description,
                 style: TextStyle(
                   fontSize: 14,
-                  color: theme.accentColor.withValues(alpha: 0.8),
+                  color: theme.textMuted,
                 ),
               ),
 
@@ -415,14 +472,14 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
                   Icon(
                     Icons.schedule,
                     size: 14,
-                    color: theme.accentColor.withValues(alpha: 0.6),
+                    color: theme.textMuted,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     tournament.timeRemainingFormatted,
                     style: TextStyle(
                       fontSize: 12,
-                      color: theme.accentColor.withValues(alpha: 0.6),
+                      color: theme.textMuted,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -437,14 +494,14 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
                   Icon(
                     Icons.people,
                     size: 16,
-                    color: theme.accentColor.withValues(alpha: 0.6),
+                    color: theme.textMuted,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     '${tournament.currentParticipants}/${tournament.maxParticipants} players',
                     style: TextStyle(
                       fontSize: 12,
-                      color: theme.accentColor.withValues(alpha: 0.6),
+                      color: theme.textMuted,
                     ),
                   ),
                   const Spacer(),
@@ -490,9 +547,6 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
                   decoration: BoxDecoration(
                     color: Colors.amber.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.amber.withValues(alpha: 0.3),
-                    ),
                   ),
                   child: Row(
                     children: [
@@ -531,9 +585,6 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
                   decoration: BoxDecoration(
                     color: theme.accentColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: theme.accentColor.withValues(alpha: 0.2),
-                    ),
                   ),
                   child: Row(
                     children: [
@@ -564,24 +615,24 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
                   ),
                 ),
               ],
-            ],
+              ],
+            ),
           ),
         ),
-      );
+      ),
+    );
   }
 
   Widget _buildStatsOverview(GameTheme theme, Map<String, dynamic> userStats) {
-    return GlassPanel(
-      theme: theme,
-      padding: const EdgeInsets.all(20),
-      child: Column(
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Tournament Overview',
+            'TOURNAMENT OVERVIEW',
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
               color: theme.accentColor,
             ),
           ),
@@ -632,22 +683,19 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
             ],
           ),
         ],
-      ),
-    );
+      );
   }
 
   Widget _buildStatsDetails(GameTheme theme, Map<String, dynamic> userStats) {
-    return GlassPanel(
-      theme: theme,
-      padding: const EdgeInsets.all(20),
-      child: Column(
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Detailed Statistics',
+            'DETAILED STATISTICS',
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
               color: theme.accentColor,
             ),
           ),
@@ -664,8 +712,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
             theme,
           ),
         ],
-      ),
-    );
+      );
   }
 
   Widget _buildStatItem(
@@ -681,7 +728,6 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -692,7 +738,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: theme.accentColor,
+              color: theme.textPrimary,
             ),
           ),
           const SizedBox(height: 4),
@@ -700,7 +746,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
             label,
             style: TextStyle(
               fontSize: 10,
-              color: theme.accentColor.withValues(alpha: 0.7),
+              color: theme.textMuted,
             ),
             textAlign: TextAlign.center,
           ),
@@ -719,7 +765,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
             label,
             style: TextStyle(
               fontSize: 14,
-              color: theme.accentColor.withValues(alpha: 0.8),
+              color: theme.textMuted,
             ),
           ),
           Text(
@@ -727,7 +773,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: theme.accentColor,
+              color: theme.textPrimary,
             ),
           ),
         ],
@@ -752,7 +798,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: theme.accentColor.withValues(alpha: 0.7),
+              color: theme.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
@@ -760,7 +806,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
             subtitle,
             style: TextStyle(
               fontSize: 14,
-              color: theme.accentColor.withValues(alpha: 0.5),
+              color: theme.textMuted,
             ),
             textAlign: TextAlign.center,
           ),
