@@ -79,51 +79,55 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                       Text(
                         'Loading Statistics...',
                         style: TextStyle(
-                          color: theme.accentColor.withValues(alpha: 0.8),
+                          color: theme.textMuted,
                           fontSize: 16,
                         ),
                       ),
                     ],
                   ),
                 )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
+              // Landscape command deck: LEFT = hero telemetry + actions,
+              // RIGHT = the scrollable stat sections. Both float borderless
+              // on the starfield per the clean design.
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Performance Overview
-                      _buildPerformanceOverview(theme),
-
-                      const SizedBox(height: 24),
-
-                      // Game Activity
-                      _buildGameActivity(theme),
-
-                      const SizedBox(height: 24),
-
-                      // Kills & Power-Ups
-                      _buildConsumptionStats(theme),
-
-                      const SizedBox(height: 24),
-
-                      // Performance Trends
-                      _buildPerformanceTrends(theme),
-
-                      const SizedBox(height: 24),
-
-                      // Play Patterns
-                      _buildPlayPatterns(theme),
-
-                      const SizedBox(height: 24),
-
-                      // Achievement Progress
-                      _buildAchievementProgress(theme),
-
-                      const SizedBox(height: 32),
-
-                      // Action Buttons
-                      _buildActionButtons(theme),
-
-                      const SizedBox(height: 24),
+                      Expanded(
+                        flex: 3,
+                        child: Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: SizedBox(
+                              width: 230,
+                              child: _buildLeftPanel(theme),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        flex: 7,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Column(
+                            children: [
+                              _buildPerformanceOverview(theme),
+                              const SizedBox(height: 20),
+                              _buildGameActivity(theme),
+                              const SizedBox(height: 20),
+                              _buildConsumptionStats(theme),
+                              const SizedBox(height: 20),
+                              _buildPerformanceTrends(theme),
+                              const SizedBox(height: 20),
+                              _buildPlayPatterns(theme),
+                              const SizedBox(height: 20),
+                              _buildAchievementProgress(theme),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -138,62 +142,48 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       title: 'Performance Overview',
       icon: Icons.trending_up,
       theme: theme,
-      child: Column(
-        children: [
-          IntrinsicHeight(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    'High Score',
-                    '${_displayStats['highScore'] ?? 0}',
-                    Icons.emoji_events,
-                    Colors.amber,
-                    theme,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    'Total Games',
-                    '${_displayStats['totalGames'] ?? 0}',
-                    Icons.games,
-                    theme.accentColor,
-                    theme,
-                  ),
-                ),
-              ],
+      // One wide row of four — the landscape viewport has the width for it.
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'High Score',
+                '${_displayStats['highScore'] ?? 0}',
+                Icons.emoji_events,
+                Colors.amber,
+                theme,
+              ),
             ),
-          ),
-
-          const SizedBox(height: 12),
-
-          IntrinsicHeight(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    'Average Score',
-                    '${_displayStats['averageScore'] ?? 0}',
-                    Icons.trending_up,
-                    Colors.green,
-                    theme,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    'Win Streak',
-                    '${_displayStats['winStreak'] ?? 0}',
-                    Icons.local_fire_department,
-                    Colors.orange,
-                    theme,
-                  ),
-                ),
-              ],
+            Expanded(
+              child: _buildStatCard(
+                'Total Games',
+                '${_displayStats['totalGames'] ?? 0}',
+                Icons.games,
+                theme.accentColor,
+                theme,
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: _buildStatCard(
+                'Average Score',
+                '${_displayStats['averageScore'] ?? 0}',
+                Icons.trending_up,
+                Colors.green,
+                theme,
+              ),
+            ),
+            Expanded(
+              child: _buildStatCard(
+                'Win Streak',
+                '${_displayStats['winStreak'] ?? 0}',
+                Icons.local_fire_department,
+                Colors.orange,
+                theme,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -203,58 +193,48 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       title: 'Game Activity',
       icon: Icons.schedule,
       theme: theme,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Play Time',
-                  '${_displayStats['totalPlayTime'] ?? '0s'}',
-                  Icons.access_time,
-                  Colors.blue,
-                  theme,
-                ),
+      // One wide row of four.
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Play Time',
+                '${_displayStats['totalPlayTime'] ?? '0s'}',
+                Icons.access_time,
+                Colors.blue,
+                theme,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Longest Game',
-                  '${_displayStats['longestSurvival'] ?? '0s'}',
-                  Icons.timer,
-                  Colors.purple,
-                  theme,
-                ),
+            ),
+            Expanded(
+              child: _buildStatCard(
+                'Longest Game',
+                '${_displayStats['longestSurvival'] ?? '0s'}',
+                Icons.timer,
+                Colors.purple,
+                theme,
               ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Highest Level',
-                  '${_displayStats['highestLevel'] ?? 1}',
-                  Icons.military_tech,
-                  Colors.indigo,
-                  theme,
-                ),
+            ),
+            Expanded(
+              child: _buildStatCard(
+                'Highest Level',
+                '${_displayStats['highestLevel'] ?? 1}',
+                Icons.military_tech,
+                Colors.indigo,
+                theme,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Perfect Games',
-                  '${_displayStats['perfectGames'] ?? 0}',
-                  Icons.star,
-                  Colors.pink,
-                  theme,
-                ),
+            ),
+            Expanded(
+              child: _buildStatCard(
+                'Perfect Games',
+                '${_displayStats['perfectGames'] ?? 0}',
+                Icons.star,
+                Colors.pink,
+                theme,
               ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -341,56 +321,48 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       theme: theme,
       child: Column(
         children: [
-          // Enhanced Trend Overview Cards
-          Row(
-            children: [
-              Expanded(
-                child: _buildTrendCard(
-                  'Overall Trend',
-                  trend,
-                  _getTrendIcon(trend),
-                  _getTrendColor(trend),
-                  theme,
+          // One wide row of four trend cells.
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildTrendCard(
+                    'Overall Trend',
+                    trend,
+                    _getTrendIcon(trend),
+                    _getTrendColor(trend),
+                    theme,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Recent Average',
-                  '${_performanceTrends['averageRecentScore'] ?? 0}',
-                  Icons.analytics,
-                  Colors.cyan,
-                  theme,
+                Expanded(
+                  child: _buildStatCard(
+                    'Recent Average',
+                    '${_performanceTrends['averageRecentScore'] ?? 0}',
+                    Icons.analytics,
+                    Colors.cyan,
+                    theme,
+                  ),
                 ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Performance Statistics Row
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Best Recent',
-                  '${_performanceTrends['bestRecentScore'] ?? 0}',
-                  Icons.star_outline,
-                  Colors.amber,
-                  theme,
+                Expanded(
+                  child: _buildStatCard(
+                    'Best Recent',
+                    '${_performanceTrends['bestRecentScore'] ?? 0}',
+                    Icons.star_outline,
+                    Colors.amber,
+                    theme,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Consistency',
-                  _calculateConsistencyRating(recentScores),
-                  Icons.equalizer,
-                  Colors.purple,
-                  theme,
+                Expanded(
+                  child: _buildStatCard(
+                    'Consistency',
+                    _calculateConsistencyRating(recentScores),
+                    Icons.equalizer,
+                    Colors.purple,
+                    theme,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
 
           if (recentScores.isNotEmpty) ...[
@@ -398,14 +370,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
             // Enhanced Chart Container
             Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.accentColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: theme.accentColor.withValues(alpha: 0.2),
-                ),
-              ),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -415,7 +380,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                       Text(
                         'Progress (Last ${recentScores.length} Games)',
                         style: TextStyle(
-                          color: theme.accentColor.withValues(alpha: 0.8),
+                          color: theme.textMuted,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -427,7 +392,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: _getTrendColor(trend).withValues(alpha: 0.2),
+                          color: _getTrendColor(trend).withValues(alpha: 0.16),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -517,21 +482,14 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             const SizedBox(height: 16),
 
             Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.accentColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: theme.accentColor.withValues(alpha: 0.2),
-                ),
-              ),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Daily Activity',
                     style: TextStyle(
-                      color: theme.accentColor.withValues(alpha: 0.8),
+                      color: theme.textMuted,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -561,12 +519,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       icon: Icons.emoji_events,
       theme: theme,
       child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: theme.accentColor.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
-        ),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           children: [
             Container(
@@ -574,8 +527,14 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               height: 60,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.amber.withValues(alpha: 0.2),
-                border: Border.all(color: Colors.amber, width: 3),
+                color: Colors.amber.withValues(alpha: 0.12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.amber.withValues(alpha: 0.35),
+                    blurRadius: 14,
+                    spreadRadius: -2,
+                  ),
+                ],
               ),
               child: Stack(
                 children: [
@@ -627,7 +586,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: theme.accentColor,
+                      color: theme.textPrimary,
                     ),
                   ),
 
@@ -637,7 +596,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     '${_displayStats['achievementProgress'] ?? '0%'} Complete',
                     style: TextStyle(
                       fontSize: 14,
-                      color: theme.accentColor.withValues(alpha: 0.8),
+                      color: theme.textMuted,
                     ),
                   ),
 
@@ -663,66 +622,68 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
-  Widget _buildActionButtons(GameTheme theme) {
+  /// LEFT panel: hero high-score readout + compact telemetry rows + the
+  /// stacked action buttons. Rendered at natural size inside a
+  /// FittedBox(scaleDown) so it never scrolls in the short viewport.
+  Widget _buildLeftPanel(GameTheme theme) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth < 400) {
-              return Column(
-                children: [
-                  NeonButton(
-                    onPressed: () => context.push(AppRoutes.achievements),
-                    label: 'View Achievements',
-                    icon: Icons.emoji_events,
-                    theme: theme,
-                    expand: true,
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  NeonButton(
-                    onPressed: () => context.push(AppRoutes.replays),
-                    label: 'Replays',
-                    icon: Icons.video_library,
-                    theme: theme,
-                    variant: NeonButtonVariant.outline,
-                    expand: true,
-                  ),
-                ],
-              );
-            }
-            return Row(
-              children: [
-                Expanded(
-                  child: NeonButton(
-                    onPressed: () => context.push(AppRoutes.achievements),
-                    label: 'View Achievements',
-                    icon: Icons.emoji_events,
-                    theme: theme,
-                    expand: true,
-                  ),
-                ),
-
-                const SizedBox(width: 16),
-
-                Expanded(
-                  child: NeonButton(
-                    onPressed: () => context.push(AppRoutes.replays),
-                    label: 'Replays',
-                    icon: Icons.video_library,
-                    theme: theme,
-                    variant: NeonButtonVariant.outline,
-                    expand: true,
-                  ),
-                ),
-              ],
-            );
-          },
+        Center(
+          child: Text(
+            'HIGH SCORE',
+            style: TextStyle(
+              color: theme.accentColor,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
+            ),
+          ),
         ),
-
+        const SizedBox(height: 6),
+        Center(
+          child: Text(
+            '${_displayStats['highScore'] ?? 0}',
+            style: TextStyle(
+              color: theme.textPrimary,
+              fontSize: 34,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildTelemetryRow(
+          theme,
+          Icons.games,
+          'Games Played',
+          '${_displayStats['totalGames'] ?? 0}',
+        ),
+        const SizedBox(height: 6),
+        _buildTelemetryRow(
+          theme,
+          Icons.access_time,
+          'Play Time',
+          '${_displayStats['totalPlayTime'] ?? '0s'}',
+        ),
         const SizedBox(height: 16),
-
+        NeonButton(
+          onPressed: () => context.push(AppRoutes.achievements),
+          label: 'View Achievements',
+          icon: Icons.emoji_events,
+          theme: theme,
+          expand: true,
+        ),
+        const SizedBox(height: 8),
+        NeonButton(
+          onPressed: () => context.push(AppRoutes.replays),
+          label: 'Replays',
+          icon: Icons.video_library,
+          theme: theme,
+          variant: NeonButtonVariant.outline,
+          expand: true,
+        ),
+        const SizedBox(height: 8),
         NeonButton(
           onPressed: _showResetDialog,
           label: 'Reset Statistics',
@@ -730,6 +691,34 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           theme: theme,
           variant: NeonButtonVariant.ghost,
           expand: true,
+        ),
+      ],
+    ).gameEntrance();
+  }
+
+  Widget _buildTelemetryRow(
+    GameTheme theme,
+    IconData icon,
+    String label,
+    String value,
+  ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 14, color: theme.textMuted),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(color: theme.textMuted, fontSize: 12),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          value,
+          style: TextStyle(
+            color: theme.textPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
     );
@@ -741,36 +730,34 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     required GameTheme theme,
     required Widget child,
   }) {
-    return GlassPanel(
-      theme: theme,
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: theme.accentColor, size: 24),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: theme.accentColor,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+    // Borderless section: uppercase HUD label floating straight on the
+    // starfield — no glass panel, no outlines.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: theme.accentColor, size: 15),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                title.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.8,
+                  color: theme.accentColor,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
 
-          const SizedBox(height: 16),
+        const SizedBox(height: 12),
 
-          child,
-        ],
-      ),
+        child,
+      ],
     ).gameZoomIn();
   }
 
@@ -781,17 +768,14 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     Color color,
     GameTheme theme,
   ) {
+    // Fully transparent per the clean design — the coloured icon + value
+    // carry the cell, no fill.
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 28),
+          Icon(icon, color: color, size: 26),
 
           const SizedBox(height: 8),
 
@@ -801,7 +785,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: theme.accentColor,
+                color: theme.textPrimary,
               ),
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -815,7 +799,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               label,
               style: TextStyle(
                 fontSize: 12,
-                color: theme.accentColor.withValues(alpha: 0.7),
+                color: theme.textMuted,
               ),
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
@@ -834,16 +818,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     Color color,
     GameTheme theme,
   ) {
+    // Fully transparent per the clean design.
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 28),
+          Icon(icon, color: color, size: 26),
 
           const SizedBox(height: 8),
 
@@ -862,7 +842,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             label,
             style: TextStyle(
               fontSize: 12,
-              color: theme.accentColor.withValues(alpha: 0.7),
+              color: theme.textMuted,
             ),
             textAlign: TextAlign.center,
           ),
@@ -877,13 +857,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     Map<String, int> breakdown,
     GameTheme theme,
   ) {
+    // Fully transparent per the clean design.
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.accentColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.accentColor.withValues(alpha: 0.2)),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -892,7 +868,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: theme.accentColor.withValues(alpha: 0.8),
+              color: theme.textMuted,
             ),
           ),
 
@@ -903,7 +879,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: theme.accentColor,
+              color: theme.textPrimary,
             ),
           ),
 
@@ -921,7 +897,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                         entry.key,
                         style: TextStyle(
                           fontSize: 12,
-                          color: theme.accentColor.withValues(alpha: 0.7),
+                          color: theme.textMuted,
                         ),
                       ),
                       Text(
@@ -929,7 +905,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: theme.accentColor,
+                          color: theme.textPrimary,
                         ),
                       ),
                     ],
@@ -972,7 +948,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               day,
               style: TextStyle(
                 fontSize: 10,
-                color: theme.accentColor.withValues(alpha: 0.6),
+                color: theme.textMuted,
               ),
             ),
           ],
@@ -1027,7 +1003,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         backgroundColor: theme.backgroundColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accentColor.withValues(alpha: 0.3)),
         ),
         title: Text(
           'Reset Statistics?',
@@ -1115,7 +1090,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         Text(
           label,
           style: TextStyle(
-            color: theme.accentColor.withValues(alpha: 0.7),
+            color: theme.textMuted,
             fontSize: 11,
           ),
         ),
@@ -1131,12 +1106,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     final insights = _generateInsights(scores, trend);
 
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.primaryColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.primaryColor.withValues(alpha: 0.2)),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1178,7 +1148,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     child: Text(
                       insight,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
+                        color: theme.textMuted,
                         fontSize: 12,
                       ),
                     ),
