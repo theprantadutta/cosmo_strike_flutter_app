@@ -48,7 +48,8 @@ class Boss extends PositionComponent
     position.y = _baseY + math.sin(_age * 1.2) * (game.size.y * 0.22);
 
     _attackTimer -= dt;
-    if (_attackTimer <= 0) {
+    // Zen mode: the boss doesn't fire either — it's a moving obstacle.
+    if (_attackTimer <= 0 && game.mode.enemiesFire) {
       _attackTimer = 1.8;
       _attackIndex++;
       if (_attackIndex.isEven) {

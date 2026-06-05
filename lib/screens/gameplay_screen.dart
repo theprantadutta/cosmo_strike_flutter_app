@@ -43,8 +43,13 @@ class _GameplayScreenState extends State<GameplayScreen>
     WidgetsBinding.instance.addObserver(this);
     // Full-screen play: hide the status / notification bar.
     Immersive.enterGame();
+    // The selected game mode drives the run rules (lives, pacing, enemy
+    // fire, drops, one-hit, Time Attack clock) — see GameMode's SHOOTER
+    // rules section. Snapshot at run start; mid-run settings changes don't
+    // retro-apply.
     _game = CosmoStrikeGame(
       onGameOver: _handleGameOver,
+      mode: context.read<GameSettingsCubit>().state.gameMode,
     );
   }
 
@@ -248,6 +253,49 @@ class _Hud extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              // Time Attack countdown — hidden in modes without a clock.
+              ValueListenableBuilder<int>(
+                valueListenable: game.timeRemainingNotifier,
+                builder: (_, secs, _) {
+                  if (secs < 0) return const SizedBox.shrink();
+                  final m = secs ~/ 60;
+                  final s = (secs % 60).toString().padLeft(2, '0');
+                  final urgent = secs <= 30;
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 10),
+                    child: GlassPanel(
+                      theme: _hudSkin,
+                      radius: GameTokens.radiusMd,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.timer,
+                            size: 16,
+                            color: urgent
+                                ? CosmoPalette.hostile
+                                : CosmoPalette.hull,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '$m:$s',
+                            style: TextStyle(
+                              color: urgent
+                                  ? CosmoPalette.hostile
+                                  : CosmoPalette.highlight,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
               const Spacer(),
               // Top-right: lives + pause.

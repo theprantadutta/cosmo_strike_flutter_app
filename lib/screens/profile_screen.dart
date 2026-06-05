@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/models/achievement.dart';
@@ -126,7 +125,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Text(
               message,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.85),
+                color: theme.textMuted,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),
@@ -144,664 +143,427 @@ class _ProfileScreenState extends State<ProfileScreen> {
   ) {
     final theme = themeState.currentTheme;
 
-    return SingleChildScrollView(
-      child: Column(
+    // Landscape command deck: LEFT = identity + account actions, RIGHT = the
+    // scrollable profile sections. Both float borderless on the starfield
+    // per the clean design.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 20),
-
-          // Enhanced Profile Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: GlassPanel(
-              theme: theme,
-              glow: true,
+          Expanded(
+            flex: 4,
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: SizedBox(
+                  width: 250,
+                  child: _buildIdentityPanel(context, authState, theme),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            flex: 6,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 children: [
-                // Enhanced avatar with glow effect
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.accentColor.withValues(alpha: 0.4),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: CircleAvatar(
-                    radius: 60,
-                    backgroundColor: theme.primaryColor,
-                    child: CircleAvatar(
-                      radius: 56,
-                      backgroundImage: authState.photoURL != null
-                          ? NetworkImage(authState.photoURL!)
-                          : null,
-                      onBackgroundImageError: authState.photoURL != null ? (e, s) {} : null,
-                      backgroundColor: theme.backgroundColor,
-                      child: authState.photoURL == null
-                          ? Icon(
-                              Icons.person_rounded,
-                              size: 60,
-                              color: theme.primaryColor,
-                            )
-                          : null,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Enhanced name with gradient text effect.
-                // Uses publicLabel so it matches the leaderboard rendering —
-                // your profile shows the same name everyone else sees.
-                ShaderMask(
-                  shaderCallback: (bounds) => LinearGradient(
-                    colors: [theme.primaryColor, theme.accentColor],
-                  ).createShader(bounds),
-                  child: Text(
-                    authState.publicLabel,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-
-                // Account status badge
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: authState.isAnonymous
-                          ? [Colors.orange, Colors.deepOrange]
-                          : [Colors.green, Colors.teal],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color:
-                            (authState.isAnonymous
-                                    ? Colors.orange
-                                    : Colors.green)
-                                .withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        authState.isAnonymous
-                            ? Icons.person
-                            : Icons.verified_user,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        authState.isAnonymous
-                            ? 'Guest Player'
-                            : 'Verified Account',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                  // Lifetime player progression (level + XP)
+                  PlayerProgressionCard(theme: theme),
+                  const SizedBox(height: 20),
+                  _buildQuickActionsSection(context, theme),
+                  const SizedBox(height: 20),
+                  _buildStatsSection(context, theme),
+                  if (_recentAchievements.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    _buildAchievementsSection(context, theme),
+                  ],
+                  const SizedBox(height: 20),
+                  _buildReplaysSection(context, theme),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
 
-          // Lifetime player progression (level + XP)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: PlayerProgressionCard(theme: theme),
+  /// LEFT panel: glowing avatar + public name + account badge + the primary
+  /// account actions. Rendered at natural size inside a FittedBox(scaleDown)
+  /// so it never scrolls in the short landscape viewport.
+  Widget _buildIdentityPanel(
+    BuildContext context,
+    AuthState authState,
+    GameTheme theme,
+  ) {
+    final hasPhoto = authState.photoURL != null;
+    final statusColor = authState.isAnonymous ? Colors.orange : Colors.green;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Glowing avatar. A gradient ring frames a real network photo; the
+        // fallback icon avatar sits on a plain tint disc instead.
+        Center(
+          child: Container(
+            padding: hasPhoto ? const EdgeInsets.all(3) : EdgeInsets.zero,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: hasPhoto
+                  ? LinearGradient(
+                      colors: [theme.primaryColor, theme.accentColor],
+                    )
+                  : null,
+              boxShadow: [
+                BoxShadow(
+                  color: theme.accentColor.withValues(alpha: 0.35),
+                  blurRadius: 22,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: hasPhoto
+                ? CircleAvatar(
+                    radius: 44,
+                    backgroundImage: NetworkImage(authState.photoURL!),
+                    onBackgroundImageError: (e, s) {},
+                    backgroundColor: theme.backgroundColor,
+                  )
+                : CircleAvatar(
+                    radius: 44,
+                    backgroundColor: theme.accentColor.withValues(alpha: 0.14),
+                    child: Icon(
+                      Icons.person_rounded,
+                      size: 44,
+                      color: theme.accentColor,
+                    ),
+                  ),
           ),
-          const SizedBox(height: 24),
+        ),
+        const SizedBox(height: 12),
 
-          // Quick Actions Row
+        // Uses publicLabel so it matches the leaderboard rendering — your
+        // profile shows the same name everyone else sees.
+        Text(
+          authState.publicLabel,
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: theme.textPrimary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+
+        // Account status badge — clean tint pill, no gradient, no border.
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  authState.isAnonymous ? Icons.person : Icons.verified_user,
+                  color: statusColor,
+                  size: 14,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  authState.isAnonymous ? 'Guest Player' : 'Verified Account',
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Google Sign-In upgrade CTA (for guest users only).
+        if (authState.isAnonymous && !authState.isGoogleUser) ...[
+          Text(
+            'Save your progress and sync across devices',
+            style: TextStyle(fontSize: 12, color: theme.textMuted),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          NeonButton(
+            onPressed: () => _handleGoogleUpgrade(context, theme),
+            label: 'Sign in with Google',
+            icon: Icons.login_rounded,
+            theme: theme,
+            expand: true,
+          ),
+          const SizedBox(height: 8),
+        ],
+
+        if (!authState.isLoading)
+          NeonButton(
+            onPressed: () => _showSignOutDialog(context, theme),
+            label: 'Sign Out',
+            icon: Icons.logout_rounded,
+            theme: theme,
+            variant: NeonButtonVariant.outline,
+            expand: true,
+          ),
+      ],
+    );
+  }
+
+  /// Borderless section header: uppercase HUD label floating straight on the
+  /// starfield — no glass panel, no outlines.
+  Widget _buildSectionLabel(
+    GameTheme theme,
+    IconData icon,
+    String title, {
+    Widget? trailing,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, color: theme.accentColor, size: 15),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title.toUpperCase(),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
+              color: theme.accentColor,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        ?trailing,
+      ],
+    );
+  }
+
+  /// Transparent "View All" link — whole area tappable via opaque hit test.
+  Widget _buildViewAllLink(GameTheme theme, VoidCallback onTap) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Text(
+          'View All →',
+          style: TextStyle(
+            color: theme.accentColor,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsSection(BuildContext context, GameTheme theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(theme, Icons.bolt, 'Quick Actions'),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildQuickActionButton(
+                context,
+                'Statistics',
+                Icons.analytics_rounded,
+                theme.accentColor,
+                () => _navigateToStatistics(context),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildQuickActionButton(
+                context,
+                'Replays',
+                Icons.video_library_rounded,
+                Colors.blue,
+                () => _navigateToReplays(context),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildQuickActionButton(
+                context,
+                'Achievements',
+                Icons.emoji_events_rounded,
+                Colors.amber,
+                () => _navigateToAchievements(context),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsSection(BuildContext context, GameTheme theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(
+          theme,
+          Icons.bar_chart_rounded,
+          'Statistics',
+          trailing: _isLoading
+              ? null
+              : _buildViewAllLink(theme, () => _navigateToStatistics(context)),
+        ),
+        const SizedBox(height: 12),
+        if (_isLoading)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.all(20.0),
+            child: ThemedLoading(theme: theme, label: 'Loading stats...'),
+          )
+        else ...[
+          IntrinsicHeight(
             child: Row(
               children: [
                 Expanded(
-                  child: _buildQuickActionButton(
-                    context,
-                    'Statistics',
-                    Icons.analytics_rounded,
-                    theme.accentColor,
-                    () => _navigateToStatistics(context),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildQuickActionButton(
-                    context,
-                    'Replays',
-                    Icons.video_library_rounded,
-                    Colors.blue,
-                    () => _navigateToReplays(context),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildQuickActionButton(
-                    context,
-                    'Achievements',
-                    Icons.emoji_events_rounded,
+                  child: _buildStatItem(
+                    'High Score',
+                    _displayStats['highScore']?.toString() ?? '0',
+                    Icons.emoji_events,
                     Colors.amber,
-                    () => _navigateToAchievements(context),
+                    theme,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatItem(
+                    'Games Played',
+                    _displayStats['totalGames']?.toString() ?? '0',
+                    Icons.games,
+                    theme.accentColor,
+                    theme,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatItem(
+                    'Play Time',
+                    '${_displayStats['totalPlayTime'] ?? '0s'}',
+                    Icons.access_time,
+                    Colors.blue,
+                    theme,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
-
-          // Enhanced Stats Section
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: GlassPanel(
-              theme: theme,
-              child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          IntrinsicHeight(
+            child: Row(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: theme.accentColor.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.bar_chart_rounded,
-                            color: theme.accentColor,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Statistics',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (!_isLoading)
-                      GestureDetector(
-                        onTap: () => _navigateToStatistics(context),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [theme.accentColor, theme.primaryColor],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: theme.accentColor.withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Text(
-                            'View All',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
+                Expanded(
+                  child: _buildStatItem(
+                    'Average Score',
+                    _displayStats['averageScore']?.toString() ?? '0',
+                    Icons.trending_up,
+                    Colors.green,
+                    theme,
+                  ),
                 ),
-                const SizedBox(height: 15),
-
-                if (_isLoading)
-                  Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: ThemedLoading(theme: theme, label: 'Loading stats...'),
-                  )
-                else ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatItem(
-                          'High Score',
-                          _displayStats['highScore']?.toString() ?? '0',
-                          Icons.emoji_events,
-                          themeState,
-                          isCompact: true,
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildStatItem(
-                          'Games Played',
-                          _displayStats['totalGames']?.toString() ?? '0',
-                          Icons.games,
-                          themeState,
-                          isCompact: true,
-                        ),
-                      ),
-                    ],
+                Expanded(
+                  child: _buildStatItem(
+                    'Enemies Destroyed',
+                    _displayStats['totalFood']?.toString() ?? '0',
+                    Icons.fastfood,
+                    Colors.red,
+                    theme,
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatItem(
-                          'Play Time',
-                          '${_displayStats['totalPlayTime'] ?? '0s'}',
-                          Icons.access_time,
-                          themeState,
-                          isCompact: true,
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildStatItem(
-                          'Average Score',
-                          _displayStats['averageScore']?.toString() ?? '0',
-                          Icons.trending_up,
-                          themeState,
-                          isCompact: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatItem(
-                          'Enemies Destroyed',
-                          _displayStats['totalFood']?.toString() ?? '0',
-                          Icons.fastfood,
-                          themeState,
-                          isCompact: true,
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildStatItem(
-                          'Power-ups',
-                          _displayStats['totalPowerUps']?.toString() ?? '0',
-                          Icons.flash_on,
-                          themeState,
-                          isCompact: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Recent Achievements Section
-          if (_recentAchievements.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: GlassPanel(
-                theme: theme,
-                child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: BoxDecoration(
-                              color: Colors.amber.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.emoji_events_rounded,
-                              color: Colors.amber,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          const Text(
-                            'Achievements',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                      GestureDetector(
-                        onTap: () => _navigateToAchievements(context),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Colors.amber, Colors.orange],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.amber.withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Text(
-                            'View All',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Achievement cards
-                  ...(_recentAchievements
-                      .map(
-                        (achievement) =>
-                            _buildAchievementCard(achievement, theme),
-                      )
-                      .toList()),
-                ],
                 ),
-              ),
-            ),
-
-          if (_recentAchievements.isNotEmpty) const SizedBox(height: 24),
-
-          // Google Sign-In Upgrade Section (for guest users only)
-          if (authState.isAnonymous && !authState.isGoogleUser)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: GlassPanel(
-                theme: theme,
-                borderColor: Colors.blue.withValues(alpha: 0.4),
-                child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const FaIcon(
-                          FontAwesomeIcons.google,
-                          color: Colors.blue,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Upgrade to Google Account',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Save your progress and sync across devices',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                Expanded(
+                  child: _buildStatItem(
+                    'Power-ups',
+                    _displayStats['totalPowerUps']?.toString() ?? '0',
+                    Icons.flash_on,
+                    Colors.yellow,
+                    theme,
                   ),
-                  const SizedBox(height: 20),
-
-                  // Benefits list
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildUpgradeBenefit(
-                          Icons.cloud_sync,
-                          'Sync Progress',
-                          'across devices',
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildUpgradeBenefit(
-                          Icons.leaderboard,
-                          'Global Leaderboards',
-                          'compete worldwide',
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildUpgradeBenefit(
-                          Icons.people,
-                          'Friends & Social',
-                          'connect with others',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Upgrade button
-                  NeonButton(
-                    onPressed: () => _handleGoogleUpgrade(context, theme),
-                    label: 'Sign in with Google',
-                    icon: Icons.login_rounded,
-                    theme: theme,
-                    expand: true,
-                  ),
-                ],
-                ),
-              ),
-            ),
-
-          if (authState.isAnonymous && !authState.isGoogleUser)
-            const SizedBox(height: 24),
-
-          // Recent Replays Section
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: GlassPanel(
-            theme: theme,
-            borderColor: Colors.purple.withValues(alpha: 0.4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.purple.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.movie_rounded,
-                            color: Colors.purple,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Replays',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                    GestureDetector(
-                      onTap: () => _navigateToReplays(context),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.purple, Colors.deepPurple],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.purple.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Text(
-                          'View All',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Builder(
-                  builder: (context) {
-                    final replayKeys = _appCache.replayKeys ?? [];
-                    if (replayKeys.isEmpty) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Text(
-                            'No replays yet. Play some games!',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.6),
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.purple.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.purple.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.video_library_rounded,
-                            color: Colors.purple.withValues(alpha: 0.8),
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            '${replayKeys.length} replays saved',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
                 ),
               ],
             ),
-            ),
           ),
-          const SizedBox(height: 32),
-
-          // Enhanced Sign Out Section
-          if (!authState.isLoading)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: GlassPanel(
-                theme: theme,
-                borderColor: Colors.red.withValues(alpha: 0.3),
-                child: Column(
-                children: [
-                  const Text(
-                    'Account Management',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  NeonButton(
-                    onPressed: () => _showSignOutDialog(context, theme),
-                    label: 'Sign Out',
-                    icon: Icons.logout_rounded,
-                    theme: theme,
-                    variant: NeonButtonVariant.outline,
-                    expand: true,
-                  ),
-                ],
-                ),
-              ),
-            ),
-
-          const SizedBox(height: 32),
         ],
-      ),
+      ],
+    );
+  }
+
+  Widget _buildAchievementsSection(BuildContext context, GameTheme theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(
+          theme,
+          Icons.emoji_events_rounded,
+          'Achievements',
+          trailing: _buildViewAllLink(
+            theme,
+            () => _navigateToAchievements(context),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ..._recentAchievements.map(
+          (achievement) => _buildAchievementCard(achievement, theme),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReplaysSection(BuildContext context, GameTheme theme) {
+    final replayKeys = _appCache.replayKeys ?? [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(
+          theme,
+          Icons.movie_rounded,
+          'Replays',
+          trailing: _buildViewAllLink(
+            theme,
+            () => _navigateToReplays(context),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (replayKeys.isEmpty)
+          Text(
+            'No replays yet. Play some games!',
+            style: TextStyle(color: theme.textMuted, fontSize: 13),
+          )
+        else
+          Row(
+            children: [
+              const Icon(
+                Icons.video_library_rounded,
+                color: Colors.purple,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '${replayKeys.length} replays saved',
+                style: TextStyle(
+                  color: theme.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+      ],
     );
   }
 
@@ -809,58 +571,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String label,
     String value,
     IconData icon,
-    ThemeState themeState, {
-    bool isCompact = false,
-  }) {
-    if (isCompact) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
-        child: Column(
-          children: [
-            Icon(icon, color: themeState.currentTheme.primaryColor, size: 20),
-            const SizedBox(height: 4),
-            Text(
+    Color color,
+    GameTheme theme,
+  ) {
+    // Fully transparent per the clean design — the coloured icon + value
+    // carry the cell, no fill.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 6),
+          Flexible(
+            child: Text(
               value,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            Text(
-              label,
               style: TextStyle(
-                fontSize: 12,
-                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: theme.textPrimary,
               ),
+              overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
             ),
-          ],
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Icon(icon, color: themeState.currentTheme.primaryColor, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
+          ),
+          const SizedBox(height: 2),
+          Flexible(
             child: Text(
               label,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.white.withValues(alpha: 0.8),
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+              style: TextStyle(fontSize: 11, color: theme.textMuted),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
             ),
           ),
         ],
@@ -875,6 +617,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Color color,
     VoidCallback onPressed,
   ) {
+    // Gradient CTA tile — deliberate fill, borderless per the clean design.
     return Container(
       height: 80,
       decoration: BoxDecoration(
@@ -949,28 +692,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildAchievementCard(Achievement achievement, GameTheme theme) {
     final rarityColor = _getRarityColor(achievement.rarity);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            rarityColor.withValues(alpha: 0.2),
-            rarityColor.withValues(alpha: 0.1),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: rarityColor.withValues(alpha: 0.4)),
-      ),
+
+    // Transparent row — the rarity-coloured icon disc carries the emphasis:
+    // solid rarity + soft glow when unlocked, a faint tint when locked.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: rarityColor.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(8),
+              shape: BoxShape.circle,
+              color: achievement.isUnlocked
+                  ? rarityColor
+                  : rarityColor.withValues(alpha: 0.16),
+              boxShadow: achievement.isUnlocked
+                  ? [
+                      BoxShadow(
+                        color: rarityColor.withValues(alpha: 0.45),
+                        blurRadius: 12,
+                        spreadRadius: -1,
+                      ),
+                    ]
+                  : null,
             ),
-            child: Icon(achievement.icon, color: Colors.white, size: 24),
+            child: Icon(
+              achievement.icon,
+              color: achievement.isUnlocked ? Colors.white : rarityColor,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -979,35 +731,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Text(
                   achievement.title,
-                  style: const TextStyle(
-                    fontSize: 16,
+                  style: TextStyle(
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: theme.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   achievement.description,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.7),
-                  ),
+                  style: TextStyle(fontSize: 12, color: theme.textMuted),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          // Rarity pill — clean tint, no gradient, no border.
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: rarityColor,
+              color: rarityColor.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               _getRarityDisplayName(achievement.rarity),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: rarityColor,
               ),
             ),
           ),
@@ -1059,32 +810,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildUpgradeBenefit(IconData icon, String title, String subtitle) {
-    return Column(
-      children: [
-        Icon(icon, color: Colors.blue, size: 24),
-        const SizedBox(height: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        Text(
-          subtitle,
-          style: TextStyle(
-            fontSize: 10,
-            color: Colors.white.withValues(alpha: 0.7),
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
   Future<void> _handleGoogleUpgrade(
     BuildContext context,
     GameTheme theme,
@@ -1127,7 +852,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: theme.backgroundColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accentColor.withValues(alpha: 0.3)),
         ),
         title: Text(
           'Sign Out',
@@ -1136,9 +860,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        content: const Text(
+        content: Text(
           'Are you sure you want to sign out?\n\nYour progress will be saved if you\'re signed in with Google.',
-          style: TextStyle(color: Colors.white, fontSize: 16),
+          style: TextStyle(color: theme.textMuted, fontSize: 16),
         ),
         actions: [
           TextButton(

@@ -638,6 +638,51 @@ enum GameMode {
     }
   }
 
+  // ---------------------------------------------------------------------
+  // SHOOTER rules — consumed by CosmoStrikeGame (the real Flame game).
+  // The legacy grid getters below (hasWalls / hasMultipleFood / etc.) are
+  // snake-era mechanics still referenced by the old GameCubit grid engine;
+  // do NOT use them for the shooter.
+  // ---------------------------------------------------------------------
+
+  /// Ships per run. Survival and Perfect Game are single-ship modes.
+  int get runLives {
+    switch (this) {
+      case GameMode.survival:
+      case GameMode.perfectGame:
+        return 1;
+      default:
+        return 3;
+    }
+  }
+
+  /// Whether enemies and bosses shoot back. Zen is collision-threat only.
+  bool get enemiesFire => this != GameMode.zen;
+
+  /// Global pacing multiplier applied to enemy speed.
+  double get difficultyMultiplier {
+    switch (this) {
+      case GameMode.zen:
+        return 0.75;
+      case GameMode.speedChallenge:
+        return 1.5;
+      case GameMode.timeAttack:
+        return 1.25;
+      default:
+        return 1.0;
+    }
+  }
+
+  /// Extra enemies added to every wave (Onslaught's swarms).
+  int get extraEnemiesPerWave => this == GameMode.onslaught ? 4 : 0;
+
+  /// Chance a destroyed enemy drops a power-up.
+  double get powerUpDropChance =>
+      this == GameMode.powerUpMadness ? 0.35 : 0.12;
+
+  /// Perfect Game: any hit that lands ends the run outright.
+  bool get oneHitRun => this == GameMode.perfectGame;
+
   int get initialLives {
     switch (this) {
       case GameMode.survival:

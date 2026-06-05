@@ -1366,127 +1366,172 @@ class _GameModeFirstLaunchSheetState extends State<_GameModeFirstLaunchSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = context.read<ThemeCubit>().state.currentTheme;
+    final modes = GameMode.values;
+    const cols = 4;
+
     return SafeArea(
       top: false,
       child: Container(
+        // Borderless modal sheet per the clean design — dark surface framed
+        // purely by neon glow.
         decoration: BoxDecoration(
           color: theme.backgroundColor.withValues(alpha: 0.98),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(
-            color: theme.accentColor.withValues(alpha: 0.4),
-            width: 2,
-          ),
+          boxShadow: [
+            BoxShadow(
+              color: theme.accentColor.withValues(alpha: 0.25),
+              blurRadius: 24,
+              spreadRadius: 1,
+            ),
+          ],
         ),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
             Text(
-              'Pick a Game Mode',
+              'PICK A GAME MODE',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: theme.accentColor,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.5,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               'You can change this anytime in Settings',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 12,
+              style: TextStyle(color: theme.textMuted, fontSize: 11),
+            ),
+            const SizedBox(height: 12),
+            // Landscape mode grid — 4×2 compact chips; selection reads via
+            // neon text + glowing dot, no boxes.
+            for (var r = 0; r * cols < modes.length; r++) ...[
+              Row(
+                children: [
+                  for (var c = 0; c < cols; c++)
+                    if (r * cols + c < modes.length)
+                      Expanded(
+                        child: _buildModeChip(theme, modes[r * cols + c]),
+                      )
+                    else
+                      const Expanded(child: SizedBox.shrink()),
+                ],
+              ),
+              if ((r + 1) * cols < modes.length) const SizedBox(height: 4),
+            ],
+            const SizedBox(height: 10),
+            // Live description of the selected mode — fixed height so the
+            // sheet doesn't jump as selections change.
+            SizedBox(
+              height: 32,
+              child: Center(
+                child: Text(
+                  _selected.description,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 12,
+                    height: 1.3,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            ...GameMode.values.map((mode) {
-              final isSelected = _selected == mode;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => setState(() => _selected = mode),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? theme.accentColor.withValues(alpha: 0.18)
-                          : Colors.white.withValues(alpha: 0.04),
-                      border: Border.all(
-                        color: isSelected
-                            ? theme.accentColor
-                            : Colors.white.withValues(alpha: 0.1),
-                        width: isSelected ? 2 : 1,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Text(mode.icon, style: const TextStyle(fontSize: 24)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                mode.name,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                mode.description,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.65),
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (isSelected)
-                          Icon(Icons.check_circle,
-                              color: theme.accentColor, size: 22),
-                      ],
-                    ),
+            const SizedBox(height: 10),
+            // Gradient START pill — same CTA language as the store.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => Navigator.of(context).pop(_selected),
+              child: Container(
+                height: 46,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [theme.neonPrimary, theme.neonSecondary],
                   ),
+                  borderRadius: BorderRadius.circular(23),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.neonPrimary.withValues(alpha: 0.35),
+                      blurRadius: 14,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-              );
-            }),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.accentColor,
-                  foregroundColor: theme.backgroundColor,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () => Navigator.of(context).pop(_selected),
                 child: const Text(
                   'START PLAYING',
                   style: TextStyle(
-                      fontWeight: FontWeight.bold, letterSpacing: 1.5),
+                    color: Color(0xFF03040A),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.5,
+                  ),
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeChip(GameTheme theme, GameMode mode) {
+    final isSelected = _selected == mode;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _selected = mode),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(mode.icon, style: const TextStyle(fontSize: 20)),
+            const SizedBox(height: 4),
+            Text(
+              mode.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isSelected ? theme.neonPrimary : theme.textMuted,
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            // Glowing dot marks the selection — no boxes, no borders.
+            Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color:
+                    isSelected ? theme.neonPrimary : Colors.transparent,
+                shape: BoxShape.circle,
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: theme.neonPrimary.withValues(alpha: 0.7),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
               ),
             ),
           ],

@@ -65,7 +65,8 @@ class EnemyShip extends PositionComponent
     if (position.x < -40) removeFromParent();
 
     _fireTimer -= dt;
-    if (_fireTimer <= 0 && position.x < game.size.x) {
+    // Zen mode: enemies never shoot — collision is the only threat.
+    if (_fireTimer <= 0 && position.x < game.size.x && game.mode.enemiesFire) {
       _fireTimer = _fireInterval;
       _fire();
     }

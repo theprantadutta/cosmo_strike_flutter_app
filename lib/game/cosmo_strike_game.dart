@@ -5,6 +5,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
+import '../utils/constants.dart' show GameMode;
 import 'components/boss.dart';
 import 'components/bullets.dart';
 import 'components/enemy.dart';
@@ -45,6 +46,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     this.onGameOver,
     this.onStageClear,
     this.autoFire = true,
+    this.mode = GameMode.classic,
   });
 
   /// Called once when the run ends (player out of lives). The screen submits
@@ -55,6 +57,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   final void Function(int stage)? onStageClear;
 
   bool autoFire;
+
+  /// The selected game mode — drives lives, pacing, enemy fire, spawn counts,
+  /// power-up drop rate, the one-hit rule, and the Time Attack clock (see the
+  /// SHOOTER rules section on [GameMode]).
+  final GameMode mode;
 
   final math.Random rng = math.Random();
 
@@ -69,6 +76,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   final ValueNotifier<GamePhase> phaseNotifier = ValueNotifier(GamePhase.ready);
   // Boss health in [0,1]; -1 means no boss on screen.
   final ValueNotifier<double> bossHealthNotifier = ValueNotifier(-1);
+  // Time Attack: seconds remaining; -1 means the mode has no clock.
+  final ValueNotifier<int> timeRemainingNotifier = ValueNotifier(-1);
 
   // Run tallies.
   int stage = 1;
@@ -93,6 +102,10 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     await add(Starfield());
     player = PlayerShip();
     await add(player);
+    // Mode rules: ships per run + start the Time Attack clock when set.
+    livesNotifier.value = mode.runLives;
+    final limit = mode.timeLimit;
+    if (limit != null) timeRemainingNotifier.value = limit.inSeconds;
     _startRun();
   }
 
@@ -109,6 +122,17 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       if (_multTimer > 0) {
         _multTimer -= dt;
         if (_multTimer <= 0) scoreMultiplier = 1;
+      }
+      // Time Attack: count the clock down and end the run when it hits zero.
+      final limit = mode.timeLimit;
+      if (limit != null) {
+        final remaining = limit.inSeconds - _elapsed.floor();
+        if (remaining != timeRemainingNotifier.value) {
+          timeRemainingNotifier.value = remaining.clamp(0, limit.inSeconds);
+        }
+        if (remaining <= 0) {
+          _endRun(cleared: false);
+        }
       }
     }
   }
@@ -134,7 +158,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   void _spawnWave() {
     waveNotifier.value = wave;
-    final int count = 3 + wave + stage; // ramps with progress
+    // Ramps with progress; Onslaught piles extra ships onto every wave.
+    final int count = 3 + wave + stage + mode.extraEnemiesPerWave;
     final pattern = EnemyPattern.values[(wave + stage) % EnemyPattern.values.length];
     for (int i = 0; i < count; i++) {
       final delay = i * 0.55;
@@ -145,7 +170,10 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
             pattern: pattern,
             spawn: Vector2(size.x + 40, y),
             hp: 1 + (stage ~/ 2),
-            speed: 70 + stage * 12 + rng.nextDouble() * 30,
+            // Mode pacing: Zen drifts slower, Speed Challenge / Time Attack
+            // come in hot.
+            speed: (70 + stage * 12 + rng.nextDouble() * 30) *
+                mode.difficultyMultiplier,
             pointValue: 100 + stage * 20,
           ));
         }
@@ -209,8 +237,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     enemiesKilled++;
     addScore(enemy.pointValue);
     spawnExplosion(enemy.position, CosmoExplosionKind.enemy);
-    // 12% chance to drop a power-up.
-    if (rng.nextDouble() < 0.12) {
+    // Power-up drop — 12% normally, cranked way up in Power-Up Madness.
+    if (rng.nextDouble() < mode.powerUpDropChance) {
       add(PowerUp(kind: PowerUpKind.random(rng), spawn: enemy.position.clone()));
     }
   }
@@ -224,6 +252,15 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     if (phase != GamePhase.playing) return;
     if (player.shielded) {
       player.popShield();
+      return;
+    }
+    // Perfect Game: flawless flying only — any hit that lands ends the run,
+    // regardless of remaining health or lives. (A shield pop still saves you;
+    // it's a power-up doing its job.)
+    if (mode.oneHitRun) {
+      player.health = 0;
+      healthNotifier.value = 0;
+      _loseLife();
       return;
     }
     player.health -= damage;
