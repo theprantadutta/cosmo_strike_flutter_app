@@ -7,6 +7,7 @@ import 'package:cosmo_strike_flutter_app/providers/leaderboard_provider.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
+import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
 import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
@@ -80,45 +81,41 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
       title: 'Leaderboards',
       bottomBar: const ShipBannerAd(),
       bodyPadding: EdgeInsets.zero,
-      body: Column(
-            children: [
-              // Tab Bar
-              _buildTabBar(theme),
-
-              // Subtitle explaining what the active tab ranks by — without
-              // this, "Global vs Weekly" doesn't tell players whether the
-              // metric is score / coins / XP / something else.
-              AnimatedBuilder(
-                animation: _tabController,
-                builder: (context, _) => _buildSubtitle(theme),
-              ),
-
-              // Cache freshness chip — surfaces when the Drift cache for
-              // the active board was last refreshed from the server so
-              // the user knows if they're looking at stale data (offline,
-              // or a recent disconnect).
-              AnimatedBuilder(
-                animation: _tabController,
-                builder: (context, _) =>
-                    _buildStalenessChip(theme, leaderboardState),
-              ),
-
-              // User Rank Card
-              if (authState.isSignedIn && leaderboardState.userRank != null)
-                _buildUserRankCard(authState, theme, leaderboardState.userRank!),
-
-              // Leaderboard Content
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildGlobalLeaderboard(theme, authState, leaderboardState),
-                    _buildWeeklyLeaderboard(theme, authState, leaderboardState),
-                  ],
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // LEFT — section rail + board telemetry (subtitle, cache
+            // freshness, the signed-in player's rank). Never scrolls:
+            // rendered at natural size and scaled down.
+            Expanded(
+              flex: 3,
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SizedBox(
+                    width: 230,
+                    child: _buildLeftPanel(theme, authState, leaderboardState),
+                  ),
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 20),
+            // RIGHT — the selected board's entries (swipeable).
+            Expanded(
+              flex: 7,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildGlobalLeaderboard(theme, authState, leaderboardState),
+                  _buildWeeklyLeaderboard(theme, authState, leaderboardState),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -137,7 +134,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
           Text(
             label,
             style: TextStyle(
-              color: theme.accentColor.withValues(alpha: 0.8),
+              color: theme.textMuted,
               fontSize: 16,
             ),
           ),
@@ -146,29 +143,99 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
     );
   }
 
-  Widget _buildTabBar(GameTheme theme) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      decoration: BoxDecoration(
-        color: theme.surfaceGlass,
-        borderRadius: GameTokens.brMd,
-        border: Border.all(color: theme.stroke),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicator: BoxDecoration(
-          color: theme.neonPrimary.withValues(alpha: 0.85),
-          borderRadius: GameTokens.brMd,
+  /// Vertical, borderless section rail + board telemetry for the left
+  /// region. Driven by the existing [_tabController] so taps and
+  /// TabBarView swipes stay in sync.
+  Widget _buildLeftPanel(
+    GameTheme theme,
+    AuthState authState,
+    CombinedLeaderboardState leaderboardState,
+  ) {
+    const items = [
+      (Icons.public, 'Global'),
+      (Icons.calendar_today, 'Weekly'),
+    ];
+
+    return AnimatedBuilder(
+      animation: _tabController,
+      builder: (context, _) {
+        final userRank = leaderboardState.userRank;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < items.length; i++)
+              _buildNavItem(theme, i, items[i].$1, items[i].$2),
+            const SizedBox(height: 6),
+
+            // Subtitle explaining what the active board ranks by — without
+            // this, "Global vs Weekly" doesn't tell players whether the
+            // metric is score / coins / XP / something else.
+            _buildSubtitle(theme),
+            const SizedBox(height: 8),
+
+            // Cache freshness chip — surfaces when the Drift cache for
+            // the active board was last refreshed from the server so
+            // the user knows if they're looking at stale data (offline,
+            // or a recent disconnect).
+            _buildStalenessChip(theme, leaderboardState),
+
+            // The signed-in player's own standing on the board.
+            if (authState.isSignedIn && userRank != null) ...[
+              const SizedBox(height: 12),
+              _buildUserRankCard(authState, theme, userRank),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildNavItem(GameTheme theme, int i, IconData icon, String label) {
+    final selected = _tabController.index == i;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _tabController.animateTo(i),
+      // No background at all — selection reads purely through the neon icon,
+      // brighter text, and a small glowing indicator dot.
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? theme.neonPrimary : theme.textMuted,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? theme.textPrimary : theme.textMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const Spacer(),
+            if (selected)
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: theme.neonPrimary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.neonPrimary.withValues(alpha: 0.7),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerColor: Colors.transparent,
-        labelColor: const Color(0xFF03040A),
-        unselectedLabelColor: theme.textMuted,
-        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-        tabs: const [
-          Tab(text: 'Global'),
-          Tab(text: 'Weekly'),
-        ],
       ),
     );
   }
@@ -184,24 +251,24 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
     final text = isWeekly
         ? 'Ranked by your best single-game score this week (resets Sunday)'
         : 'Ranked by your highest single-game score ever';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Row(
-        children: [
-          Icon(icon, color: theme.accentColor.withValues(alpha: 0.75), size: 14),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-              ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, color: theme.textMuted, size: 12),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: theme.textMuted,
+              fontSize: 11,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -225,43 +292,35 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
     if (ts == null && !hasData) return const SizedBox.shrink();
 
     final label = ts == null ? 'No cache yet' : 'Updated ${_relativeAge(ts)}';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: InkWell(
-          onTap: () =>
-              ref.read(combinedLeaderboardProvider.notifier).refresh(),
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: theme.accentColor.withValues(alpha: 0.18),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => ref.read(combinedLeaderboardProvider.notifier).refresh(),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: theme.accentColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.refresh_rounded,
+                color: theme.accentColor.withValues(alpha: 0.7),
+                size: 12,
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.refresh_rounded,
-                  color: theme.accentColor.withValues(alpha: 0.7),
-                  size: 12,
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  color: theme.accentColor.withValues(alpha: 0.75),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
                 ),
-                const SizedBox(width: 5),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: theme.accentColor.withValues(alpha: 0.75),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -277,81 +336,82 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
     return '${diff.inDays}d ago';
   }
 
+  /// The signed-in player's own standing — borderless, no card chrome:
+  /// a section label, the big "#n" rank value, then muted detail rows.
   Widget _buildUserRankCard(AuthState authState, GameTheme theme, Map<String, dynamic> userRank) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.primaryColor.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.primaryColor.withValues(alpha: 0.3)),
-      ),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 25,
-            backgroundImage: authState.photoURL != null
-                ? NetworkImage(authState.photoURL!)
-                : null,
-            onBackgroundImageError: authState.photoURL != null
-                ? (e, s) {}
-                : null,
-            backgroundColor: theme.primaryColor,
-            child: authState.photoURL == null
-                ? Icon(Icons.person, color: theme.backgroundColor)
-                : null,
-          ),
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  authState.publicLabel,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  'Score: ${authState.highScore}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
+          Text(
+            'YOUR RANK',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
+              color: theme.accentColor,
             ),
           ),
-
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          const SizedBox(height: 8),
+          Row(
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.leaderboard, color: theme.accentColor, size: 20),
-                  const SizedBox(width: 4),
-                  Text(
-                    '#${userRank['rank']}',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: theme.accentColor,
-                    ),
-                  ),
-                ],
+              CircleAvatar(
+                radius: 16,
+                backgroundImage: authState.photoURL != null
+                    ? NetworkImage(authState.photoURL!)
+                    : null,
+                onBackgroundImageError: authState.photoURL != null
+                    ? (e, s) {}
+                    : null,
+                backgroundColor: theme.primaryColor,
+                child: authState.photoURL == null
+                    ? Icon(Icons.person, color: theme.backgroundColor, size: 18)
+                    : null,
               ),
-              Text(
-                'Top ${userRank['percentile']}%',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.6),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '#${userRank['rank']}',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: theme.textPrimary,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    Text(
+                      authState.publicLabel,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: theme.textMuted,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Score: ${authState.highScore}',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.textMuted,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Top ${userRank['percentile']}%',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.textMuted,
+            ),
           ),
         ],
       ),
@@ -371,13 +431,13 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
             Icon(
               Icons.error_outline,
               size: 64,
-              color: theme.primaryColor.withValues(alpha: 0.5),
+              color: theme.accentColor.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 16),
             Text(
               leaderboardState.globalError!,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
+                color: theme.textMuted,
                 fontSize: 16,
               ),
             ),
@@ -401,21 +461,22 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
             Icon(
               Icons.emoji_events_outlined,
               size: 64,
-              color: theme.primaryColor.withValues(alpha: 0.5),
+              color: theme.accentColor.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 16),
             Text(
               'No scores yet',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
+                color: theme.textPrimary,
                 fontSize: 16,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Be the first to set a high score!',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
+                color: theme.textMuted,
                 fontSize: 14,
               ),
             ),
@@ -436,7 +497,8 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
               authState.userId != null &&
               player['uid'] == authState.userId;
 
-          return _buildLeaderboardItem(index + 1, player, theme, isCurrentUser);
+          return _buildLeaderboardItem(index + 1, player, theme, isCurrentUser)
+              .gameListItem(index);
         },
       ),
     );
@@ -455,13 +517,13 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
             Icon(
               Icons.error_outline,
               size: 64,
-              color: theme.primaryColor.withValues(alpha: 0.5),
+              color: theme.accentColor.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 16),
             Text(
               leaderboardState.weeklyError!,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
+                color: theme.textMuted,
                 fontSize: 16,
               ),
             ),
@@ -485,21 +547,22 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
             Icon(
               Icons.calendar_today_outlined,
               size: 64,
-              color: theme.primaryColor.withValues(alpha: 0.5),
+              color: theme.accentColor.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 16),
             Text(
               'No weekly scores yet',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
+                color: theme.textPrimary,
                 fontSize: 16,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Play this week to appear here!',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
+                color: theme.textMuted,
                 fontSize: 14,
               ),
             ),
@@ -520,7 +583,8 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
               authState.userId != null &&
               player['uid'] == authState.userId;
 
-          return _buildLeaderboardItem(index + 1, player, theme, isCurrentUser);
+          return _buildLeaderboardItem(index + 1, player, theme, isCurrentUser)
+              .gameListItem(index);
         },
       ),
     );
@@ -532,9 +596,10 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
     GameTheme theme,
     bool isCurrentUser,
   ) {
-    // Top-3 podium styling. Each gets its own metallic tint plus a faint
-    // background gradient so the eye lands there first. Beyond rank 3 the
-    // entries use the neutral theme treatment.
+    // Top-3 podium styling lives on the small rank disc (gold / silver /
+    // bronze gradient + glow) — rows themselves float transparently on
+    // the starfield. Only the signed-in player's row keeps a single faint
+    // accent tint so they always know which row is theirs.
     final podium = _podiumStyle(rank);
     final isPodium = podium != null;
 
@@ -544,61 +609,12 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        // Layering priority:
-        //   1. Signed-in player gets the accent-color gradient + glow (wins
-        //      over podium so they always know which row is theirs).
-        //   2. Top 3 (when not the current user) get the metallic gradient.
-        //   3. Everyone else gets the flat theme tint.
-        gradient: isCurrentUser
-            ? LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [
-                  theme.accentColor.withValues(alpha: 0.32),
-                  theme.accentColor.withValues(alpha: 0.16),
-                  theme.primaryColor.withValues(alpha: 0.18),
-                ],
-              )
-            : (isPodium
-                ? LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      podium.color.withValues(alpha: 0.22),
-                      podium.color.withValues(alpha: 0.10),
-                      theme.primaryColor.withValues(alpha: 0.06),
-                    ],
-                  )
-                : null),
-        color: (isCurrentUser || isPodium)
-            ? null
-            : theme.primaryColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: isCurrentUser
-            ? Border.all(color: theme.accentColor, width: 1.5)
-            : (isPodium
-                ? Border.all(color: podium.color.withValues(alpha: 0.45), width: 1.2)
-                : Border.all(color: theme.primaryColor.withValues(alpha: 0.2))),
-        boxShadow: isCurrentUser
-            ? [
-                BoxShadow(
-                  color: theme.accentColor.withValues(alpha: 0.35),
-                  blurRadius: 14,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : (isPodium
-                ? [
-                    BoxShadow(
-                      color: podium.color.withValues(alpha: 0.25),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null),
-      ),
+      decoration: isCurrentUser
+          ? BoxDecoration(
+              color: theme.accentColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+            )
+          : null,
       child: Row(
         children: [
           // Rank chip — medal for top 3, pill with "#N" for the rest.
@@ -656,7 +672,9 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: isCurrentUser ? theme.accentColor : Colors.white,
+                        color: isCurrentUser
+                            ? theme.accentColor
+                            : theme.textPrimary,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -668,7 +686,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.2),
+                          color: Colors.orange.withValues(alpha: 0.16),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
@@ -689,34 +707,22 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              theme.accentColor,
-                              theme.accentColor.withValues(alpha: 0.75),
-                            ],
-                          ),
+                          color: theme.accentColor.withValues(alpha: 0.16),
                           borderRadius: BorderRadius.circular(10),
-                          boxShadow: [
-                            BoxShadow(
-                              color: theme.accentColor.withValues(alpha: 0.55),
-                              blurRadius: 6,
-                              spreadRadius: 0.5,
-                            ),
-                          ],
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
                               Icons.person_pin,
-                              color: theme.backgroundColor,
+                              color: theme.accentColor,
                               size: 12,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               'YOU',
                               style: TextStyle(
-                                color: theme.backgroundColor,
+                                color: theme.accentColor,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0.8,
@@ -732,7 +738,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
                   _formatGamesPlayed(gamesPlayed),
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.65),
+                    color: theme.textMuted,
                   ),
                 ),
               ],
@@ -752,7 +758,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.5),
+                  color: theme.textMuted,
                   letterSpacing: 1.0,
                 ),
               ),
@@ -819,8 +825,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: theme.primaryColor.withValues(alpha: 0.18),
-        border: Border.all(color: theme.accentColor.withValues(alpha: 0.25)),
+        color: theme.primaryColor.withValues(alpha: 0.16),
       ),
       child: Text(
         '$rank',
@@ -864,7 +869,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
       style: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.w900,
-        color: isCurrentUser ? theme.accentColor : Colors.white,
+        color: isCurrentUser ? theme.accentColor : theme.textPrimary,
         letterSpacing: -0.5,
       ),
     );
