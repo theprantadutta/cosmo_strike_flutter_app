@@ -688,7 +688,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// neon [LaunchEmblem] (sized from the available space via LayoutBuilder so
   /// it never overflows), a gradient "LAUNCH" CTA, and the loadout chip
   /// (which self-hides when the user owns no power-ups). Tapping anywhere on
-  /// the panel runs the one-time game-mode prompt then routes to playLoading.
+  /// the panel runs the one-time game-mode prompt then routes to the
+  /// campaign level select.
   Widget _buildLaunchHero(BuildContext context, GameTheme theme) {
     return GestureDetector(
       onTap: () async {
@@ -696,10 +697,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // game; no-op for users who've already picked.
         await _maybeShowGameModePrompt();
         if (!context.mounted) return;
-        // Detour through the themed pre-game loader. It self-advances to
-        // /game on completion via pushReplacement so back from the game
-        // lands on Home rather than the loader.
-        context.push(AppRoutes.playLoading);
+        // Campaign level select — pick a start level there; it routes on
+        // through the themed pre-game loader (which pushReplacements to
+        // /game so back from the game lands here, not on the loader).
+        context.push(AppRoutes.levelSelect);
       },
       // No GlassPanel — its backdrop blur frosts the starfield into a visible
       // box. A plain transparent Container (opaque hit-test on the parent

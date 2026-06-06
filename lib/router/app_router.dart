@@ -17,6 +17,7 @@ import 'package:cosmo_strike_flutter_app/screens/gameplay_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/home_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/instructions_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/leaderboard_screen.dart';
+import 'package:cosmo_strike_flutter_app/screens/level_select_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/loading_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/multiplayer_game_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/multiplayer_lobby_screen.dart';
@@ -133,15 +134,25 @@ GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
 
     // Game flow
     GoRoute(
+      path: AppRoutes.levelSelect,
+      name: 'levelSelect',
+      pageBuilder: (context, state) =>
+          _zoomPage(state, const LevelSelectScreen()),
+    ),
+    GoRoute(
       path: AppRoutes.playLoading,
       name: 'playLoading',
-      pageBuilder: (context, state) =>
-          _zoomPage(state, const PreGameLoadingScreen()),
+      // `extra` carries the 1-based campaign start level from level select
+      // (per-run transient — route extra, not a cubit; null-safe for deep
+      // links, defaulting to level 1).
+      pageBuilder: (context, state) => _zoomPage(
+          state, PreGameLoadingScreen(startLevel: state.extra as int? ?? 1)),
     ),
     GoRoute(
       path: AppRoutes.game,
       name: 'game',
-      pageBuilder: (context, state) => _scalePage(state, const GameplayScreen()),
+      pageBuilder: (context, state) => _scalePage(
+          state, GameplayScreen(startLevel: state.extra as int? ?? 1)),
     ),
     // /game-over removed: the Flame GameplayScreen shows its own game-over
     // overlay and routes home, so the ship GameOverScreen is no longer used.
