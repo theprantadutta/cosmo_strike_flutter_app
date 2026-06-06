@@ -92,6 +92,27 @@ Build new screens with `CommandScaffold` + these widgets. Reference screens:
 `home_screen.dart` (menu hub), `leaderboard_screen.dart` (list/detail),
 `username_setup_screen.dart` / `email_auth_screen.dart` (centered form card).
 
+## Gameplay: sprite-based checkpoint campaign
+The Flame game is a 12-level campaign (4 biomes × 3 levels) with modes as
+modifiers on top. Key pieces (all in `lib/game/`):
+- **Pure-data levels**: `levels/level_def.dart` (EnemyType/BossDef/BiomeDef/
+  WaveDef schemas) + `levels/level_catalog.dart` (the 12 LevelDefs — adding a
+  level = appending data + a name in `lib/utils/campaign_catalog.dart`).
+- **Game-time spawning**: `levels/wave_runner.dart` — never use
+  `Future.delayed` for spawns (wall-clock ignores `pauseEngine()` and breaks
+  pause/revive).
+- **Sprites**: all components render from `game_assets.dart` paths preloaded
+  into `Flame.images` by the pre-game loader (memoized; re-awaited in onLoad).
+- **Progress**: per-level bests live in Drift (`StageProgressDao`,
+  monotonic merge, stars via `CampaignCatalog.starsFor`); each level clear
+  persists incrementally from `gameplay_screen.dart`; sync goes through the
+  outbox to `/sync/stage-progress` (absorbing merge server-side).
+- Start level rides **route extras** (`levelSelect → playLoading → game`),
+  never a cubit. One revive per run (ad / 200 coins); armed store power-ups
+  inject via `run_effects.dart`.
+- Gameplay SFX keys exist but `assets/audio/` has no files yet — hooks
+  no-op silently (see `game_audio.dart` / AudioService fallback rule).
+
 ## Structure
 - `lib/game/` — Flame gameplay (logic off-limits; reskin via palette/render only).
 - `lib/ui/` — the command-HUD design system (widgets + tokens; barrel `design.dart`).
