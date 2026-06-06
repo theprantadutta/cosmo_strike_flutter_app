@@ -784,6 +784,23 @@ class SyncEngine {
             send: _api.syncPlayerProgress,
           );
 
+        case SyncDataType.stageProgress:
+          // Per-row snapshot keyed by stage id — read the live Drift
+          // rows so the batch carries the latest merged bests, not
+          // whatever was true at enqueue time. Backend handler is an
+          // absorbing merge, so resends are harmless.
+          final stageIds = _extractIds(items, prefix: 'stage_progress:')
+              .map(int.tryParse)
+              .whereType<int>()
+              .toSet();
+          if (stageIds.isEmpty) return _DispatchResult.success;
+          final stageRows =
+              await _db!.stageProgressDao.getByStageIds(stageIds);
+          if (stageRows.isEmpty) return _DispatchResult.success;
+          final stagePayload =
+              stageRows.map(_stageProgressToPayload).toList();
+          return _mapOutcome(await _api.syncStageProgress(stagePayload));
+
         case SyncDataType.coinTransaction:
           // Event-typed: payload was frozen at outbox-write time.
           final payloads = _extractPayloads(items);
@@ -934,6 +951,7 @@ class SyncEngine {
       case SyncDataType.weeklyQuestClaim:
       case SyncDataType.dailyBonusClaim:
       case SyncDataType.playerProgress:
+      case SyncDataType.stageProgress:
         return true;
       default:
         return false;
@@ -991,6 +1009,22 @@ class SyncEngine {
   Map<String, dynamic> _playerProgressToPayload(PlayerProgressRow r) => {
         'total_xp': r.totalXp,
         'level': r.level,
+        'updated_at': _utcIso(r.updatedAt),
+      };
+
+  // Keys match SyncStageProgressPayload on the backend (snake_case via
+  // JsonNamingPolicy.SnakeCaseLower).
+  Map<String, dynamic> _stageProgressToPayload(StageProgressRow r) => {
+        'stage_id': r.stageId,
+        'unlocked': r.unlocked,
+        'cleared': r.cleared,
+        'best_score': r.bestScore,
+        'best_time_seconds': r.bestTimeSeconds,
+        'best_wave_reached': r.bestWaveReached,
+        'cleared_no_hit': r.clearedNoHit,
+        'stars': r.stars,
+        'clear_count': r.clearCount,
+        'first_cleared_at': _utcIsoNullable(r.firstClearedAt),
         'updated_at': _utcIso(r.updatedAt),
       };
 
@@ -1398,6 +1432,18 @@ class SyncEngine {
       if (playerProgress is Map<String, dynamic>) {
         final totalXp = (playerProgress['total_xp'] as num?)?.toInt() ?? 0;
         await _gameDao!.applyPlayerProgressSnapshot(totalXp);
+      }
+
+      // ----- campaign stage progress -----
+      //
+      // Monotonic max-merge inside the DAO (mirrors the backend handler);
+      // if local is ahead on any field the DAO re-enqueues that stage for
+      // push, surviving the caller's clearSyncQueue. No-op when absent.
+      final stageProgress = snapshot['stage_progress'];
+      if (stageProgress is List && stageProgress.isNotEmpty) {
+        await _db!.stageProgressDao.applyStageProgressSnapshot(
+          stageProgress.whereType<Map<String, dynamic>>().toList(),
+        );
       }
 
       // ----- premium status -----

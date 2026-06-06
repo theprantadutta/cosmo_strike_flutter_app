@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:cosmo_strike_flutter_app/data/daos/settings_dao.dart';
 import 'package:cosmo_strike_flutter_app/data/daos/game_dao.dart';
+import 'package:cosmo_strike_flutter_app/data/daos/stage_progress_dao.dart';
 import 'package:cosmo_strike_flutter_app/data/daos/store_dao.dart';
 import 'package:cosmo_strike_flutter_app/data/daos/sync_dao.dart';
 import 'package:cosmo_strike_flutter_app/data/daos/leaderboard_dao.dart';
@@ -35,6 +36,7 @@ class SyncDataType {
   static const String weeklyQuestClaim = 'weekly_quest_claim';
   static const String dailyBonusClaim = 'daily_bonus_claim';
   static const String playerProgress = 'player_progress';
+  static const String stageProgress = 'stage_progress';
 }
 
 // =====================================================
@@ -644,6 +646,40 @@ class PlayerProgressTable extends Table {
 }
 
 // =====================================================
+// TABLE: Stage Progress (campaign — one row per level)
+// =====================================================
+// Offline-first mirror of the backend's StageProgress entity. Drift is the
+// source of truth: the level-select screen watches these rows, run results
+// merge into them via StageProgressDao.applyRunResults, and the SyncEngine
+// pushes changed rows to /sync/stage-progress (absorbing merge server-side,
+// so retries / out-of-order batches can never regress progress).
+@DataClassName('StageProgressRow')
+class StageProgressTable extends Table {
+  /// 1-based campaign level number (primary key — one row per level).
+  IntColumn get stageId => integer()();
+  BoolColumn get unlocked => boolean().withDefault(const Constant(false))();
+  BoolColumn get cleared => boolean().withDefault(const Constant(false))();
+  IntColumn get bestScore => integer().withDefault(const Constant(0))();
+
+  /// Fastest clear in seconds. 0 = never cleared.
+  IntColumn get bestTimeSeconds => integer().withDefault(const Constant(0))();
+  IntColumn get bestWaveReached => integer().withDefault(const Constant(0))();
+  BoolColumn get clearedNoHit => boolean().withDefault(const Constant(false))();
+
+  /// 0-3, recomputed from merged bests via CampaignCatalog.starsFor.
+  IntColumn get stars => integer().withDefault(const Constant(0))();
+  IntColumn get clearCount => integer().withDefault(const Constant(0))();
+  DateTimeColumn get firstClearedAt => dateTime().nullable()();
+
+  /// Sync-engine timestamp — see [GameSettings.updatedAt].
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {stageId};
+}
+
+// =====================================================
 // DATABASE CLASS
 // =====================================================
 @DriftDatabase(
@@ -673,10 +709,12 @@ class PlayerProgressTable extends Table {
     FriendRequestsCache,
     FriendsMeta,
     PlayerProgressTable,
+    StageProgressTable,
   ],
   daos: [
     SettingsDao,
     GameDao,
+    StageProgressDao,
     StoreDao,
     SyncDao,
     LeaderboardDao,
@@ -688,19 +726,23 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    // Single-version schema. Cosmo Strike is a fresh app, so the original
-    // v2..v13 incremental migrations (inherited from the prior codebase) have
-    // been collapsed away — onCreate builds the entire current schema (every
-    // table + index) in one shot. Bumping the app onto this clean baseline
-    // needs a one-time local data reset (uninstall/reinstall or clear app
-    // data); there are no real users yet, so nothing is lost.
+    // v1 was the collapsed clean baseline (the original v2..v13 incremental
+    // migrations inherited from the prior codebase were folded into
+    // onCreate; anything older than that collapse needs a one-time
+    // `pm clear`). From here on we migrate incrementally again.
     onCreate: (m) async {
       await m.createAll();
       await _createIndexes();
+    },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        // v2: campaign stage progress (checkpoint levels).
+        await m.createTable(stageProgressTable);
+      }
     },
   );
 
@@ -845,6 +887,9 @@ class AppDatabase extends _$AppDatabase {
     if (existingPremium == null) {
       await into(premiumStatus).insert(PremiumStatusCompanion.insert());
     }
+
+    // Seed the campaign stage rows (level 1 unlocked) if missing.
+    await stageProgressDao.seedDefaultsIfEmpty();
   }
 
   /// Clear all data (for logout/reset). Wipes per-user tables AND the
@@ -879,6 +924,8 @@ class AppDatabase extends _$AppDatabase {
       await delete(friendsCache).go();
       await delete(friendRequestsCache).go();
       await delete(friendsMeta).go();
+      // Campaign progress is per-user — re-seeded by initializeDefaults.
+      await delete(stageProgressTable).go();
     });
 
     // Reinitialize defaults

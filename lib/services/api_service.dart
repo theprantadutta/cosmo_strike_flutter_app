@@ -485,6 +485,9 @@ class ApiService {
   ) =>
       _postSync('daily-challenge-claims', {'items': items});
 
+  Future<SyncOutcome> syncStageProgress(List<Map<String, dynamic>> items) =>
+      _postSync('stage-progress', {'items': items});
+
   Future<SyncOutcome> syncWeeklyQuestClaims(
     List<Map<String, dynamic>> items,
   ) =>
@@ -854,6 +857,11 @@ class ApiService {
     String gameMode = 'Classic',
     String difficulty = 'Normal',
     String? idempotencyKey,
+    // Free-form forensics blob (e.g. the campaign breakdown:
+    // start/furthest level + per-level results). Stored verbatim by the
+    // backend's SubmitScore handler; informational only — authoritative
+    // campaign progress flows through /sync/stage-progress.
+    Map<String, dynamic>? gameData,
   }) async {
     try {
       final response = await http
@@ -870,6 +878,7 @@ class ApiService {
               'game_mode': gameMode,
               'difficulty': difficulty,
               'idempotency_key': ?idempotencyKey,
+              'game_data': ?gameData,
             }),
           )
           .timeout(_timeout);
