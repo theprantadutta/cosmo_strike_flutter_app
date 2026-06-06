@@ -135,5 +135,13 @@ flutter:
   assets:
     - assets/audio/
     - assets/images/
+    # Gameplay sprites (Flutter asset dirs are not recursive — list each).
+    - assets/game/player/
+    - assets/game/enemies/
+    - assets/game/bosses/
+    - assets/game/projectiles/
+    - assets/game/powerups/
+    - assets/game/fx/
+    - assets/game/terrain/
     - PRIVACY.md
     - .env
