@@ -24,6 +24,8 @@ class AudioService {
     'game_start',
     'power_up',
     'button_click',
+    'coin_collect',
+    'high_score',
     // Gameplay SFX (Flame game layer):
     'shoot',
     'enemy_down',
