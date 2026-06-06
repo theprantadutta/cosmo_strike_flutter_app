@@ -9,6 +9,7 @@ abstract class AppRoutes {
   static const String home = '/home';
 
   // Game flow
+  static const String levelSelect = '/level-select';
   static const String playLoading = '/play-loading';
   static const String game = '/game';
   static const String gameOver = '/game-over';

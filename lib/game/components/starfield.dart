@@ -23,6 +23,12 @@ class Starfield extends PositionComponent with HasGameReference<CosmoStrikeGame>
   final List<_Star> _stars = [];
   final math.Random _rng = math.Random(42);
 
+  /// Biome accent for the bright (near) stars; far stars stay icy.
+  Color _tint = CosmoPalette.hullLight;
+
+  /// Recolor the field for the active biome (called on level change).
+  void setTint(Color tint) => _tint = tint;
+
   @override
   Future<void> onLoad() async {
     size = game.size;
@@ -62,7 +68,7 @@ class Starfield extends PositionComponent with HasGameReference<CosmoStrikeGame>
   void render(Canvas canvas) {
     final paint = Paint();
     for (final s in _stars) {
-      paint.color = (s.radius > 1.4 ? CosmoPalette.highlight : CosmoPalette.hullLight)
+      paint.color = (s.radius > 1.4 ? CosmoPalette.highlight : _tint)
           .withValues(alpha: s.opacity);
       canvas.drawCircle(Offset(s.position.x, s.position.y), s.radius, paint);
     }

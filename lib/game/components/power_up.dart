@@ -2,87 +2,90 @@ import 'dart:math' as math;
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
+import 'package:flame/flame.dart';
 import 'package:flutter/painting.dart';
 
-import '../cosmo_palette.dart';
 import '../cosmo_strike_game.dart';
+import '../game_assets.dart';
 import 'player_ship.dart';
 
+/// The ten pickup orbs, mapped 1:1 onto the powerup_* sprites.
 enum PowerUpKind {
-  rapidFire,
-  spread,
-  laser,
+  /// Tiers the primary weapon up: single → rapid → spread → laser.
+  weapon,
+
+  /// One-hit energy bubble.
   shield,
-  extraLife,
+
+  /// +1 life.
+  life,
+
+  /// Screen-clear blast (also chunks the boss).
   bomb,
-  scoreMultiplier;
+
+  /// Score x2 for a while.
+  x2,
+
+  /// +3 missile ammo for the special weapon.
+  missiles,
+
+  /// Faster movement + slightly faster fire for a while.
+  speed,
+
+  /// Slows enemies / enemy bullets / obstacles for a while.
+  slowmo,
+
+  /// Nearby orbs home toward the ship for a while.
+  magnet,
+
+  /// Phase out: enemies and their bullets pass through for a while.
+  ghost;
 
   /// Weighted random drop — combat upgrades common, life/bomb rare.
   static PowerUpKind random(math.Random rng) {
     const weighted = [
-      rapidFire, rapidFire, rapidFire,
-      spread, spread, spread,
-      laser, laser,
+      weapon, weapon, weapon,
+      missiles, missiles,
+      speed, speed,
       shield, shield,
-      scoreMultiplier, scoreMultiplier,
+      x2, x2,
+      slowmo,
+      magnet,
+      ghost,
       bomb,
-      extraLife,
+      life,
     ];
     return weighted[rng.nextInt(weighted.length)];
   }
 
-  String get glyph {
-    switch (this) {
-      case PowerUpKind.rapidFire:
-        return 'R';
-      case PowerUpKind.spread:
-        return 'S';
-      case PowerUpKind.laser:
-        return 'L';
-      case PowerUpKind.shield:
-        return 'O';
-      case PowerUpKind.extraLife:
-        return '+';
-      case PowerUpKind.bomb:
-        return 'B';
-      case PowerUpKind.scoreMultiplier:
-        return 'x2';
-    }
-  }
-
-  Color get color {
-    switch (this) {
-      case PowerUpKind.rapidFire:
-      case PowerUpKind.laser:
-        return CosmoPalette.hull;
-      case PowerUpKind.spread:
-        return CosmoPalette.energy;
-      case PowerUpKind.shield:
-        return CosmoPalette.highlight;
-      case PowerUpKind.extraLife:
-        return CosmoPalette.boon;
-      case PowerUpKind.bomb:
-        return CosmoPalette.hostile;
-      case PowerUpKind.scoreMultiplier:
-        return CosmoPalette.hullLight;
-    }
-  }
+  String get asset => switch (this) {
+        PowerUpKind.weapon => GameAssets.powerupWeapon,
+        PowerUpKind.shield => GameAssets.powerupShield,
+        PowerUpKind.life => GameAssets.powerupLife,
+        PowerUpKind.bomb => GameAssets.powerupBomb,
+        PowerUpKind.x2 => GameAssets.powerupX2,
+        PowerUpKind.missiles => GameAssets.powerupMissiles,
+        PowerUpKind.speed => GameAssets.powerupSpeed,
+        PowerUpKind.slowmo => GameAssets.powerupSlowmo,
+        PowerUpKind.magnet => GameAssets.powerupMagnet,
+        PowerUpKind.ghost => GameAssets.powerupGhost,
+      };
 }
 
 class PowerUp extends PositionComponent
     with CollisionCallbacks, HasGameReference<CosmoStrikeGame> {
   PowerUp({required this.kind, required Vector2 spawn})
-      : super(position: spawn, size: Vector2(26, 26), anchor: Anchor.center);
+      : super(
+          position: spawn,
+          size: Vector2(28, 28),
+          anchor: Anchor.center,
+          priority: 8,
+        );
 
   final PowerUpKind kind;
   double _age = 0;
-  late final TextPaint _text = TextPaint(
-    style: const TextStyle(
-      fontSize: 13,
-      fontWeight: FontWeight.bold,
-      color: CosmoPalette.bgDeep,
-    ),
-  );
+
+  late final Sprite _sprite = Sprite(Flame.images.fromCache(kind.asset));
 
   @override
   Future<void> onLoad() async {
@@ -92,28 +95,28 @@ class PowerUp extends PositionComponent
   @override
   void update(double dt) {
     _age += dt;
-    position.x -= 90 * dt;
-    position.y += math.sin(_age * 3) * 18 * dt;
+
+    // Magnet effect: home toward the ship when it's close enough.
+    if (game.player.magnetActive &&
+        position.distanceTo(game.player.position) < 260) {
+      final dir = (game.player.position - position)..normalize();
+      position += dir * 240 * dt;
+    } else {
+      position.x -= 90 * dt;
+      position.y += math.sin(_age * 3) * 18 * dt;
+    }
     if (position.x < -30) removeFromParent();
   }
 
   @override
   void render(Canvas canvas) {
-    final c = size.x / 2;
-    canvas.drawCircle(Offset(c, c), c, Paint()..color = kind.color);
-    canvas.drawCircle(
-      Offset(c, c),
-      c,
-      Paint()
-        ..color = CosmoPalette.bgDeep
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-    _text.render(
+    // Gentle pulse so orbs read as pickups, not projectiles.
+    final pulse = 1.0 + math.sin(_age * 5) * 0.08;
+    final drawSize = size * pulse;
+    _sprite.render(
       canvas,
-      kind.glyph,
-      Vector2(c, c),
-      anchor: Anchor.center,
+      position: (size - drawSize) / 2,
+      size: drawSize,
     );
   }
 
