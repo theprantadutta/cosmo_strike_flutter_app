@@ -13,7 +13,10 @@ class AudioService {
   final SoLoud _soloud = SoLoud.instance;
   final Map<String, AudioSource> _loadedSounds = {};
 
-  // List of sounds to pre-load
+  // List of sounds to pre-load. The gameplay keys (shoot/enemy_down/…)
+  // are wired through GameAudio (lib/game/game_audio.dart); their .wav
+  // files may not exist yet — preload failures are non-fatal and
+  // playSound() no-ops silently for them (see _playSystemSound).
   static const List<String> _soundsToPreload = [
     'eat',
     'level_up',
@@ -21,6 +24,16 @@ class AudioService {
     'game_start',
     'power_up',
     'button_click',
+    // Gameplay SFX (Flame game layer):
+    'shoot',
+    'enemy_down',
+    'player_hit',
+    'pickup',
+    'boss_warn',
+    'boss_down',
+    'missile',
+    'revive',
+    'level_clear',
   ];
 
   bool _soundEnabled = true;
@@ -83,6 +96,10 @@ class AudioService {
     }
   }
 
+  // Fallback ONLY for the legacy menu keys. Gameplay keys (shoot,
+  // enemy_down, …) intentionally fall through to silence — they fire
+  // many times per second during a run, and a system click per shot
+  // would be unbearable while the .wav files are still missing.
   void _playSystemSound(String soundName) {
     switch (soundName) {
       case 'eat':
@@ -97,6 +114,9 @@ class AudioService {
       case 'game_start':
       case 'power_up':
         SystemSound.play(SystemSoundType.click);
+        break;
+      default:
+        // Gameplay SFX with no loaded file: graceful no-op.
         break;
     }
   }

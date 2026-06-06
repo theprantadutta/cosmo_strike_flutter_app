@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cosmo_strike_flutter_app/game/game_assets.dart';
 import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
@@ -28,7 +29,10 @@ import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
 /// `AppRoutes.game` so back navigation from the game returns to Home, not
 /// to this screen.
 class PreGameLoadingScreen extends StatefulWidget {
-  const PreGameLoadingScreen({super.key});
+  const PreGameLoadingScreen({super.key, this.startLevel = 1});
+
+  /// 1-based campaign level to launch into (forwarded to the game route).
+  final int startLevel;
 
   @override
   State<PreGameLoadingScreen> createState() => _PreGameLoadingScreenState();
@@ -123,6 +127,11 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
     // main(); this just guarantees the instance is alive before gameplay.
     AudioService();
 
+    // Decode the gameplay sprite atlas into Flame's image cache while the
+    // loader runs. Fire-and-forget — CosmoStrikeGame.onLoad awaits the same
+    // memoized future, so a slow decode just delays game start, never races.
+    GameAssets.preload();
+
     // Kick off the visual progress AFTER the first frame so the entrance
     // animations get a clean start.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -159,7 +168,7 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
   void _goToGame() {
     if (_navigated || !mounted) return;
     _navigated = true;
-    context.pushReplacement(AppRoutes.game);
+    context.pushReplacement(AppRoutes.game, extra: widget.startLevel);
   }
 
   @override
