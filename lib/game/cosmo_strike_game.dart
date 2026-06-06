@@ -98,6 +98,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     this.mode = GameMode.classic,
     this.startLevel = 1,
     this.armedLoadoutKey,
+    this.screenShake = false,
   });
 
   /// Called once when the run ends (out of lives / time / VICTORY). The
@@ -121,6 +122,9 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// PowerUpCubit inventory key armed for this run (already consumed by
   /// the screen); applied when the first level goes live.
   final String? armedLoadoutKey;
+
+  /// Settings toggle: jolt the view on hits / deaths / boss kills.
+  final bool screenShake;
 
   final math.Random rng = math.Random();
 
@@ -182,6 +186,12 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   // Effects HUD publish throttle.
   double _effectsAccumulator = 0;
+
+  // Screen shake (settings-gated): decaying random canvas jitter.
+  double _shakeTime = 0;
+  double _shakeDuration = 0;
+  double _shakeIntensity = 0;
+  final Vector2 _shakeOffset = Vector2.zero();
 
   bool _armedApplied = false;
   bool _runEnded = false;
@@ -357,6 +367,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   void spawnBossExplosion(Vector2 at) {
     // Three staggered big blasts for weight.
+    shake(intensity: 12, duration: 0.6);
     add(explosionBig(at));
     add(TimerComponent(
       period: 0.18,
@@ -370,9 +381,45 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     ));
   }
 
+  /// Kick a decaying view jolt (no-op unless the setting is on).
+  void shake({double intensity = 6, double duration = 0.25}) {
+    if (!screenShake) return;
+    _shakeIntensity = math.max(_shakeIntensity, intensity);
+    _shakeDuration = math.max(_shakeDuration, duration);
+    _shakeTime = _shakeDuration;
+  }
+
+  @override
+  void render(Canvas canvas) {
+    // Whole-scene jitter: children are added directly to the game (no
+    // camera/world indirection), so the shake is a canvas translate.
+    if (_shakeOffset.x != 0 || _shakeOffset.y != 0) {
+      canvas.save();
+      canvas.translate(_shakeOffset.x, _shakeOffset.y);
+      super.render(canvas);
+      canvas.restore();
+    } else {
+      super.render(canvas);
+    }
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
+    if (_shakeTime > 0) {
+      _shakeTime -= dt;
+      if (_shakeTime <= 0) {
+        _shakeOffset.setZero();
+        _shakeIntensity = 0;
+        _shakeDuration = 0;
+      } else {
+        final falloff = _shakeTime / _shakeDuration;
+        _shakeOffset.setValues(
+          (rng.nextDouble() * 2 - 1) * _shakeIntensity * falloff,
+          (rng.nextDouble() * 2 - 1) * _shakeIntensity * falloff,
+        );
+      }
+    }
     if (phase == GamePhase.playing) {
       _elapsed += dt;
       _levelClock += dt;
@@ -531,6 +578,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
     _levelTookHit = true;
     GameAudio.playerHit();
+    shake(intensity: 5, duration: 0.22);
 
     // Perfect Game: flawless flying only — any hit that lands ends the
     // run, regardless of remaining health or lives. (A shield pop still
@@ -578,6 +626,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   void _loseLife() {
     spawnExplosion(player.position, CosmoExplosionKind.player);
+    shake(intensity: 10, duration: 0.4);
     final lives = livesNotifier.value - 1;
     livesNotifier.value = lives;
     if (lives <= 0) {

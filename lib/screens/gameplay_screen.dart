@@ -92,9 +92,10 @@ class _GameplayScreenState extends State<GameplayScreen>
     _game = CosmoStrikeGame(
       onGameOver: _handleGameOver,
       onLevelCleared: _handleLevelCleared,
-      mode: context.read<GameSettingsCubit>().state.gameMode,
+      mode: settings.gameMode,
       startLevel: widget.startLevel,
       armedLoadoutKey: loadoutKey,
+      screenShake: settings.screenShakeEnabled,
     );
   }
 

@@ -47,8 +47,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _screenShakeEnabled = false;
   DPadPosition _dPadPosition = DPadPosition.bottomCenter;
   GameMode _selectedGameMode = GameMode.classic;
-  Duration _selectedCrashFeedbackDuration =
-      GameConstants.defaultCrashFeedbackDuration;
 
   // Notification preferences. Mirrored from NotificationService at init
   // and on every toggle; service is the source of truth (persists to
@@ -99,15 +97,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _dPadEnabled != s.dPadEnabled ||
         _dPadPosition != s.dPadPosition ||
         _screenShakeEnabled != s.screenShakeEnabled ||
-        _selectedGameMode != s.gameMode ||
-        _selectedCrashFeedbackDuration != s.crashFeedbackDuration;
+        _selectedGameMode != s.gameMode;
     if (!changed) return;
     setState(() {
       _dPadEnabled = s.dPadEnabled;
       _dPadPosition = s.dPadPosition;
       _screenShakeEnabled = s.screenShakeEnabled;
       _selectedGameMode = s.gameMode;
-      _selectedCrashFeedbackDuration = s.crashFeedbackDuration;
     });
   }
 
@@ -146,9 +142,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _screenShakeEnabled = settingsData['screenShakeEnabled'] ?? false;
         _dPadPosition =
             settingsData['dPadPosition'] ?? DPadPosition.bottomCenter;
-        _selectedCrashFeedbackDuration =
-            settingsData['crashFeedbackDuration'] ??
-            GameConstants.defaultCrashFeedbackDuration;
       });
       // Game mode lives in SharedPreferences, not the cached settings map.
       _storageService.getGameMode().then((mode) {
@@ -162,8 +155,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettingsDirectly() async {
     await _audioService.initialize();
-    final crashFeedbackDuration = await _storageService
-        .getCrashFeedbackDuration();
     final dPadEnabled = await _storageService.isDPadEnabled();
     final screenShakeEnabled = await _storageService.isScreenShakeEnabled();
     final dPadPosition = await _storageService.getDPadPosition();
@@ -174,7 +165,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _dPadEnabled = dPadEnabled;
       _screenShakeEnabled = screenShakeEnabled;
       _dPadPosition = dPadPosition;
-      _selectedCrashFeedbackDuration = crashFeedbackDuration;
       _selectedGameMode = gameMode;
     });
   }
@@ -192,8 +182,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           prev.dPadEnabled != curr.dPadEnabled ||
           prev.dPadPosition != curr.dPadPosition ||
           prev.screenShakeEnabled != curr.screenShakeEnabled ||
-          prev.gameMode != curr.gameMode ||
-          prev.crashFeedbackDuration != curr.crashFeedbackDuration,
+          prev.gameMode != curr.gameMode,
       listener: (context, settingsState) =>
           _syncFromSettingsCubit(settingsState),
       child: BlocBuilder<ThemeCubit, ThemeState>(
@@ -409,7 +398,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             }, theme),
             const SizedBox(height: 8),
             Text(
-              'Show on-screen directional buttons during gameplay',
+              'Show an on-screen analog pad for steering during gameplay',
               style: TextStyle(
                 color: theme.textMuted,
                 fontSize: 12,
@@ -426,14 +415,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ], theme),
         ];
 
-      // 2. Gameplay (mode + crash feedback + effects). Board size was a
-      // snake-era grid setting with no meaning in the shooter — removed.
+      // 2. Gameplay (mode + effects). Board size and the crash-feedback
+      // duration were snake-era grid settings with no meaning in the
+      // shooter — both removed (the data plumbing stays for sync compat).
       case 1:
         return [
           _buildSection('GAMEPLAY', [
             _buildGameModeSelector(gameState, theme),
-            const SizedBox(height: 20),
-            _buildCrashFeedbackDurationSelector(gameState, theme),
             const SizedBox(height: 20),
             _buildAudioSwitch('Screen Shake', _screenShakeEnabled, (
               value,
@@ -451,7 +439,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             }, theme),
             const SizedBox(height: 8),
             Text(
-              'Shake the screen on collisions and game events',
+              'Jolt the view when you take hits, lose a ship, or down a boss',
               style: TextStyle(
                 color: theme.textMuted,
                 fontSize: 12,
@@ -470,6 +458,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _soundEnabled = value;
               });
               await _audioService.setSoundEnabled(value);
+              // Audible confirmation — instantly proves the SFX work.
+              if (value) _audioService.playSound('pickup');
               _analytics.trackSettingChanged(
                 settingName: 'sound_effects',
                 value: '$value',
@@ -817,57 +807,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Platform-specific controls
-        if (kIsWeb ||
-            (!defaultTargetPlatform.toString().contains('android') &&
-                !defaultTargetPlatform.toString().contains('ios'))) ...[
-          // Desktop/Web controls
-          Text(
-            'Desktop/Web Controls',
-            style: TextStyle(
-              color: theme.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
-            ),
+        Text(
+          'Flight Controls',
+          style: TextStyle(
+            color: theme.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
           ),
-          const SizedBox(height: 12),
-          _buildControlItem('Arrow Keys', 'Change direction', theme),
-          _buildControlItem('WASD Keys', 'Change direction', theme),
-          _buildControlItem('Spacebar', 'Pause/Resume game', theme),
-          _buildControlItem('Mouse Click', 'Pause/Resume game', theme),
-          if (!kIsWeb) ...[
-            const SizedBox(height: 16),
-            Text(
-              'Touch Controls (if available)',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            _buildControlItem('Swipe Gestures', 'Change direction', theme),
-            _buildControlItem('Tap Screen', 'Pause/Resume game', theme),
-          ],
-        ] else ...[
-          // Mobile controls
-          Text(
-            'Touch Controls',
-            style: TextStyle(
-              color: theme.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
-            ),
+        ),
+        const SizedBox(height: 12),
+        _buildControlItem('Drag', 'Steer your ship anywhere on screen', theme),
+        _buildControlItem('D-Pad', 'Analog steering (when enabled)', theme),
+        _buildControlItem('Double Tap', 'Fire a missile (uses ammo)', theme),
+        _buildControlItem('🚀 Button', 'Fire a missile (uses ammo)', theme),
+        _buildControlItem('⏸ HUD Button', 'Pause / resume the run', theme),
+        const SizedBox(height: 8),
+        Text(
+          'Your ship fires automatically — focus on flying.',
+          style: TextStyle(
+            color: theme.textMuted,
+            fontSize: 12,
+            fontStyle: FontStyle.italic,
           ),
-          const SizedBox(height: 12),
-          _buildControlItem('Swipe Up ↑', 'Move ship up', theme),
-          _buildControlItem('Swipe Down ↓', 'Move ship down', theme),
-          _buildControlItem('Swipe Left ←', 'Move ship left', theme),
-          _buildControlItem('Swipe Right →', 'Move ship right', theme),
-          _buildControlItem('Tap Screen', 'Pause/Resume game', theme),
-        ],
+        ),
       ],
     );
   }
@@ -1004,105 +967,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildCrashFeedbackDurationSelector(
-    GameCubitState gameState,
-    GameTheme theme,
-  ) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Current Duration',
-                    style: TextStyle(color: theme.textMuted, fontSize: 14),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    GameConstants.getCrashFeedbackLabel(
-                      _selectedCrashFeedbackDuration,
-                    ),
-                    style: TextStyle(
-                      color: theme.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Timer icon — bare, no disc.
-            Icon(Icons.timer, color: theme.accentColor, size: 28),
-          ],
-        ),
-
-        const SizedBox(height: 16),
-
-        Text(
-          'How long to show crash explanation',
-          style: TextStyle(
-            color: theme.textMuted,
-            fontSize: 12,
-            fontStyle: FontStyle.italic,
-          ),
-          textAlign: TextAlign.center,
-        ),
-
-        const SizedBox(height: 16),
-
-        // Duration selection buttons
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: GameConstants.availableCrashFeedbackDurations.map((
-            duration,
-          ) {
-            final isSelected = _selectedCrashFeedbackDuration == duration;
-
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () async {
-                setState(() {
-                  _selectedCrashFeedbackDuration = duration;
-                });
-                await context
-                    .read<GameSettingsCubit>()
-                    .updateCrashFeedbackDuration(duration);
-                _analytics.trackSettingChanged(
-                  settingName: 'crash_feedback_duration',
-                  value: '${duration.inSeconds}',
-                );
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                // No background at all — the selected option reads through
-                // its neon text color alone.
-                decoration: const BoxDecoration(),
-                child: Text(
-                  GameConstants.getCrashFeedbackLabel(duration),
-                  style: TextStyle(
-                    color: isSelected ? theme.neonPrimary : theme.textMuted,
-                    fontSize: 14,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
+  // _buildCrashFeedbackDurationSelector removed — "crash explanation
+  // duration" was the snake grid engine's death-reason overlay; the Flame
+  // shooter has no such overlay. The storage/sync plumbing for the value
+  // stays untouched for backend compatibility.
 
   Widget _buildUserProfileSettings(AuthState authState, GameTheme theme) {
     // Resolve the username explicitly so the row labels it as "Username"
