@@ -97,6 +97,16 @@ class PlayerBullet extends PositionComponent
       game.pools.hitSpark(position);
       other.takeDamage(damage);
       deactivate();
+    } else if (other is EnemyBullet) {
+      // Intercept: shoot incoming fire out of the sky. Trades your shot
+      // for safety (+10 pts); the heavy laser pierces straight through.
+      // Boss energy bolts can't be shot down — but mortar shells can.
+      if (other.active && other.canBeShotDown) {
+        game.pools.hitSpark(other.position);
+        game.addScore(10);
+        other.deactivate();
+        if (!heavy) deactivate();
+      }
     } else if (other is Boss) {
       game.pools.hitSpark(position);
       other.takeDamage(damage);
@@ -180,6 +190,9 @@ class PlayerMissile extends PositionComponent
         b.takeDamage(splashDamage);
       }
     }
+    // The blast also sweeps incoming fire (ALL of it, boss bolts
+    // included) — missiles double as a panic button.
+    game.pools.clearEnemyBulletsWithin(position, splashRadius);
     removeFromParent();
   }
 
@@ -213,6 +226,10 @@ class EnemyBullet extends PositionComponent
   /// Mortar lobs: vertical acceleration giving an arcing trajectory.
   double gravity = 0;
   bool _grazed = false;
+
+  /// Player fire can intercept regular shots and physical mortar shells;
+  /// boss energy bolts (walls, radials, beams) cannot be shot down.
+  bool get canBeShotDown => !fromBoss || gravity != 0;
 
   // Graze ring: closer than the outer radius but not dead-center (a
   // straight hit is a hit, not a graze). Center-to-center, squared.

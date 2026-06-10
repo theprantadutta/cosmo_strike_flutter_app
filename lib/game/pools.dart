@@ -132,4 +132,15 @@ class GamePools {
       if (b.active && b.fromBoss) b.deactivate();
     }
   }
+
+  /// Deactivate every live enemy bullet within [radius] of [center]
+  /// (missile blasts sweep incoming fire).
+  void clearEnemyBulletsWithin(Vector2 center, double radius) {
+    final r2 = radius * radius;
+    for (final b in _enemyBullets) {
+      if (b.active && b.position.distanceToSquared(center) <= r2) {
+        b.deactivate();
+      }
+    }
+  }
 }
