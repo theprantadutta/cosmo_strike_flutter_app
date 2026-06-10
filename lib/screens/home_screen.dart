@@ -1078,7 +1078,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         badge: _getDailyChallengesBadge(),
         widgetKey: HomeWalkthrough.dailyChallengesKey,
       ),
-      _NavItem(Icons.timeline, 'BATTLE', Colors.deepPurple, () {
+      _NavItem(Icons.timeline, 'BATTLE', Colors.deepPurple.shade300, () {
         context.push(AppRoutes.battlePass);
       }),
       _NavItem(Icons.emoji_events, 'EVENTS', Colors.deepOrange, () {
@@ -1093,7 +1093,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       _NavItem(
         Icons.palette,
         'SKINS',
-        Colors.indigo,
+        Colors.indigo.shade300,
         () {
           context.push(AppRoutes.cosmetics);
         },
@@ -1150,9 +1150,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     int index, {
     double alignY = 0,
   }) {
-    // Unified Command-HUD palette: alternate the two neon accents per cell so
-    // the rail reads as an intentional cyan/magenta console (no rainbow).
-    final accent = index.isEven ? theme.neonPrimary : theme.neonSecondary;
+    // Same button language as the PRO / STORE pair under the launch
+    // emblem: a filled gradient icon disc (white glyph + soft colored
+    // glow) with the label in the item's color below — no borders, no
+    // hollow outlines. Each item keeps its own color identity, exactly
+    // like PRO (purple) and STORE (orange) do.
+    final base = item.color;
+    final gradient = [
+      base,
+      Color.lerp(base, const Color(0xFF05060F), 0.35)!,
+    ];
     // Icon + label live together as one tight group INSIDE the card. [alignY]
     // pulls the group vertically toward the rail's centre (top row nudged
     // down, bottom row nudged up) so the two rows sit closer together.
@@ -1172,25 +1179,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             Stack(
               clipBehavior: Clip.none,
               children: [
-                // Compact neon icon disc.
+                // Filled gradient icon disc (the PRO/STORE look).
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: gradient),
                     shape: BoxShape.circle,
-                    color: accent.withValues(alpha: 0.12),
-                    border: Border.all(
-                      color: accent.withValues(alpha: 0.5),
-                      width: 1.2,
-                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: accent.withValues(alpha: 0.28),
-                        blurRadius: 9,
-                        spreadRadius: -3,
+                        color: base.withValues(alpha: 0.3),
+                        blurRadius: 5,
+                        offset: const Offset(0, 1),
                       ),
                     ],
                   ),
-                  child: Icon(item.icon, color: accent, size: 21),
+                  child: Icon(item.icon, color: Colors.white, size: 20),
                 ),
                 if (item.badge != null && item.badge! > 0)
                   Positioned(
@@ -1221,17 +1224,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               item.label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: theme.textMuted,
+                color: base,
                 fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.9,
               ),
             ),
           ],
