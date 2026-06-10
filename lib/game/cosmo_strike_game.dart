@@ -218,15 +218,32 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   LevelDef get level => LevelCatalog.byIndex(levelIndex);
   BiomeDef get biome => BiomeCatalog.byId(level.biomeId);
 
+  /// Seconds of PLAYING time into the active level (drives the terrain
+  /// profile and the level script timeline).
+  double get levelClock => _levelClock;
+
   /// Top of the open playfield (below the ceiling strip's solid band).
+  /// Reads the LIVE animated strip, so tunnel squeezes move every
+  /// consumer (spawn bands, boss clamps, obstacle spawner) with them.
   double get playfieldTop =>
-      biome.hasCeiling ? biome.ceilingHeight * 0.65 : 0;
+      _ceiling?.solidEdgeY ?? (biome.hasCeiling ? biome.ceilingHeight * 0.65 : 0);
 
   /// Bottom of the open playfield (above the floor strip's solid band).
-  double get playfieldBottom => size.y - biome.floorHeight * 0.65;
+  double get playfieldBottom =>
+      _floor?.solidEdgeY ?? (size.y - biome.floorHeight * 0.65);
 
   /// Visual floor surface line — ground units / hazards stand here.
-  double get floorSurfaceY => size.y - biome.floorHeight * 0.5;
+  double get floorSurfaceY =>
+      _floor?.surfaceY ?? (size.y - biome.floorHeight * 0.5);
+
+  /// Visual ceiling surface line — ceiling-mounted turrets hang here.
+  double get ceilingSurfaceY => _ceiling?.surfaceY ?? playfieldTop;
+
+  /// Live terrain scroll speed (canyon set-pieces crank the profile).
+  double get terrainScrollSpeed => _floor?.currentScrollSpeed ?? 140;
+
+  /// The profile's current scroll multiplier (drifting obstacles ride it).
+  double get terrainScrollScale => terrainScrollSpeed / 140;
 
   @override
   Color backgroundColor() => const Color(0xFF05060F);
@@ -288,6 +305,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       asset: b.floorAsset,
       isCeiling: false,
       bandHeight: b.floorHeight,
+      profile: level.terrainProfile,
     );
     add(_floor!);
 
@@ -297,6 +315,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
         asset: ceilingAsset,
         isCeiling: true,
         bandHeight: b.ceilingHeight,
+        profile: level.terrainProfile,
       );
       add(_ceiling!);
     } else {

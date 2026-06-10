@@ -8,54 +8,90 @@ import 'package:flutter/painting.dart';
 import '../cosmo_strike_game.dart';
 import '../game_audio.dart';
 import '../levels/level_def.dart';
+import '../levels/terrain_profile.dart';
 import 'fx.dart';
 import 'player_ship.dart';
 
-/// A scrolling, horizontally-tileable terrain band (floor or ceiling).
+/// A scrolling, horizontally-tileable terrain band (floor or ceiling)
+/// whose height is driven by the level's [TerrainProfile] over playing
+/// time — the corridor visibly narrows for tunnels/pinch points and
+/// relaxes back.
 ///
-/// Rendering: the 1024x192 strip is drawn twice with a wrapping scroll
-/// offset — the scroll is render-only. Collision: ONE static
-/// [RectangleHitbox] spanning the full width, inset to the strip's solid
-/// band so grazing the jagged silhouette never registers. The crash rule
+/// Rendering: the strip art tiles with a wrapping scroll offset — the
+/// scroll is render-only. Collision: ONE [RectangleHitbox] spanning the
+/// full width, inset to the strip's solid band so grazing the jagged
+/// silhouette never registers; the hitbox is MUTATED in place as the
+/// band animates (no rebuild, no broadphase churn). The crash rule
 /// (damage + bounce + anti-grind invulnerability) lives in
 /// [CosmoStrikeGame.onTerrainCrash].
+///
+/// Fairness: band growth is rate-clamped (terrain can never out-run the
+/// player) and a band that grows INTO the ship displaces it without
+/// damage — only player-initiated contact hurts.
 class TerrainStrip extends PositionComponent
     with CollisionCallbacks, HasGameReference<CosmoStrikeGame> {
   TerrainStrip({
     required this.asset,
     required this.isCeiling,
     required this.bandHeight,
+    this.profile = TerrainProfile.neutral,
     this.scrollSpeed = 140,
-  }) : super(priority: -50);
+  })  : _band = bandHeight,
+        super(priority: -50);
 
   final String asset;
   final bool isCeiling;
+
+  /// The biome's BASE band height; the profile multiplies on top.
   final double bandHeight;
+  final TerrainProfile profile;
   final double scrollSpeed;
 
+  /// Maximum growth rate — slower than any player vertical speed.
+  static const double _maxGrowPerSecond = 60;
+  static const double _maxShrinkPerSecond = 140;
+
+  double _band;
   double _scrollX = 0;
   late final Sprite _sprite = Sprite(Flame.images.fromCache(asset));
   late double _tileWidth;
+  late final RectangleHitbox _hitbox;
+
+  /// Current animated band height.
+  double get currentBand => _band;
+
+  /// Y of the solid collision edge (top of the floor's solid band /
+  /// bottom of the ceiling's) — the live playfield boundary.
+  double get solidEdgeY =>
+      isCeiling ? _band * 0.65 : game.size.y - _band * 0.65;
+
+  /// Visual surface line — ground units / hazards stand here.
+  double get surfaceY => isCeiling ? _band * 0.5 : game.size.y - _band * 0.5;
+
+  /// Live scroll speed including the profile's set-piece multiplier.
+  double get currentScrollSpeed =>
+      scrollSpeed * profile.scrollAt(game.levelClock);
 
   @override
   Future<void> onLoad() async {
     _layout(game.size);
     // Solid band: the art's silhouette occupies roughly the inner 2/3 of
     // the strip; inset the hitbox so only a real-looking impact counts.
-    final inset = bandHeight * 0.35;
-    add(RectangleHitbox(
+    final inset = _band * 0.35;
+    _hitbox = RectangleHitbox(
       collisionType: CollisionType.passive,
       position: Vector2(0, isCeiling ? 0 : inset),
-      size: Vector2(size.x, bandHeight - inset),
-    ));
+      size: Vector2(size.x, _band - inset),
+    );
+    add(_hitbox);
   }
 
   void _layout(Vector2 gameSize) {
-    size = Vector2(gameSize.x, bandHeight);
-    position = Vector2(0, isCeiling ? 0 : gameSize.y - bandHeight);
-    // Keep the art's aspect: scale the 1024x192 strip to the band height.
+    size = Vector2(gameSize.x, _band);
+    position = Vector2(0, isCeiling ? 0 : gameSize.y - _band);
+    // Keep the art's aspect: scale the strip to the band height.
     final image = Flame.images.fromCache(asset);
-    _tileWidth = bandHeight * (image.width / image.height);
+    _tileWidth = _band * (image.width / image.height);
   }
 
   @override
@@ -66,7 +102,49 @@ class TerrainStrip extends PositionComponent
 
   @override
   void update(double dt) {
-    _scrollX = (_scrollX + scrollSpeed * dt * game.enemyTimeScale) % _tileWidth;
+    final scaledDt = dt * game.enemyTimeScale;
+    _scrollX =
+        (_scrollX + currentScrollSpeed * scaledDt) % _tileWidth;
+
+    final clock = game.levelClock;
+    final target =
+        bandHeight * (isCeiling ? profile.ceilAt(clock) : profile.floorAt(clock));
+    if ((target - _band).abs() > 0.01) {
+      final prev = _band;
+      if (target > _band) {
+        _band = math.min(target, _band + _maxGrowPerSecond * scaledDt);
+      } else {
+        _band = math.max(target, _band - _maxShrinkPerSecond * scaledDt);
+      }
+      _applyBand();
+      if (_band > prev) _pushPlayerOut();
+    }
+  }
+
+  /// Re-layout the strip + mutate the one hitbox to the animated band.
+  void _applyBand() {
+    size.setValues(game.size.x, _band);
+    position.y = isCeiling ? 0 : game.size.y - _band;
+    final image = _sprite.image;
+    _tileWidth = _band * (image.width / image.height);
+    final inset = _band * 0.35;
+    _hitbox.position.setValues(0, isCeiling ? 0 : inset);
+    _hitbox.size.setValues(size.x, _band - inset);
+  }
+
+  /// A band that grew into the ship displaces it — no damage, no bounce.
+  void _pushPlayerOut() {
+    final p = game.player;
+    final half = p.size.y / 2 + 2;
+    if (isCeiling) {
+      if (p.position.y - half < solidEdgeY) {
+        p.pushOutY(solidEdgeY + half);
+      }
+    } else {
+      if (p.position.y + half > solidEdgeY) {
+        p.pushOutY(solidEdgeY - half);
+      }
+    }
   }
 
   @override
@@ -82,7 +160,7 @@ class TerrainStrip extends PositionComponent
       _sprite.render(
         canvas,
         position: Vector2(x, 0),
-        size: Vector2(_tileWidth, bandHeight),
+        size: Vector2(_tileWidth, _band),
       );
     }
     if (isCeiling) canvas.restore();
@@ -145,11 +223,11 @@ class TerrainObstacle extends PositionComponent
     dt *= game.enemyTimeScale;
     _age += dt;
     if (spec.grounded) {
-      // Ride the floor strip at terrain scroll speed.
-      position.x -= 140 * dt;
+      // Ride the floor strip at the live terrain scroll speed.
+      position.x -= game.terrainScrollSpeed * dt;
       position.y = game.floorSurfaceY - size.y * 0.42;
     } else {
-      position.x -= 126 * dt;
+      position.x -= 126 * game.terrainScrollScale * dt;
       position.y = _baseY + math.sin(_age * 1.4) * 14;
       angle += _spin * dt;
     }

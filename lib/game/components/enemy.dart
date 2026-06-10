@@ -27,6 +27,7 @@ class EnemyShip extends PositionComponent
     double speedScale = 1,
     double fireRateScale = 1,
     double scoreScale = 1,
+    this.ceilingMounted = false,
   })  : pattern = type == EnemyType.kamikaze
             ? EnemyPattern.dive // kamikazes always commit
             : (pattern ?? type.defaultPattern),
@@ -44,6 +45,10 @@ class EnemyShip extends PositionComponent
 
   final EnemyType type;
   final EnemyPattern pattern;
+
+  /// Terrain-mounted types only: hang from the ceiling band instead of
+  /// standing on the floor (rendered flipped).
+  final bool ceilingMounted;
   int hp;
   final double speed;
   final int pointValue;
@@ -93,11 +98,16 @@ class EnemyShip extends PositionComponent
     _age += dt;
     _animTicker?.update(dt);
     if (_flash > 0) _flash -= dt;
-    position.x -= speed * dt;
+    // Terrain emplacements scroll with the ground; everything else flies
+    // at its own speed.
+    position.x -=
+        (type.mountsTerrain ? game.terrainScrollSpeed : speed) * dt;
 
-    if (type.floorLocked) {
-      // Ground unit: ride the floor strip.
-      position.y = game.floorSurfaceY - size.y / 2;
+    if (type.floorLocked || type.mountsTerrain) {
+      // Ride the terrain band (live: rising tunnels carry them along).
+      position.y = ceilingMounted
+          ? game.ceilingSurfaceY + size.y / 2
+          : game.floorSurfaceY - size.y / 2;
     } else {
       switch (pattern) {
         case EnemyPattern.straight:
@@ -177,11 +187,18 @@ class EnemyShip extends PositionComponent
   @override
   void render(Canvas canvas) {
     final paint = _flash > 0 ? _flashPaint : null;
+    if (ceilingMounted) {
+      // Hang upside down from the ceiling band.
+      canvas.save();
+      canvas.translate(0, size.y);
+      canvas.scale(1, -1);
+    }
     final ticker = _animTicker;
     if (ticker != null) {
       ticker.getSprite().render(canvas, size: size, overridePaint: paint);
     } else {
       _sprite?.render(canvas, size: size, overridePaint: paint);
     }
+    if (ceilingMounted) canvas.restore();
   }
 }

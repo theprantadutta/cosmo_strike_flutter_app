@@ -3,11 +3,12 @@ import 'package:flutter/painting.dart';
 
 import '../components/enemy.dart' show EnemyPattern;
 import '../game_assets.dart';
+import 'terrain_profile.dart';
 
 /// How an enemy type shoots. `none` types threaten by contact only.
 enum EnemyFireStyle { none, straight, aimed, burst3 }
 
-/// The ten enemy archetypes, mapped 1:1 onto the sprite set. Per-type base
+/// The enemy archetypes, mapped onto the sprite set. Per-type base
 /// stats live in [EnemyTypeStats]; level scalars multiply on top.
 enum EnemyType {
   dart,
@@ -20,6 +21,10 @@ enum EnemyType {
   gunship,
   crawler,
   saucer,
+
+  /// Emplacement mounted on the floor or ceiling band: scrolls with the
+  /// terrain and pours aimed fire — the classic Space Impact wall gun.
+  turret,
 }
 
 extension EnemyTypeStats on EnemyType {
@@ -34,6 +39,10 @@ extension EnemyTypeStats on EnemyType {
         EnemyType.gunship => GameAssets.enemyGunship,
         EnemyType.crawler => GameAssets.enemyCrawler,
         EnemyType.saucer => GameAssets.enemySaucer,
+        // TODO(assets): swap to a dedicated turret sprite when generated
+        // (step 6 of the gameplay overhaul); the gunship hull reads fine
+        // as a placeholder emplacement.
+        EnemyType.turret => GameAssets.enemyGunship,
       };
 
   /// Logical in-game size (aspect-true to the source art).
@@ -48,6 +57,7 @@ extension EnemyTypeStats on EnemyType {
         EnemyType.gunship => Vector2(54, 54),
         EnemyType.crawler => Vector2(52, 42),
         EnemyType.saucer => Vector2(46, 46),
+        EnemyType.turret => Vector2(44, 40),
       };
 
   int get baseHp => switch (this) {
@@ -55,7 +65,7 @@ extension EnemyTypeStats on EnemyType {
         EnemyType.kamikaze => 1,
         EnemyType.drone || EnemyType.mine => 2,
         EnemyType.saucer => 3,
-        EnemyType.beetle => 4,
+        EnemyType.beetle || EnemyType.turret => 4,
         EnemyType.crawler => 5,
         EnemyType.gunship => 6,
       };
@@ -71,6 +81,8 @@ extension EnemyTypeStats on EnemyType {
         EnemyType.gunship => 60,
         EnemyType.crawler => 60,
         EnemyType.saucer => 85,
+        // Turrets ride the terrain scroll; this is only the fallback.
+        EnemyType.turret => 140,
       };
 
   EnemyFireStyle get fireStyle => switch (this) {
@@ -78,7 +90,10 @@ extension EnemyTypeStats on EnemyType {
           EnemyFireStyle.none,
         EnemyType.dart || EnemyType.wasp || EnemyType.beetle =>
           EnemyFireStyle.straight,
-        EnemyType.drone || EnemyType.crawler || EnemyType.saucer =>
+        EnemyType.drone ||
+        EnemyType.crawler ||
+        EnemyType.saucer ||
+        EnemyType.turret =>
           EnemyFireStyle.aimed,
         EnemyType.gunship => EnemyFireStyle.burst3,
       };
@@ -86,7 +101,11 @@ extension EnemyTypeStats on EnemyType {
   /// Damage dealt to the player on contact (health is 0..1).
   double get contactDamage => switch (this) {
         EnemyType.mine || EnemyType.kamikaze => 0.5,
-        EnemyType.beetle || EnemyType.gunship || EnemyType.crawler => 0.4,
+        EnemyType.beetle ||
+        EnemyType.gunship ||
+        EnemyType.crawler ||
+        EnemyType.turret =>
+          0.4,
         _ => 0.34,
       };
 
@@ -99,6 +118,7 @@ extension EnemyTypeStats on EnemyType {
         EnemyType.kamikaze => 130,
         EnemyType.saucer => 150,
         EnemyType.beetle => 160,
+        EnemyType.turret => 170,
         EnemyType.crawler => 180,
         EnemyType.gunship => 200,
       };
@@ -106,7 +126,8 @@ extension EnemyTypeStats on EnemyType {
   EnemyPattern get defaultPattern => switch (this) {
         EnemyType.dart || EnemyType.drone || EnemyType.beetle =>
           EnemyPattern.straight,
-        EnemyType.mine || EnemyType.crawler => EnemyPattern.straight,
+        EnemyType.mine || EnemyType.crawler || EnemyType.turret =>
+          EnemyPattern.straight,
         EnemyType.wasp || EnemyType.chevron || EnemyType.saucer =>
           EnemyPattern.sine,
         EnemyType.kamikaze => EnemyPattern.dive,
@@ -115,6 +136,10 @@ extension EnemyTypeStats on EnemyType {
 
   /// Ground units ride the floor strip instead of flying.
   bool get floorLocked => this == EnemyType.crawler;
+
+  /// Emplacements that mount the floor OR ceiling band and scroll with
+  /// the terrain (see EnemyShip.ceilingMounted).
+  bool get mountsTerrain => this == EnemyType.turret;
 }
 
 /// The five boss archetypes, mapped onto the 512x384 sprites.
@@ -257,6 +282,10 @@ class LevelDef {
   /// Average obstacle spawns per 10 seconds of play.
   final double obstaclesPerTenSeconds;
 
+  /// Authored corridor shape over the level's playing time (tunnel
+  /// squeezes, pinch points, canyon scroll). Neutral = flat corridor.
+  final TerrainProfile terrainProfile;
+
   const LevelDef({
     required this.index,
     required this.biomeId,
@@ -267,5 +296,6 @@ class LevelDef {
     this.fireRateScale = 1,
     this.scoreScale = 1,
     this.obstaclesPerTenSeconds = 2,
+    this.terrainProfile = TerrainProfile.neutral,
   });
 }

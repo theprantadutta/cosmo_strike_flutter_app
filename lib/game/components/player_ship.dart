@@ -128,6 +128,13 @@ class PlayerShip extends PositionComponent
     if (_invuln < seconds) _invuln = seconds;
   }
 
+  /// Terrain rising under/over the ship displaces it without damage
+  /// (the fairness rule for animated corridors).
+  void pushOutY(double y) {
+    position.y = y.clamp(_topBound, _bottomBound);
+    _vel.y = 0;
+  }
+
   void steerTo(Vector2 target) {
     _target = target.clone();
     moveDir = Vector2.zero();
