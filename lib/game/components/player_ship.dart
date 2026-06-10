@@ -146,6 +146,18 @@ class PlayerShip extends PositionComponent
     moveDir = Vector2.zero();
   }
 
+  /// Relative-drag input: shift the steer destination by [delta]
+  /// (already sensitivity-scaled). The destination clamps to the
+  /// movement bounds so dragging past a wall doesn't bank up overshoot.
+  void nudgeTarget(Vector2 delta) {
+    final base = _target ?? position.clone();
+    base.add(delta);
+    base.x = base.x.clamp(_leftBound, _rightBound).toDouble();
+    base.y = base.y.clamp(_topBound, _bottomBound).toDouble();
+    _target = base;
+    moveDir = Vector2.zero();
+  }
+
   /// D-pad analog input; latest input wins over pan-steer.
   void setMoveDirection(Vector2 dir) {
     moveDir = dir.clone();

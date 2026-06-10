@@ -260,8 +260,17 @@ class _GameplayScreenState extends State<GameplayScreen>
     context.go(AppRoutes.home);
   }
 
-  void _steer(Offset localPosition) {
-    _game.steerTo(Vector2(localPosition.dx, localPosition.dy));
+  /// Relative-drag steering: the ship mirrors the finger's MOVEMENT, not
+  /// its position, so the thumb can rest anywhere on screen and never
+  /// covers the ship. Sensitivity tuned so a comfortable thumb arc spans
+  /// the engagement zone.
+  static const double _dragSensitivity = 1.3;
+
+  void _steerBy(Offset delta) {
+    _game.steerBy(Vector2(
+      delta.dx * _dragSensitivity,
+      delta.dy * _dragSensitivity,
+    ));
   }
 
   // ---- Revive ----
@@ -304,8 +313,9 @@ class _GameplayScreenState extends State<GameplayScreen>
         children: [
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onPanStart: (d) => _steer(d.localPosition),
-            onPanUpdate: (d) => _steer(d.localPosition),
+            // Relative drag: touching down does NOT teleport the steer
+            // target to the finger — only movement steers.
+            onPanUpdate: (d) => _steerBy(d.delta),
             onTapDown: (_) {
               if (!_game.autoFire) _game.firePrimary();
             },

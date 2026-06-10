@@ -817,7 +817,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        _buildControlItem('Drag', 'Steer your ship anywhere on screen', theme),
+        _buildControlItem(
+            'Drag', 'Slide anywhere — your ship mirrors the movement', theme),
         _buildControlItem('D-Pad', 'Analog steering (when enabled)', theme),
         _buildControlItem('Double Tap', 'Fire a missile (uses ammo)', theme),
         _buildControlItem('🚀 Button', 'Fire a missile (uses ammo)', theme),

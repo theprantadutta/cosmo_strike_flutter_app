@@ -582,6 +582,14 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     }
   }
 
+  /// Relative-drag steering: shift the steer destination by [delta] —
+  /// the ship mirrors finger movement so the thumb never covers it.
+  void steerBy(Vector2 delta) {
+    if (phase == GamePhase.playing) {
+      player.nudgeTarget(delta);
+    }
+  }
+
   /// D-pad analog direction (normalized; zero = released).
   void setMoveDirection(Vector2 dir) {
     if (phase == GamePhase.playing || dir.isZero()) {
