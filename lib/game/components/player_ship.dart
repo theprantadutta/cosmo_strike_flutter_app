@@ -69,9 +69,15 @@ class PlayerShip extends PositionComponent
   final Vector2 _vel = Vector2.zero();
 
   double get _leftBound => game.size.x * 0.04 + size.x / 2;
-  // Keep the player's lane proportional to the SHORTER dimension so an
-  // ultra-wide (21:9+) landscape screen doesn't hand them half the field.
-  double get _rightBound => math.min(game.size.x * 0.42, game.size.y * 0.9);
+  // The classic Space Impact stance: hold the LEFT third and shoot
+  // across the field. Kept proportional to the shorter dimension so an
+  // ultra-wide (21:9+) landscape screen doesn't hand the player half
+  // the field. The BoundaryGlow component lights this wall up when the
+  // ship presses against it.
+  double get _rightBound => math.min(game.size.x * 0.35, game.size.y * 0.9);
+
+  /// Public for the boundary glow renderer.
+  double get rightBound => _rightBound;
   // Vertical limits span the full field — terrain is reachable (and
   // dangerous); the crash rule in TerrainStrip handles the consequences.
   double get _topBound => size.y / 2 + 4;
@@ -348,5 +354,55 @@ class PlayerShip extends PositionComponent
       if (_invuln <= 0) game.onPlayerHit(other.contactDamage);
       other.takeDamage(2);
     }
+  }
+}
+
+/// A faint neon wall that fades in only while the ship presses against
+/// its right movement bound — the engagement zone reads as "my zone"
+/// instead of the controls feeling stuck, with no permanent line on the
+/// clean playfield.
+class BoundaryGlow extends PositionComponent
+    with HasGameReference<CosmoStrikeGame> {
+  BoundaryGlow() : super(priority: 3);
+
+  double _intensity = 0;
+  double _age = 0;
+
+  @override
+  void update(double dt) {
+    _age += dt;
+    final p = game.player;
+    final pressing = p.position.x >= p.rightBound - 6;
+    final target = pressing ? 1.0 : 0.0;
+    _intensity +=
+        (target - _intensity) * math.min(1, dt * (pressing ? 12 : 4));
+  }
+
+  @override
+  void render(Canvas canvas) {
+    if (_intensity < 0.04) return;
+    final p = game.player;
+    final x = p.rightBound + p.size.x / 2 + 6;
+    final top = game.playfieldTop + 6;
+    final bottom = game.playfieldBottom - 6;
+    final shimmer = 0.8 + 0.2 * math.sin(_age * 9);
+    // Soft halo + crisp core line.
+    canvas.drawLine(
+      Offset(x, top),
+      Offset(x, bottom),
+      Paint()
+        ..color = const Color(0xFF22D3EE)
+            .withValues(alpha: 0.10 * _intensity * shimmer)
+        ..strokeWidth = 12
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawLine(
+      Offset(x, top),
+      Offset(x, bottom),
+      Paint()
+        ..color = const Color(0xFF9BEAF8)
+            .withValues(alpha: 0.5 * _intensity * shimmer)
+        ..strokeWidth = 2,
+    );
   }
 }

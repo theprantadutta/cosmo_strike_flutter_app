@@ -280,6 +280,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     await add(_starfield);
     player = PlayerShip();
     await add(player);
+    await add(BoundaryGlow());
     await add(_scriptRunner);
     await pools.mount();
 
