@@ -10,6 +10,7 @@ import '../cosmo_strike_game.dart';
 import '../game_assets.dart';
 import '../game_audio.dart';
 import '../levels/level_def.dart';
+import 'formation_unit.dart';
 import 'fx.dart';
 
 enum EnemyPattern { straight, sine, dive, tracking }
@@ -28,6 +29,8 @@ class EnemyShip extends PositionComponent
     double fireRateScale = 1,
     double scoreScale = 1,
     this.ceilingMounted = false,
+    this.formation,
+    this.slotIndex = 0,
   })  : pattern = type == EnemyType.kamikaze
             ? EnemyPattern.dive // kamikazes always commit
             : (pattern ?? type.defaultPattern),
@@ -49,6 +52,15 @@ class EnemyShip extends PositionComponent
   /// Terrain-mounted types only: hang from the ceiling band instead of
   /// standing on the floor (rendered flipped).
   final bool ceilingMounted;
+
+  /// Set when this ship belongs to a choreographed formation. Managed
+  /// formations position the ship every frame; the formation also
+  /// tracks kills/escapes for the wipe bonus.
+  final Formation? formation;
+  final int slotIndex;
+
+  /// True when the ship died to player damage (vs escaping/being swept).
+  bool wasKilled = false;
   int hp;
   final double speed;
   final int pointValue;
@@ -98,37 +110,43 @@ class EnemyShip extends PositionComponent
     _age += dt;
     _animTicker?.update(dt);
     if (_flash > 0) _flash -= dt;
-    // Terrain emplacements scroll with the ground; everything else flies
-    // at its own speed.
-    position.x -=
-        (type.mountsTerrain ? game.terrainScrollSpeed : speed) * dt;
 
-    if (type.floorLocked || type.mountsTerrain) {
-      // Ride the terrain band (live: rising tunnels carry them along).
-      position.y = ceilingMounted
-          ? game.ceilingSurfaceY + size.y / 2
-          : game.floorSurfaceY - size.y / 2;
-    } else {
-      switch (pattern) {
-        case EnemyPattern.straight:
-          break;
-        case EnemyPattern.sine:
-          position.y = _baseY + math.sin(_age * 3) * 60;
-          break;
-        case EnemyPattern.dive:
-          if (position.x < game.size.x * 0.7) {
+    final managedByFormation = formation?.managed ?? false;
+    if (!managedByFormation) {
+      // Terrain emplacements scroll with the ground; everything else
+      // flies at its own speed.
+      position.x -=
+          (type.mountsTerrain ? game.terrainScrollSpeed : speed) * dt;
+
+      if (type.floorLocked || type.mountsTerrain) {
+        // Ride the terrain band (live: rising tunnels carry them along).
+        position.y = ceilingMounted
+            ? game.ceilingSurfaceY + size.y / 2
+            : game.floorSurfaceY - size.y / 2;
+      } else {
+        switch (pattern) {
+          case EnemyPattern.straight:
+            break;
+          case EnemyPattern.sine:
+            position.y = _baseY + math.sin(_age * 3) * 60;
+            break;
+          case EnemyPattern.dive:
+            if (position.x < game.size.x * 0.7) {
+              final targetY = game.player.position.y;
+              position.y += (targetY - position.y) * math.min(1, dt * 1.2);
+            }
+            break;
+          case EnemyPattern.tracking:
             final targetY = game.player.position.y;
-            position.y += (targetY - position.y) * math.min(1, dt * 1.2);
-          }
-          break;
-        case EnemyPattern.tracking:
-          final targetY = game.player.position.y;
-          position.y += (targetY - position.y).clamp(-1, 1) * 40 * dt;
-          break;
+            position.y += (targetY - position.y).clamp(-1, 1) * 40 * dt;
+            break;
+        }
       }
-    }
 
-    if (position.x < -60) removeFromParent();
+      if (position.x < -60) removeFromParent();
+    }
+    // Managed members are positioned by their Formation (which also
+    // decides when they exit — rear ambushes legitimately live at x < 0).
 
     // Zen mode: enemies never shoot — collision is the only threat.
     if (!game.mode.enemiesFire || type.fireStyle == EnemyFireStyle.none) {
@@ -176,12 +194,19 @@ class EnemyShip extends PositionComponent
   void takeDamage(int dmg) {
     hp -= dmg;
     if (hp <= 0) {
+      wasKilled = true;
       GameAudio.enemyDown();
       game.onEnemyKilled(this);
       removeFromParent();
     } else {
       _flash = 0.09;
     }
+  }
+
+  @override
+  void onRemove() {
+    formation?.onMemberGone(this);
+    super.onRemove();
   }
 
   @override

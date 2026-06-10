@@ -1,7 +1,9 @@
 import 'package:flutter/painting.dart';
 
 import '../game_assets.dart';
+import 'formation.dart';
 import 'level_def.dart';
+import 'level_script.dart';
 
 /// The four campaign biomes. Display names live in CampaignCatalog
 /// (lib/utils/campaign_catalog.dart) so persistence/UI and gameplay can
@@ -117,9 +119,15 @@ abstract final class BiomeCatalog {
   static BiomeDef byId(String id) => _byId[id] ?? asteroid;
 }
 
-/// The 12 campaign levels — 4 biomes x 3 levels, difficulty ramping via
-/// the per-level scalars. Adding level 13+ = appending one LevelDef here
-/// (+ a name in CampaignCatalog.levelNames and a backend-safe stageId).
+/// The 12 campaign levels — 4 biomes x 3 levels, each a choreographed
+/// [LevelScript] ending in its boss. Adding level 13+ = appending one
+/// LevelDef here (+ a name in CampaignCatalog.levelNames and a
+/// backend-safe stageId).
+///
+/// NOTE: this is currently the MECHANICAL conversion of the old random
+/// waves (loose streams + field-clear barriers — identical feel). The
+/// creative re-author (real formations, set-pieces, terrain profiles)
+/// replaces these scripts in the next overhaul step.
 abstract final class LevelCatalog {
   static int get count => levels.length;
 
@@ -135,19 +143,22 @@ abstract final class LevelCatalog {
       speedScale: 1.0,
       scoreScale: 1.0,
       obstaclesPerTenSeconds: 1.5,
-      waves: [
-        WaveDef([
-          WaveEntry(EnemyType.dart, count: 4, spawnInterval: 0.9),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.dart, count: 3, spawnInterval: 0.8),
-          WaveEntry(EnemyType.wasp, count: 3, spawnInterval: 0.7),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.wasp, count: 4, spawnInterval: 0.6),
-          WaveEntry(EnemyType.mine, count: 2, spawnInterval: 1.2),
-        ]),
-      ],
+      script: LevelScript([
+        FormationEvent(
+            0.6, FormationSpec.stream(EnemyType.dart, count: 4, every: 0.9),
+            countsAsSection: true),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.dart, count: 3, every: 0.8),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            2.4, FormationSpec.stream(EnemyType.wasp, count: 3, every: 0.7)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.wasp, count: 4, every: 0.6),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            2.4, FormationSpec.stream(EnemyType.mine, count: 2, every: 1.2)),
+        BossEvent(),
+      ]),
       boss: BossDef(
         type: BossType.dreadnought,
         baseHp: 60,
@@ -164,24 +175,29 @@ abstract final class LevelCatalog {
       speedScale: 1.05,
       scoreScale: 1.1,
       obstaclesPerTenSeconds: 2.5,
-      waves: [
-        WaveDef([
-          WaveEntry(EnemyType.dart, count: 4, spawnInterval: 0.7),
-          WaveEntry(EnemyType.chevron, count: 3, spawnInterval: 0.5),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.drone, count: 3, spawnInterval: 1.0),
-          WaveEntry(EnemyType.mine, count: 3, spawnInterval: 1.0),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.wasp, count: 4, spawnInterval: 0.6),
-          WaveEntry(EnemyType.kamikaze, count: 2, spawnInterval: 1.4),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.chevron, count: 4, spawnInterval: 0.45),
-          WaveEntry(EnemyType.drone, count: 3, spawnInterval: 0.9),
-        ]),
-      ],
+      script: LevelScript([
+        FormationEvent(
+            0.6, FormationSpec.stream(EnemyType.dart, count: 4, every: 0.7),
+            countsAsSection: true),
+        FormationEvent(2.8,
+            FormationSpec.stream(EnemyType.chevron, count: 3, every: 0.5)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.drone, count: 3, every: 1.0),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.0, FormationSpec.stream(EnemyType.mine, count: 3, every: 1.0)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.wasp, count: 4, every: 0.6),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(2.4,
+            FormationSpec.stream(EnemyType.kamikaze, count: 2, every: 1.4)),
+        FormationEvent(1.0,
+            FormationSpec.stream(EnemyType.chevron, count: 4, every: 0.45),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            1.8, FormationSpec.stream(EnemyType.drone, count: 3, every: 0.9)),
+        BossEvent(),
+      ]),
       boss: BossDef(
         type: BossType.warMachine,
         baseHp: 80,
@@ -199,24 +215,29 @@ abstract final class LevelCatalog {
       fireRateScale: 1.1,
       scoreScale: 1.2,
       obstaclesPerTenSeconds: 3.5,
-      waves: [
-        WaveDef([
-          WaveEntry(EnemyType.dart, count: 5, spawnInterval: 0.55),
-          WaveEntry(EnemyType.mine, count: 3, spawnInterval: 1.0),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.saucer, count: 3, spawnInterval: 1.0),
-          WaveEntry(EnemyType.wasp, count: 4, spawnInterval: 0.55),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.kamikaze, count: 3, spawnInterval: 1.0),
-          WaveEntry(EnemyType.drone, count: 4, spawnInterval: 0.8),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.beetle, count: 2, spawnInterval: 1.6),
-          WaveEntry(EnemyType.chevron, count: 5, spawnInterval: 0.4),
-        ]),
-      ],
+      script: LevelScript([
+        FormationEvent(
+            0.6, FormationSpec.stream(EnemyType.dart, count: 5, every: 0.55),
+            countsAsSection: true),
+        FormationEvent(
+            2.75, FormationSpec.stream(EnemyType.mine, count: 3, every: 1.0)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.saucer, count: 3, every: 1.0),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.0, FormationSpec.stream(EnemyType.wasp, count: 4, every: 0.55)),
+        FormationEvent(1.0,
+            FormationSpec.stream(EnemyType.kamikaze, count: 3, every: 1.0),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.0, FormationSpec.stream(EnemyType.drone, count: 4, every: 0.8)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.beetle, count: 2, every: 1.6),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(3.2,
+            FormationSpec.stream(EnemyType.chevron, count: 5, every: 0.4)),
+        BossEvent(),
+      ]),
       boss: BossDef(
         type: BossType.dreadnought,
         baseHp: 120,
@@ -236,20 +257,24 @@ abstract final class LevelCatalog {
       fireRateScale: 1.1,
       scoreScale: 1.3,
       obstaclesPerTenSeconds: 2,
-      waves: [
-        WaveDef([
-          WaveEntry(EnemyType.wasp, count: 5, spawnInterval: 0.55),
-          WaveEntry(EnemyType.crawler, count: 1, spawnInterval: 1.0),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.drone, count: 4, spawnInterval: 0.8),
-          WaveEntry(EnemyType.crawler, count: 2, spawnInterval: 2.0),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.chevron, count: 5, spawnInterval: 0.4),
-          WaveEntry(EnemyType.saucer, count: 3, spawnInterval: 1.0),
-        ]),
-      ],
+      script: LevelScript([
+        FormationEvent(
+            0.6, FormationSpec.stream(EnemyType.wasp, count: 5, every: 0.55),
+            countsAsSection: true),
+        FormationEvent(2.75,
+            FormationSpec.stream(EnemyType.crawler, count: 1, every: 1.0)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.drone, count: 4, every: 0.8),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(3.2,
+            FormationSpec.stream(EnemyType.crawler, count: 2, every: 2.0)),
+        FormationEvent(1.0,
+            FormationSpec.stream(EnemyType.chevron, count: 5, every: 0.4),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            2.0, FormationSpec.stream(EnemyType.saucer, count: 3, every: 1.0)),
+        BossEvent(),
+      ]),
       boss: BossDef(
         type: BossType.warMachine,
         baseHp: 150,
@@ -267,24 +292,29 @@ abstract final class LevelCatalog {
       fireRateScale: 1.15,
       scoreScale: 1.4,
       obstaclesPerTenSeconds: 2.5,
-      waves: [
-        WaveDef([
-          WaveEntry(EnemyType.gunship, count: 1, spawnInterval: 1.0),
-          WaveEntry(EnemyType.dart, count: 5, spawnInterval: 0.5),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.kamikaze, count: 4, spawnInterval: 0.8),
-          WaveEntry(EnemyType.mine, count: 4, spawnInterval: 0.8),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.crawler, count: 2, spawnInterval: 1.6),
-          WaveEntry(EnemyType.saucer, count: 4, spawnInterval: 0.8),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.beetle, count: 3, spawnInterval: 1.2),
-          WaveEntry(EnemyType.chevron, count: 5, spawnInterval: 0.4),
-        ]),
-      ],
+      script: LevelScript([
+        FormationEvent(
+            0.6, FormationSpec.stream(EnemyType.gunship, count: 1, every: 1.0),
+            countsAsSection: true),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.dart, count: 5, every: 0.5)),
+        FormationEvent(1.0,
+            FormationSpec.stream(EnemyType.kamikaze, count: 4, every: 0.8),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.2, FormationSpec.stream(EnemyType.mine, count: 4, every: 0.8)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.crawler, count: 2, every: 1.6),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.2, FormationSpec.stream(EnemyType.saucer, count: 4, every: 0.8)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.beetle, count: 3, every: 1.2),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(3.6,
+            FormationSpec.stream(EnemyType.chevron, count: 5, every: 0.4)),
+        BossEvent(),
+      ]),
       boss: BossDef(
         type: BossType.mothership,
         baseHp: 180,
@@ -303,24 +333,29 @@ abstract final class LevelCatalog {
       fireRateScale: 1.2,
       scoreScale: 1.5,
       obstaclesPerTenSeconds: 3,
-      waves: [
-        WaveDef([
-          WaveEntry(EnemyType.gunship, count: 2, spawnInterval: 2.0),
-          WaveEntry(EnemyType.wasp, count: 5, spawnInterval: 0.5),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.drone, count: 5, spawnInterval: 0.7),
-          WaveEntry(EnemyType.kamikaze, count: 3, spawnInterval: 1.0),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.crawler, count: 3, spawnInterval: 1.4),
-          WaveEntry(EnemyType.mine, count: 4, spawnInterval: 0.8),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.beetle, count: 3, spawnInterval: 1.2),
-          WaveEntry(EnemyType.saucer, count: 4, spawnInterval: 0.7),
-        ]),
-      ],
+      script: LevelScript([
+        FormationEvent(
+            0.6, FormationSpec.stream(EnemyType.gunship, count: 2, every: 2.0),
+            countsAsSection: true),
+        FormationEvent(
+            4.0, FormationSpec.stream(EnemyType.wasp, count: 5, every: 0.5)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.drone, count: 5, every: 0.7),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(3.5,
+            FormationSpec.stream(EnemyType.kamikaze, count: 3, every: 1.0)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.crawler, count: 3, every: 1.4),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            4.2, FormationSpec.stream(EnemyType.mine, count: 4, every: 0.8)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.beetle, count: 3, every: 1.2),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.6, FormationSpec.stream(EnemyType.saucer, count: 4, every: 0.7)),
+        BossEvent(),
+      ]),
       boss: BossDef(
         type: BossType.warMachine,
         baseHp: 220,
@@ -340,24 +375,29 @@ abstract final class LevelCatalog {
       fireRateScale: 1.25,
       scoreScale: 1.7,
       obstaclesPerTenSeconds: 3,
-      waves: [
-        WaveDef([
-          WaveEntry(EnemyType.wasp, count: 6, spawnInterval: 0.45),
-          WaveEntry(EnemyType.mine, count: 3, spawnInterval: 1.0),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.kamikaze, count: 4, spawnInterval: 0.8),
-          WaveEntry(EnemyType.chevron, count: 5, spawnInterval: 0.4),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.saucer, count: 4, spawnInterval: 0.8),
-          WaveEntry(EnemyType.drone, count: 4, spawnInterval: 0.7),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.beetle, count: 3, spawnInterval: 1.2),
-          WaveEntry(EnemyType.wasp, count: 5, spawnInterval: 0.5),
-        ]),
-      ],
+      script: LevelScript([
+        FormationEvent(
+            0.6, FormationSpec.stream(EnemyType.wasp, count: 6, every: 0.45),
+            countsAsSection: true),
+        FormationEvent(
+            2.7, FormationSpec.stream(EnemyType.mine, count: 3, every: 1.0)),
+        FormationEvent(1.0,
+            FormationSpec.stream(EnemyType.kamikaze, count: 4, every: 0.8),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(3.2,
+            FormationSpec.stream(EnemyType.chevron, count: 5, every: 0.4)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.saucer, count: 4, every: 0.8),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.2, FormationSpec.stream(EnemyType.drone, count: 4, every: 0.7)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.beetle, count: 3, every: 1.2),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.6, FormationSpec.stream(EnemyType.wasp, count: 5, every: 0.5)),
+        BossEvent(),
+      ]),
       boss: BossDef(
         type: BossType.hiveQueen,
         baseHp: 260,
@@ -376,28 +416,34 @@ abstract final class LevelCatalog {
       fireRateScale: 1.3,
       scoreScale: 1.9,
       obstaclesPerTenSeconds: 3.5,
-      waves: [
-        WaveDef([
-          WaveEntry(EnemyType.gunship, count: 2, spawnInterval: 2.0),
-          WaveEntry(EnemyType.kamikaze, count: 4, spawnInterval: 0.7),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.mine, count: 6, spawnInterval: 0.6),
-          WaveEntry(EnemyType.wasp, count: 5, spawnInterval: 0.5),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.crawler, count: 3, spawnInterval: 1.4),
-          WaveEntry(EnemyType.saucer, count: 4, spawnInterval: 0.7),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.beetle, count: 4, spawnInterval: 1.0),
-          WaveEntry(EnemyType.chevron, count: 6, spawnInterval: 0.35),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.drone, count: 5, spawnInterval: 0.6),
-          WaveEntry(EnemyType.kamikaze, count: 4, spawnInterval: 0.7),
-        ]),
-      ],
+      script: LevelScript([
+        FormationEvent(
+            0.6, FormationSpec.stream(EnemyType.gunship, count: 2, every: 2.0),
+            countsAsSection: true),
+        FormationEvent(4.0,
+            FormationSpec.stream(EnemyType.kamikaze, count: 4, every: 0.7)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.mine, count: 6, every: 0.6),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.6, FormationSpec.stream(EnemyType.wasp, count: 5, every: 0.5)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.crawler, count: 3, every: 1.4),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            4.2, FormationSpec.stream(EnemyType.saucer, count: 4, every: 0.7)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.beetle, count: 4, every: 1.0),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(4.0,
+            FormationSpec.stream(EnemyType.chevron, count: 6, every: 0.35)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.drone, count: 5, every: 0.6),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(3.0,
+            FormationSpec.stream(EnemyType.kamikaze, count: 4, every: 0.7)),
+        BossEvent(),
+      ]),
       boss: BossDef(
         type: BossType.hiveQueen,
         baseHp: 320,
@@ -416,28 +462,34 @@ abstract final class LevelCatalog {
       fireRateScale: 1.35,
       scoreScale: 2.1,
       obstaclesPerTenSeconds: 4,
-      waves: [
-        WaveDef([
-          WaveEntry(EnemyType.wasp, count: 7, spawnInterval: 0.4),
-          WaveEntry(EnemyType.mine, count: 4, spawnInterval: 0.8),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.gunship, count: 2, spawnInterval: 2.0),
-          WaveEntry(EnemyType.saucer, count: 5, spawnInterval: 0.6),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.kamikaze, count: 5, spawnInterval: 0.6),
-          WaveEntry(EnemyType.chevron, count: 6, spawnInterval: 0.35),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.beetle, count: 4, spawnInterval: 1.0),
-          WaveEntry(EnemyType.crawler, count: 3, spawnInterval: 1.4),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.drone, count: 6, spawnInterval: 0.5),
-          WaveEntry(EnemyType.wasp, count: 6, spawnInterval: 0.45),
-        ]),
-      ],
+      script: LevelScript([
+        FormationEvent(
+            0.6, FormationSpec.stream(EnemyType.wasp, count: 7, every: 0.4),
+            countsAsSection: true),
+        FormationEvent(
+            2.8, FormationSpec.stream(EnemyType.mine, count: 4, every: 0.8)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.gunship, count: 2, every: 2.0),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            4.0, FormationSpec.stream(EnemyType.saucer, count: 5, every: 0.6)),
+        FormationEvent(1.0,
+            FormationSpec.stream(EnemyType.kamikaze, count: 5, every: 0.6),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(3.0,
+            FormationSpec.stream(EnemyType.chevron, count: 6, every: 0.35)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.beetle, count: 4, every: 1.0),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(4.0,
+            FormationSpec.stream(EnemyType.crawler, count: 3, every: 1.4)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.drone, count: 6, every: 0.5),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.0, FormationSpec.stream(EnemyType.wasp, count: 6, every: 0.45)),
+        BossEvent(),
+      ]),
       boss: BossDef(
         type: BossType.hiveQueen,
         baseHp: 380,
@@ -458,24 +510,29 @@ abstract final class LevelCatalog {
       fireRateScale: 1.4,
       scoreScale: 2.3,
       obstaclesPerTenSeconds: 3.5,
-      waves: [
-        WaveDef([
-          WaveEntry(EnemyType.dart, count: 6, spawnInterval: 0.45),
-          WaveEntry(EnemyType.saucer, count: 4, spawnInterval: 0.7),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.gunship, count: 3, spawnInterval: 1.6),
-          WaveEntry(EnemyType.mine, count: 5, spawnInterval: 0.6),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.kamikaze, count: 5, spawnInterval: 0.6),
-          WaveEntry(EnemyType.beetle, count: 3, spawnInterval: 1.2),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.crawler, count: 4, spawnInterval: 1.2),
-          WaveEntry(EnemyType.chevron, count: 6, spawnInterval: 0.35),
-        ]),
-      ],
+      script: LevelScript([
+        FormationEvent(
+            0.6, FormationSpec.stream(EnemyType.dart, count: 6, every: 0.45),
+            countsAsSection: true),
+        FormationEvent(
+            2.7, FormationSpec.stream(EnemyType.saucer, count: 4, every: 0.7)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.gunship, count: 3, every: 1.6),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            4.8, FormationSpec.stream(EnemyType.mine, count: 5, every: 0.6)),
+        FormationEvent(1.0,
+            FormationSpec.stream(EnemyType.kamikaze, count: 5, every: 0.6),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.0, FormationSpec.stream(EnemyType.beetle, count: 3, every: 1.2)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.crawler, count: 4, every: 1.2),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(4.8,
+            FormationSpec.stream(EnemyType.chevron, count: 6, every: 0.35)),
+        BossEvent(),
+      ]),
       boss: BossDef(
         type: BossType.leviathan,
         baseHp: 440,
@@ -493,28 +550,34 @@ abstract final class LevelCatalog {
       fireRateScale: 1.45,
       scoreScale: 2.45,
       obstaclesPerTenSeconds: 4,
-      waves: [
-        WaveDef([
-          WaveEntry(EnemyType.wasp, count: 7, spawnInterval: 0.4),
-          WaveEntry(EnemyType.gunship, count: 2, spawnInterval: 1.8),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.mine, count: 6, spawnInterval: 0.5),
-          WaveEntry(EnemyType.kamikaze, count: 5, spawnInterval: 0.6),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.saucer, count: 5, spawnInterval: 0.6),
-          WaveEntry(EnemyType.drone, count: 6, spawnInterval: 0.5),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.beetle, count: 4, spawnInterval: 1.0),
-          WaveEntry(EnemyType.crawler, count: 4, spawnInterval: 1.2),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.chevron, count: 8, spawnInterval: 0.3),
-          WaveEntry(EnemyType.gunship, count: 2, spawnInterval: 1.8),
-        ]),
-      ],
+      script: LevelScript([
+        FormationEvent(
+            0.6, FormationSpec.stream(EnemyType.wasp, count: 7, every: 0.4),
+            countsAsSection: true),
+        FormationEvent(2.8,
+            FormationSpec.stream(EnemyType.gunship, count: 2, every: 1.8)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.mine, count: 6, every: 0.5),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(3.0,
+            FormationSpec.stream(EnemyType.kamikaze, count: 5, every: 0.6)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.saucer, count: 5, every: 0.6),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.0, FormationSpec.stream(EnemyType.drone, count: 6, every: 0.5)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.beetle, count: 4, every: 1.0),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(4.0,
+            FormationSpec.stream(EnemyType.crawler, count: 4, every: 1.2)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.chevron, count: 8, every: 0.3),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(2.4,
+            FormationSpec.stream(EnemyType.gunship, count: 2, every: 1.8)),
+        BossEvent(),
+      ]),
       boss: BossDef(
         type: BossType.mothership,
         baseHp: 500,
@@ -533,29 +596,36 @@ abstract final class LevelCatalog {
       fireRateScale: 1.5,
       scoreScale: 2.6,
       obstaclesPerTenSeconds: 4.5,
-      waves: [
-        WaveDef([
-          WaveEntry(EnemyType.dart, count: 7, spawnInterval: 0.4),
-          WaveEntry(EnemyType.saucer, count: 5, spawnInterval: 0.6),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.gunship, count: 3, spawnInterval: 1.5),
-          WaveEntry(EnemyType.kamikaze, count: 6, spawnInterval: 0.5),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.mine, count: 7, spawnInterval: 0.45),
-          WaveEntry(EnemyType.wasp, count: 7, spawnInterval: 0.4),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.beetle, count: 5, spawnInterval: 0.9),
-          WaveEntry(EnemyType.crawler, count: 4, spawnInterval: 1.2),
-        ]),
-        WaveDef([
-          WaveEntry(EnemyType.chevron, count: 8, spawnInterval: 0.3),
-          WaveEntry(EnemyType.drone, count: 6, spawnInterval: 0.5),
-          WaveEntry(EnemyType.kamikaze, count: 4, spawnInterval: 0.6),
-        ]),
-      ],
+      script: LevelScript([
+        FormationEvent(
+            0.6, FormationSpec.stream(EnemyType.dart, count: 7, every: 0.4),
+            countsAsSection: true),
+        FormationEvent(
+            2.8, FormationSpec.stream(EnemyType.saucer, count: 5, every: 0.6)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.gunship, count: 3, every: 1.5),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(4.5,
+            FormationSpec.stream(EnemyType.kamikaze, count: 6, every: 0.5)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.mine, count: 7, every: 0.45),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            3.15, FormationSpec.stream(EnemyType.wasp, count: 7, every: 0.4)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.beetle, count: 5, every: 0.9),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(4.5,
+            FormationSpec.stream(EnemyType.crawler, count: 4, every: 1.2)),
+        FormationEvent(
+            1.0, FormationSpec.stream(EnemyType.chevron, count: 8, every: 0.3),
+            countsAsSection: true, waitForFieldClear: true),
+        FormationEvent(
+            2.4, FormationSpec.stream(EnemyType.drone, count: 6, every: 0.5)),
+        FormationEvent(3.0,
+            FormationSpec.stream(EnemyType.kamikaze, count: 4, every: 0.6)),
+        BossEvent(),
+      ]),
       boss: BossDef(
         type: BossType.mothership,
         baseHp: 600,

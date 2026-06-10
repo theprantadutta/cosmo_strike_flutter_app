@@ -21,7 +21,7 @@ import 'game_assets.dart';
 import 'game_audio.dart';
 import 'levels/level_catalog.dart';
 import 'levels/level_def.dart';
-import 'levels/wave_runner.dart';
+import 'levels/script_runner.dart';
 import 'pools.dart';
 import 'run_effects.dart';
 
@@ -142,7 +142,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   late Starfield _starfield;
   late final GamePools pools = GamePools(this);
   final ComboGrazeController combo = ComboGrazeController();
-  final WaveRunner _waveRunner = WaveRunner();
+  final ScriptRunner _scriptRunner = ScriptRunner();
 
   TerrainStrip? _floor;
   TerrainStrip? _ceiling;
@@ -165,6 +165,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   // Active timed effects for the HUD chip row (published at ~4 Hz).
   final ValueNotifier<List<ActiveEffectHud>> effectsNotifier =
       ValueNotifier(const []);
+  // Set-piece banner callout ("CANYON RUN!"); null = hidden.
+  final ValueNotifier<String?> calloutNotifier = ValueNotifier(null);
 
   // Run state.
   int levelIndex = 1;
@@ -258,7 +260,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     await add(_starfield);
     player = PlayerShip();
     await add(player);
-    await add(_waveRunner);
+    await add(_scriptRunner);
     await pools.mount();
 
     // Mode rules: ships per run + start the Time Attack clock when set.
@@ -342,22 +344,23 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       ArmedLoadout.apply(this, key);
     }
 
-    _waveRunner.startWave(level, 0);
+    _scriptRunner.startLevel(level.script);
   }
 
-  /// Called by the WaveRunner when a wave's ships are all spawned + dead.
-  void onWaveComplete() {
-    if (phase != GamePhase.playing) return;
-    if (wave >= level.waves.length) {
-      _spawnBoss();
-    } else {
-      wave++;
-      waveNotifier.value = wave;
-      _waveRunner.startWave(level, wave - 1);
-    }
+  /// Called by the ScriptRunner when a section-opening formation fires —
+  /// keeps the HUD wave counter (and LevelRunResult.waveReached) meaningful.
+  void onScriptSection(int section) {
+    wave = section;
+    waveNotifier.value = section;
   }
 
-  void _spawnBoss() {
+  /// Show a set-piece banner callout on the HUD.
+  void showCallout(String text) => calloutNotifier.value = text;
+
+  void clearCallout() => calloutNotifier.value = null;
+
+  /// Called by the ScriptRunner's BossEvent (field already clear).
+  void spawnBoss() {
     GameAudio.bossWarn();
     add(Boss(
       def: level.boss,
@@ -611,6 +614,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   void onEnemyKilled(EnemyShip enemy) {
     enemiesKilled++;
+    enemy.formation?.onMemberKilled(enemy);
     final tierUp = combo.onKill();
     final awarded = addKillScore(enemy.pointValue);
     pools.scorePopup(enemy.position + Vector2(0, -16), '+$awarded');
@@ -768,7 +772,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   // ---- Revive ----
 
   /// Resume the SAME level + wave after the player paid for a continue
-  /// (rewarded ad / coins). The WaveRunner is game-time, so the paused
+  /// (rewarded ad / coins). The ScriptRunner is game-time, so the paused
   /// spawn timeline resumes exactly where it froze.
   void revive() {
     if (phase != GamePhase.reviveOffer) return;
@@ -776,8 +780,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     livesNotifier.value = 1;
     player.health = 1.0;
     healthNotifier.value = 1.0;
-    // Clear the immediate threats so the comeback isn't instant death.
+    // Clear the immediate threats so the comeback isn't instant death,
+    // and hold the spawn timeline briefly so the choreography doesn't
+    // dogpile the comeback.
     pools.clearEnemyBullets();
+    _scriptRunner.notifyRevived();
     player.respawn(withWarpFx: true);
     GameAudio.revive();
     phaseNotifier.value = GamePhase.playing;
@@ -890,7 +897,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   void _endRun({required bool cleared}) {
     if (_runEnded) return;
     _runEnded = true;
-    _waveRunner.stop();
+    _scriptRunner.stop();
     phaseNotifier.value = GamePhase.gameOver;
     GameAudio.gameOver();
     onGameOver?.call(_buildResult(cleared: cleared));

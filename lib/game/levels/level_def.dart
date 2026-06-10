@@ -3,6 +3,7 @@ import 'package:flutter/painting.dart';
 
 import '../components/enemy.dart' show EnemyPattern;
 import '../game_assets.dart';
+import 'level_script.dart';
 import 'terrain_profile.dart';
 
 /// How an enemy type shoots. `none` types threaten by contact only.
@@ -212,36 +213,6 @@ class BiomeDef {
   bool get hasCeiling => ceilingAsset != null;
 }
 
-/// One scripted spawn group inside a wave: [count] ships of [type] entering
-/// every [spawnInterval] seconds inside the vertical band
-/// [yBand0]..[yBand1] (fractions of the open playfield).
-class WaveEntry {
-  final EnemyType type;
-  final EnemyPattern? pattern; // null → the type's default pattern
-  final int count;
-  final double spawnInterval;
-  final double yBand0;
-  final double yBand1;
-
-  const WaveEntry(
-    this.type, {
-    this.pattern,
-    required this.count,
-    this.spawnInterval = 0.55,
-    this.yBand0 = 0.1,
-    this.yBand1 = 0.9,
-  });
-}
-
-/// A wave is its entries run back-to-back; the wave completes when all
-/// entries have spawned AND no enemy remains alive.
-class WaveDef {
-  final List<WaveEntry> entries;
-  const WaveDef(this.entries);
-
-  int get totalCount => entries.fold(0, (sum, e) => sum + e.count);
-}
-
 /// Boss parameters for one level. The same [BossType] reappears across the
 /// campaign with scaled stats and attack pacing.
 class BossDef {
@@ -266,13 +237,13 @@ class BossDef {
   });
 }
 
-/// One campaign level: a biome, 3-5 scripted waves, a boss, and difficulty
-/// scalars. Pure data — adding a level is appending one of these to the
-/// LevelCatalog.
+/// One campaign level: a biome, a choreographed [LevelScript] timeline
+/// ending in a boss, and difficulty scalars. Pure data — adding a level
+/// is appending one of these to the LevelCatalog.
 class LevelDef {
   final int index; // 1-based campaign level number
   final String biomeId;
-  final List<WaveDef> waves;
+  final LevelScript script;
   final BossDef boss;
   final double hpScale;
   final double speedScale;
@@ -289,7 +260,7 @@ class LevelDef {
   const LevelDef({
     required this.index,
     required this.biomeId,
-    required this.waves,
+    required this.script,
     required this.boss,
     this.hpScale = 1,
     this.speedScale = 1,
