@@ -483,6 +483,44 @@ class _Hud extends StatelessWidget {
                         ),
                       ),
                     ),
+                    // Kill-chain readout — appears from a 2-chain on,
+                    // pulses when the multiplier tier rises.
+                    ValueListenableBuilder<int>(
+                      valueListenable: game.combo.comboNotifier,
+                      builder: (_, chain, _) {
+                        if (chain < 2) return const SizedBox.shrink();
+                        return ValueListenableBuilder<int>(
+                          valueListenable: game.combo.multiplierNotifier,
+                          builder: (_, mult, _) =>
+                              TweenAnimationBuilder<double>(
+                            key: ValueKey(mult),
+                            tween: Tween(
+                                begin: mult > 1 ? 1.35 : 1.0, end: 1.0),
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOutBack,
+                            builder: (_, s, child) => Transform.scale(
+                              scale: s,
+                              alignment: Alignment.centerLeft,
+                              child: child,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                '×$mult · $chain CHAIN',
+                                style: TextStyle(
+                                  color: mult >= 2
+                                      ? CosmoPalette.hostile
+                                      : CosmoPalette.hullLight,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.1,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -690,6 +728,25 @@ class _MissileButton extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
+                // Graze meter: a thin gold arc filling around the disc;
+                // a full ring converts to +1 missile.
+                ValueListenableBuilder<double>(
+                  valueListenable: game.combo.grazeNotifier,
+                  builder: (_, g, _) {
+                    if (g <= 0) return const SizedBox.shrink();
+                    return SizedBox(
+                      width: 72,
+                      height: 72,
+                      child: CircularProgressIndicator(
+                        value: g,
+                        strokeWidth: 3,
+                        backgroundColor: Colors.transparent,
+                        valueColor: const AlwaysStoppedAnimation(
+                            Color(0xFFFFD37B)),
+                      ),
+                    );
+                  },
+                ),
                 Container(
                   width: 64,
                   height: 64,

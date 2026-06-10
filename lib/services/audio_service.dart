@@ -36,6 +36,15 @@ class AudioService {
     'missile',
     'revive',
     'level_clear',
+    'graze',
+    'combo_up',
+    'combo_break',
+    'meter_full',
+    'formation_wipe',
+    'telegraph',
+    'boss_phase',
+    'beam_fire',
+    'mortar',
   ];
 
   bool _soundEnabled = true;

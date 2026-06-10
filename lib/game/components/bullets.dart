@@ -194,6 +194,12 @@ class EnemyBullet extends PositionComponent
   final Vector2 velocity = Vector2.zero();
   double damage = 0.34;
   bool fromBoss = false;
+  bool _grazed = false;
+
+  // Graze ring: closer than the outer radius but not dead-center (a
+  // straight hit is a hit, not a graze). Center-to-center, squared.
+  static const double _grazeOuter2 = 48 * 48;
+  static const double _grazeInner2 = 24 * 24;
 
   late final CircleHitbox _hitbox =
       CircleHitbox(collisionType: CollisionType.inactive);
@@ -220,6 +226,7 @@ class EnemyBullet extends PositionComponent
     this.velocity.setFrom(velocity);
     this.damage = damage;
     this.fromBoss = fromBoss;
+    _grazed = false;
     size.setValues(fromBoss ? 18 : 14, fromBoss ? 18 : 14);
     position.setFrom(spawn);
     active = true;
@@ -238,6 +245,18 @@ class EnemyBullet extends PositionComponent
     if (!active) return;
     // Slow-mo power-up stretches enemy time.
     position += velocity * (dt * game.enemyTimeScale);
+    // Graze: once per bullet, while the player can actually be hit (no
+    // free meter during ghost/invuln windows).
+    if (!_grazed) {
+      final p = game.player;
+      if (!p.ghosted && !p.isInvulnerable) {
+        final d2 = position.distanceToSquared(p.position);
+        if (d2 < _grazeOuter2 && d2 > _grazeInner2) {
+          _grazed = true;
+          game.onGraze(position.clone());
+        }
+      }
+    }
     if (position.x < -20 ||
         position.x > game.size.x + 30 ||
         position.y < -20 ||

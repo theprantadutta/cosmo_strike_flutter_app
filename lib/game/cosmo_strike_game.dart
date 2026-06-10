@@ -8,6 +8,7 @@ import 'package:flutter/painting.dart';
 import '../models/level_run_result.dart';
 import '../utils/campaign_catalog.dart';
 import '../utils/constants.dart' show GameMode;
+import 'combo_graze.dart';
 import 'components/boss.dart';
 import 'components/bullets.dart';
 import 'components/enemy.dart';
@@ -50,6 +51,8 @@ class GameResult {
     required this.missilesFired,
     required this.revivesUsed,
     required this.levelResults,
+    this.maxCombo = 0,
+    this.grazeCount = 0,
   });
 
   final int score;
@@ -74,6 +77,12 @@ class GameResult {
   /// Per-level outcomes for every level this run touched, in play order
   /// (cleared levels + the level the run ended on).
   final List<LevelRunResult> levelResults;
+
+  /// Longest kill chain of the run.
+  final int maxCombo;
+
+  /// Total bullet grazes of the run.
+  final int grazeCount;
 }
 
 /// One active timed effect for the HUD chip row.
@@ -132,6 +141,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   late PlayerShip player;
   late Starfield _starfield;
   late final GamePools pools = GamePools(this);
+  final ComboGrazeController combo = ComboGrazeController();
   final WaveRunner _waveRunner = WaveRunner();
 
   TerrainStrip? _floor;
@@ -341,7 +351,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   void onBossDefeated() {
     bossesKilled++;
     bossHealthNotifier.value = -1;
-    final awarded = addScore((1000 * level.scoreScale).round());
+    combo.onKill();
+    final awarded = addKillScore((1000 * level.scoreScale).round());
     final bossAt = Vector2(size.x * 0.78, size.y / 2);
     pools.scorePopup(bossAt + Vector2(0, -60), '+$awarded', scale: 1.4);
     hitStop(0.1);
@@ -461,6 +472,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
         if (_slowmoTimer <= 0) enemyTimeScale = 1;
       }
       if (_missileCooldown > 0) _missileCooldown -= dt;
+      combo.update(dt);
 
       // Publish the active-effects chip row at ~4 Hz.
       _effectsAccumulator += dt;
@@ -561,6 +573,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     return awarded;
   }
 
+  /// Kill-path scoring: the combo multiplier applies on top of the x2
+  /// orb. Use for enemy/boss kills and formation bonuses — never for
+  /// pickups or grazes.
+  int addKillScore(int basePoints) => addScore(basePoints * combo.multiplier);
+
   void setScoreMultiplier(double mult, double seconds) {
     scoreMultiplier = mult;
     _multTimer = seconds;
@@ -575,8 +592,19 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   void onEnemyKilled(EnemyShip enemy) {
     enemiesKilled++;
-    final awarded = addScore(enemy.pointValue);
+    final tierUp = combo.onKill();
+    final awarded = addKillScore(enemy.pointValue);
     pools.scorePopup(enemy.position + Vector2(0, -16), '+$awarded');
+    if (tierUp) {
+      pools.scorePopup(
+        enemy.position + Vector2(0, -42),
+        '×${combo.multiplier} CHAIN',
+        color: const Color(0xFFFF7BD5),
+        scale: 1.3,
+        duration: 0.9,
+      );
+      GameAudio.comboUp();
+    }
     // Heavy kills (tanky hulls) land with a micro hit-stop + bigger blast.
     final heavy = enemy.type.baseHp >= 4;
     if (heavy) hitStop(0.045);
@@ -617,6 +645,19 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     if (player.consumeTeleportCharge()) return;
 
     _levelTookHit = true;
+    // A landed hit breaks the kill chain (shield pops / ghost passes
+    // returned above — power-ups doing their job don't).
+    if (combo.chain >= 5) {
+      pools.scorePopup(
+        player.position + Vector2(0, -30),
+        'COMBO BREAK',
+        color: const Color(0xFFFF8A8A),
+        scale: 1.15,
+        duration: 0.8,
+      );
+      GameAudio.comboBreak();
+    }
+    combo.onPlayerDamaged();
     GameAudio.playerHit();
     shake(intensity: 5, duration: 0.22);
 
@@ -637,6 +678,26 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     healthNotifier.value = player.health.clamp(0, 1).toDouble();
     if (player.health <= 0) {
       _loseLife();
+    }
+  }
+
+  /// An enemy bullet slipped past the hull without connecting. Risk pays:
+  /// points + graze-meter charge; a full meter converts to +1 missile.
+  void onGraze(Vector2 at) {
+    if (phase != GamePhase.playing) return;
+    addScore(15);
+    pools.hitSpark(at);
+    GameAudio.graze();
+    if (combo.onGraze()) {
+      missileAmmoNotifier.value += 1;
+      pools.scorePopup(
+        player.position + Vector2(0, -30),
+        'MISSILE +1',
+        color: const Color(0xFFFFD37B),
+        scale: 1.2,
+        duration: 0.9,
+      );
+      GameAudio.meterFull();
     }
   }
 
@@ -802,6 +863,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       missilesFired: missilesFired,
       revivesUsed: _reviveUsed ? 1 : 0,
       levelResults: results,
+      maxCombo: combo.maxCombo,
+      grazeCount: combo.grazeCount,
     );
   }
 

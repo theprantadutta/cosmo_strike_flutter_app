@@ -11,6 +11,11 @@ abstract final class GameAudio {
   static const Duration _shootThrottle = Duration(milliseconds: 90);
   static DateTime _lastShoot = DateTime.fromMillisecondsSinceEpoch(0);
 
+  // Grazes can register several times per second when threading dense
+  // fire — same finite-voice concern as shooting.
+  static const Duration _grazeThrottle = Duration(milliseconds: 70);
+  static DateTime _lastGraze = DateTime.fromMillisecondsSinceEpoch(0);
+
   static void shoot() {
     final now = DateTime.now();
     if (now.difference(_lastShoot) < _shootThrottle) return;
@@ -28,4 +33,23 @@ abstract final class GameAudio {
   static void levelClear() => AudioService().playSound('level_clear');
   static void gameOver() => AudioService().playSound('game_over');
   static void gameStart() => AudioService().playSound('game_start');
+
+  // ---- combo / graze ----
+  static void graze() {
+    final now = DateTime.now();
+    if (now.difference(_lastGraze) < _grazeThrottle) return;
+    _lastGraze = now;
+    AudioService().playSound('graze');
+  }
+
+  static void comboUp() => AudioService().playSound('combo_up');
+  static void comboBreak() => AudioService().playSound('combo_break');
+  static void meterFull() => AudioService().playSound('meter_full');
+
+  // ---- formations / bosses ----
+  static void formationWipe() => AudioService().playSound('formation_wipe');
+  static void telegraph() => AudioService().playSound('telegraph');
+  static void bossPhase() => AudioService().playSound('boss_phase');
+  static void beamFire() => AudioService().playSound('beam_fire');
+  static void mortar() => AudioService().playSound('mortar');
 }
