@@ -354,6 +354,47 @@ class _GameplayScreenState extends State<GameplayScreen>
             },
           ),
 
+          // Set-piece callout ("CANYON RUN") — small pulsing banner that
+          // never blocks input.
+          ValueListenableBuilder<String?>(
+            valueListenable: _game.calloutNotifier,
+            builder: (context, callout, _) {
+              if (callout == null) return const SizedBox.shrink();
+              return IgnorePointer(
+                child: SafeArea(
+                  child: Align(
+                    alignment: const Alignment(0, -0.55),
+                    child: TweenAnimationBuilder<double>(
+                      key: ValueKey(callout),
+                      tween: Tween(begin: 0, end: 1),
+                      duration: const Duration(milliseconds: 320),
+                      curve: Curves.easeOutBack,
+                      builder: (_, t, child) => Opacity(
+                        opacity: t.clamp(0, 1),
+                        child: Transform.scale(scale: 0.8 + 0.2 * t, child: child),
+                      ),
+                      child: Text(
+                        callout,
+                        style: TextStyle(
+                          color: CosmoPalette.highlight,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 5,
+                          shadows: [
+                            Shadow(
+                              color: CosmoPalette.hostile.withValues(alpha: 0.9),
+                              blurRadius: 16,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+
           ValueListenableBuilder<GamePhase>(
             valueListenable: _game.phaseNotifier,
             builder: (context, phase, _) {

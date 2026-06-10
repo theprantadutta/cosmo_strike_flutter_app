@@ -92,15 +92,33 @@ Build new screens with `CommandScaffold` + these widgets. Reference screens:
 `home_screen.dart` (menu hub), `leaderboard_screen.dart` (list/detail),
 `username_setup_screen.dart` / `email_auth_screen.dart` (centered form card).
 
-## Gameplay: sprite-based checkpoint campaign
+## Gameplay: choreographed sprite campaign
 The Flame game is a 12-level campaign (4 biomes × 3 levels) with modes as
 modifiers on top. Key pieces (all in `lib/game/`):
-- **Pure-data levels**: `levels/level_def.dart` (EnemyType/BossDef/BiomeDef/
-  WaveDef schemas) + `levels/level_catalog.dart` (the 12 LevelDefs — adding a
-  level = appending data + a name in `lib/utils/campaign_catalog.dart`).
-- **Game-time spawning**: `levels/wave_runner.dart` — never use
+- **Choreographed levels**: each level is a `LevelScript` timeline
+  (`levels/level_script.dart`: FormationEvent / DropEvent / SetPieceEvent /
+  TelegraphEvent / BossEvent, RELATIVE delays, barrier events wait for a
+  clear field) driven by `levels/script_runner.dart`. Formations
+  (`levels/formation.dart` + `components/formation_unit.dart`) are the spawn
+  unit — 9 shapes (stream/vWedge/snakeChain/pincer/wallWithGap/columnDive/
+  ambushRear/ringSpinner/escortConvoy); wiping one fast = bonus + orb.
+  The 12 scripts live in `levels/level_catalog.dart`; adding a level =
+  appending data + a name in `lib/utils/campaign_catalog.dart`.
+- **Game-time spawning**: ScriptRunner is a plain Component — never use
   `Future.delayed` for spawns (wall-clock ignores `pauseEngine()` and breaks
   pause/revive).
+- **Combo + graze** (`combo_graze.dart`): kill chains drive a ×1-×4 score
+  multiplier (breaks on landed hits); bullets grazing the hull charge a
+  meter → +1 missile. Kill scoring goes through `game.addKillScore`.
+- **Bosses** (`components/bosses/`): per-type multi-phase kits (BossBrain/
+  BossPhase/BossAttack) — EVERY attack telegraphs and aim is captured at
+  windup start; phase flips clear boss bullets + flash + hit-stop.
+- **Terrain is gameplay**: `TerrainStrip` bands animate (SetPieceEvent
+  corridor squeezes; growth rate-clamped; a rising band displaces the
+  player without damage). `EnemyType.turret` mounts floor/ceiling.
+- **Pooling** (`pools.dart`): bullets/sparks/flashes/popups are
+  always-mounted activate/deactivate pools — never construct
+  PlayerBullet/EnemyBullet directly; use `game.pools.*`.
 - **Sprites**: all components render from `game_assets.dart` paths preloaded
   into `Flame.images` by the pre-game loader (memoized; re-awaited in onLoad).
 - **Progress**: per-level bests live in Drift (`StageProgressDao`,
@@ -110,8 +128,6 @@ modifiers on top. Key pieces (all in `lib/game/`):
 - Start level rides **route extras** (`levelSelect → playLoading → game`),
   never a cubit. One revive per run (ad / 200 coins); armed store power-ups
   inject via `run_effects.dart`.
-- Gameplay SFX keys exist but `assets/audio/` has no files yet — hooks
-  no-op silently (see `game_audio.dart` / AudioService fallback rule).
 
 ## Structure
 - `lib/game/` — Flame gameplay (logic off-limits; reskin via palette/render only).
