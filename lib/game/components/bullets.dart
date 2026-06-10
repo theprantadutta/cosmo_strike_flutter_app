@@ -6,6 +6,7 @@ import 'package:flutter/painting.dart';
 import '../cosmo_strike_game.dart';
 import '../game_assets.dart';
 import 'boss.dart';
+import 'bosses/boss_pod.dart';
 import 'enemy.dart';
 import 'fx.dart';
 import 'player_ship.dart';
@@ -98,6 +99,10 @@ class PlayerBullet extends PositionComponent
       game.pools.hitSpark(position);
       other.takeDamage(damage);
       deactivate();
+    } else if (other is BossPod) {
+      game.pools.hitSpark(position);
+      other.takeDamage(damage);
+      deactivate();
     } else if (other is TerrainObstacle && other.destructible) {
       game.pools.hitSpark(position);
       other.takeDamage(damage);
@@ -150,6 +155,7 @@ class PlayerMissile extends PositionComponent
     // Direct hit.
     if (directTarget is EnemyShip) directTarget.takeDamage(directDamage);
     if (directTarget is Boss) directTarget.takeDamage(directDamage);
+    if (directTarget is BossPod) directTarget.takeDamage(directDamage);
     if (directTarget is TerrainObstacle && directTarget.destructible) {
       directTarget.takeDamage(directDamage);
     }
@@ -158,6 +164,12 @@ class PlayerMissile extends PositionComponent
       if (!identical(e, directTarget) &&
           e.position.distanceTo(position) <= splashRadius) {
         e.takeDamage(splashDamage);
+      }
+    }
+    for (final p in game.children.whereType<BossPod>().toList()) {
+      if (!identical(p, directTarget) &&
+          p.position.distanceTo(position) <= splashRadius) {
+        p.takeDamage(splashDamage);
       }
     }
     for (final b in game.children.whereType<Boss>().toList()) {
@@ -174,6 +186,7 @@ class PlayerMissile extends PositionComponent
     super.onCollisionStart(intersectionPoints, other);
     if (other is EnemyShip ||
         other is Boss ||
+        other is BossPod ||
         (other is TerrainObstacle && other.destructible)) {
       _detonate(other);
     }
@@ -194,6 +207,9 @@ class EnemyBullet extends PositionComponent
   final Vector2 velocity = Vector2.zero();
   double damage = 0.34;
   bool fromBoss = false;
+
+  /// Mortar lobs: vertical acceleration giving an arcing trajectory.
+  double gravity = 0;
   bool _grazed = false;
 
   // Graze ring: closer than the outer radius but not dead-center (a
@@ -222,10 +238,12 @@ class EnemyBullet extends PositionComponent
     required Vector2 velocity,
     double damage = 0.34,
     bool fromBoss = false,
+    double gravity = 0,
   }) {
     this.velocity.setFrom(velocity);
     this.damage = damage;
     this.fromBoss = fromBoss;
+    this.gravity = gravity;
     _grazed = false;
     size.setValues(fromBoss ? 18 : 14, fromBoss ? 18 : 14);
     position.setFrom(spawn);
@@ -244,7 +262,9 @@ class EnemyBullet extends PositionComponent
   void update(double dt) {
     if (!active) return;
     // Slow-mo power-up stretches enemy time.
-    position += velocity * (dt * game.enemyTimeScale);
+    final scaledDt = dt * game.enemyTimeScale;
+    if (gravity != 0) velocity.y += gravity * scaledDt;
+    position += velocity * scaledDt;
     // Graze: once per bullet, while the player can actually be hit (no
     // free meter during ghost/invuln windows).
     if (!_grazed) {

@@ -81,6 +81,7 @@ class GamePools {
     required Vector2 velocity,
     double damage = 0.34,
     bool fromBoss = false,
+    double gravity = 0,
   }) {
     final b = _enemyBullets[_eb];
     _eb = (_eb + 1) % _enemyBullets.length;
@@ -89,6 +90,7 @@ class GamePools {
       velocity: velocity,
       damage: damage,
       fromBoss: fromBoss,
+      gravity: gravity,
     );
     return b;
   }

@@ -6,14 +6,19 @@ import 'package:flame/flame.dart';
 import 'package:flutter/painting.dart';
 
 import '../cosmo_strike_game.dart';
+import '../game_audio.dart';
 import '../levels/level_def.dart';
-import 'enemy.dart';
+import 'bosses/boss_brain.dart';
+import 'bosses/boss_pod.dart';
+import 'formation_unit.dart';
 import 'player_ship.dart';
 
-/// End-of-level boss. Enters from the right, holds station near the right
-/// edge while weaving vertically, and runs the attack signature of its
-/// [BossType] with [BossDef]-scaled pacing. Reports health to the HUD via
-/// the game notifier.
+/// End-of-level boss: a thin shell (hp, hitbox, render, HUD, contact
+/// damage) running its type's [BossBrain] through a readable state
+/// machine — entering → idle → TELEGRAPHING (hull pulses red, aim is
+/// frozen, markers show exactly what's coming) → executing. Phases flip
+/// at hp thresholds with a flash + hit-stop + bullet clear so pattern
+/// switches never cheap-shot the player.
 class Boss extends PositionComponent
     with CollisionCallbacks, HasGameReference<CosmoStrikeGame> {
   Boss({
@@ -31,18 +36,37 @@ class Boss extends PositionComponent
   final BossDef def;
   final int maxHp;
   late int hp = maxHp;
+  late final BossBrain brain = BossBrain.forType(def.type);
 
+  // ---- state machine ----
   bool _entered = false;
+  int _phaseIndex = 0;
+  int _attackCursor = 0;
+  double _idleTimer = 1.5;
+  double _telegraphLeft = 0;
+  bool _executing = false;
+  BossAttack? _current;
   double _age = 0;
-  double _attackTimer = 1.5;
-  int _attackIndex = 0;
+  double _phaseFlash = 0;
+  double _shieldPopupCd = 0;
 
-  // Adds spawn once per threshold (66% / 33%).
-  final List<double> _addThresholds = [0.66, 0.33];
+  // ---- attack scratchpad (attacks are const + shared; their transient
+  // state lives here) ----
+  final Vector2 capturedAim = Vector2(-1, 0);
+  double capturedY = 0;
+  final List<Vector2> capturedPoints = [];
+  double execClock = 0;
+  double scratchAngle = 0;
+  int scratchCount = 0;
+
+  final List<BossPod> pods = [];
 
   late final double _stationX = game.size.x * 0.78;
   late final double _baseY = game.size.y / 2;
   late final Sprite _sprite = Sprite(Flame.images.fromCache(def.type.asset));
+
+  BossPhase get phase => brain.phases[_phaseIndex];
+  bool get shieldedByPods => phase.invulnerableWhilePods && pods.isNotEmpty;
 
   @override
   Future<void> onLoad() async {
@@ -57,137 +81,185 @@ class Boss extends PositionComponent
   void update(double dt) {
     // Slow-mo power-up stretches enemy time.
     dt *= game.enemyTimeScale;
-
     _age += dt;
+    if (_phaseFlash > 0) _phaseFlash -= dt;
+    if (_shieldPopupCd > 0) _shieldPopupCd -= dt;
+
     if (!_entered) {
       position.x -= 120 * dt;
-      if (position.x <= _stationX) _entered = true;
+      if (position.x <= _stationX) {
+        _entered = true;
+        _enterPhase(0, initial: true);
+      }
       return;
     }
-    // Weave inside the open band between ceiling and floor.
-    final amplitude = math.max(
-        20.0, (game.playfieldBottom - game.playfieldTop) / 2 - size.y / 2);
-    position.y = (_baseY + math.sin(_age * 1.2) * amplitude)
-        .clamp(game.playfieldTop + size.y / 2, game.playfieldBottom - size.y / 2);
 
-    _attackTimer -= dt;
-    // Zen mode: the boss doesn't fire either — it's a moving obstacle.
-    if (_attackTimer <= 0 && game.mode.enemiesFire) {
-      _attackTimer = def.attackInterval;
-      _attackIndex++;
-      _attack();
-    }
-  }
+    final movementOwned =
+        _executing && (_current?.controlsMovement ?? false);
+    final frozen = _telegraphLeft > 0; // hold still while winding up
+    if (!movementOwned && !frozen) _updateMovement(dt);
 
-  void _attack() {
-    switch (def.type) {
-      case BossType.leviathan:
-        // Signature: a vertical bullet wall with a random safe gap,
-        // alternating with aimed bursts.
-        if (_attackIndex.isEven) {
-          _bulletWall();
-        } else {
-          _aimedBurst();
-        }
-        break;
-      case BossType.dreadnought:
-      case BossType.warMachine:
-      case BossType.hiveQueen:
-      case BossType.mothership:
-        if (_attackIndex.isEven) {
-          _radialSpray();
-        } else {
-          _aimedBurst();
-        }
-        break;
-    }
-  }
+    // Zen mode: the boss doesn't attack — it's a moving obstacle.
+    if (!game.mode.enemiesFire) return;
 
-  void _radialSpray() {
-    final count = def.sprayCount;
-    for (int i = 0; i < count; i++) {
-      // Left-facing half-circle.
-      final angle = math.pi * 0.5 + (i / (count - 1)) * math.pi;
-      final v = Vector2(math.cos(angle), math.sin(angle)) * def.bulletSpeed;
-      game.pools.enemyBullet(
-        spawn: position.clone(),
-        velocity: v,
-        damage: 0.25,
-        fromBoss: true,
-      );
-    }
-  }
-
-  void _aimedBurst() {
-    final half = def.aimedCount ~/ 2;
-    for (int i = -half; i <= def.aimedCount - half - 1; i++) {
-      final dir = (game.player.position - position)..normalize();
-      final spread = Vector2(0, i * 60.0);
-      game.pools.enemyBullet(
-        spawn: position.clone(),
-        velocity: dir * (def.bulletSpeed + 80) + spread,
-        damage: 0.3,
-        fromBoss: true,
-      );
-    }
-  }
-
-  /// Leviathan: a wall of bullets spanning the playfield height with one
-  /// ship-sized gap to thread.
-  void _bulletWall() {
-    final top = game.playfieldTop + 10;
-    final bottom = game.playfieldBottom - 10;
-    const step = 46.0;
-    final gapCenter =
-        top + game.rng.nextDouble() * math.max(1, (bottom - top - 90)) + 45;
-    for (double y = top; y <= bottom; y += step) {
-      if ((y - gapCenter).abs() < 55) continue; // the safe gap
-      game.pools.enemyBullet(
-        spawn: Vector2(position.x - size.x * 0.3, y),
-        velocity: Vector2(-def.bulletSpeed, 0),
-        damage: 0.3,
-        fromBoss: true,
-      );
-    }
-  }
-
-  void _maybeSpawnAdds() {
-    if (!def.spawnsAdds || _addThresholds.isEmpty) return;
-    final frac = hp / maxHp;
-    if (frac <= _addThresholds.first) {
-      _addThresholds.removeAt(0);
-      // Two escort minions matching the boss's biome flavor.
-      final addType = def.type == BossType.hiveQueen
-          ? EnemyType.wasp
-          : EnemyType.drone;
-      for (final dy in const [-90.0, 90.0]) {
-        game.add(EnemyShip(
-          type: addType,
-          spawn: Vector2(game.size.x + 40,
-              (position.y + dy).clamp(game.playfieldTop + 30, game.playfieldBottom - 30)),
-          hpScale: game.level.hpScale,
-          speedScale: game.level.speedScale,
-          fireRateScale: game.level.fireRateScale,
-          scoreScale: game.level.scoreScale,
-        ));
+    if (_executing) {
+      execClock += dt;
+      final busy = _current!.updateExecution(this, game, dt);
+      if (!busy) {
+        _executing = false;
+        _current = null;
+        _idleTimer = def.attackInterval * phase.intervalScale;
       }
+      return;
     }
+
+    if (_telegraphLeft > 0) {
+      _telegraphLeft -= dt;
+      if (_telegraphLeft <= 0) {
+        final attack = _current!;
+        execClock = 0;
+        attack.execute(this, game);
+        if (attack.sustained) {
+          _executing = true;
+        } else {
+          _current = null;
+          _idleTimer = def.attackInterval * phase.intervalScale;
+        }
+      }
+      return;
+    }
+
+    _idleTimer -= dt;
+    if (_idleTimer <= 0) _startNextAttack();
+  }
+
+  void _updateMovement(double dt) {
+    final halfH = size.y / 2;
+    final top = game.playfieldTop + halfH;
+    final bottom = game.playfieldBottom - halfH;
+    switch (phase.movement) {
+      case BossMovement.weave:
+        final amplitude =
+            math.max(20.0, (bottom - top) / 2);
+        position.y =
+            (_baseY + math.sin(_age * 1.2) * amplitude).clamp(top, bottom);
+      case BossMovement.station:
+        position.y += (_baseY - position.y) * math.min(1, dt * 2);
+      case BossMovement.sweepVertical:
+        final amplitude = math.max(20.0, (bottom - top) / 2);
+        position.y =
+            (_baseY + math.sin(_age * 2.1) * amplitude).clamp(top, bottom);
+    }
+    // Drift back to station after dashes.
+    if ((position.x - _stationX).abs() > 2) {
+      position.x += (_stationX - position.x) * math.min(1, dt * 2);
+    }
+  }
+
+  void _startNextAttack() {
+    final attacks = phase.attacks;
+    final attack = attacks[_attackCursor % attacks.length];
+    _attackCursor++;
+    _current = attack;
+    _telegraphLeft = attack.telegraphSeconds;
+    GameAudio.telegraph();
+    attack.telegraph(this, game);
+  }
+
+  void _enterPhase(int index, {bool initial = false}) {
+    _phaseIndex = index;
+    _attackCursor = 0;
+    _telegraphLeft = 0;
+    _executing = false;
+    _current = null;
+    _idleTimer = initial ? 1.2 : 1.0; // post-flip grace
+
+    if (!initial) {
+      // Pattern switches never cheap-shot: clear in-flight boss bullets,
+      // punctuate with flash + freeze + shake.
+      game.pools.clearBossBullets();
+      game.hitStop(0.05);
+      game.shake(intensity: 8, duration: 0.35);
+      GameAudio.bossPhase();
+      _phaseFlash = 0.4;
+    }
+
+    final addWave = phase.addWave;
+    if (addWave != null) game.add(Formation(spec: addWave));
+
+    for (var i = 0; i < phase.podCount; i++) {
+      final pod = BossPod(
+        boss: this,
+        orbitIndex: i,
+        orbitCount: phase.podCount,
+        hp: (maxHp * 0.1).clamp(6, 40).round(),
+      );
+      pods.add(pod);
+      game.add(pod);
+    }
+  }
+
+  void onPodGone(BossPod pod) {
+    pods.remove(pod);
   }
 
   void takeDamage(int dmg) {
+    if (!_entered) return;
+    if (shieldedByPods) {
+      // Core is gated behind the pods — make the plink readable.
+      if (_shieldPopupCd <= 0) {
+        _shieldPopupCd = 0.9;
+        game.pools.scorePopup(
+          position + Vector2(-size.x * 0.3, -size.y * 0.4),
+          'SHIELDED',
+          color: const Color(0xFF9DB4FF),
+        );
+      }
+      game.pools.hitSpark(position + Vector2(-size.x * 0.3, 0));
+      return;
+    }
     hp -= dmg;
     game.bossHealthNotifier.value = (hp / maxHp).clamp(0, 1).toDouble();
     if (hp <= 0) {
+      for (final pod in pods.toList()) {
+        pod.removeFromParent();
+      }
       game.onBossDefeated();
       removeFromParent();
-    } else {
-      _maybeSpawnAdds();
+      return;
     }
+    _maybeAdvancePhase();
+  }
+
+  void _maybeAdvancePhase() {
+    final frac = hp / maxHp;
+    var target = _phaseIndex;
+    while (target < brain.phases.length - 1 &&
+        frac <= brain.phases[target].untilHpFrac) {
+      target++;
+    }
+    if (target != _phaseIndex) _enterPhase(target);
   }
 
   @override
   void render(Canvas canvas) {
-    _sprite.render(canvas, size: size);
+    Paint? paint;
+    if (_telegraphLeft > 0) {
+      // Windup: the hull pulses hot — an attack is coming.
+      final pulse = 0.3 + 0.3 * (0.5 + 0.5 * math.sin(_age * 16));
+      paint = Paint()
+        ..colorFilter = ColorFilter.mode(
+          Color.fromRGBO(255, 64, 110, pulse),
+          BlendMode.srcATop,
+        );
+    } else if (_phaseFlash > 0) {
+      paint = Paint()
+        ..colorFilter = ColorFilter.mode(
+          Color.fromRGBO(255, 255, 255, (_phaseFlash / 0.4) * 0.8),
+          BlendMode.srcATop,
+        );
+    }
+    _sprite.render(canvas, size: size, overridePaint: paint);
   }
 
   @override

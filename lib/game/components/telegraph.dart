@@ -136,6 +136,45 @@ class AimLineMarker extends PositionComponent
   }
 }
 
+/// Green "be HERE" band — marks the safe gap of an incoming bullet wall.
+class SafeGapMarker extends PositionComponent
+    with HasGameReference<CosmoStrikeGame> {
+  SafeGapMarker({
+    required this.centerY,
+    this.bandHeight = 110,
+    this.life = 1.4,
+  }) : super(priority: 55);
+
+  static const Color _safeColor = Color(0xFF7CFC9A);
+
+  final double centerY;
+  final double bandHeight;
+  final double life;
+  double _age = 0;
+
+  @override
+  void update(double dt) {
+    _age += dt;
+    if (_age >= life) removeFromParent();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final a = _pulse(_age, hz: 5);
+    final rect = Rect.fromLTWH(
+        0, centerY - bandHeight / 2, game.size.x, bandHeight);
+    canvas.drawRect(
+      rect,
+      Paint()..color = _safeColor.withValues(alpha: a * 0.14),
+    );
+    final edge = Paint()
+      ..color = _safeColor.withValues(alpha: a * 0.8)
+      ..strokeWidth = 1.5;
+    canvas.drawLine(rect.topLeft, rect.topRight, edge);
+    canvas.drawLine(rect.bottomLeft, rect.bottomRight, edge);
+  }
+}
+
 /// Contracting impact ring (mortar landings, burrow points): the strike
 /// lands exactly here when the ring closes.
 class LandingRingMarker extends PositionComponent

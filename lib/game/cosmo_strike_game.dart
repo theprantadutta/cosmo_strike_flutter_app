@@ -10,6 +10,7 @@ import '../utils/campaign_catalog.dart';
 import '../utils/constants.dart' show GameMode;
 import 'combo_graze.dart';
 import 'components/boss.dart';
+import 'components/bosses/boss_pod.dart';
 import 'components/bullets.dart';
 import 'components/enemy.dart';
 import 'components/fx.dart';
@@ -832,7 +833,10 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       e.removeFromParent();
     }
     pools.clearEnemyBullets();
-    // Chunk the boss too, if one is on screen.
+    // Chunk the boss (and its pods) too, if one is on screen.
+    for (final pod in children.whereType<BossPod>().toList()) {
+      pod.takeDamage(8);
+    }
     for (final boss in children.whereType<Boss>().toList()) {
       boss.takeDamage(8);
     }
