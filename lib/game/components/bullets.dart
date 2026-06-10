@@ -11,68 +11,104 @@ import 'fx.dart';
 import 'player_ship.dart';
 import 'terrain.dart';
 
-/// A bullet fired by the player. Travels right; damages enemies, bosses,
-/// and destructible obstacles.
+/// A pooled bullet fired by the player. Travels right; damages enemies,
+/// bosses, and destructible obstacles. Never removed from the tree —
+/// [activate]/[deactivate] recycle it through [GamePools].
 class PlayerBullet extends PositionComponent
     with CollisionCallbacks, HasGameReference<CosmoStrikeGame> {
-  PlayerBullet({
-    required Vector2 spawn,
-    this.speed = 520,
-    this.damage = 1,
-    this.heavy = false,
-  }) : super(
-          position: spawn,
-          size: heavy ? Vector2(25, 10) : Vector2(22, 8),
-          anchor: Anchor.center,
-          priority: 5,
-        );
+  PlayerBullet()
+      : super(size: Vector2(22, 8), anchor: Anchor.center, priority: 5) {
+    position.setValues(-9999, -9999);
+  }
 
-  final double speed;
-  final int damage;
+  bool active = false;
+  double speed = 520;
+  int damage = 1;
 
   /// Laser-tier shots use the heavy bolt sprite.
-  final bool heavy;
+  bool heavy = false;
 
-  late final Sprite _sprite = Sprite(Flame.images
-      .fromCache(heavy ? GameAssets.bulletPlayerHeavy : GameAssets.bulletPlayer));
+  /// Vertical drift for the spread fan.
+  double driftY = 0;
+
+  late final RectangleHitbox _hitbox =
+      RectangleHitbox(collisionType: CollisionType.inactive);
+
+  static Sprite? _normalSprite;
+  static Sprite? _heavySprite;
+
+  Sprite get _sprite => heavy
+      ? (_heavySprite ??=
+          Sprite(Flame.images.fromCache(GameAssets.bulletPlayerHeavy)))
+      : (_normalSprite ??=
+          Sprite(Flame.images.fromCache(GameAssets.bulletPlayer)));
 
   @override
   Future<void> onLoad() async {
-    add(RectangleHitbox(collisionType: CollisionType.active));
+    add(_hitbox);
+  }
+
+  void activate({
+    required Vector2 spawn,
+    double speed = 520,
+    int damage = 1,
+    bool heavy = false,
+    double driftY = 0,
+  }) {
+    this.speed = speed;
+    this.damage = damage;
+    this.heavy = heavy;
+    this.driftY = driftY;
+    size.setValues(heavy ? 25 : 22, heavy ? 10 : 8);
+    position.setFrom(spawn);
+    active = true;
+    _hitbox.collisionType = CollisionType.active;
+  }
+
+  void deactivate() {
+    if (!active) return;
+    active = false;
+    _hitbox.collisionType = CollisionType.inactive;
+    position.setValues(-9999, -9999);
   }
 
   @override
   void update(double dt) {
+    if (!active) return;
     position.x += speed * dt;
-    if (position.x > game.size.x + 20) removeFromParent();
+    if (driftY != 0) position.y += driftY * dt;
+    if (position.x > game.size.x + 20) deactivate();
   }
 
   @override
   void render(Canvas canvas) {
+    if (!active) return;
     _sprite.render(canvas, size: size);
   }
 
   @override
   void onCollisionStart(Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollisionStart(intersectionPoints, other);
+    if (!active) return;
     if (other is EnemyShip) {
-      game.add(hitSpark(position));
+      game.pools.hitSpark(position);
       other.takeDamage(damage);
-      removeFromParent();
+      deactivate();
     } else if (other is Boss) {
-      game.add(hitSpark(position));
+      game.pools.hitSpark(position);
       other.takeDamage(damage);
-      removeFromParent();
+      deactivate();
     } else if (other is TerrainObstacle && other.destructible) {
-      game.add(hitSpark(position));
+      game.pools.hitSpark(position);
       other.takeDamage(damage);
-      removeFromParent();
+      deactivate();
     }
   }
 }
 
 /// The special weapon: a missile with a small area-of-effect blast.
-/// Big damage on direct hit + splash to everything nearby.
+/// Big damage on direct hit + splash to everything nearby. Rare enough
+/// to stay unpooled.
 class PlayerMissile extends PositionComponent
     with CollisionCallbacks, HasGameReference<CosmoStrikeGame> {
   PlayerMissile({required Vector2 spawn})
@@ -144,59 +180,87 @@ class PlayerMissile extends PositionComponent
   }
 }
 
-/// A bullet fired by an enemy/boss. Travels along [velocity]; damages the
-/// player. Slow-mo scales its time; a ghosted player phases through it.
+/// A pooled bullet fired by an enemy/boss. Travels along [velocity];
+/// damages the player. Slow-mo scales its time; a ghosted player phases
+/// through it.
 class EnemyBullet extends PositionComponent
     with CollisionCallbacks, HasGameReference<CosmoStrikeGame> {
-  EnemyBullet({
-    required Vector2 spawn,
-    required this.velocity,
-    this.damage = 0.34,
-    this.fromBoss = false,
-  }) : super(
-          position: spawn,
-          size: fromBoss ? Vector2.all(18) : Vector2.all(14),
-          anchor: Anchor.center,
-          priority: 5,
-        );
+  EnemyBullet()
+      : super(size: Vector2.all(14), anchor: Anchor.center, priority: 5) {
+    position.setValues(-9999, -9999);
+  }
 
-  final Vector2 velocity;
-  final double damage;
-  final bool fromBoss;
+  bool active = false;
+  final Vector2 velocity = Vector2.zero();
+  double damage = 0.34;
+  bool fromBoss = false;
 
-  late final Sprite _sprite = Sprite(Flame.images
-      .fromCache(fromBoss ? GameAssets.bulletBoss : GameAssets.bulletEnemy));
+  late final CircleHitbox _hitbox =
+      CircleHitbox(collisionType: CollisionType.inactive);
+
+  static Sprite? _enemySprite;
+  static Sprite? _bossSprite;
+
+  Sprite get _sprite => fromBoss
+      ? (_bossSprite ??= Sprite(Flame.images.fromCache(GameAssets.bulletBoss)))
+      : (_enemySprite ??=
+          Sprite(Flame.images.fromCache(GameAssets.bulletEnemy)));
 
   @override
   Future<void> onLoad() async {
-    add(CircleHitbox(collisionType: CollisionType.active));
+    add(_hitbox);
+  }
+
+  void activate({
+    required Vector2 spawn,
+    required Vector2 velocity,
+    double damage = 0.34,
+    bool fromBoss = false,
+  }) {
+    this.velocity.setFrom(velocity);
+    this.damage = damage;
+    this.fromBoss = fromBoss;
+    size.setValues(fromBoss ? 18 : 14, fromBoss ? 18 : 14);
+    position.setFrom(spawn);
+    active = true;
+    _hitbox.collisionType = CollisionType.active;
+  }
+
+  void deactivate() {
+    if (!active) return;
+    active = false;
+    _hitbox.collisionType = CollisionType.inactive;
+    position.setValues(-9999, -9999);
   }
 
   @override
   void update(double dt) {
+    if (!active) return;
     // Slow-mo power-up stretches enemy time.
     position += velocity * (dt * game.enemyTimeScale);
     if (position.x < -20 ||
         position.x > game.size.x + 30 ||
         position.y < -20 ||
         position.y > game.size.y + 20) {
-      removeFromParent();
+      deactivate();
     }
   }
 
   @override
   void render(Canvas canvas) {
+    if (!active) return;
     _sprite.render(canvas, size: size);
   }
 
   @override
   void onCollisionStart(Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollisionStart(intersectionPoints, other);
+    if (!active) return;
     if (other is PlayerShip) {
       // Ghost mode: shots pass straight through the phased-out ship.
       if (game.player.ghosted) return;
       game.onPlayerHit(damage);
-      removeFromParent();
+      deactivate();
     }
   }
 }

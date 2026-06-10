@@ -9,7 +9,6 @@ import 'package:flutter/painting.dart';
 import '../cosmo_strike_game.dart';
 import '../game_assets.dart';
 import '../game_audio.dart';
-import 'bullets.dart';
 import 'enemy.dart';
 import 'fx.dart';
 import 'power_up.dart';
@@ -65,6 +64,10 @@ class PlayerShip extends PositionComponent
   Vector2? _target; // pan-steer destination
   Vector2 moveDir = Vector2.zero(); // d-pad analog direction
 
+  /// Smoothed velocity (≈110 ms response): the ship eases into and out of
+  /// motion instead of snapping to max speed, so flight reads smooth.
+  final Vector2 _vel = Vector2.zero();
+
   double get _leftBound => game.size.x * 0.04 + size.x / 2;
   // Keep the player's lane proportional to the SHORTER dimension so an
   // ultra-wide (21:9+) landscape screen doesn't hand them half the field.
@@ -105,6 +108,7 @@ class PlayerShip extends PositionComponent
     position = Vector2(game.size.x * 0.16, game.size.y / 2);
     _target = position.clone();
     moveDir = Vector2.zero();
+    _vel.setZero();
     _invuln = withWarpFx ? 3.0 : 1.5;
     if (withWarpFx) game.add(warpFlash(position));
   }
@@ -117,6 +121,7 @@ class PlayerShip extends PositionComponent
     position.y = position.y.clamp(_topBound, _bottomBound);
     _target = position.clone();
     moveDir = Vector2.zero();
+    _vel.setZero();
   }
 
   void grantInvuln(double seconds) {
@@ -208,25 +213,23 @@ class PlayerShip extends PositionComponent
     }
     _exhaust.update(dt);
 
-    // ---- movement: d-pad direction OR pan-steer target ----
-    if (!moveDir.isZero()) {
-      position += moveDir * _moveSpeed * dt;
-      position.x = position.x.clamp(_leftBound, _rightBound);
-      position.y = position.y.clamp(_topBound, _bottomBound);
-    } else {
-      final target = _target;
-      if (target != null) {
-        final clampedX = target.x.clamp(_leftBound, _rightBound).toDouble();
-        final clampedY = target.y.clamp(_topBound, _bottomBound).toDouble();
-        final dest = Vector2(clampedX, clampedY);
-        final delta = dest - position;
-        final maxStep = _moveSpeed * dt;
-        if (delta.length <= maxStep) {
-          position = dest;
-        } else {
-          position += delta.normalized() * maxStep;
-        }
-      }
+    // ---- movement: smoothed velocity toward the desired vector ----
+    // (d-pad direction OR pan-steer target with proportional braking)
+    final desired = _desiredVelocity();
+    final blend = math.min(1.0, dt * 9);
+    _vel.x += (desired.x - _vel.x) * blend;
+    _vel.y += (desired.y - _vel.y) * blend;
+    position.x += _vel.x * dt;
+    position.y += _vel.y * dt;
+    final cx = position.x.clamp(_leftBound, _rightBound).toDouble();
+    final cy = position.y.clamp(_topBound, _bottomBound).toDouble();
+    if (cx != position.x) {
+      position.x = cx;
+      _vel.x = 0;
+    }
+    if (cy != position.y) {
+      position.y = cy;
+      _vel.y = 0;
     }
 
     // Banking pose from smoothed vertical velocity.
@@ -244,38 +247,54 @@ class PlayerShip extends PositionComponent
     }
   }
 
+  /// The velocity the ship is trying to reach this frame.
+  Vector2 _desiredVelocity() {
+    if (!moveDir.isZero()) return moveDir * _moveSpeed;
+    final target = _target;
+    if (target == null) return Vector2.zero();
+    final dest = Vector2(
+      target.x.clamp(_leftBound, _rightBound).toDouble(),
+      target.y.clamp(_topBound, _bottomBound).toDouble(),
+    );
+    final delta = dest - position;
+    final dist = delta.length;
+    if (dist < 2) return Vector2.zero();
+    // Proportional braking near the destination — smooth arrival, no
+    // overshoot jitter.
+    final speed = math.min(_moveSpeed, dist * 10);
+    return delta..scale(speed / dist);
+  }
+
   void fire() {
     if (_fireCooldown > 0) return;
     final cooldownScale = speedBoosted ? 0.85 : 1.0;
     final spawnNose = nose;
     switch (weapon) {
       case WeaponMode.single:
-        game.add(PlayerBullet(spawn: spawnNose.clone()));
+        game.pools.playerBullet(spawn: spawnNose);
         _fireCooldown = 0.28 * cooldownScale;
         break;
       case WeaponMode.rapid:
-        game.add(PlayerBullet(spawn: spawnNose.clone(), speed: 620));
+        game.pools.playerBullet(spawn: spawnNose, speed: 620);
         _fireCooldown = 0.12 * cooldownScale;
         break;
       case WeaponMode.spread:
         for (final dy in const [-90.0, 0.0, 90.0]) {
-          final b = PlayerBullet(spawn: spawnNose.clone());
-          game.add(b);
-          b.add(_SpreadDrift(dy));
+          game.pools.playerBullet(spawn: spawnNose, driftY: dy);
         }
         _fireCooldown = 0.26 * cooldownScale;
         break;
       case WeaponMode.laser:
-        game.add(PlayerBullet(
-          spawn: spawnNose.clone(),
+        game.pools.playerBullet(
+          spawn: spawnNose,
           speed: 820,
           damage: 3,
           heavy: true,
-        ));
+        );
         _fireCooldown = 0.2 * cooldownScale;
         break;
     }
-    game.add(muzzleFlash(spawnNose + Vector2(6, 0)));
+    game.pools.muzzleFlash(spawnNose + Vector2(6, 0));
     GameAudio.shoot();
   }
 
@@ -321,20 +340,6 @@ class PlayerShip extends PositionComponent
       if (ghosted) return;
       if (_invuln <= 0) game.onPlayerHit(other.contactDamage);
       other.takeDamage(2);
-    }
-  }
-}
-
-/// Drives a spread bullet diagonally by nudging its vertical position.
-class _SpreadDrift extends Component {
-  _SpreadDrift(this.vy);
-  final double vy;
-
-  @override
-  void update(double dt) {
-    final parent = this.parent;
-    if (parent is PositionComponent) {
-      parent.position.y += vy * dt;
     }
   }
 }

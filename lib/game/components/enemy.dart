@@ -10,7 +10,6 @@ import '../cosmo_strike_game.dart';
 import '../game_assets.dart';
 import '../game_audio.dart';
 import '../levels/level_def.dart';
-import 'bullets.dart';
 import 'fx.dart';
 
 enum EnemyPattern { straight, sine, dive, tracking }
@@ -55,6 +54,12 @@ class EnemyShip extends PositionComponent
   double _fireTimer = 0;
   int _burstShotsLeft = 0;
   double _burstTimer = 0;
+
+  /// White hit-flash countdown (seconds).
+  double _flash = 0;
+  static final Paint _flashPaint = Paint()
+    ..colorFilter =
+        const ColorFilter.mode(Color(0xB8FFFFFF), BlendMode.srcATop);
   late final double _baseY = position.y;
   late final double _fireInterval =
       (1.4 + game.rng.nextDouble() * 1.6) / _fireRateScale;
@@ -87,6 +92,7 @@ class EnemyShip extends PositionComponent
 
     _age += dt;
     _animTicker?.update(dt);
+    if (_flash > 0) _flash -= dt;
     position.x -= speed * dt;
 
     if (type.floorLocked) {
@@ -154,7 +160,7 @@ class EnemyShip extends PositionComponent
     } else {
       velocity = Vector2(-260, 0);
     }
-    game.add(EnemyBullet(spawn: position.clone(), velocity: velocity));
+    game.pools.enemyBullet(spawn: position.clone(), velocity: velocity);
   }
 
   void takeDamage(int dmg) {
@@ -163,16 +169,19 @@ class EnemyShip extends PositionComponent
       GameAudio.enemyDown();
       game.onEnemyKilled(this);
       removeFromParent();
+    } else {
+      _flash = 0.09;
     }
   }
 
   @override
   void render(Canvas canvas) {
+    final paint = _flash > 0 ? _flashPaint : null;
     final ticker = _animTicker;
     if (ticker != null) {
-      ticker.getSprite().render(canvas, size: size);
+      ticker.getSprite().render(canvas, size: size, overridePaint: paint);
     } else {
-      _sprite?.render(canvas, size: size);
+      _sprite?.render(canvas, size: size, overridePaint: paint);
     }
   }
 }

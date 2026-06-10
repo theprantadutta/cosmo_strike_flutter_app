@@ -21,6 +21,7 @@ import 'game_audio.dart';
 import 'levels/level_catalog.dart';
 import 'levels/level_def.dart';
 import 'levels/wave_runner.dart';
+import 'pools.dart';
 import 'run_effects.dart';
 
 enum GamePhase {
@@ -130,6 +131,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   late PlayerShip player;
   late Starfield _starfield;
+  late final GamePools pools = GamePools(this);
   final WaveRunner _waveRunner = WaveRunner();
 
   TerrainStrip? _floor;
@@ -193,6 +195,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   double _shakeIntensity = 0;
   final Vector2 _shakeOffset = Vector2.zero();
 
+  // Hit-stop: a micro freeze (sim time crawls at 5%) that gives heavy
+  // kills / boss beats physical weight. Ticked down with REAL dt.
+  double _hitStopTime = 0;
+  static const double _hitStopScale = 0.05;
+
   bool _armedApplied = false;
   bool _runEnded = false;
 
@@ -225,6 +232,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     player = PlayerShip();
     await add(player);
     await add(_waveRunner);
+    await pools.mount();
 
     // Mode rules: ships per run + start the Time Attack clock when set.
     livesNotifier.value = mode.runLives;
@@ -333,8 +341,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   void onBossDefeated() {
     bossesKilled++;
     bossHealthNotifier.value = -1;
-    addScore((1000 * level.scoreScale).round());
-    spawnBossExplosion(Vector2(size.x * 0.78, size.y / 2));
+    final awarded = addScore((1000 * level.scoreScale).round());
+    final bossAt = Vector2(size.x * 0.78, size.y / 2);
+    pools.scorePopup(bossAt + Vector2(0, -60), '+$awarded', scale: 1.4);
+    hitStop(0.1);
+    spawnBossExplosion(bossAt);
     GameAudio.bossDown();
     GameAudio.levelClear();
     levelsClearedCount++;
@@ -389,6 +400,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     _shakeTime = _shakeDuration;
   }
 
+  /// Freeze the sim for [seconds] of real time (heavy kills, boss beats).
+  void hitStop(double seconds) {
+    _hitStopTime = math.max(_hitStopTime, seconds);
+  }
+
   @override
   void render(Canvas canvas) {
     // Whole-scene jitter: children are added directly to the game (no
@@ -405,9 +421,18 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   @override
   void update(double dt) {
-    super.update(dt);
+    // Hit-stop: the whole sim crawls while the freeze lasts; the freeze
+    // itself, the shake, and the run clocks tick on REAL time so Time
+    // Attack stays honest.
+    final realDt = dt;
+    var simDt = dt;
+    if (_hitStopTime > 0) {
+      _hitStopTime -= realDt;
+      simDt = realDt * _hitStopScale;
+    }
+    super.update(simDt);
     if (_shakeTime > 0) {
-      _shakeTime -= dt;
+      _shakeTime -= realDt;
       if (_shakeTime <= 0) {
         _shakeOffset.setZero();
         _shakeIntensity = 0;
@@ -421,9 +446,12 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       }
     }
     if (phase == GamePhase.playing) {
-      _elapsed += dt;
-      _levelClock += dt;
+      _elapsed += realDt;
+      _levelClock += realDt;
 
+      // Gameplay-effect timers follow sim time (frozen world = frozen
+      // effects).
+      final dt = simDt;
       if (_multTimer > 0) {
         _multTimer -= dt;
         if (_multTimer <= 0) scoreMultiplier = 1;
@@ -525,8 +553,12 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   // ---- Scoring / lives / damage ----
 
-  void addScore(int points) {
-    scoreNotifier.value += (points * scoreMultiplier).round();
+  /// Adds [points] (scaled by the x2 orb) and returns what was actually
+  /// awarded, so callers can show the real number in a popup.
+  int addScore(int points) {
+    final awarded = (points * scoreMultiplier).round();
+    scoreNotifier.value += awarded;
+    return awarded;
   }
 
   void setScoreMultiplier(double mult, double seconds) {
@@ -543,18 +575,26 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   void onEnemyKilled(EnemyShip enemy) {
     enemiesKilled++;
-    addScore(enemy.pointValue);
-    spawnExplosion(enemy.position, CosmoExplosionKind.enemy);
+    final awarded = addScore(enemy.pointValue);
+    pools.scorePopup(enemy.position + Vector2(0, -16), '+$awarded');
+    // Heavy kills (tanky hulls) land with a micro hit-stop + bigger blast.
+    final heavy = enemy.type.baseHp >= 4;
+    if (heavy) hitStop(0.045);
+    spawnExplosion(
+      enemy.position,
+      CosmoExplosionKind.enemy,
+      scale: heavy ? 1.5 : (enemy.size.x / 40).clamp(0.9, 1.3).toDouble(),
+    );
     // Power-up drop — 12% normally, cranked way up in Power-Up Madness.
     if (rng.nextDouble() < mode.powerUpDropChance) {
       add(PowerUp(kind: PowerUpKind.random(rng), spawn: enemy.position.clone()));
     }
   }
 
-  void spawnExplosion(Vector2 at, CosmoExplosionKind kind) {
+  void spawnExplosion(Vector2 at, CosmoExplosionKind kind, {double scale = 1}) {
     switch (kind) {
       case CosmoExplosionKind.enemy:
-        add(explosionSmall(at));
+        add(explosionSmall(at, scale: scale));
         break;
       case CosmoExplosionKind.player:
         add(explosionBig(at));
@@ -608,7 +648,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     if (phase != GamePhase.playing) return;
     if (player.isInvulnerable) return;
 
-    add(hitSpark(player.position));
+    pools.hitSpark(player.position);
     onPlayerHit(0.34);
     if (phase != GamePhase.playing) return; // the hit ended the run
 
@@ -657,9 +697,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     player.health = 1.0;
     healthNotifier.value = 1.0;
     // Clear the immediate threats so the comeback isn't instant death.
-    for (final b in children.whereType<EnemyBullet>().toList()) {
-      b.removeFromParent();
-    }
+    pools.clearEnemyBullets();
     player.respawn(withWarpFx: true);
     GameAudio.revive();
     phaseNotifier.value = GamePhase.playing;
@@ -706,9 +744,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       enemiesKilled++;
       e.removeFromParent();
     }
-    for (final b in children.whereType<EnemyBullet>().toList()) {
-      b.removeFromParent();
-    }
+    pools.clearEnemyBullets();
     // Chunk the boss too, if one is on screen.
     for (final boss in children.whereType<Boss>().toList()) {
       boss.takeDamage(8);

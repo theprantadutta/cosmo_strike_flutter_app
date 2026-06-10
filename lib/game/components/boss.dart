@@ -7,7 +7,6 @@ import 'package:flutter/painting.dart';
 
 import '../cosmo_strike_game.dart';
 import '../levels/level_def.dart';
-import 'bullets.dart';
 import 'enemy.dart';
 import 'player_ship.dart';
 
@@ -110,12 +109,12 @@ class Boss extends PositionComponent
       // Left-facing half-circle.
       final angle = math.pi * 0.5 + (i / (count - 1)) * math.pi;
       final v = Vector2(math.cos(angle), math.sin(angle)) * def.bulletSpeed;
-      game.add(EnemyBullet(
+      game.pools.enemyBullet(
         spawn: position.clone(),
         velocity: v,
         damage: 0.25,
         fromBoss: true,
-      ));
+      );
     }
   }
 
@@ -124,12 +123,12 @@ class Boss extends PositionComponent
     for (int i = -half; i <= def.aimedCount - half - 1; i++) {
       final dir = (game.player.position - position)..normalize();
       final spread = Vector2(0, i * 60.0);
-      game.add(EnemyBullet(
+      game.pools.enemyBullet(
         spawn: position.clone(),
         velocity: dir * (def.bulletSpeed + 80) + spread,
         damage: 0.3,
         fromBoss: true,
-      ));
+      );
     }
   }
 
@@ -143,12 +142,12 @@ class Boss extends PositionComponent
         top + game.rng.nextDouble() * math.max(1, (bottom - top - 90)) + 45;
     for (double y = top; y <= bottom; y += step) {
       if ((y - gapCenter).abs() < 55) continue; // the safe gap
-      game.add(EnemyBullet(
+      game.pools.enemyBullet(
         spawn: Vector2(position.x - size.x * 0.3, y),
         velocity: Vector2(-def.bulletSpeed, 0),
         damage: 0.3,
         fromBoss: true,
-      ));
+      );
     }
   }
 
