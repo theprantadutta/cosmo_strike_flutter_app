@@ -50,6 +50,15 @@ class Boss extends PositionComponent
   double _phaseFlash = 0;
   double _shieldPopupCd = 0;
 
+  /// Weave/sweep oscillator phase. Advances ONLY while the boss is free
+  /// to move — never while telegraph-frozen — so resuming never jumps.
+  double _weavePhase = 0;
+
+  /// Hard cap on vertical travel: the boss GLIDES to wherever its
+  /// movement pattern wants it, so it can never teleport (after
+  /// telegraph freezes, dash returns, or phase movement switches).
+  static const double _maxVerticalSpeed = 160;
+
   // ---- attack scratchpad (attacks are const + shared; their transient
   // state lives here) ----
   final Vector2 capturedAim = Vector2(-1, 0);
@@ -137,19 +146,25 @@ class Boss extends PositionComponent
     final halfH = size.y / 2;
     final top = game.playfieldTop + halfH;
     final bottom = game.playfieldBottom - halfH;
+    final amplitude = math.max(20.0, (bottom - top) / 2);
+    final double targetY;
     switch (phase.movement) {
       case BossMovement.weave:
-        final amplitude =
-            math.max(20.0, (bottom - top) / 2);
-        position.y =
-            (_baseY + math.sin(_age * 1.2) * amplitude).clamp(top, bottom);
+        _weavePhase += dt * 1.2;
+        targetY =
+            (_baseY + math.sin(_weavePhase) * amplitude).clamp(top, bottom);
       case BossMovement.station:
-        position.y += (_baseY - position.y) * math.min(1, dt * 2);
+        targetY = _baseY.clamp(top, bottom);
       case BossMovement.sweepVertical:
-        final amplitude = math.max(20.0, (bottom - top) / 2);
-        position.y =
-            (_baseY + math.sin(_age * 2.1) * amplitude).clamp(top, bottom);
+        _weavePhase += dt * 2.1;
+        targetY =
+            (_baseY + math.sin(_weavePhase) * amplitude).clamp(top, bottom);
     }
+    // Glide, never snap: cap the vertical step so the hull always
+    // travels through space the player can read.
+    final maxStep = _maxVerticalSpeed * dt;
+    position.y +=
+        (targetY - position.y).clamp(-maxStep, maxStep).toDouble();
     // Drift back to station after dashes.
     if ((position.x - _stationX).abs() > 2) {
       position.x += (_stationX - position.x) * math.min(1, dt * 2);

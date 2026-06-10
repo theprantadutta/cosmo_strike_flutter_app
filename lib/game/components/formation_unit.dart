@@ -136,8 +136,11 @@ class Formation extends Component with HasGameReference<CosmoStrikeGame> {
         if (!_ambushSpawned && _t >= 1.0) {
           _ambushSpawned = true;
           for (var i = 0; i < spec.count; i++) {
-            _addMember(i, Vector2(-60.0 - i * spec.spacing, _centerY));
+            _addMember(i, Vector2(-80.0 - i * spec.spacing, _centerY));
           }
+          // Snap to formula positions immediately so the first painted
+          // frame matches — no spawn-frame jump.
+          _positionMembers();
         }
       default:
         break; // managed shapes spawned in onLoad
