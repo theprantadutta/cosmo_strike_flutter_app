@@ -248,6 +248,25 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// The profile's current scroll multiplier (drifting obstacles ride it).
   double get terrainScrollScale => terrainScrollSpeed / 140;
 
+  /// Script-driven set-piece corridor state (multiplies the biome's base
+  /// band heights / scroll for the window — see SetPieceEvent).
+  double setPieceFloorScale = 1;
+  double setPieceCeilScale = 1;
+  double setPieceScrollScale = 1;
+
+  void beginSetPieceTerrain(
+      {double floor = 1, double ceil = 1, double scroll = 1}) {
+    setPieceFloorScale = floor;
+    setPieceCeilScale = ceil;
+    setPieceScrollScale = scroll;
+  }
+
+  void endSetPieceTerrain() {
+    setPieceFloorScale = 1;
+    setPieceCeilScale = 1;
+    setPieceScrollScale = 1;
+  }
+
   @override
   Color backgroundColor() => const Color(0xFF05060F);
 

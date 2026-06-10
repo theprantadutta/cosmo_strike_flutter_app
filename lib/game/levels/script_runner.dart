@@ -56,6 +56,8 @@ class ScriptRunner extends Component with HasGameReference<CosmoStrikeGame> {
     _setPieceLeft = 0;
     _mineRate = 0;
     _mineAccum = 0;
+    game.endSetPieceTerrain();
+    game.clearCallout();
   }
 
   void stop() => _active = false;
@@ -107,6 +109,7 @@ class ScriptRunner extends Component with HasGameReference<CosmoStrikeGame> {
     }
     if (_setPieceLeft <= 0) {
       _mineRate = 0;
+      game.endSetPieceTerrain();
       game.clearCallout();
     }
   }
@@ -149,6 +152,11 @@ class ScriptRunner extends Component with HasGameReference<CosmoStrikeGame> {
         _setPieceLeft = e.duration;
         _mineRate = e.mineRainPerSecond;
         _mineAccum = 0;
+        game.beginSetPieceTerrain(
+          floor: e.floorScale,
+          ceil: e.ceilScale,
+          scroll: e.scrollScale,
+        );
         final banner = e.banner;
         if (banner != null) game.showCallout(banner);
       case TelegraphEvent e:
@@ -159,7 +167,12 @@ class ScriptRunner extends Component with HasGameReference<CosmoStrikeGame> {
           y: top + span * e.y01,
         ));
       case BossEvent _:
+        // Boss arena is never squeezed: relax any lingering set-piece.
         _active = false;
+        _setPieceLeft = 0;
+        _mineRate = 0;
+        game.endSetPieceTerrain();
+        game.clearCallout();
         game.spawnBoss();
     }
   }

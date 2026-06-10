@@ -63,7 +63,10 @@ class CampaignCatalog {
   static int parTimeSeconds(int level) => 90 + 10 * (level - 1);
 
   /// Par score for the 2nd star's alternative "high score" path.
-  static int parScore(int level) => 1500 * level;
+  /// Retuned for the combo era: sustained kill chains multiply kill
+  /// points x2-x4 and formation wipes/grazes add bonuses, so par sits
+  /// well above the old flat-scoring target.
+  static int parScore(int level) => 3500 * level;
 
   /// Star rating from MERGED bests (not a single run), so stars
   /// accumulate across runs and can never regress:

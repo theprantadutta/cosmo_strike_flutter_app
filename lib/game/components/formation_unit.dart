@@ -101,6 +101,7 @@ class Formation extends Component with HasGameReference<CosmoStrikeGame> {
           spec.speedScale,
       fireRateScale: level.fireRateScale,
       scoreScale: level.scoreScale,
+      ceilingMounted: spec.mountCeiling,
       formation: this,
       slotIndex: slot,
     );

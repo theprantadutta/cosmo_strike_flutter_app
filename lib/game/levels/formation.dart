@@ -58,6 +58,7 @@ class FormationSpec {
     this.wipeWindow = 4.0,
     this.wipeBonus = 250,
     this.wipeDrop = PowerUpKind.weapon,
+    this.mountCeiling = false,
   });
 
   /// Legacy-feel loose stream (the mechanical conversion of old waves).
@@ -71,6 +72,7 @@ class FormationSpec {
     this.speedScale = 1,
     this.wipeBonus = 250,
     this.wipeDrop = PowerUpKind.weapon,
+    this.mountCeiling = false,
   })  : shape = FormationShape.stream,
         secondaryType = null,
         spacing = 56,
@@ -113,6 +115,9 @@ class FormationSpec {
   final int wipeBonus;
   final PowerUpKind wipeDrop;
 
+  /// Terrain-mounted types (turrets): hang from the ceiling band.
+  final bool mountCeiling;
+
   /// Managed shapes are positioned by the Formation controller.
   bool get managed => shape != FormationShape.stream;
 
@@ -132,6 +137,7 @@ class FormationSpec {
         wipeWindow: wipeWindow,
         wipeBonus: wipeBonus,
         wipeDrop: wipeDrop,
+        mountCeiling: mountCeiling,
       );
 }
 

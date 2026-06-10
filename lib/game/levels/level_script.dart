@@ -44,21 +44,28 @@ class DropEvent extends LevelEvent {
   final double y01;
 }
 
-/// A timed set-piece window: HUD banner + optional mine rain. Corridor
-/// squeezes/scroll changes are authored in the level's TerrainProfile to
-/// line up with this window.
+/// A timed set-piece window: HUD banner, optional mine rain, and the
+/// corridor squeeze/scroll for its duration (band scales multiply the
+/// biome's base heights; the strips ramp toward them at their fair
+/// rate-clamped speed and relax back when the window ends).
 class SetPieceEvent extends LevelEvent {
   const SetPieceEvent(
     super.delay, {
     this.duration = 10,
     this.mineRainPerSecond = 0,
     this.banner,
+    this.floorScale = 1,
+    this.ceilScale = 1,
+    this.scrollScale = 1,
     super.waitForFieldClear,
   });
 
   final double duration;
   final double mineRainPerSecond;
   final String? banner;
+  final double floorScale;
+  final double ceilScale;
+  final double scrollScale;
 }
 
 /// A scripted edge warning (incoming threat callout).

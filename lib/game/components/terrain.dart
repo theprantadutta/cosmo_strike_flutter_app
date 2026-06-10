@@ -68,9 +68,11 @@ class TerrainStrip extends PositionComponent
   /// Visual surface line — ground units / hazards stand here.
   double get surfaceY => isCeiling ? _band * 0.5 : game.size.y - _band * 0.5;
 
-  /// Live scroll speed including the profile's set-piece multiplier.
+  /// Live scroll speed including profile + set-piece multipliers.
   double get currentScrollSpeed =>
-      scrollSpeed * profile.scrollAt(game.levelClock);
+      scrollSpeed *
+      profile.scrollAt(game.levelClock) *
+      game.setPieceScrollScale;
 
   @override
   Future<void> onLoad() async {
@@ -107,8 +109,9 @@ class TerrainStrip extends PositionComponent
         (_scrollX + currentScrollSpeed * scaledDt) % _tileWidth;
 
     final clock = game.levelClock;
-    final target =
-        bandHeight * (isCeiling ? profile.ceilAt(clock) : profile.floorAt(clock));
+    final target = bandHeight *
+        (isCeiling ? profile.ceilAt(clock) : profile.floorAt(clock)) *
+        (isCeiling ? game.setPieceCeilScale : game.setPieceFloorScale);
     if ((target - _band).abs() > 0.01) {
       final prev = _band;
       if (target > _band) {
