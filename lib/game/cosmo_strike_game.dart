@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:math' as math;
 
 import 'package:flame/components.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
 import '../models/level_run_result.dart';
+import '../services/haptic_service.dart';
 import '../utils/campaign_catalog.dart';
 import '../utils/constants.dart' show GameMode;
 import 'combo_graze.dart';
@@ -168,6 +170,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       ValueNotifier(const []);
   // Set-piece banner callout ("CANYON RUN!"); null = hidden.
   final ValueNotifier<String?> calloutNotifier = ValueNotifier(null);
+  // Bumped on every LANDED hit — the HUD flashes a red edge vignette.
+  final ValueNotifier<int> hitPulseNotifier = ValueNotifier(0);
 
   // Run state.
   int levelIndex = 1;
@@ -696,6 +700,15 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     if (player.isInvulnerable || player.ghosted) return;
     if (player.shielded) {
       player.popShield();
+      // The save must still READ as an impact, or it feels like a bug.
+      pools.scorePopup(
+        player.position + Vector2(0, -30),
+        'SHIELD DOWN',
+        color: const Color(0xFF7DE8FF),
+        duration: 0.8,
+      );
+      GameAudio.playerHit();
+      unawaited(HapticService().lightImpact());
       return;
     }
     // Armed teleport: negate the hit by warping home.
@@ -717,6 +730,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     combo.onPlayerDamaged();
     GameAudio.playerHit();
     shake(intensity: 5, duration: 0.22);
+    // Layered hit feedback that does NOT depend on the shake setting:
+    // red hull flash + HUD vignette pulse + haptic thud.
+    player.flashDamage();
+    hitPulseNotifier.value++;
+    unawaited(HapticService().mediumImpact());
 
     // Perfect Game: flawless flying only — any hit that lands ends the
     // run, regardless of remaining health or lives. (A shield pop still
@@ -735,6 +753,10 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     healthNotifier.value = player.health.clamp(0, 1).toDouble();
     if (player.health <= 0) {
       _loseLife();
+    } else {
+      // Mercy invulnerability: one hit is one hit — a second bullet a
+      // frame later can't silently melt the rest of the bar.
+      player.grantInvuln(0.6);
     }
   }
 
@@ -785,6 +807,10 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   void _loseLife() {
     spawnExplosion(player.position, CosmoExplosionKind.player);
     shake(intensity: 10, duration: 0.4);
+    // Losing a ship is the heaviest beat outside a boss kill — freeze,
+    // thud, and let the lives panel play its SHIP DOWN sequence.
+    hitStop(0.08);
+    unawaited(HapticService().heavyImpact());
     final lives = livesNotifier.value - 1;
     livesNotifier.value = lives;
     if (lives <= 0) {

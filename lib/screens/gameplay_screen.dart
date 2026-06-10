@@ -322,6 +322,38 @@ class _GameplayScreenState extends State<GameplayScreen>
             onDoubleTap: _game.fireMissile,
             child: GameWidget(game: _game),
           ),
+
+          // Red edge vignette pulse on every landed hit — shake-setting
+          // independent, so a hit ALWAYS reads on screen.
+          ValueListenableBuilder<int>(
+            valueListenable: _game.hitPulseNotifier,
+            builder: (_, pulse, _) {
+              if (pulse == 0) return const SizedBox.shrink();
+              return IgnorePointer(
+                child: TweenAnimationBuilder<double>(
+                  key: ValueKey(pulse),
+                  tween: Tween(begin: 1, end: 0),
+                  duration: const Duration(milliseconds: 450),
+                  curve: Curves.easeOut,
+                  builder: (_, t, _) {
+                    if (t <= 0.01) return const SizedBox.shrink();
+                    return Container(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          radius: 1.15,
+                          colors: [
+                            const Color(0x00000000),
+                            CosmoPalette.hostile.withValues(alpha: 0.30 * t),
+                          ],
+                          stops: const [0.55, 1.0],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
           SafeArea(child: _Hud(game: _game)),
 
           // Optional on-screen d-pad (settings-driven, snapshotted).
@@ -619,36 +651,29 @@ class _Hud extends StatelessWidget {
                 },
               ),
               const Spacer(),
-              // Top-right: lives + pause.
-              GlassPanel(
-                theme: _hudSkin,
-                radius: GameTokens.radiusMd,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ValueListenableBuilder<int>(
-                      valueListenable: game.livesNotifier,
-                      builder: (_, lives, _) => Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(
-                          lives.clamp(0, 6),
-                          (i) => const Padding(
-                            padding: EdgeInsets.only(right: 3),
-                            child: Icon(Icons.flight,
-                                size: 16, color: CosmoPalette.hull),
-                          ),
+              // Top-right: animated lives + pause.
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  GlassPanel(
+                    theme: _hudSkin,
+                    radius: GameTokens.radiusMd,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _LivesPanel(game: game),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: game.pauseGame,
+                          child: const Icon(Icons.pause_circle_outline,
+                              color: CosmoPalette.hull, size: 26),
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: game.pauseGame,
-                      child: const Icon(Icons.pause_circle_outline,
-                          color: CosmoPalette.hull, size: 26),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -710,6 +735,131 @@ class _Hud extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The lives readout with a real death beat: when a ship is lost, the
+/// dying icon flares red and blows up in place, and a "SHIP DOWN" tag
+/// flashes under the panel — losing a life is never silent again.
+class _LivesPanel extends StatefulWidget {
+  const _LivesPanel({required this.game});
+  final CosmoStrikeGame game;
+
+  @override
+  State<_LivesPanel> createState() => _LivesPanelState();
+}
+
+class _LivesPanelState extends State<_LivesPanel> {
+  late int _shown;
+  int _lossEvents = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _shown = widget.game.livesNotifier.value;
+    widget.game.livesNotifier.addListener(_onLivesChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.game.livesNotifier.removeListener(_onLivesChanged);
+    super.dispose();
+  }
+
+  void _onLivesChanged() {
+    final now = widget.game.livesNotifier.value;
+    if (!mounted || now == _shown) return;
+    setState(() {
+      if (now < _shown) _lossEvents++;
+      _shown = now;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icons = List<Widget>.generate(
+      _shown.clamp(0, 6),
+      (i) => const Padding(
+        padding: EdgeInsets.only(right: 3),
+        child: Icon(Icons.flight, size: 16, color: CosmoPalette.hull),
+      ),
+    );
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...icons,
+            // The dying ship: flares red, swells, and burns away where
+            // its icon used to sit.
+            if (_lossEvents > 0)
+              TweenAnimationBuilder<double>(
+                key: ValueKey(_lossEvents),
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 800),
+                curve: Curves.easeOut,
+                builder: (_, t, _) {
+                  if (t >= 1) return const SizedBox.shrink();
+                  return Opacity(
+                    opacity: (1 - t).clamp(0, 1),
+                    child: Transform.scale(
+                      scale: 1 + t * 1.1,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 3),
+                        child: Icon(Icons.flight,
+                            size: 16,
+                            color: Color.lerp(CosmoPalette.hostile,
+                                const Color(0xFFFFE3B3), t)),
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+        // "SHIP DOWN" tag dropping in under the panel.
+        if (_lossEvents > 0)
+          Positioned(
+            right: 0,
+            top: 22,
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey(-_lossEvents),
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 1400),
+              builder: (_, t, _) {
+                // Pop in fast, hold, fade at the tail.
+                final inT = (t * 6).clamp(0.0, 1.0);
+                final outT = ((t - 0.75) * 4).clamp(0.0, 1.0);
+                final alpha = inT * (1 - outT);
+                if (alpha <= 0.01) return const SizedBox.shrink();
+                return Opacity(
+                  opacity: alpha,
+                  child: Transform.translate(
+                    offset: Offset(0, (1 - inT) * -6),
+                    child: Text(
+                      'SHIP DOWN',
+                      style: TextStyle(
+                        color: CosmoPalette.hostile,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.6,
+                        shadows: [
+                          Shadow(
+                            color:
+                                CosmoPalette.hostile.withValues(alpha: 0.8),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 }

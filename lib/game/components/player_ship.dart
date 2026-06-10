@@ -38,6 +38,14 @@ class PlayerShip extends PositionComponent
   double ghostTimer = 0;
   double magnetTimer = 0;
 
+  /// Red hull flash on landed hits — the ship itself must scream "hit".
+  double _damageFlash = 0;
+  static final Paint _damagePaint = Paint()
+    ..colorFilter =
+        const ColorFilter.mode(Color(0xCCFF4D6E), BlendMode.srcATop);
+
+  void flashDamage() => _damageFlash = 0.35;
+
   // ---- one-shot charges (armed loadout) ----
   /// First lethal-or-not hit is negated by warping back to spawn.
   int teleportCharges = 0;
@@ -229,6 +237,7 @@ class PlayerShip extends PositionComponent
   @override
   void update(double dt) {
     if (_invuln > 0) _invuln -= dt;
+    if (_damageFlash > 0) _damageFlash -= dt;
     if (speedTimer > 0) speedTimer -= dt;
     if (ghostTimer > 0) ghostTimer -= dt;
     if (magnetTimer > 0) magnetTimer -= dt;
@@ -328,10 +337,12 @@ class PlayerShip extends PositionComponent
     // Invulnerability blink: skip every other flicker window.
     final blinkOff = _invuln > 0 && (_invuln * 8 % 1) > 0.5;
 
-    // Ghost mode: phase the whole ship to half alpha.
+    // Paint priority: ghost phase > fresh-damage red flash > invuln blink.
     final paint = ghosted
         ? (Paint()..color = const Color(0x80FFFFFF))
-        : (blinkOff ? (Paint()..color = const Color(0x55FFFFFF)) : null);
+        : _damageFlash > 0
+            ? _damagePaint
+            : (blinkOff ? (Paint()..color = const Color(0x55FFFFFF)) : null);
 
     // Exhaust behind the tail.
     final exhaustSprite = _exhaust.getSprite();
