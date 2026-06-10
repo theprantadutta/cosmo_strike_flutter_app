@@ -79,7 +79,7 @@ class EnemyShip extends PositionComponent
         const ColorFilter.mode(Color(0xB8FFFFFF), BlendMode.srcATop);
   late final double _baseY = position.y;
   late final double _fireInterval =
-      (1.4 + game.rng.nextDouble() * 1.6) / _fireRateScale;
+      (1.7 + game.rng.nextDouble() * 1.7) / _fireRateScale;
 
   // Mines animate (4-frame rotation loop); everything else is a sprite.
   Sprite? _sprite;
@@ -184,9 +184,9 @@ class EnemyShip extends PositionComponent
         pattern == EnemyPattern.dive;
     if (aimed) {
       final dir = (game.player.position - position)..normalize();
-      velocity = dir * 240;
+      velocity = dir * 220;
     } else {
-      velocity = Vector2(-260, 0);
+      velocity = Vector2(-240, 0);
     }
     game.pools.enemyBullet(spawn: position.clone(), velocity: velocity);
   }
