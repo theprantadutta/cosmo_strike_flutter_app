@@ -31,6 +31,7 @@ abstract final class GameAssets {
   static const String enemyGunship = 'enemies/enemy_gunship.png'; // 160x160
   static const String enemyCrawler = 'enemies/enemy_crawler.png'; // 160x128
   static const String enemySaucer = 'enemies/enemy_saucer.png'; // 144x144
+  static const String enemyTurret = 'enemies/enemy_turret.png'; // 128x128
 
   // ---- bosses (512x384) ----
   static const String bossDreadnought = 'bosses/boss_dreadnought.png';
@@ -38,6 +39,8 @@ abstract final class GameAssets {
   static const String bossWarMachine = 'bosses/boss_war_machine.png';
   static const String bossLeviathan = 'bosses/boss_leviathan.png';
   static const String bossMothership = 'bosses/boss_mothership.png';
+  static const String bossPodShield = 'bosses/boss_pod_shield.png'; // 96x96
+  static const String bossPodEscort = 'bosses/boss_pod_escort.png'; // 96x96
 
   // ---- projectiles ----
   static const String bulletPlayer = 'projectiles/bullet_player.png'; // 64x24
@@ -48,6 +51,7 @@ abstract final class GameAssets {
   static const String beamSegment = 'projectiles/beam_segment.png'; // 128x32
   static const String bulletEnemy = 'projectiles/bullet_enemy.png'; // 48x48
   static const String bulletBoss = 'projectiles/bullet_boss.png'; // 64x64
+  static const String mortarShell = 'projectiles/mortar_shell.png'; // 64x64
 
   // ---- power-up orbs (96x96) ----
   static const String powerupShield = 'powerups/powerup_shield.png';
@@ -80,7 +84,11 @@ abstract final class GameAssets {
   /// 5 frames @ 128x128.
   static const String warpFlashSheet = 'fx/warp_flash_sheet.png';
 
-  // ---- terrain (strips 1024x192, tileable horizontally) ----
+  /// 4 frames @ 96x96 (combo tier-up flourish).
+  static const String comboBurstSheet = 'fx/combo_burst_sheet.png';
+
+  // ---- terrain (strips 1024x192, tileable horizontally; the _tall
+  // variants are 1024x384 for squeezed tunnel/canyon corridors) ----
   static const String terrainAsteroidFloor =
       'terrain/terrain_asteroid_floor.png';
   static const String terrainAsteroidCeiling =
@@ -90,6 +98,18 @@ abstract final class GameAssets {
   static const String terrainHiveCeiling = 'terrain/terrain_hive_ceiling.png';
   static const String terrainCrystalFloor =
       'terrain/terrain_crystal_floor.png';
+  static const String terrainAsteroidFloorTall =
+      'terrain/terrain_asteroid_floor_tall.png';
+  static const String terrainAsteroidCeilingTall =
+      'terrain/terrain_asteroid_ceiling_tall.png';
+  static const String terrainCityFloorTall =
+      'terrain/terrain_city_floor_tall.png';
+  static const String terrainHiveFloorTall =
+      'terrain/terrain_hive_floor_tall.png';
+  static const String terrainHiveCeilingTall =
+      'terrain/terrain_hive_ceiling_tall.png';
+  static const String terrainCrystalFloorTall =
+      'terrain/terrain_crystal_floor_tall.png';
   static const String obstacleAsteroidBig =
       'terrain/obstacle_asteroid_big.png'; // 256x256
   static const String obstacleAsteroidSmall =
@@ -114,17 +134,21 @@ abstract final class GameAssets {
     enemyGunship,
     enemyCrawler,
     enemySaucer,
+    enemyTurret,
     bossDreadnought,
     bossHiveQueen,
     bossWarMachine,
     bossLeviathan,
     bossMothership,
+    bossPodShield,
+    bossPodEscort,
     bulletPlayer,
     bulletPlayerHeavy,
     missilePlayer,
     beamSegment,
     bulletEnemy,
     bulletBoss,
+    mortarShell,
     powerupShield,
     powerupLife,
     powerupBomb,
@@ -141,12 +165,19 @@ abstract final class GameAssets {
     muzzleFlashSheet,
     shieldBubble,
     warpFlashSheet,
+    comboBurstSheet,
     terrainAsteroidFloor,
     terrainAsteroidCeiling,
     terrainCityFloor,
     terrainHiveFloor,
     terrainHiveCeiling,
     terrainCrystalFloor,
+    terrainAsteroidFloorTall,
+    terrainAsteroidCeilingTall,
+    terrainCityFloorTall,
+    terrainHiveFloorTall,
+    terrainHiveCeilingTall,
+    terrainCrystalFloorTall,
     obstacleAsteroidBig,
     obstacleAsteroidSmall,
     obstacleSpikePlant,

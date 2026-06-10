@@ -32,6 +32,7 @@ class TerrainStrip extends PositionComponent
     with CollisionCallbacks, HasGameReference<CosmoStrikeGame> {
   TerrainStrip({
     required this.asset,
+    this.tallAsset,
     required this.isCeiling,
     required this.bandHeight,
     this.profile = TerrainProfile.neutral,
@@ -40,6 +41,10 @@ class TerrainStrip extends PositionComponent
         super(priority: -50);
 
   final String asset;
+
+  /// Taller art variant used once the band swells past ~1.5x base so
+  /// tunnel/canyon squeezes don't stretch-blur the strip.
+  final String? tallAsset;
   final bool isCeiling;
 
   /// The biome's BASE band height; the profile multiplies on top.
@@ -54,8 +59,16 @@ class TerrainStrip extends PositionComponent
   double _band;
   double _scrollX = 0;
   late final Sprite _sprite = Sprite(Flame.images.fromCache(asset));
+  late final Sprite? _tallSprite = tallAsset == null
+      ? null
+      : Sprite(Flame.images.fromCache(tallAsset!));
   late double _tileWidth;
   late final RectangleHitbox _hitbox;
+
+  Sprite get _activeSprite {
+    final tall = _tallSprite;
+    return (tall != null && _band > bandHeight * 1.5) ? tall : _sprite;
+  }
 
   /// Current animated band height.
   double get currentBand => _band;
@@ -92,7 +105,7 @@ class TerrainStrip extends PositionComponent
     size = Vector2(gameSize.x, _band);
     position = Vector2(0, isCeiling ? 0 : gameSize.y - _band);
     // Keep the art's aspect: scale the strip to the band height.
-    final image = Flame.images.fromCache(asset);
+    final image = _activeSprite.image;
     _tileWidth = _band * (image.width / image.height);
   }
 
@@ -128,7 +141,7 @@ class TerrainStrip extends PositionComponent
   void _applyBand() {
     size.setValues(game.size.x, _band);
     position.y = isCeiling ? 0 : game.size.y - _band;
-    final image = _sprite.image;
+    final image = _activeSprite.image;
     _tileWidth = _band * (image.width / image.height);
     final inset = _band * 0.35;
     _hitbox.position.setValues(0, isCeiling ? 0 : inset);
@@ -159,8 +172,9 @@ class TerrainStrip extends PositionComponent
       canvas.scale(1, -1);
     }
     // Draw enough tiles to cover the width plus the wrap seam.
+    final sprite = _activeSprite;
     for (double x = -_scrollX; x < size.x; x += _tileWidth) {
-      _sprite.render(
+      sprite.render(
         canvas,
         position: Vector2(x, 0),
         size: Vector2(_tileWidth, _band),

@@ -193,6 +193,7 @@ class Boss extends PositionComponent
         orbitIndex: i,
         orbitCount: phase.podCount,
         hp: (maxHp * 0.1).clamp(6, 40).round(),
+        isShieldGenerator: def.type == BossType.warMachine,
       );
       pods.add(pod);
       game.add(pod);

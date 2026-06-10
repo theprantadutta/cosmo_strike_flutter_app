@@ -325,6 +325,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     final b = biome;
     _floor = TerrainStrip(
       asset: b.floorAsset,
+      tallAsset: b.floorAssetTall,
       isCeiling: false,
       bandHeight: b.floorHeight,
       profile: level.terrainProfile,
@@ -335,6 +336,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     if (ceilingAsset != null) {
       _ceiling = TerrainStrip(
         asset: ceilingAsset,
+        tallAsset: b.ceilingAssetTall,
         isCeiling: true,
         bandHeight: b.ceilingHeight,
         profile: level.terrainProfile,
@@ -646,6 +648,9 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
         scale: 1.3,
         duration: 0.9,
       );
+      add(oneShotFx(
+          GameAssets.comboBurstSheet, 4, enemy.position, Vector2.all(54),
+          fps: 18));
       GameAudio.comboUp();
     }
     // Heavy kills (tanky hulls) land with a micro hit-stop + bigger blast.

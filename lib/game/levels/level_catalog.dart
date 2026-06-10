@@ -14,6 +14,8 @@ abstract final class BiomeCatalog {
     id: 'asteroid',
     floorAsset: GameAssets.terrainAsteroidFloor,
     ceilingAsset: GameAssets.terrainAsteroidCeiling,
+    floorAssetTall: GameAssets.terrainAsteroidFloorTall,
+    ceilingAssetTall: GameAssets.terrainAsteroidCeilingTall,
     floorHeight: 56,
     ceilingHeight: 48,
     bgColor: Color(0xFF05060F),
@@ -41,6 +43,7 @@ abstract final class BiomeCatalog {
   static const city = BiomeDef(
     id: 'city',
     floorAsset: GameAssets.terrainCityFloor,
+    floorAssetTall: GameAssets.terrainCityFloorTall,
     floorHeight: 60,
     bgColor: Color(0xFF0A0613),
     starTint: Color(0xFFE2A8FF),
@@ -61,6 +64,8 @@ abstract final class BiomeCatalog {
     id: 'hive',
     floorAsset: GameAssets.terrainHiveFloor,
     ceilingAsset: GameAssets.terrainHiveCeiling,
+    floorAssetTall: GameAssets.terrainHiveFloorTall,
+    ceilingAssetTall: GameAssets.terrainHiveCeilingTall,
     floorHeight: 56,
     ceilingHeight: 52,
     bgColor: Color(0xFF070D09),
@@ -88,6 +93,7 @@ abstract final class BiomeCatalog {
   static const crystal = BiomeDef(
     id: 'crystal',
     floorAsset: GameAssets.terrainCrystalFloor,
+    floorAssetTall: GameAssets.terrainCrystalFloorTall,
     floorHeight: 58,
     bgColor: Color(0xFF060B16),
     starTint: Color(0xFFB8E8FF),

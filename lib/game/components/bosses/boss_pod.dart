@@ -2,9 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
+import 'package:flame/flame.dart';
 import 'package:flutter/painting.dart';
 
 import '../../cosmo_strike_game.dart';
+import '../../game_assets.dart';
 import '../../game_audio.dart';
 import '../boss.dart';
 import '../fx.dart';
@@ -12,9 +14,6 @@ import '../fx.dart';
 /// A shootable pod orbiting its boss: War Machine shield generators and
 /// Mothership escorts. While the boss phase says `invulnerableWhilePods`,
 /// the core takes zero damage until every pod is down.
-///
-/// Rendered procedurally (pulsing neon orb) until dedicated pod sprites
-/// land with the asset pass.
 class BossPod extends PositionComponent
     with CollisionCallbacks, HasGameReference<CosmoStrikeGame> {
   BossPod({
@@ -22,6 +21,7 @@ class BossPod extends PositionComponent
     required this.orbitIndex,
     required this.orbitCount,
     required int hp,
+    this.isShieldGenerator = false,
   })  : _hp = hp,
         _maxHp = hp,
         super(size: Vector2.all(34), anchor: Anchor.center, priority: 9);
@@ -29,10 +29,20 @@ class BossPod extends PositionComponent
   final Boss boss;
   final int orbitIndex;
   final int orbitCount;
+
+  /// Shield-generator art (War Machine) vs escort art (Mothership).
+  final bool isShieldGenerator;
   int _hp;
   final int _maxHp;
   double _age = 0;
   double _flash = 0;
+
+  late final Sprite _sprite = Sprite(Flame.images.fromCache(
+      isShieldGenerator ? GameAssets.bossPodShield : GameAssets.bossPodEscort));
+
+  static final Paint _flashPaint = Paint()
+    ..colorFilter =
+        const ColorFilter.mode(Color(0xB8FFFFFF), BlendMode.srcATop);
 
   static const double orbitRadius = 96;
   static const double orbitOmega = 0.9;
@@ -85,26 +95,21 @@ class BossPod extends PositionComponent
 
   @override
   void render(Canvas canvas) {
-    final c = Offset(size.x / 2, size.y / 2);
+    // Low-hp pods pulse hotter; hits flash white.
     final hpFrac = (_hp / _maxHp).clamp(0.0, 1.0);
-    final pulse = 0.6 + 0.4 * math.sin(_age * 6);
-    final core = _flash > 0
-        ? const Color(0xFFFFFFFF)
-        : Color.lerp(const Color(0xFFFF2D78), const Color(0xFFFFB36B),
-            1 - hpFrac)!;
+    final pulse = 0.5 + 0.5 * math.sin(_age * 6);
+    final c = Offset(size.x / 2, size.y / 2);
     canvas.drawCircle(
       c,
-      size.x * 0.46,
-      Paint()..color = core.withValues(alpha: 0.22 * pulse),
-    );
-    canvas.drawCircle(c, size.x * 0.3, Paint()..color = core);
-    canvas.drawCircle(
-      c,
-      size.x * 0.3,
+      size.x * 0.55,
       Paint()
-        ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.5 * pulse)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+        ..color = const Color(0xFFFF2D78)
+            .withValues(alpha: (0.10 + 0.16 * (1 - hpFrac)) * pulse),
+    );
+    _sprite.render(
+      canvas,
+      size: size,
+      overridePaint: _flash > 0 ? _flashPaint : null,
     );
   }
 }

@@ -40,10 +40,7 @@ extension EnemyTypeStats on EnemyType {
         EnemyType.gunship => GameAssets.enemyGunship,
         EnemyType.crawler => GameAssets.enemyCrawler,
         EnemyType.saucer => GameAssets.enemySaucer,
-        // TODO(assets): swap to a dedicated turret sprite when generated
-        // (step 6 of the gameplay overhaul); the gunship hull reads fine
-        // as a placeholder emplacement.
-        EnemyType.turret => GameAssets.enemyGunship,
+        EnemyType.turret => GameAssets.enemyTurret,
       };
 
   /// Logical in-game size (aspect-true to the source art).
@@ -189,6 +186,11 @@ class BiomeDef {
   final String id;
   final String floorAsset;
   final String? ceilingAsset; // null = open sky
+
+  /// Taller (1024x384) art variants the strips switch to when a
+  /// set-piece squeezes the band past ~1.5x its base height.
+  final String? floorAssetTall;
+  final String? ceilingAssetTall;
   final double floorHeight; // logical px
   final double ceilingHeight; // 0 when no ceiling
   final List<ObstacleSpec> obstacles;
@@ -203,6 +205,8 @@ class BiomeDef {
     required this.id,
     required this.floorAsset,
     this.ceilingAsset,
+    this.floorAssetTall,
+    this.ceilingAssetTall,
     this.floorHeight = 56,
     this.ceilingHeight = 0,
     this.obstacles = const [],

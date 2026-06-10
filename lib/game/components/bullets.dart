@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flame/flame.dart';
@@ -222,11 +224,18 @@ class EnemyBullet extends PositionComponent
 
   static Sprite? _enemySprite;
   static Sprite? _bossSprite;
+  static Sprite? _mortarSprite;
 
-  Sprite get _sprite => fromBoss
-      ? (_bossSprite ??= Sprite(Flame.images.fromCache(GameAssets.bulletBoss)))
-      : (_enemySprite ??=
-          Sprite(Flame.images.fromCache(GameAssets.bulletEnemy)));
+  bool get _isMortar => gravity != 0;
+
+  Sprite get _sprite => _isMortar
+      ? (_mortarSprite ??=
+          Sprite(Flame.images.fromCache(GameAssets.mortarShell)))
+      : fromBoss
+          ? (_bossSprite ??=
+              Sprite(Flame.images.fromCache(GameAssets.bulletBoss)))
+          : (_enemySprite ??=
+              Sprite(Flame.images.fromCache(GameAssets.bulletEnemy)));
 
   @override
   Future<void> onLoad() async {
@@ -245,7 +254,8 @@ class EnemyBullet extends PositionComponent
     this.fromBoss = fromBoss;
     this.gravity = gravity;
     _grazed = false;
-    size.setValues(fromBoss ? 18 : 14, fromBoss ? 18 : 14);
+    final side = gravity != 0 ? 22.0 : (fromBoss ? 18.0 : 14.0);
+    size.setValues(side, side);
     position.setFrom(spawn);
     active = true;
     _hitbox.collisionType = CollisionType.active;
@@ -288,6 +298,16 @@ class EnemyBullet extends PositionComponent
   @override
   void render(Canvas canvas) {
     if (!active) return;
+    if (_isMortar) {
+      // The shell art points up-right (-45°); spin it along the arc.
+      canvas.save();
+      canvas.translate(size.x / 2, size.y / 2);
+      canvas.rotate(math.atan2(velocity.y, velocity.x) + math.pi / 4);
+      canvas.translate(-size.x / 2, -size.y / 2);
+      _sprite.render(canvas, size: size);
+      canvas.restore();
+      return;
+    }
     _sprite.render(canvas, size: size);
   }
 
