@@ -199,6 +199,9 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   final ValueNotifier<int> timeRemainingNotifier = ValueNotifier(-1);
   // Special-weapon ammo for the HUD missile button.
   final ValueNotifier<int> missileAmmoNotifier = ValueNotifier(0);
+
+  /// Total enemies destroyed this run, published for the HUD kill tally.
+  final ValueNotifier<int> killsNotifier = ValueNotifier(0);
   // Active timed effects for the HUD chip row (published at ~4 Hz).
   final ValueNotifier<List<ActiveEffectHud>> effectsNotifier =
       ValueNotifier(const []);
@@ -731,6 +734,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   void onEnemyKilled(EnemyShip enemy) {
     enemiesKilled++;
+    killsNotifier.value = enemiesKilled;
     enemy.formation?.onMemberKilled(enemy);
     final tierUp = combo.onKill();
     final awarded = addKillScore(enemy.pointValue);
@@ -973,6 +977,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       enemiesKilled++;
       e.removeFromParent();
     }
+    killsNotifier.value = enemiesKilled;
     pools.clearEnemyBullets();
     // Chunk the boss (and its pods) too, if one is on screen.
     for (final pod in children.whereType<BossPod>().toList()) {

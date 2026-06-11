@@ -11,6 +11,7 @@ import '../data/database/app_database.dart';
 import '../game/cosmo_palette.dart';
 import '../game/cosmo_strike_game.dart';
 import '../game/tutorial_director.dart';
+import '../models/daily_challenge.dart';
 import '../models/level_run_result.dart';
 import '../models/ship_coins.dart';
 import '../presentation/bloc/coins/coins_cubit.dart';
@@ -20,14 +21,18 @@ import '../presentation/bloc/premium/battle_pass_cubit.dart';
 import '../presentation/bloc/premium/premium_cubit.dart';
 import '../presentation/bloc/theme/theme_cubit.dart';
 import '../router/routes.dart';
+import '../services/achievement_service.dart';
 import '../services/ads/ad_service.dart';
 import '../services/analytics/analytics_facade.dart';
 import '../services/api_service.dart';
+import '../services/daily_challenge_service.dart';
 import '../services/walkthrough_service.dart';
 import '../ui/design.dart';
 import '../utils/campaign_catalog.dart';
 import '../utils/constants.dart';
 import '../widgets/game_dpad.dart';
+import '../widgets/gameplay/game_over_overlay.dart';
+import '../widgets/gameplay/pause_overlay.dart';
 
 /// Hosts the Flame shoot-'em-up. Flame is scoped to this screen only; the
 /// HUD, pause / level-clear / revive / game-over overlays, d-pad, missile
@@ -85,6 +90,18 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// Whether the double-coins reward was already claimed this run.
   bool _coinsDoubled = false;
 
+  /// High score BEFORE this run submitted — _submitRun overwrites the
+  /// stored best, so the NEW RECORD badge compares against this.
+  int _prevBestScore = 0;
+
+  /// Battle-pass XP this run buffered (set by _submitRun, shown on the
+  /// debrief).
+  int _runXpEarned = 0;
+
+  /// Per-challenge progress at run start (id → progress) so the debrief
+  /// can tag exactly what THIS run advanced.
+  late final Map<String, int> _challengeRunStart;
+
   @override
   void initState() {
     super.initState();
@@ -95,6 +112,14 @@ class _GameplayScreenState extends State<GameplayScreen>
     final settings = context.read<GameSettingsCubit>().state;
     _dPadEnabled = settings.dPadEnabled;
     _dPadPosition = settings.dPadPosition;
+
+    // The debrief shows only THIS run's achievement unlocks and challenge
+    // deltas — reset/snapshot both at run start.
+    AchievementService().resetLastGameUnlocks();
+    _challengeRunStart = {
+      for (final c in DailyChallengeService().challenges)
+        c.id: c.currentProgress,
+    };
 
     // Armed store loadout: consume the inventory item exactly once and
     // hand the key to the game (applied when the level goes live).
@@ -216,6 +241,9 @@ class _GameplayScreenState extends State<GameplayScreen>
     _lastResult = result;
     widget.onRunComplete?.call(result);
     if (!mounted) return;
+    // The submit below overwrites the stored high score — capture the
+    // previous best first for the NEW RECORD comparison.
+    _prevBestScore = context.read<GameSettingsCubit>().state.highScore;
     // Capture cubit references synchronously (no BuildContext across awaits).
     _submitRun(
       result,
@@ -298,18 +326,36 @@ class _GameplayScreenState extends State<GameplayScreen>
         CoinEarningSource.gameCompleted,
         customAmount: coinsEarned,
       );
-      battlePass.bufferXP(
-        20 + r.score ~/ 100 + r.levelsCleared * 15 + firstClears * 40,
-        source: 'game_completed',
-      );
+      final xp = 20 + r.score ~/ 100 + r.levelsCleared * 15 + firstClears * 40;
+      if (mounted) setState(() => _runXpEarned = xp);
+      battlePass.bufferXP(xp, source: 'game_completed');
       await battlePass.flushXP();
+    } catch (_) {}
+
+    // Feed the run into daily challenges + achievements — the debrief
+    // panels watch both and update live as these land. Kills ride the
+    // legacy FoodEaten wire type (snake-era challenge vocabulary).
+    final modeName = settings.state.gameMode.name;
+    unawaited(DailyChallengeService().updateProgressBatch([
+      (type: ChallengeType.score, value: r.score, gameMode: null),
+      (type: ChallengeType.foodEaten, value: r.enemiesKilled, gameMode: null),
+      (type: ChallengeType.survival, value: r.durationSeconds, gameMode: null),
+      (type: ChallengeType.gamesPlayed, value: 1, gameMode: null),
+      (type: ChallengeType.gameMode, value: 1, gameMode: modeName),
+    ]));
+    try {
+      AchievementService()
+        ..checkScoreAchievements(r.score,
+            gameMode: modeName, difficulty: 'normal')
+        ..checkSurvivalAchievements(r.durationSeconds,
+            gameMode: modeName, difficulty: 'normal');
     } catch (_) {}
   }
 
-  /// Quit mid-run (from pause): persist the partial run so campaign
-  /// progress (bestWaveReached, cleared levels) survives, submit the
-  /// aborted score for forensics, then leave. No coin/XP rewards.
-  void _quitToHome() {
+  /// Abandon the run mid-game (quit or restart from pause): persist the
+  /// partial run so campaign progress (bestWaveReached, cleared levels)
+  /// survives, submit the aborted score for forensics. No coin/XP rewards.
+  void _persistAbandonedRun() {
     if (!_quitPersisted && _game.phase != GamePhase.gameOver) {
       _quitPersisted = true;
       final partial = _game.buildPartialResult();
@@ -333,7 +379,18 @@ class _GameplayScreenState extends State<GameplayScreen>
         gameData: const {'aborted': true},
       ));
     }
+  }
+
+  void _quitToHome() {
+    _persistAbandonedRun();
     context.go(AppRoutes.home);
+  }
+
+  /// Restart the run at the same start level (from pause). No interstitial
+  /// — the ad cap logic is for game-over exits only.
+  void _restartFromPause() {
+    _persistAbandonedRun();
+    context.pushReplacement(AppRoutes.game, extra: widget.startLevel);
   }
 
   /// Relative-drag steering: the ship mirrors the finger's MOVEMENT, not
@@ -575,16 +632,12 @@ class _GameplayScreenState extends State<GameplayScreen>
             builder: (context, phase, _) {
               switch (phase) {
                 case GamePhase.paused:
-                  return _CenterOverlay(
-                    title: 'PAUSED',
-                    actions: [
-                      _OverlayButton(label: 'RESUME', onTap: _game.resumeGame),
-                      _OverlayButton(
-                        label: 'QUIT',
-                        onTap: _quitToHome,
-                        secondary: true,
-                      ),
-                    ],
+                  return PauseOverlay(
+                    game: _game,
+                    outcomes: _outcomes,
+                    onResume: _game.resumeGame,
+                    onRestart: _restartFromPause,
+                    onQuit: _quitToHome,
                   );
                 case GamePhase.levelClear:
                   return _LevelClearOverlay(
@@ -602,61 +655,38 @@ class _GameplayScreenState extends State<GameplayScreen>
                   );
                 case GamePhase.gameOver:
                   final r = _lastResult;
-                  final victory = r?.cleared ?? false;
+                  if (r == null) return const SizedBox.shrink();
+                  final victory = r.cleared;
                   final unlocked = _outcomes.values
                       .where((o) => o.unlockedNextStage)
                       .map((o) => o.stageId + 1)
                       .fold<int>(0, (max, s) => s > max ? s : max);
-                  return _CenterOverlay(
-                    title: victory ? 'VICTORY' : 'GAME OVER',
-                    subtitle: r == null
-                        ? null
-                        : 'Score ${r.score}   •   Level ${r.stageReached}\n'
-                            '${r.enemiesKilled} destroyed   •   ${r.bossesKilled} bosses'
-                            '${r.levelsCleared > 0 ? '\n${r.levelsCleared} level${r.levelsCleared == 1 ? '' : 's'} cleared' : ''}'
-                            '${unlocked > 0 ? '   •   Level $unlocked unlocked' : ''}',
-                    // "Watch ad → 2× coins": shown while the offer is live
-                    // (coins earned, ad loaded, daily cap not hit); swaps
-                    // to a confirmation once claimed.
-                    extra: _coinsDoubled
-                        ? Text(
-                            '+$_runCoinsEarned BONUS COINS CLAIMED',
-                            style: const TextStyle(
-                              color: Color(0xFFFFD37B),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.4,
-                            ),
-                          )
-                        : (_runCoinsEarned > 0 &&
-                                AdService()
-                                    .canShowCapped(AdService.capDoubleCoins))
-                            ? _OverlayButton(
-                                label:
-                                    '▶ WATCH AD: 2× COINS (+$_runCoinsEarned)',
-                                onTap: _doubleRunCoins,
-                              )
-                            : null,
-                    actions: [
-                      _OverlayButton(
-                        label: 'RETRY',
-                        onTap: () => _exitWithInterstitial(
-                          () => context.pushReplacement(
-                            AppRoutes.game,
-                            extra: widget.startLevel,
-                          ),
-                        ),
+                  return GameOverOverlay(
+                    result: r,
+                    victory: victory,
+                    previousBest: _prevBestScore,
+                    unlockedLevel: unlocked,
+                    runCoinsEarned: _runCoinsEarned,
+                    runXpEarned: _runXpEarned,
+                    coinsDoubled: _coinsDoubled,
+                    // "Watch ad → 2× coins": live while coins were earned,
+                    // an ad is loaded and the daily cap isn't hit; swaps to
+                    // a confirmation once claimed.
+                    canDoubleCoins: _runCoinsEarned > 0 &&
+                        AdService().canShowCapped(AdService.capDoubleCoins),
+                    onDoubleCoins: _doubleRunCoins,
+                    onRetry: () => _exitWithInterstitial(
+                      () => context.pushReplacement(
+                        AppRoutes.game,
+                        extra: widget.startLevel,
                       ),
-                      _OverlayButton(
-                        label: victory ? 'CAMPAIGN' : 'HOME',
-                        onTap: () => _exitWithInterstitial(
-                          () => victory
-                              ? context.go(AppRoutes.levelSelect)
-                              : context.go(AppRoutes.home),
-                        ),
-                        secondary: true,
-                      ),
-                    ],
+                    ),
+                    onExit: () => _exitWithInterstitial(
+                      () => victory
+                          ? context.go(AppRoutes.levelSelect)
+                          : context.go(AppRoutes.home),
+                    ),
+                    challengeRunStart: _challengeRunStart,
                   );
                 case GamePhase.ready:
                 case GamePhase.levelIntro:
@@ -694,9 +724,11 @@ class _Hud extends StatelessWidget {
                 theme: _hudSkin,
                 radius: GameTokens.radiusMd,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                child: Column(
+                // One horizontal strip — the HUD stays out of the ship's
+                // vertical flight lane (the playfield is short in landscape).
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     ValueListenableBuilder<int>(
                       valueListenable: game.scoreNotifier,
@@ -710,6 +742,7 @@ class _Hud extends StatelessWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 12),
                     ValueListenableBuilder<int>(
                       valueListenable: game.levelNotifier,
                       builder: (_, level, _) => ValueListenableBuilder<int>(
@@ -723,6 +756,29 @@ class _Hud extends StatelessWidget {
                             letterSpacing: 1,
                           ),
                         ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Kill tally — many daily directives are kill-based.
+                    // Rendered at 0 too so the panel never jumps.
+                    ValueListenableBuilder<int>(
+                      valueListenable: game.killsNotifier,
+                      builder: (_, kills, _) => Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.gps_fixed,
+                              size: 11, color: CosmoPalette.hullLight),
+                          const SizedBox(width: 3),
+                          Text(
+                            '$kills',
+                            style: const TextStyle(
+                              color: CosmoPalette.hullLight,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     // Kill-chain readout — appears from a 2-chain on,
@@ -746,7 +802,7 @@ class _Hud extends StatelessWidget {
                               child: child,
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.only(top: 2),
+                              padding: const EdgeInsets.only(left: 12),
                               child: Text(
                                 '×$mult · $chain CHAIN',
                                 style: TextStyle(
