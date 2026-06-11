@@ -60,8 +60,6 @@ class CoinsCubit extends Cubit<CoinsState> {
   Completer<void>? _initCompleter;
 
   // Device-only SharedPreferences keys. Any synced state moved to Drift.
-  static const String _dailyEarningsKey = 'daily_earnings';
-  static const String _lastEarningResetKey = 'last_earning_reset';
   // Retired daily-bonus prefs keys — daily bonus is now Drift-first
   // (`daily_bonus_state` table). Kept as constants so the one-shot
   // migration in [initialize] can find and clean up the legacy values.
@@ -468,43 +466,51 @@ class CoinsCubit extends Cubit<CoinsState> {
     );
   }
 
-  /// Load the device-only anti-grind daily cap from prefs and reset it
-  /// if the UTC date has rolled. Daily-bonus state is no longer loaded
-  /// here — that's Drift-backed and lands via [_wireDriftWatches].
-  Future<void> _loadDailyEarningsCap() async {
-    final prefs = _prefs;
-    if (prefs == null) return;
+  /// Anti-grind daily cap, derived from the SYNCED CoinTransactions
+  /// ledger rather than a device-only prefs counter: sum of today's
+  /// (UTC) 'earned' rows, excluding the cap-exempt sources. Clearing
+  /// app data or winding the device clock back no longer resets it —
+  /// the ledger rides the sync outbox and the first-sign-in pull.
+  Future<void> _loadDailyEarningsCap() => _refreshDailyEarningsFromLedger();
 
+  /// Sources that never count toward (or get blocked by) the daily cap:
+  /// purchases are paid IAP, the daily login bonus is a once-per-day
+  /// engagement claim gated in Drift/server.
+  static const List<CoinEarningSource> _capExemptSources = [
+    CoinEarningSource.purchase,
+    CoinEarningSource.dailyLogin,
+  ];
+
+  /// Per-source daily ceilings (defense in depth UNDER the global cap):
+  /// even if one channel misbehaves it can't eat the whole day's cap.
+  /// Sources not listed are bounded by the global cap only. Enforced
+  /// from the synced ledger, same as the global counter.
+  static const Map<CoinEarningSource, int> _perSourceDailyCaps = {
+    CoinEarningSource.gameCompleted: 500,
+    CoinEarningSource.watchedAd: 300,
+    CoinEarningSource.dailyChallenge: 250,
+    CoinEarningSource.achievementUnlocked: 250,
+  };
+
+  static DateTime _utcMidnight() {
+    final now = DateTime.now().toUtc();
+    return DateTime.utc(now.year, now.month, now.day);
+  }
+
+  Future<void> _refreshDailyEarningsFromLedger() async {
     try {
-      final dailyEarnings = prefs.getInt(_dailyEarningsKey) ?? 0;
-      final lastResetStr = prefs.getString(_lastEarningResetKey);
-      DateTime lastEarningReset = DateTime.now().toUtc();
-      if (lastResetStr != null) {
-        lastEarningReset = DateTime.parse(lastResetStr);
-      }
-
-      // Check if we need to reset daily earnings (new UTC day)
-      final now = DateTime.now().toUtc();
-      final resetDate = DateTime.utc(
-        lastEarningReset.year,
-        lastEarningReset.month,
-        lastEarningReset.day,
+      final storage = StorageService();
+      if (!storage.isInitialized) return;
+      final earned = await storage.storeDao.earnedCoinsSince(
+        _utcMidnight(),
+        excludeSources: _capExemptSources.map((s) => s.name).toList(),
       );
-      final today = DateTime.utc(now.year, now.month, now.day);
-      final shouldReset = today.isAfter(resetDate);
-
-      emit(
-        state.copyWith(
-          dailyEarnings: shouldReset ? 0 : dailyEarnings,
-          lastEarningReset: shouldReset ? now : lastEarningReset,
-        ),
-      );
-
-      if (shouldReset) {
-        await _saveDailyCapData();
-      }
+      emit(state.copyWith(
+        dailyEarnings: earned,
+        lastEarningReset: DateTime.now().toUtc(),
+      ));
     } catch (e) {
-      AppLogger.error('Error loading device-only coin state', e);
+      AppLogger.error('Error computing daily earnings from ledger', e);
     }
   }
 
@@ -599,38 +605,6 @@ class CoinsCubit extends Cubit<CoinsState> {
     }
   }
 
-  Future<void> _saveDailyCapData() async {
-    final prefs = _prefs;
-    if (prefs == null) return;
-    await prefs.setInt(_dailyEarningsKey, state.dailyEarnings);
-    await prefs.setString(
-      _lastEarningResetKey,
-      state.lastEarningReset.toIso8601String(),
-    );
-  }
-
-  /// Check if earning would exceed daily cap
-  bool _wouldExceedDailyCap(int amount) {
-    return state.dailyEarnings + amount > state.dailyEarningCap;
-  }
-
-  /// Reset daily earnings if needed (called at midnight UTC)
-  void _checkAndResetDailyEarnings() {
-    final now = DateTime.now().toUtc();
-    final lastReset = state.lastEarningReset;
-    final resetDate =
-        DateTime.utc(lastReset.year, lastReset.month, lastReset.day);
-    final today = DateTime.utc(now.year, now.month, now.day);
-
-    if (today.isAfter(resetDate)) {
-      emit(state.copyWith(
-        dailyEarnings: 0,
-        lastEarningReset: now,
-      ));
-      AppLogger.info('Daily earnings reset at midnight UTC');
-    }
-  }
-
   /// Update premium multiplier based on subscription status
   void updatePremiumMultiplier(bool hasPremium, bool hasBattlePass) {
     double multiplier;
@@ -664,8 +638,6 @@ class CoinsCubit extends Cubit<CoinsState> {
     Map<String, dynamic>? metadata,
   }) async {
     try {
-      _checkAndResetDailyEarnings();
-
       final baseAmount = customAmount ?? source.getBaseAmount();
       if (baseAmount <= 0) return true;
 
@@ -675,15 +647,39 @@ class CoinsCubit extends Cubit<CoinsState> {
       // daily login bonus (a once-per-day engagement claim, not a grind
       // vector). If gameplay maxed out the cap earlier in the day, the
       // user should still get their daily bonus on first launch.
-      final bypassesCap = source == CoinEarningSource.purchase ||
-          source == CoinEarningSource.dailyLogin;
-      if (!bypassesCap && _wouldExceedDailyCap(multipliedAmount)) {
-        final cappedAmount = state.remainingDailyEarnings;
-        if (cappedAmount <= 0) {
-          AppLogger.info('Daily earning cap reached, no coins awarded');
-          return false;
-        }
-        return _processEarning(source, cappedAmount, itemName, metadata,
+      final bypassesCap = _capExemptSources.contains(source);
+      if (bypassesCap) {
+        return _processEarning(source, multipliedAmount, itemName, metadata);
+      }
+
+      // Re-derive today's total from the synced ledger (handles UTC day
+      // roll, cloud restores, and any writes that didn't run through this
+      // cubit instance).
+      await _refreshDailyEarningsFromLedger();
+
+      // Global daily headroom...
+      var allowed = state.remainingDailyEarnings;
+
+      // ...narrowed by this source's own daily ceiling, if it has one.
+      final sourceCap = _perSourceDailyCaps[source];
+      if (sourceCap != null && allowed > 0) {
+        final sourceEarnedToday = await StorageService()
+            .storeDao
+            .earnedCoinsFromSourceSince(source.name, _utcMidnight());
+        final sourceRemaining =
+            (sourceCap - sourceEarnedToday).clamp(0, sourceCap);
+        if (sourceRemaining < allowed) allowed = sourceRemaining;
+      }
+
+      if (allowed <= 0) {
+        AppLogger.info(
+          'Daily earning cap reached for ${source.name}, no coins awarded',
+        );
+        return false;
+      }
+
+      if (multipliedAmount > allowed) {
+        return _processEarning(source, allowed, itemName, metadata,
             wasCapped: true);
       }
 
@@ -728,13 +724,10 @@ class CoinsCubit extends Cubit<CoinsState> {
     // regardless of when the watch stream fires.
     await _refreshBalanceFromDrift();
 
-    // Daily cap counter is device-only. Cap-bypassing sources also don't
-    // count toward the cap (consistent with the bypass check above).
-    final countsTowardCap = source != CoinEarningSource.purchase &&
-        source != CoinEarningSource.dailyLogin;
-    if (countsTowardCap) {
+    // Keep the in-memory counter in step with the ledger row just
+    // appended (the next earnCoins re-derives from the ledger anyway).
+    if (!_capExemptSources.contains(source)) {
       emit(state.copyWith(dailyEarnings: state.dailyEarnings + amount));
-      await _saveDailyCapData();
     }
 
     AppLogger.info(
@@ -966,15 +959,13 @@ class CoinsCubit extends Cubit<CoinsState> {
     );
   }
 
-  /// Debug: Reset balance (for testing). Wipes Drift balance + the
-  /// device-only daily cap counter. Transactions are not retroactively
-  /// erased because the backend still has them on the ledger.
+  /// Debug: Reset balance (for testing). Wipes the Drift balance; the
+  /// daily cap counter is ledger-derived so today's transactions still
+  /// count toward the cap (they're not retroactively erased).
   Future<void> debugResetBalance() async {
     try {
       await StorageService().storeDao.applyCoinBalanceSnapshot(balance: 0);
       await _refreshBalanceFromDrift();
-      emit(state.copyWith(dailyEarnings: 0));
-      await _saveDailyCapData();
       AppLogger.info('Coin balance reset to 0 (debug)');
     } catch (e) {
       AppLogger.error('Error resetting coin balance', e);

@@ -96,8 +96,11 @@ class CoinsState extends Equatable {
     );
   }
 
-  /// Daily earning cap (150 for free users, 250 for premium)
-  int get dailyEarningCap => hasPremiumBonus ? 250 : 150;
+  /// Daily earning cap (600 for free users, 1000 for premium). Sized to
+  /// the shooter economy: a strong campaign run pays ~300-700 coins, so
+  /// the cap allows a couple of solid runs plus dailies/ads before it
+  /// binds — instead of clipping the whole day inside one game.
+  int get dailyEarningCap => hasPremiumBonus ? 1000 : 600;
 
   /// Remaining earnings allowed today
   int get remainingDailyEarnings => (dailyEarningCap - dailyEarnings).clamp(0, dailyEarningCap);

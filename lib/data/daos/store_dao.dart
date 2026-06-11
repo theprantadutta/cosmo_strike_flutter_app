@@ -76,6 +76,41 @@ class StoreDao extends DatabaseAccessor<AppDatabase> with _$StoreDaoMixin {
     );
   }
 
+  /// Sum of coins earned since [since], excluding [excludeSources].
+  /// Drives the anti-grind daily cap from the synced transaction ledger
+  /// (instead of a device-only prefs counter), so clearing app data or
+  /// winding the clock back doesn't reset it — a cloud restore brings
+  /// the day's ledger rows back with it.
+  Future<int> earnedCoinsSince(
+    DateTime since, {
+    List<String> excludeSources = const [],
+  }) async {
+    final sum = coinTransactions.amount.sum();
+    Expression<bool> where = coinTransactions.type.equals('earned') &
+        coinTransactions.createdAt.isBiggerOrEqualValue(since);
+    if (excludeSources.isNotEmpty) {
+      where = where & coinTransactions.source.isNotIn(excludeSources);
+    }
+    final query = selectOnly(coinTransactions)
+      ..addColumns([sum])
+      ..where(where);
+    final row = await query.getSingle();
+    return row.read(sum) ?? 0;
+  }
+
+  /// Sum of coins earned from one [source] since [since] — drives the
+  /// per-source daily ceilings.
+  Future<int> earnedCoinsFromSourceSince(String source, DateTime since) async {
+    final sum = coinTransactions.amount.sum();
+    final query = selectOnly(coinTransactions)
+      ..addColumns([sum])
+      ..where(coinTransactions.type.equals('earned') &
+          coinTransactions.source.equals(source) &
+          coinTransactions.createdAt.isBiggerOrEqualValue(since));
+    final row = await query.getSingle();
+    return row.read(sum) ?? 0;
+  }
+
   /// Add coins (from game, achievement, etc.). Bumps balance, appends
   /// a transaction record, and enqueues both rows for sync inside a
   /// single Drift transaction.
