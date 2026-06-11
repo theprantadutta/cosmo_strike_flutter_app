@@ -872,6 +872,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return 'Score Multiplier';
       case 'slow_motion':
         return 'Slow Motion';
+      case 'teleport':
+        return 'Warp Escape';
+      case 'ghost_mode':
+        return 'Ghost Mode';
+      case 'magnetic_pickup':
+        return 'Orb Magnet';
+      case 'score_shield':
+        return 'Last Stand';
       default:
         return inventoryKey;
     }
@@ -887,6 +895,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return Icons.star;
       case 'slow_motion':
         return Icons.slow_motion_video;
+      case 'teleport':
+        return Icons.swap_calls;
+      case 'ghost_mode':
+        return Icons.blur_on;
+      case 'magnetic_pickup':
+        return Icons.attractions;
+      case 'score_shield':
+        return Icons.security;
       default:
         return Icons.flash_on;
     }

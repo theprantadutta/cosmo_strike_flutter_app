@@ -4,6 +4,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/di/injection.dart';
+import '../presentation/bloc/premium/premium_cubit.dart';
 import '../utils/logger.dart';
 import 'api_service.dart';
 import 'data_sync_service.dart';
@@ -219,6 +221,22 @@ class NotificationService {
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     AppLogger.info('📨 Received foreground message: ${message.messageId}');
 
+    // Silent entitlement ping: the backend changed this user's premium
+    // state (subscription renewed/revoked, promo granted/expired, …).
+    // Re-pull the targeted premium snapshot — this is the only way an
+    // OPEN offline-first app learns about server-side entitlement
+    // changes (background/killed delivery is covered by the app-resume
+    // sync in main.dart). Nothing is shown to the user.
+    if (message.data['action'] == 'entitlements_changed') {
+      AppLogger.info('🔄 Entitlements-changed ping — syncing premium state');
+      try {
+        unawaited(getIt<PremiumCubit>().syncWithBackend());
+      } catch (e) {
+        AppLogger.error('Entitlement ping sync failed', e);
+      }
+      return;
+    }
+
     // Show local notification for foreground messages
     await _showLocalNotification(
       title: message.notification?.title ?? 'Cosmo Strike',
@@ -230,8 +248,19 @@ class NotificationService {
   Future<void> _handleMessageOpenedApp(RemoteMessage message) async {
     AppLogger.info('👆 App opened from notification: ${message.messageId}');
 
-    // Handle deep linking based on notification data
     final data = message.data;
+    // Defensive: data-only pings never create a tray entry, so this path
+    // is mostly unreachable for them — but cheap to handle anyway.
+    if (data['action'] == 'entitlements_changed') {
+      try {
+        unawaited(getIt<PremiumCubit>().syncWithBackend());
+      } catch (e) {
+        AppLogger.error('Entitlement ping sync failed', e);
+      }
+      return;
+    }
+
+    // Handle deep linking based on notification data
     if (data.containsKey('route')) {
       _navigateToScreen(data['route'], data);
     }
@@ -871,5 +900,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   AppLogger.info('📨 Background message received: ${message.messageId}');
 
   // Handle background message
-  // Note: Limited functionality in background mode
+  // Note: Limited functionality in background mode.
+  //
+  // 'entitlements_changed' pings arriving here are intentionally NOT
+  // processed: this isolate has no DI/cubits, and the app's resume path
+  // (main.dart didChangeAppLifecycleState → PremiumCubit.syncWithBackend)
+  // already re-pulls premium state the moment the user comes back.
 }

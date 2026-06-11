@@ -2,7 +2,6 @@ import 'package:cosmo_strike_flutter_app/models/food.dart';
 import 'package:cosmo_strike_flutter_app/models/ship.dart';
 import 'package:cosmo_strike_flutter_app/models/position.dart';
 import 'package:cosmo_strike_flutter_app/models/power_up.dart';
-import 'package:cosmo_strike_flutter_app/models/premium_power_up.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 
 enum GameStatus {
@@ -197,85 +196,27 @@ class GameState {
 
   bool get shouldLevelUp => score >= targetScore;
 
-  // Additional power-up effect getters (hasInvincibility is defined later in file)
+  // Additional power-up effect getters (hasInvincibility is defined later
+  // in file). The premium "mega" variants and snake-era exclusive checks
+  // were removed with the legacy PremiumActivePowerUp model — premium
+  // power-ups now ride the armed-loadout path (ArmedLoadout.apply), not
+  // this legacy GameState power-up list.
   bool get hasSpeedBoost => activePowerUps.any(
-    (p) =>
-        (p.type == PowerUpType.speedBoost || _isPremiumSpeedBoost(p)) &&
-        !p.isExpired,
+    (p) => p.type == PowerUpType.speedBoost && !p.isExpired,
   );
 
   bool get hasSlowMotion => activePowerUps.any(
-    (p) =>
-        (p.type == PowerUpType.slowMotion || _isPremiumSlowMotion(p)) &&
-        !p.isExpired,
+    (p) => p.type == PowerUpType.slowMotion && !p.isExpired,
   );
 
   bool get hasScoreMultiplier => activePowerUps.any(
-    (p) =>
-        (p.type == PowerUpType.scoreMultiplier ||
-            _isPremiumScoreMultiplier(p)) &&
-        !p.isExpired,
+    (p) => p.type == PowerUpType.scoreMultiplier && !p.isExpired,
   );
 
-  // Premium-specific power-up effects
-  bool get hasGhostMode => activePowerUps.any(
-    (p) =>
-        p is PremiumActivePowerUp &&
-        p.premiumType == PremiumPowerUpType.ghostMode &&
-        !p.isExpired,
-  );
-
-  bool get hasSizeReducer => activePowerUps.any(
-    (p) =>
-        p is PremiumActivePowerUp &&
-        p.premiumType == PremiumPowerUpType.sizeReducer &&
-        !p.isExpired,
-  );
-
-  bool get hasScoreShield => activePowerUps.any(
-    (p) =>
-        p is PremiumActivePowerUp &&
-        p.premiumType == PremiumPowerUpType.scoreShield &&
-        !p.isExpired,
-  );
-
-  bool get hasTimeWarp => activePowerUps.any(
-    (p) =>
-        p is PremiumActivePowerUp &&
-        p.premiumType == PremiumPowerUpType.timeWarp &&
-        !p.isExpired,
-  );
-
-  bool get hasMagneticFood => activePowerUps.any(
-    (p) =>
-        p is PremiumActivePowerUp &&
-        p.premiumType == PremiumPowerUpType.magneticFood &&
-        !p.isExpired,
-  );
-
-  bool get hasComboMultiplier => activePowerUps.any(
-    (p) =>
-        p is PremiumActivePowerUp &&
-        p.premiumType == PremiumPowerUpType.comboMultiplier &&
-        !p.isExpired,
-  );
-
-  // Helper methods for checking premium variants of basic power-ups
-  bool _isPremiumInvincibility(ActivePowerUp p) =>
-      p is PremiumActivePowerUp &&
-      p.premiumType == PremiumPowerUpType.megaInvincibility;
-
-  bool _isPremiumSpeedBoost(ActivePowerUp p) =>
-      p is PremiumActivePowerUp &&
-      p.premiumType == PremiumPowerUpType.megaSpeedBoost;
-
-  bool _isPremiumSlowMotion(ActivePowerUp p) =>
-      p is PremiumActivePowerUp &&
-      p.premiumType == PremiumPowerUpType.megaSlowMotion;
-
-  bool _isPremiumScoreMultiplier(ActivePowerUp p) =>
-      p is PremiumActivePowerUp &&
-      p.premiumType == PremiumPowerUpType.megaScoreMultiplier;
+  /// Always false since the legacy premium power-up spawns were removed —
+  /// ghost mode is now an armed-loadout effect inside the Flame game
+  /// (PlayerShip.ghostTimer), invisible to this legacy GameState.
+  bool get hasGhostMode => false;
 
   GameState copyWith({
     Ship? ship,
@@ -367,9 +308,7 @@ class GameState {
 
   bool get hasInvincibility {
     return activePowerUps.any(
-      (p) =>
-          (p.type == PowerUpType.invincibility || _isPremiumInvincibility(p)) &&
-          !p.isExpired,
+      (p) => p.type == PowerUpType.invincibility && !p.isExpired,
     );
   }
 

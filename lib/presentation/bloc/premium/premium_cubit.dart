@@ -13,7 +13,6 @@ import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dar
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_cosmetics.dart';
-import 'package:cosmo_strike_flutter_app/models/premium_power_up.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 
@@ -141,17 +140,8 @@ class PremiumCubit extends Cubit<PremiumState> {
           }
         }
 
-        // Power-up bundles — power-ups
-        final powerUpBundle = PowerUpBundle.availableBundles
-            .where((b) => b.id == bundleId)
-            .firstOrNull;
-        if (powerUpBundle != null) {
-          for (final powerUp in powerUpBundle.powerUps) {
-            if (!state.ownedPowerUps.contains(powerUp.id)) {
-              await unlockPowerUp(powerUp.id);
-            }
-          }
-        }
+        // Power-up bundles are CONSUMABLE count packs now (PowerUpCubit
+        // inventory), not permanent unlocks — nothing to re-derive here.
       }
 
       // Listen to purchase updates
@@ -336,10 +326,17 @@ class PremiumCubit extends Cubit<PremiumState> {
       return;
     }
 
-    // Battle pass
+    // Battle pass — RETIRED product. The premium track now rides the Pro
+    // subscription (server: BattlePassPremiumGate; client: BattlePassCubit
+    // reconciles isActive to hasPremium). This branch is only reachable
+    // via a Play restore of a legacy battle_pass_season purchase, and
+    // flipping hasBattlePass here would desync from the server which no
+    // longer honors the product. Log-only no-op.
     if (internalId.contains('battle_pass')) {
-      emit(state.copyWith(hasBattlePass: true));
-      AppLogger.info('Battle pass activated via purchase');
+      AppLogger.info(
+        'Ignoring retired battle_pass product restore — '
+        'premium track is included with Pro',
+      );
       return;
     }
 
@@ -501,15 +498,8 @@ class PremiumCubit extends Cubit<PremiumState> {
       }
     }
 
-    // Unlock power-up bundle contents
-    final powerUpBundle = PowerUpBundle.availableBundles
-        .where((b) => b.id == bundleId)
-        .firstOrNull;
-    if (powerUpBundle != null) {
-      for (final powerUp in powerUpBundle.powerUps) {
-        await unlockPowerUp(powerUp.id);
-      }
-    }
+    // Power-up bundles are consumable count packs (PowerUpCubit grants
+    // the uses at purchase time) — no permanent unlock rows.
 
     AppLogger.info('Bundle unlocked: $bundleId');
   }
@@ -786,6 +776,25 @@ class PremiumCubit extends Cubit<PremiumState> {
         if (backendCount > localCount) {
           await addTournamentEntry(tier, count: backendCount - localCount);
         }
+      }
+    }
+
+    // ---- Pro power-up perk (per-subscription-period grant) ----
+    // The backend delivers the grant with a deterministic id derived from
+    // the subscription expiry; PowerUpCubit applies it exactly once per
+    // id, so repeated syncs are no-ops and each renewal delivers fresh.
+    final grantId = data['power_up_grant_id'] as String?;
+    final grantMap = data['power_up_grant'];
+    if (grantId != null && grantId.isNotEmpty && grantMap is Map) {
+      final grant = <String, int>{
+        for (final entry in grantMap.entries)
+          if (entry.value is int && (entry.value as int) > 0)
+            entry.key as String: entry.value as int,
+      };
+      final applied =
+          await getIt<PowerUpCubit>().applyServerGrant(grantId, grant);
+      if (applied) {
+        AppLogger.info('Applied Pro power-up grant $grantId: $grant');
       }
     }
 

@@ -2471,40 +2471,67 @@ class _StoreScreenState extends State<StoreScreen>
     PremiumState premiumState,
     CoinsState coinsState,
   ) {
-    // Power-up types use snake_case to match the JSON dictionary keys
-    // returned by the backend (ASP.NET applies DictionaryKeyPolicy =
-    // SnakeCaseLower to outgoing dicts). Mapping back to PowerUpType for
-    // activation lives in the game cubit (next commit).
+    // Power-up keys are snake_case and map 1:1 to ArmedLoadout.apply in
+    // the Flame game (lib/game/run_effects.dart) — descriptions promise
+    // exactly what that switch does, nothing more.
     // Coin costs MUST match PurchasePowerUpWithCoinsCommandHandler.AllowedCosts
     // on the backend — server rejects request.CoinCost mismatches outright.
     final powerUps = const [
       _PowerUpCatalogItem(
         type: 'speed_boost',
         name: 'Speed Boost',
-        description: "Boosts your ship's fire rate for 7 seconds.",
+        description: 'Faster flying and firing for the first 15 seconds.',
         icon: Icons.speed,
         coinCost: 500,
       ),
       _PowerUpCatalogItem(
         type: 'invincibility',
         name: 'Invincibility',
-        description: 'Pass through walls and yourself for 6 seconds.',
+        description: 'Launch with a shield plus 8s of invulnerability.',
         icon: Icons.shield,
         coinCost: 1000,
       ),
       _PowerUpCatalogItem(
         type: 'score_multiplier',
         name: 'Score Multiplier',
-        description: 'Double points for 10 seconds.',
+        description: 'Double points for the first 30 seconds.',
         icon: Icons.star,
         coinCost: 750,
       ),
       _PowerUpCatalogItem(
         type: 'slow_motion',
         name: 'Slow Motion',
-        description: 'Slows the game for precision (8 seconds).',
+        description: 'Enemies and bullets crawl for 10 seconds.',
         icon: Icons.slow_motion_video,
         coinCost: 500,
+      ),
+      _PowerUpCatalogItem(
+        type: 'teleport',
+        name: 'Warp Escape',
+        description: 'One charge: the first hit warps you home unharmed.',
+        icon: Icons.swap_calls,
+        coinCost: 1200,
+      ),
+      _PowerUpCatalogItem(
+        type: 'ghost_mode',
+        name: 'Ghost Mode',
+        description: 'Phase through enemies and bullets for 12 seconds.',
+        icon: Icons.blur_on,
+        coinCost: 1500,
+      ),
+      _PowerUpCatalogItem(
+        type: 'magnetic_pickup',
+        name: 'Orb Magnet',
+        description: 'Power-up orbs home toward you for 60 seconds.',
+        icon: Icons.attractions,
+        coinCost: 1250,
+      ),
+      _PowerUpCatalogItem(
+        type: 'score_shield',
+        name: 'Last Stand',
+        description: 'One charge: a lethal hit restores half health instead.',
+        icon: Icons.security,
+        coinCost: 1500,
       ),
     ];
 
@@ -2775,7 +2802,8 @@ class _StoreScreenState extends State<StoreScreen>
     PremiumState premiumState,
     CoinsState coinsState,
   ) {
-    final isOwned = premiumState.isBundleOwned(bundle.id);
+    // Bundles are CONSUMABLE count packs — repeat-purchasable by design
+    // (no "owned" latch; every buy adds the counts to the inventory).
     final canAfford = coinsState.balance.total >= bundle.bundlePrice;
     return Container(
       width: double.infinity,
@@ -2835,28 +2863,27 @@ class _StoreScreenState extends State<StoreScreen>
           Wrap(
             spacing: 6,
             runSpacing: 6,
-            children: bundle.powerUps
-                .map(
-                  (p) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.purple.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${p.icon} ${p.displayName}',
-                      style: TextStyle(
-                        color: theme.textPrimary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                      ),
+            children: [
+              for (final entry in bundle.powerUps.entries)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${entry.key.icon} ${entry.key.displayName} ×${entry.value}',
+                    style: TextStyle(
+                      color: theme.textPrimary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                )
-                .toList(),
+                ),
+            ],
           ),
           const SizedBox(height: 12),
           Row(
@@ -2881,15 +2908,11 @@ class _StoreScreenState extends State<StoreScreen>
               ),
               const Spacer(),
               ElevatedButton(
-                onPressed: isOwned
-                    ? null
-                    : () => _purchaseCoinBundle(bundle, canAfford),
+                onPressed: () => _purchaseCoinBundle(bundle, canAfford),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isOwned
-                      ? Colors.green
-                      : canAfford
-                          ? theme.primaryColor
-                          : Colors.grey.shade600,
+                  backgroundColor: canAfford
+                      ? theme.primaryColor
+                      : Colors.grey.shade600,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -2899,11 +2922,7 @@ class _StoreScreenState extends State<StoreScreen>
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: Text(isOwned
-                    ? 'OWNED'
-                    : canAfford
-                        ? 'BUY'
-                        : 'NEED COINS'),
+                child: Text(canAfford ? 'BUY' : 'NEED COINS'),
               ),
             ],
           ),
@@ -2925,10 +2944,9 @@ class _StoreScreenState extends State<StoreScreen>
       );
       return;
     }
-    // Server-authoritative purchase. Backend looks up the bundle in
-    // ProductCatalog.PowerUpBundles, atomically debits coins, and increments
-    // PowerUpInventory. We rely on the server response — no local coin spend.
-    final coinsCubit = context.read<CoinsCubit>();
+    // Local-first purchase: PowerUpCubit spends coins via CoinsCubit
+    // (Drift write + sync outbox) and adds the bundle's counts to the
+    // device inventory. Bundles are consumables — no ownership latch.
     final powerUpCubit = context.read<PowerUpCubit>();
     final newBalance = await powerUpCubit.purchaseBundleWithCoins(bundle.id);
     if (!mounted) return;
@@ -2941,15 +2959,9 @@ class _StoreScreenState extends State<StoreScreen>
       );
       return;
     }
-    // Mark the bundle owned locally so the UI swaps to the "owned" state;
-    // server doesn't track set-membership for power-up bundles (it tracks
-    // consumable counts in PowerUpInventory), so we keep this flag client-side.
-    await context.read<PremiumCubit>().unlockBundle(bundle.id);
-    await coinsCubit.setServerBalance(newBalance);
-    if (!mounted) return;
     scaffoldMessenger.showSnackBar(
       SnackBar(
-        content: Text('${bundle.name} unlocked!'),
+        content: Text('${bundle.name} added to your armory!'),
         backgroundColor: Colors.green,
       ),
     );

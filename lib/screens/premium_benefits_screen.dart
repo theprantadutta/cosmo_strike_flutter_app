@@ -401,7 +401,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
       _FeatureItem(
         Icons.flash_on,
         'Premium Power-up Bundle',
-        '5× Teleport, Ghost Mode, Magnetic Pickup, Score Shield & Mega Invincibility every billing cycle',
+        '5× Warp Escape, Ghost Mode, Orb Magnet, Last Stand & Invincibility every billing cycle',
       ),
       _FeatureItem(
         Icons.emoji_events,

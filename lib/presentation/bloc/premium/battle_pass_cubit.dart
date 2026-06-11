@@ -8,6 +8,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit
 import 'package:get_it/get_it.dart';
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/power_up/power_up_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/progression_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
@@ -322,8 +323,11 @@ class BattlePassCubit extends Cubit<BattlePassState> {
         }
         break;
       case BattlePassRewardType.powerUp:
-        if (reward.itemId != null) {
-          _premiumCubit.unlockPowerUp(reward.itemId!);
+        // Grant a USABLE consumable into the loadout inventory — the old
+        // unlockPowerUp wrote a vestigial "unlocked set" nothing reads,
+        // so battle-pass power-up rewards were never actually claimable.
+        if (reward.itemId != null && GetIt.I.isRegistered<PowerUpCubit>()) {
+          unawaited(GetIt.I<PowerUpCubit>().grant(reward.itemId!, 1));
         }
         break;
       case BattlePassRewardType.coins:

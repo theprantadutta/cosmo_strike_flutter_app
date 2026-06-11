@@ -7,6 +7,7 @@ import 'package:cosmo_strike_flutter_app/data/daos/store_dao.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart' as db;
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
+import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 
@@ -176,6 +177,19 @@ class CoinsCubit extends Cubit<CoinsState> {
           'Coin sync: local=$localTotal, server=$serverCoins '
           '(kept local; server is behind by ${localTotal - serverCoins} — '
           'next sync drain will push)',
+        );
+      } else if (await PurchaseService().hasPendingVerifications) {
+        // Server is ahead BUT coin-pack verifications are still queued:
+        // the server total may be transiently INFLATED. Offline pack
+        // purchases credit Drift instantly AND push the absolute balance
+        // on resume; the queued first-verify then adds the pack AGAIN
+        // server-side (B+2N). Adopting that here would launder the
+        // double-credit into local truth. Hold local until the queue
+        // empties — retryPendingVerifications re-asserts the correct
+        // balance with a fresh push, and the next sync adopts normally.
+        AppLogger.warning(
+          'Coin sync: local=$localTotal, server=$serverCoins — NOT adopting '
+          '(pending purchase verifications may have double-counted server-side)',
         );
       } else {
         // Server is ahead → adopt it. Snapshot-apply skips the outbox

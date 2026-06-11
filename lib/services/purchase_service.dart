@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
 import 'analytics/analytics_facade.dart';
 import 'api_service.dart';
+import 'data_sync_service.dart';
+import 'storage_service.dart';
 
 // Product IDs for different categories
 // Store IDs use the com.pranta.cosmostrike. prefix for Google Play / App Store.
@@ -517,6 +519,40 @@ class PurchaseService {
 
   /// Retry all pending verifications. Called on app resume and connectivity restore.
   /// Uses batch endpoint when multiple verifications are pending.
+  /// True while the offline verification queue is non-empty. CoinsCubit
+  /// uses this to HOLD adopting a server-ahead coin balance — a queued
+  /// coin-pack verify can transiently double-count server-side (the
+  /// absolute balance push already included the pack, then the first
+  /// verify adds it again).
+  Future<bool> get hasPendingVerifications async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return (prefs.getStringList(_pendingVerificationsKey) ?? []).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// After queued COIN-PACK verifications finally land server-side, the
+  /// server's users.Coins is double-counted (resume order: absolute
+  /// balance push B+N first, then the verify adds +N → B+2N). Re-assert
+  /// the client truth with a fresh absolute push so the server settles
+  /// back to the real balance.
+  Future<void> _reassertCoinBalanceAfterVerify() async {
+    try {
+      await StorageService().storeDao.enqueueCoinBalanceSync();
+      unawaited(DataSyncService().forceSyncNow());
+      AppLogger.info(
+        'Re-asserted client coin balance after queued coin-pack verify',
+      );
+    } catch (e) {
+      AppLogger.error('Failed to re-assert coin balance after verify', e);
+    }
+  }
+
+  static bool _isCoinPack(Object? productId) =>
+      productId is String && productId.contains('coin_pack');
+
   Future<void> retryPendingVerifications() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -557,6 +593,7 @@ class PurchaseService {
           final results = result['results'] as List;
           final remaining = <String>[];
 
+          var coinPackVerified = false;
           for (int i = 0; i < entries.length; i++) {
             if (i < results.length) {
               final r = results[i] as Map<String, dynamic>;
@@ -564,6 +601,9 @@ class PurchaseService {
                 AppLogger.info(
                   'Pending verification succeeded: ${entries[i]['product_id']}',
                 );
+                if (_isCoinPack(entries[i]['product_id'])) {
+                  coinPackVerified = true;
+                }
               } else {
                 remaining.add(pending[i]);
               }
@@ -573,6 +613,7 @@ class PurchaseService {
           }
 
           await prefs.setStringList(_pendingVerificationsKey, remaining);
+          if (coinPackVerified) await _reassertCoinBalanceAfterVerify();
           if (remaining.isEmpty) {
             AppLogger.info('All pending verifications completed (batch)');
           } else {
@@ -584,6 +625,7 @@ class PurchaseService {
 
       // Fallback: individual verification (single pending or batch failed)
       final remaining = <String>[];
+      var coinPackVerified = false;
       for (int i = 0; i < entries.length; i++) {
         try {
           final entry = entries[i];
@@ -599,6 +641,7 @@ class PurchaseService {
             AppLogger.info(
               'Pending verification succeeded: ${entry['product_id']}',
             );
+            if (_isCoinPack(entry['product_id'])) coinPackVerified = true;
           } else {
             remaining.add(pending[i]);
           }
@@ -608,6 +651,7 @@ class PurchaseService {
       }
 
       await prefs.setStringList(_pendingVerificationsKey, remaining);
+      if (coinPackVerified) await _reassertCoinBalanceAfterVerify();
       if (remaining.isEmpty) {
         AppLogger.info('All pending verifications completed');
       } else {

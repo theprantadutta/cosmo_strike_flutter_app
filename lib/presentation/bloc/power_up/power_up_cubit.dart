@@ -71,14 +71,56 @@ class PowerUpCubit extends Cubit<PowerUpState> {
         return;
       }
       final decoded = jsonDecode(raw);
+      var inventory = _parseInventory(decoded);
+      // One-shot legacy migration: fold snake-classic keys (camelCase /
+      // mega variants / dead types) into the 8 working keys. Idempotent,
+      // so no version bump is needed; persists only when something folded.
+      final migrated = _migrateLegacyKeys(inventory);
+      if (migrated != null) {
+        inventory = migrated;
+        await _persistInventory(inventory);
+        AppLogger.info('Power-up inventory migrated to working keys');
+      }
       emit(PowerUpState(
-        inventory: _parseInventory(decoded),
+        inventory: inventory,
         loading: false,
       ));
     } catch (e) {
       AppLogger.error('Failed to load power-up inventory', e);
       emit(state.copyWith(loading: false));
     }
+  }
+
+  /// Legacy → working key fold. MUST stay in lockstep with the backend's
+  /// PowerUpCatalog.LegacyKeyMap (ProductCatalog.cs). The six keys with
+  /// no gameplay at all convert 1:1 into score_multiplier as goodwill.
+  /// Returns null when nothing needed folding.
+  static const Map<String, String> _legacyKeyMap = {
+    'megaSpeedBoost': 'speed_boost',
+    'megaInvincibility': 'invincibility',
+    'mega_invincibility': 'invincibility',
+    'megaScoreMultiplier': 'score_multiplier',
+    'megaSlowMotion': 'slow_motion',
+    'ghostMode': 'ghost_mode',
+    'scoreShield': 'score_shield',
+    'magneticFood': 'magnetic_pickup',
+    'sizeReducer': 'score_multiplier',
+    'comboMultiplier': 'score_multiplier',
+    'timeWarp': 'score_multiplier',
+    'doubleTrouble': 'score_multiplier',
+    'luckyCharm': 'score_multiplier',
+    'powerSurge': 'score_multiplier',
+  };
+
+  static Map<String, int>? _migrateLegacyKeys(Map<String, int> inventory) {
+    var changed = false;
+    final result = <String, int>{};
+    inventory.forEach((key, count) {
+      final target = _legacyKeyMap[key] ?? key;
+      if (target != key) changed = true;
+      result[target] = (result[target] ?? 0) + count;
+    });
+    return changed ? result : null;
   }
 
   /// Buy one use of a basic power-up. Local-only: spends coins via
@@ -120,10 +162,9 @@ class PowerUpCubit extends Cubit<PowerUpState> {
     if (!ok) return null;
 
     final grants = <String, int>{};
-    for (final premium in bundle.powerUps) {
-      final key = _inventoryKeyForPremium(premium);
-      grants[key] = (grants[key] ?? 0) + 1;
-    }
+    bundle.powerUps.forEach((type, count) {
+      grants[type.inventoryKey] = (grants[type.inventoryKey] ?? 0) + count;
+    });
     await _grantToInventory(grants);
     return coins.state.balance.total;
   }
@@ -165,10 +206,10 @@ class PowerUpCubit extends Cubit<PowerUpState> {
     emit(state.copyWith(clearArmed: true));
   }
 
-  /// Map the snake_case inventory key to the gameplay PowerUpType enum.
-  /// Returns null for keys that aren't part of the basic-power-up set
-  /// (e.g. premium-bundle items live in inventory but have no in-game
-  /// trigger yet); callers should treat null as "ignore this key".
+  /// Map the snake_case inventory key to the legacy gameplay PowerUpType
+  /// enum (the 4 basics). The other 4 working keys (teleport, ghost_mode,
+  /// magnetic_pickup, score_shield) are applied by ArmedLoadout.apply in
+  /// the Flame game directly; callers should treat null as "not a basic".
   static PowerUpType? typeFromInventoryKey(String key) {
     switch (key) {
       case 'speed_boost':
@@ -184,23 +225,36 @@ class PowerUpCubit extends Cubit<PowerUpState> {
     }
   }
 
-  /// Translate a premium power-up enum value to the inventory key the
-  /// rest of the app uses. Mega-variants fold back into their basic
-  /// counterparts so existing in-game activation handles them; the
-  /// truly exclusive types use their enum name verbatim and are
-  /// inert until gameplay logic is wired up.
-  static String _inventoryKeyForPremium(PremiumPowerUpType type) {
-    switch (type) {
-      case PremiumPowerUpType.megaSpeedBoost:
-        return 'speed_boost';
-      case PremiumPowerUpType.megaInvincibility:
-        return 'invincibility';
-      case PremiumPowerUpType.megaScoreMultiplier:
-        return 'score_multiplier';
-      case PremiumPowerUpType.megaSlowMotion:
-        return 'slow_motion';
-      default:
-        return type.name;
+  /// Public single-key grant — battle-pass rewards and other earn paths.
+  Future<void> grant(String powerUpKey, int count) =>
+      _grantToInventory({powerUpKey: count});
+
+  /// SP key: ids of server power-up grants already applied on this device.
+  static const String _appliedGrantsPrefsKey = 'applied_power_up_grant_ids_v1';
+
+  /// Apply a server-delivered power-up grant (the Pro subscription's
+  /// per-period bundle) exactly once per [grantId]. Inventory persists
+  /// BEFORE the id is recorded — a crash between the two risks one
+  /// duplicate grant, which beats silently losing one. Returns true when
+  /// the grant was applied (false = already applied earlier).
+  Future<bool> applyServerGrant(String grantId, Map<String, int> grant) async {
+    if (grantId.isEmpty || grant.isEmpty) return false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final applied = prefs.getStringList(_appliedGrantsPrefsKey) ?? <String>[];
+      if (applied.contains(grantId)) return false;
+      await _grantToInventory(grant);
+      applied.add(grantId);
+      // Cap the ledger — one entry per subscription period, two dozen
+      // covers two years of monthly renewals.
+      while (applied.length > 24) {
+        applied.removeAt(0);
+      }
+      await prefs.setStringList(_appliedGrantsPrefsKey, applied);
+      return true;
+    } catch (e) {
+      AppLogger.error('Failed to apply server power-up grant $grantId', e);
+      return false;
     }
   }
 
