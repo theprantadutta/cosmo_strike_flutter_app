@@ -78,6 +78,13 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// shows the same number it actually pays out.
   static const int _tutorialRewardCoins = 150;
 
+  /// Coins this run actually earned (set by _submitRun) — the game-over
+  /// "watch ad → 2× coins" offer pays out exactly this amount again.
+  int _runCoinsEarned = 0;
+
+  /// Whether the double-coins reward was already claimed this run.
+  bool _coinsDoubled = false;
+
   @override
   void initState() {
     super.initState();
@@ -99,8 +106,12 @@ class _GameplayScreenState extends State<GameplayScreen>
       unawaited(powerUps.consume(armedKey));
     }
 
-    // Pre-load a rewarded ad so the revive offer is ready when needed.
+    // Pre-load a rewarded ad so the revive / double-coins offers are
+    // ready when needed, and an interstitial for the game-over exit
+    // (frequency-capped inside AdService — every 3rd game, 3-min gap,
+    // never in the first session, never for Pro).
     AdService().preloadRewarded();
+    AdService().preloadInterstitial();
 
     // First-run tutorial: only on a Level-1 start, only until completed
     // or skipped once (the flag is prefs-backed and resettable from
@@ -277,13 +288,15 @@ class _GameplayScreenState extends State<GameplayScreen>
     ));
 
     try {
+      final coinsEarned = 10 +
+          r.enemiesKilled +
+          r.bossesKilled * 50 +
+          r.levelsCleared * 25 +
+          firstClears * 75;
+      if (mounted) setState(() => _runCoinsEarned = coinsEarned);
       await coins.earnCoins(
         CoinEarningSource.gameCompleted,
-        customAmount: 10 +
-            r.enemiesKilled +
-            r.bossesKilled * 50 +
-            r.levelsCleared * 25 +
-            firstClears * 75,
+        customAmount: coinsEarned,
       );
       battlePass.bufferXP(
         20 + r.score ~/ 100 + r.levelsCleared * 15 + firstClears * 40,
@@ -347,6 +360,40 @@ class _GameplayScreenState extends State<GameplayScreen>
           const SnackBar(content: Text('Ad not ready — try coins instead')),
         );
       }
+    });
+  }
+
+  /// Game-over "watch ad → 2× coins": pays the run's coin earnings out a
+  /// second time. Daily-capped in AdService; reward applies on ad dismiss.
+  Future<void> _doubleRunCoins() async {
+    final coins = context.read<CoinsCubit>();
+    final earned = _runCoinsEarned;
+    final shown = await AdService().showRewardedCapped(
+      capKey: AdService.capDoubleCoins,
+      onReward: () {
+        unawaited(coins.earnCoins(
+          CoinEarningSource.watchedAd,
+          customAmount: earned,
+          itemName: 'Game over 2× coins',
+          metadata: const {'placement': 'game_over_double'},
+        ));
+        if (mounted) setState(() => _coinsDoubled = true);
+      },
+    );
+    if (!shown && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ad not ready — try again in a moment')),
+      );
+    }
+  }
+
+  /// Leave the game-over screen through the (frequency-capped)
+  /// interstitial: every 3rd game with a 3-minute minimum gap, never in
+  /// the first session, never for Pro — all enforced inside AdService.
+  /// The navigation always runs, ad or no ad.
+  void _exitWithInterstitial(VoidCallback navigate) {
+    AdService().maybeShowInterstitialOnGameOver().whenComplete(() {
+      if (mounted) navigate();
     });
   }
 
@@ -568,19 +615,45 @@ class _GameplayScreenState extends State<GameplayScreen>
                             '${r.enemiesKilled} destroyed   •   ${r.bossesKilled} bosses'
                             '${r.levelsCleared > 0 ? '\n${r.levelsCleared} level${r.levelsCleared == 1 ? '' : 's'} cleared' : ''}'
                             '${unlocked > 0 ? '   •   Level $unlocked unlocked' : ''}',
+                    // "Watch ad → 2× coins": shown while the offer is live
+                    // (coins earned, ad loaded, daily cap not hit); swaps
+                    // to a confirmation once claimed.
+                    extra: _coinsDoubled
+                        ? Text(
+                            '+$_runCoinsEarned BONUS COINS CLAIMED',
+                            style: const TextStyle(
+                              color: Color(0xFFFFD37B),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.4,
+                            ),
+                          )
+                        : (_runCoinsEarned > 0 &&
+                                AdService()
+                                    .canShowCapped(AdService.capDoubleCoins))
+                            ? _OverlayButton(
+                                label:
+                                    '▶ WATCH AD: 2× COINS (+$_runCoinsEarned)',
+                                onTap: _doubleRunCoins,
+                              )
+                            : null,
                     actions: [
                       _OverlayButton(
                         label: 'RETRY',
-                        onTap: () => context.pushReplacement(
-                          AppRoutes.game,
-                          extra: widget.startLevel,
+                        onTap: () => _exitWithInterstitial(
+                          () => context.pushReplacement(
+                            AppRoutes.game,
+                            extra: widget.startLevel,
+                          ),
                         ),
                       ),
                       _OverlayButton(
                         label: victory ? 'CAMPAIGN' : 'HOME',
-                        onTap: () => victory
-                            ? context.go(AppRoutes.levelSelect)
-                            : context.go(AppRoutes.home),
+                        onTap: () => _exitWithInterstitial(
+                          () => victory
+                              ? context.go(AppRoutes.levelSelect)
+                              : context.go(AppRoutes.home),
+                        ),
                         secondary: true,
                       ),
                     ],

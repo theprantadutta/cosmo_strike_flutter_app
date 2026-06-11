@@ -8,6 +8,7 @@ import '../presentation/bloc/theme/theme_cubit.dart';
 import '../router/routes.dart';
 import '../services/audio_service.dart';
 import '../ui/design.dart';
+import '../widgets/ads/banner_ad_widget.dart';
 import '../utils/campaign_catalog.dart';
 import '../utils/constants.dart';
 
@@ -42,6 +43,7 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
         return CommandScaffold(
           theme: theme,
           title: 'Campaign',
+          bottomBar: const ShipBannerAd(),
           bodyPadding: EdgeInsets.zero,
           body: StreamBuilder<List<StageProgressRow>>(
             stream: GetIt.I<AppDatabase>().stageProgressDao.watchAll(),

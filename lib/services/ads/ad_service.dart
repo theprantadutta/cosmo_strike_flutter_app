@@ -264,6 +264,10 @@ class AdService {
   /// one, so it's ready by the time the user taps.
   void preloadRewarded() => _loadRewarded();
 
+  /// Eagerly (re)load an interstitial — call when a run starts so the
+  /// game-over exit interstitial is ready when the cap allows one.
+  void preloadInterstitial() => _loadInterstitial();
+
   /// Show the rewarded ad. [onReward] fires only if the user earned the reward
   /// (watched to completion) AND **after the ad is dismissed** — never while
   /// it's still on screen. This matters for the revive placement: granting on
@@ -305,10 +309,14 @@ class AdService {
   static const String capFreeCoins = 'free_coins';
   static const String capFreePowerUp = 'free_powerup';
   static const String capBattlePassXp = 'bp_xp';
+
+  /// Game-over "double your run's coins" offer.
+  static const String capDoubleCoins = 'double_coins';
   static const Map<String, int> dailyCaps = {
     capFreeCoins: 5,
     capFreePowerUp: 3,
     capBattlePassXp: 3,
+    capDoubleCoins: 5,
   };
 
   /// Coins granted per "watch for coins" ad.
