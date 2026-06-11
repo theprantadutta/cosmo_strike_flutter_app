@@ -805,23 +805,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           padding: const EdgeInsets.only(bottom: 8),
           child: GestureDetector(
             onTap: () => _openLoadoutSheet(theme, powerUpState),
+            // Transparent chip — keep the whole pill tappable.
+            behavior: HitTestBehavior.opaque,
             child: Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 14,
                 vertical: 8,
               ),
-              decoration: BoxDecoration(
-                color: armed != null
-                    ? theme.accentColor.withValues(alpha: 0.18)
-                    : theme.accentColor.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: armed != null
-                      ? theme.accentColor
-                      : theme.accentColor.withValues(alpha: 0.25),
-                  width: armed != null ? 1.5 : 1,
-                ),
-              ),
+              // Borderless: an ARMED loadout earns a deliberate tinted
+              // highlight + glow; unarmed floats fully transparent on
+              // the starfield (icon + text alone carry it).
+              decoration: armed != null
+                  ? BoxDecoration(
+                      color: theme.accentColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.accentColor.withValues(alpha: 0.25),
+                          blurRadius: 12,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    )
+                  : null,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -921,7 +927,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             theme: theme,
             icon: Icons.diamond,
             label: 'PRO',
-            gradient: [Colors.purple.shade400, Colors.indigo.shade400],
+            accent: Colors.purple.shade300,
             isSmallScreen: isSmallScreen,
             onTap: () => context.push(AppRoutes.premiumBenefits),
           ),
@@ -934,7 +940,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             theme: theme,
             icon: Icons.store,
             label: 'STORE',
-            gradient: [Colors.orange.shade400, Colors.amber.shade400],
+            accent: Colors.amber,
             isSmallScreen: isSmallScreen,
             onTap: () => context.push(AppRoutes.store),
             widgetKey: HomeWalkthrough.storeKey,
@@ -1002,7 +1008,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     required GameTheme theme,
     required IconData icon,
     required String label,
-    required List<Color> gradient,
+    required Color accent,
     required bool isSmallScreen,
     required VoidCallback onTap,
     Key? widgetKey,
@@ -1020,7 +1026,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // scales with the button instead of staying frozen at the old
         // 48-px values. The clamps keep the geometry within sensible
         // bounds on extreme screen sizes.
-        final iconBgPadding = (buttonHeight * 0.10).clamp(4.0, 7.0);
+        final discSize = (buttonHeight * 0.52).clamp(32.0, 40.0);
         final iconSize = (buttonHeight * 0.26).clamp(14.0, 18.0);
         final labelSize = (buttonHeight * 0.21).clamp(11.0, 14.0);
 
@@ -1039,30 +1045,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               maxWidth: constraints.maxWidth,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            // Fully transparent — no fill, no border. The coloured icon disc +
+            // Fully transparent — no fill, no border. The neon icon disc +
             // label carry the button; clean look per the minimal direction.
             decoration: const BoxDecoration(),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Icon disc on top, label below — gives the label the full
-                // button width so PRO / STORE / COINS all render at the SAME
-                // fixed size (no per-button FittedBox scaling).
+                // Neon tint disc (same language as the nav rail chips):
+                // translucent fill + glow, glyph in the accent color.
                 Container(
-                  padding: EdgeInsets.all(iconBgPadding),
+                  width: discSize,
+                  height: discSize,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: gradient),
+                    color: accent.withValues(alpha: 0.14),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: gradient[0].withValues(alpha: 0.3),
-                        blurRadius: 5,
-                        offset: const Offset(0, 1),
+                        color: accent.withValues(alpha: 0.28),
+                        blurRadius: 12,
+                        spreadRadius: 1,
                       ),
                     ],
                   ),
-                  child: Icon(icon, color: Colors.white, size: iconSize),
+                  child: Icon(icon, color: accent, size: iconSize),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -1071,9 +1077,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: labelSize,
-                    fontWeight: FontWeight.w800,
-                    color: gradient[0],
-                    letterSpacing: 0.9,
+                    fontWeight: FontWeight.w700,
+                    color: theme.textPrimary.withValues(alpha: 0.88),
+                    letterSpacing: 1.1,
                   ),
                 ),
               ],
@@ -1180,17 +1186,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     int index, {
     double alignY = 0,
   }) {
-    // Same button language as the PRO / STORE pair under the launch
-    // emblem: a filled gradient icon disc (white glyph + soft colored
-    // glow) with the label in the item's color below — no borders, no
-    // hollow outlines. Each item keeps its own color identity, exactly
-    // like PRO (purple) and STORE (orange) do.
+    // Clean borderless neon disc — the same language as the daily /
+    // leaderboard redesigns: a translucent tint circle (NOT a solid
+    // gradient fill) with a soft glow, the glyph in the item's neon
+    // color, and a quiet near-white label. Definition comes from glow
+    // and spacing, never fills heavy enough to read as boxes.
     final base = item.color;
-    final gradient = [
-      base,
-      Color.lerp(base, const Color(0xFF05060F), 0.35)!,
-    ];
-    // Icon + label live together as one tight group INSIDE the card. [alignY]
+    // Icon + label live together as one tight group INSIDE the cell. [alignY]
     // pulls the group vertically toward the rail's centre (top row nudged
     // down, bottom row nudged up) so the two rows sit closer together.
     // No GlassPanel here on purpose: its BackdropFilter blur smears the
@@ -1209,32 +1211,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             Stack(
               clipBehavior: Clip.none,
               children: [
-                // Filled gradient icon disc (the PRO/STORE look).
+                // Neon tint disc: see-through fill + outer glow.
                 Container(
-                  padding: const EdgeInsets.all(9),
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: gradient),
+                    color: base.withValues(alpha: 0.14),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: base.withValues(alpha: 0.3),
-                        blurRadius: 5,
-                        offset: const Offset(0, 1),
+                        color: base.withValues(alpha: 0.28),
+                        blurRadius: 12,
+                        spreadRadius: 1,
                       ),
                     ],
                   ),
-                  child: Icon(item.icon, color: Colors.white, size: 20),
+                  child: Icon(item.icon, color: base, size: 20),
                 ),
                 if (item.badge != null && item.badge! > 0)
                   Positioned(
-                    right: -6,
-                    top: -6,
+                    right: -5,
+                    top: -5,
                     child: Container(
                       padding: const EdgeInsets.all(3),
                       decoration: BoxDecoration(
-                        color: Colors.red,
+                        color: Colors.redAccent,
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
+                        // Glow instead of the old white ring — no borders.
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.redAccent.withValues(alpha: 0.6),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ],
                       ),
                       constraints: const BoxConstraints(
                         minWidth: 16,
@@ -1254,17 +1264,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 5),
             Text(
               item.label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: base,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.9,
+                color: theme.textPrimary.withValues(alpha: 0.88),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
               ),
             ),
           ],
