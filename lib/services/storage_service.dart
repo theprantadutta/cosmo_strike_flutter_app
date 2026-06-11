@@ -200,6 +200,17 @@ class StorageService {
     await _settingsDao?.updateScreenShakeEnabled(enabled);
   }
 
+  // ==================== Haptics ====================
+
+  Future<bool> isHapticsEnabled() async {
+    final settings = await _settingsDao?.getSettings();
+    return settings?.hapticsEnabled ?? true;
+  }
+
+  Future<void> setHapticsEnabled(bool enabled) async {
+    await _settingsDao?.updateHapticsEnabled(enabled);
+  }
+
   // ==================== Statistics ====================
 
   Future<String?> getStatistics() async {
@@ -490,23 +501,40 @@ class StorageService {
   }
 
   // ==================== Game Mode ====================
+  // Lives in the Drift settings row (synced to the backend). The old
+  // build stored it in SharedPreferences only — migrated one-shot below.
 
   static const String _gameModeKey = 'selected_game_mode';
   static const String _gameModePromptedKey = 'game_mode_first_launch_prompted';
 
   Future<GameMode> getGameMode() async {
+    // One-time legacy migration: pre-v3 builds stored the mode's DISPLAY
+    // name (GameMode.name is shadowed — 'Classic', 'Zen Mode', …) in
+    // SharedPreferences and never synced it. Move it into Drift (which
+    // also enqueues the first sync push) and drop the old key.
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_gameModeKey);
-    if (raw == null) return GameMode.classic;
-    for (final mode in GameMode.values) {
-      if (mode.name == raw) return mode;
+    final legacy = prefs.getString(_gameModeKey);
+    if (legacy != null) {
+      var mode = GameMode.classic;
+      for (final m in GameMode.values) {
+        if (m.name == legacy) {
+          mode = m;
+          break;
+        }
+      }
+      await _settingsDao?.updateGameMode(mode.index);
+      await prefs.remove(_gameModeKey);
+      return mode;
     }
-    return GameMode.classic;
+
+    final settings = await _settingsDao?.getSettings();
+    final idx =
+        (settings?.gameModeIndex ?? 0).clamp(0, GameMode.values.length - 1);
+    return GameMode.values[idx];
   }
 
   Future<void> saveGameMode(GameMode mode) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_gameModeKey, mode.name);
+    await _settingsDao?.updateGameMode(mode.index);
   }
 
   Future<bool> hasGameModeBeenPrompted() async {

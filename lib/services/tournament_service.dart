@@ -7,6 +7,7 @@ import 'package:cosmo_strike_flutter_app/data/daos/tournament_dao.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart';
 import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
+import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:uuid/uuid.dart';
 
@@ -258,6 +259,10 @@ class TournamentService {
       );
     }
     _joinedController.add(tournamentId);
+    // Subscribe to this tournament's FCM topic so per-tournament
+    // reminders from the backend actually reach this device (gated by
+    // the tournament notification toggle inside the service).
+    unawaited(NotificationService().onTournamentJoined(tournamentId));
     return true;
   }
 

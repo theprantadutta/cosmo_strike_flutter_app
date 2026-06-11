@@ -78,6 +78,14 @@ class SettingsDao extends DatabaseAccessor<AppDatabase>
       _writeSettings(
           GameSettingsCompanion(screenShakeEnabled: Value(enabled)));
 
+  /// Update single-player game mode (GameMode enum index)
+  Future<void> updateGameMode(int gameModeIndex) =>
+      _writeSettings(GameSettingsCompanion(gameModeIndex: Value(gameModeIndex)));
+
+  /// Update haptics enabled
+  Future<void> updateHapticsEnabled(bool enabled) =>
+      _writeSettings(GameSettingsCompanion(hapticsEnabled: Value(enabled)));
+
   /// Update selected skin
   Future<void> updateSelectedSkin(String? skinId) =>
       _writeSettings(GameSettingsCompanion(selectedSkinId: Value(skinId)));

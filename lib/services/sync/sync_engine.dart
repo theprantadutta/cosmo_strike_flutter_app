@@ -13,8 +13,13 @@ import 'package:cosmo_strike_flutter_app/data/daos/store_dao.dart';
 import 'package:cosmo_strike_flutter_app/data/daos/sync_dao.dart';
 import 'package:cosmo_strike_flutter_app/models/achievement.dart' as ach_model;
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cubit.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
+import 'package:cosmo_strike_flutter_app/services/haptic_service.dart';
+import 'package:cosmo_strike_flutter_app/utils/constants.dart'
+    show GameMode, GameTheme;
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:cosmo_strike_flutter_app/widgets/sync_restore_overlay.dart';
 
@@ -562,6 +567,11 @@ class SyncEngine {
       // re-enqueues would be wiped instantly.
       await _syncDao!.clearSyncQueue();
       await _applyCloudSnapshot(snapshot);
+      // The apply wrote Drift, but ThemeCubit reads its SharedPreferences
+      // mirror and the cubits were hydrated long before sign-in — push
+      // the restored values into the live stores so the user actually
+      // SEES their theme / mode / haptics come back.
+      await _rehydrateSettingsMirrors();
       await prefs.setBool(_hasEverSignedInPrefsKey, true);
       await _ensureMinModalTime(pullingStart);
       _emitFirstSignInState(FirstSignInState.restored);
@@ -981,6 +991,8 @@ class SyncEngine {
         'screen_shake_enabled': r.screenShakeEnabled,
         'selected_skin_id': r.selectedSkinId,
         'selected_trail_id': r.selectedTrailId,
+        'game_mode_index': r.gameModeIndex,
+        'haptics_enabled': r.hapticsEnabled,
         'updated_at': _utcIso(r.updatedAt),
       };
 
@@ -1112,6 +1124,32 @@ class SyncEngine {
 
   String? _utcIsoNullable(DateTime? dt) => dt?.toUtc().toIso8601String();
 
+  /// Push restored settings back into the SharedPreferences mirror and
+  /// the live cubits/services. The snapshot apply writes Drift, but
+  /// ThemeCubit reads PreferencesService synchronously and every cubit
+  /// was hydrated at boot, long before this restore ran — without this
+  /// step a restored theme / trail / game mode / haptics value stays
+  /// invisible until the next reinstall. Failures are swallowed: a
+  /// rehydrate problem must never fail the restore itself.
+  Future<void> _rehydrateSettingsMirrors() async {
+    try {
+      final row = await _settingsDao?.getSettings();
+      if (row == null) return;
+      final theme = GameTheme
+          .values[row.themeIndex.clamp(0, GameTheme.values.length - 1)];
+      final mode = GameMode
+          .values[row.gameModeIndex.clamp(0, GameMode.values.length - 1)];
+      await GetIt.I<ThemeCubit>().applyRestoredSettings(
+        theme: theme,
+        trailEnabled: row.trailSystemEnabled,
+      );
+      GetIt.I<GameSettingsCubit>().applyRestoredGameMode(mode);
+      HapticService().setEnabled(row.hapticsEnabled);
+    } catch (e) {
+      AppLogger.error('SyncEngine: settings rehydrate after restore failed', e);
+    }
+  }
+
   /// Apply a server snapshot to local Drift, suppressing outbox
   /// enqueues so the data doesn't echo back as a push. Wrapped in a
   /// single transaction — if any section throws, the whole apply
@@ -1173,6 +1211,8 @@ class SyncEngine {
                 Value(settings['screen_shake_enabled'] as bool? ?? false),
             selectedSkinId: Value(settings['selected_skin_id'] as String?),
             selectedTrailId: Value(settings['selected_trail_id'] as String?),
+            gameModeIndex: Value(settings['game_mode_index'] as int? ?? 0),
+            hapticsEnabled: Value(settings['haptics_enabled'] as bool? ?? true),
             lastUpdated: Value(_parseDate(settings['updated_at']) ?? DateTime.now()),
             updatedAt: Value(_parseDate(settings['updated_at']) ?? DateTime.now()),
           ),

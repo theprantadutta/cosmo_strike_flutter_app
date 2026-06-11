@@ -17,6 +17,8 @@ import '../presentation/bloc/coins/coins_cubit.dart';
 import '../presentation/bloc/game/game_settings_cubit.dart';
 import '../presentation/bloc/power_up/power_up_cubit.dart';
 import '../presentation/bloc/premium/battle_pass_cubit.dart';
+import '../presentation/bloc/premium/premium_cubit.dart';
+import '../presentation/bloc/theme/theme_cubit.dart';
 import '../router/routes.dart';
 import '../services/ads/ad_service.dart';
 import '../services/analytics/analytics_facade.dart';
@@ -112,6 +114,11 @@ class _GameplayScreenState extends State<GameplayScreen>
       unawaited(GetIt.I<AnalyticsFacade>().trackGameTutorialStarted());
     }
 
+    // Equipped cosmetics (skin tint + trail stream) — snapshot at run
+    // start, same as the control settings.
+    final premium = context.read<PremiumCubit>().state;
+    final themeState = context.read<ThemeCubit>().state;
+
     // The selected game mode is a MODIFIER on top of the campaign level
     // (lives, pacing, enemy fire, drops, one-hit, Time Attack clock).
     // Snapshot at run start.
@@ -125,6 +132,9 @@ class _GameplayScreenState extends State<GameplayScreen>
       tutorial: _tutorialRun,
       dPadControls: _dPadEnabled,
       onTutorialOutcome: _handleTutorialOutcome,
+      selectedSkinId: premium.selectedSkinId,
+      selectedTrailId: premium.selectedTrailId,
+      trailEffectsEnabled: themeState.trailSystemEnabled,
     );
   }
 

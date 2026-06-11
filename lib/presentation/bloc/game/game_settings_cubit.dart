@@ -256,6 +256,14 @@ class GameSettingsCubit extends Cubit<GameSettingsState> {
   /// Alias for setGameMode
   Future<void> updateGameMode(GameMode mode) => setGameMode(mode);
 
+  /// Cloud-restore path (SyncEngine first-sign-in pull): emit-only. The
+  /// snapshot apply already wrote the Drift row; re-saving here would
+  /// enqueue a pointless echo push.
+  void applyRestoredGameMode(GameMode mode) {
+    if (state.gameMode == mode) return;
+    emit(state.copyWith(gameMode: mode));
+  }
+
   /// Mark the first-launch game mode prompt as shown.
   Future<void> markGameModePrompted() async {
     if (state.gameModeFirstLaunchPrompted) return;

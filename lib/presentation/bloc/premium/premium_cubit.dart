@@ -429,6 +429,17 @@ class PremiumCubit extends Cubit<PremiumState> {
     await _storageService.setSelectedTrailId(trailId);
     _analytics.trackCosmeticEquipped(cosmeticType: 'trail', cosmeticId: trailId);
     unawaited(ApiService().setEquippedCosmetics(trailId: trailId));
+
+    // Equipping a real trail flips the 'Engine Trail Effects' master
+    // gate on — it defaults to off, and a buyer who equips a trail
+    // expects to SEE it in-game, not to hunt down a second toggle.
+    if (trailId != 'none') {
+      try {
+        unawaited(getIt<ThemeCubit>().setTrailSystemEnabled(true));
+      } catch (e) {
+        AppLogger.warning('Could not auto-enable trail effects: $e');
+      }
+    }
   }
 
   /// Push the currently-applied theme to the backend so it survives

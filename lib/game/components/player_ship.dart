@@ -6,6 +6,7 @@ import 'package:flame/flame.dart';
 import 'package:flame/sprite.dart';
 import 'package:flutter/painting.dart';
 
+import '../../models/premium_cosmetics.dart' show ShipSkinType;
 import '../cosmo_strike_game.dart';
 import '../game_assets.dart';
 import '../game_audio.dart';
@@ -45,6 +46,18 @@ class PlayerShip extends PositionComponent
         const ColorFilter.mode(Color(0xCCFF4D6E), BlendMode.srcATop);
 
   void flashDamage() => _damageFlash = 0.35;
+
+  // ---- cosmetic skin (tint + glow) ----
+  // srcATop at partial alpha tints the hull in the skin's palette while
+  // keeping ~45% of the sprite's own shading (full alpha would flatten
+  // it to a silhouette; modulate would multiply dark palettes to mud).
+  // Classic = null paints = bitwise-identical stock render.
+  static const double _skinTintAlpha = 0.55;
+  static const double _skinGlowAlpha = 0.30;
+  ShipSkinType _skin = ShipSkinType.classic;
+  Paint? _skinPaint;
+  Paint? _skinGlowPaint;
+  double _skinTime = 0;
 
   // ---- one-shot charges (armed loadout) ----
   /// First lethal-or-not hit is negated by warping back to spawn.
@@ -116,6 +129,21 @@ class PlayerShip extends PositionComponent
     ));
     respawn();
     _lastY = position.y;
+
+    // Equipped cosmetic skin → tint + glow paints (classic stays null).
+    _skin = ShipSkinType.values
+            .where((s) => s.id == game.selectedSkinId)
+            .firstOrNull ??
+        ShipSkinType.classic;
+    if (_skin != ShipSkinType.classic && _skin.colors.isNotEmpty) {
+      final c = _skin.colors.first;
+      _skinPaint = Paint()
+        ..colorFilter = ColorFilter.mode(
+            c.withValues(alpha: _skinTintAlpha), BlendMode.srcATop);
+      _skinGlowPaint = Paint()
+        ..color = c.withValues(alpha: _skinGlowAlpha)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+    }
   }
 
   void respawn({bool withWarpFx = false}) {
@@ -247,6 +275,22 @@ class PlayerShip extends PositionComponent
     }
     _exhaust.update(dt);
 
+    // Multi-color skins cycle their palette (rainbow sweeps, golden
+    // shimmers): lerp between consecutive colors, one second per color.
+    // Re-targets the existing Paint objects — no per-frame allocation
+    // beyond the immutable ColorFilter.
+    final skinColors = _skin.colors;
+    if (_skinPaint != null && skinColors.length > 1) {
+      _skinTime += dt;
+      final t = _skinTime % skinColors.length;
+      final i = t.floor();
+      final c = Color.lerp(
+          skinColors[i], skinColors[(i + 1) % skinColors.length], t - i)!;
+      _skinPaint!.colorFilter = ColorFilter.mode(
+          c.withValues(alpha: _skinTintAlpha), BlendMode.srcATop);
+      _skinGlowPaint!.color = c.withValues(alpha: _skinGlowAlpha);
+    }
+
     // ---- movement: smoothed velocity toward the desired vector ----
     // (d-pad direction OR pan-steer target with proportional braking)
     final desired = _desiredVelocity();
@@ -337,12 +381,26 @@ class PlayerShip extends PositionComponent
     // Invulnerability blink: skip every other flicker window.
     final blinkOff = _invuln > 0 && (_invuln * 8 % 1) > 0.5;
 
-    // Paint priority: ghost phase > fresh-damage red flash > invuln blink.
+    // Paint priority: ghost phase > fresh-damage red flash > invuln
+    // blink > cosmetic skin tint. Gameplay feedback always reads over
+    // the cosmetic.
     final paint = ghosted
         ? (Paint()..color = const Color(0x80FFFFFF))
         : _damageFlash > 0
             ? _damagePaint
-            : (blinkOff ? (Paint()..color = const Color(0x55FFFFFF)) : null);
+            : (blinkOff
+                ? (Paint()..color = const Color(0x55FFFFFF))
+                : _skinPaint);
+
+    // Skin glow halo behind everything — suppressed during blink-off
+    // frames so the invulnerability flicker still reads.
+    if (_skinGlowPaint != null && !blinkOff) {
+      canvas.drawCircle(
+        Offset(size.x / 2, size.y / 2),
+        size.x * 0.62,
+        _skinGlowPaint!,
+      );
+    }
 
     // Exhaust behind the tail.
     final exhaustSprite = _exhaust.getSprite();

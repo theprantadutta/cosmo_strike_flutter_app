@@ -130,7 +130,11 @@ Future<void> configureDependencies() async {
   // This ensures fresh state when navigating to new screens
 
   getIt.registerLazySingleton<ThemeCubit>(
-    () => ThemeCubit(getIt<PreferencesService>(), getIt<AnalyticsFacade>()),
+    () => ThemeCubit(
+      getIt<PreferencesService>(),
+      getIt<StorageService>(),
+      getIt<AnalyticsFacade>(),
+    ),
   );
 
   getIt.registerFactory<AuthCubit>(

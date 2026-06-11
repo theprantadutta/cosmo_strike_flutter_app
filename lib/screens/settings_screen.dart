@@ -14,6 +14,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
+import 'package:cosmo_strike_flutter_app/services/haptic_service.dart';
 import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/username_service.dart';
@@ -45,6 +46,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _musicEnabled = true;
   bool _dPadEnabled = false;
   bool _screenShakeEnabled = false;
+  // Hydrated in main.dart from the Drift settings row — the in-memory
+  // singleton value is authoritative by the time this screen builds.
+  bool _hapticsEnabled = HapticService().isEnabled;
   DPadPosition _dPadPosition = DPadPosition.bottomCenter;
   GameMode _selectedGameMode = GameMode.classic;
 
@@ -410,6 +414,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 16),
               _buildDPadPositionSelector(gameState, theme),
             ],
+            const SizedBox(height: 16),
+            _buildAudioSwitch('Haptic Feedback', _hapticsEnabled, (
+              value,
+            ) async {
+              setState(() {
+                _hapticsEnabled = value;
+              });
+              HapticService().setEnabled(value);
+              await _storageService.setHapticsEnabled(value);
+              // Confirm-by-feel: a single thud instantly proves it works.
+              if (value) await HapticService().mediumImpact();
+              _analytics.trackSettingChanged(
+                settingName: 'haptics_enabled',
+                value: '$value',
+              );
+            }, theme),
+            const SizedBox(height: 8),
+            Text(
+              'Vibrate on hits, pickups, and boss beats',
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
             const SizedBox(height: 16),
             _buildControlInfo(theme),
           ], theme),

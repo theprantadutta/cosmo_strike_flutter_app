@@ -28,7 +28,9 @@ import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
 import 'package:cosmo_strike_flutter_app/services/auth_service.dart';
 import 'package:cosmo_strike_flutter_app/services/data_sync_service.dart';
+import 'package:cosmo_strike_flutter_app/services/haptic_service.dart';
 import 'package:cosmo_strike_flutter_app/services/in_app_update_service.dart';
+import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
 import 'package:cosmo_strike_flutter_app/services/preferences_service.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
@@ -122,11 +124,21 @@ void main() async {
     );
     AppLogger.success('Audio service initialized');
 
+    // Start the background-music loop (no-op while the toggle is off or
+    // the track at assets/audio/background_music.mp3 hasn't shipped).
+    unawaited(AudioService().playBackgroundMusic());
+
     // Walkthrough flags (home tour / game tutorial / control choice) are
     // read SYNCHRONOUSLY at screen-build time — hydrate the prefs-backed
     // service up front so a launch into Play can never mis-read
     // "tutorial already done".
     await WalkthroughService().initialize();
+
+    // Hydrate the haptics master toggle from the Drift settings row
+    // (synced setting; defaults to on). HapticService is an in-memory
+    // singleton — without this, every launch would vibrate regardless
+    // of the saved preference.
+    HapticService().setEnabled(await getIt<StorageService>().isHapticsEnabled());
 
     // NotificationService.initialize() is no longer called here — it
     // requests the OS notification permission as a side effect, and
@@ -277,6 +289,15 @@ class _CosmoStrikeAppState extends State<CosmoStrikeApp>
       DataSyncService().forceSyncNow();
       // Re-authenticate with backend if JWT expired and refresh premium state
       _refreshOnResume();
+      unawaited(AudioService().resumeBackgroundMusic());
+    }
+
+    // Music pauses ONLY on a real background transition — `inactive`
+    // fires on transient occlusions (permission dialogs, system sheets,
+    // the gameplay screen's system-UI swaps) and pausing there would
+    // stutter the track.
+    if (state == AppLifecycleState.paused) {
+      unawaited(AudioService().pauseBackgroundMusic());
     }
 
     // When app goes to background, attempt to sync pending data

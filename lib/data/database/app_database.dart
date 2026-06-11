@@ -60,6 +60,11 @@ class GameSettings extends Table {
       boolean().withDefault(const Constant(false))();
   TextColumn get selectedSkinId => text().nullable()();
   TextColumn get selectedTrailId => text().nullable()();
+  // v3: single-player game mode (GameMode enum index) — synced.
+  IntColumn get gameModeIndex => integer().withDefault(const Constant(0))();
+  // v3: haptic feedback master toggle — synced.
+  BoolColumn get hapticsEnabled =>
+      boolean().withDefault(const Constant(true))();
   DateTimeColumn get lastUpdated =>
       dateTime().withDefault(currentDateAndTime)();
   // Tracked by the sync engine; bumped on every mutation that should
@@ -726,7 +731,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -742,6 +747,13 @@ class AppDatabase extends _$AppDatabase {
       if (from < 2) {
         // v2: campaign stage progress (checkpoint levels).
         await m.createTable(stageProgressTable);
+      }
+      if (from < 3) {
+        // v3: settings-overhaul columns. addColumn honors withDefault,
+        // so existing rows get classic mode / haptics-on without a
+        // data migration.
+        await m.addColumn(gameSettings, gameSettings.gameModeIndex);
+        await m.addColumn(gameSettings, gameSettings.hapticsEnabled);
       }
     },
   );

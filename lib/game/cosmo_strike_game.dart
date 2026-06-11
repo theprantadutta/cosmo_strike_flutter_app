@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
 import '../models/level_run_result.dart';
+import '../models/premium_cosmetics.dart' show TrailEffectType;
 import '../services/haptic_service.dart';
 import '../utils/campaign_catalog.dart';
 import '../utils/constants.dart' show GameMode;
@@ -18,6 +19,7 @@ import 'components/enemy.dart';
 import 'components/fx.dart';
 import 'components/player_ship.dart';
 import 'components/power_up.dart';
+import 'components/ship_trail.dart';
 import 'components/starfield.dart';
 import 'components/terrain.dart';
 import 'game_assets.dart';
@@ -116,6 +118,9 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     this.tutorial = false,
     this.dPadControls = false,
     this.onTutorialOutcome,
+    this.selectedSkinId = 'classic',
+    this.selectedTrailId = 'none',
+    this.trailEffectsEnabled = false,
   }) : _tutorialPending = tutorial;
 
   /// Called once when the run ends (out of lives / time / VICTORY). The
@@ -156,6 +161,17 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// (PILOT CERTIFIED — the screen awards the completion bonus),
   /// `false` = skipped. Never fired when [tutorial] is false.
   final void Function(bool completed)? onTutorialOutcome;
+
+  /// Equipped cosmetic skin id ([ShipSkinType.id]); 'classic' = the
+  /// stock, untinted render.
+  final String selectedSkinId;
+
+  /// Equipped trail id ([TrailEffectType.id]); 'none' = no trail.
+  final String selectedTrailId;
+
+  /// Master gate for the cosmetic trail stream (the 'Engine Trail
+  /// Effects' setting, ThemeCubit.trailSystemEnabled).
+  final bool trailEffectsEnabled;
 
   final math.Random rng = math.Random();
 
@@ -310,6 +326,16 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     await add(_starfield);
     player = PlayerShip();
     await add(player);
+    // Cosmetic trail stream — only when the equipped trail exists AND
+    // the 'Engine Trail Effects' setting allows it.
+    if (trailEffectsEnabled && selectedTrailId != 'none') {
+      final trailType = TrailEffectType.values
+          .where((t) => t.id == selectedTrailId)
+          .firstOrNull;
+      if (trailType != null && trailType != TrailEffectType.none) {
+        await add(ShipTrail(trailType));
+      }
+    }
     await add(BoundaryGlow());
     await add(_scriptRunner);
     await pools.mount();

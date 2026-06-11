@@ -132,6 +132,14 @@ class AudioService {
     }
   }
 
+  /// True once a play() actually succeeded this session — i.e. the
+  /// track asset exists. Keeps pause/resume no-ops while the music
+  /// file hasn't shipped yet.
+  bool _musicStarted = false;
+
+  /// Loop the background track. Drop the file at
+  /// `assets/audio/background_music.mp3` (the pubspec already globs the
+  /// directory); until it exists this logs once per attempt and no-ops.
   Future<void> playBackgroundMusic() async {
     if (!_initialized || !_musicEnabled) return;
 
@@ -141,16 +149,39 @@ class AudioService {
       await _musicPlayer!.setReleaseMode(ReleaseMode.loop);
       await _musicPlayer!.setVolume(0.4);
       await _musicPlayer!.play(AssetSource('audio/background_music.mp3'));
+      _musicStarted = true;
     } catch (e) {
       debugPrint('Background music not available: $e');
     }
   }
 
   Future<void> stopBackgroundMusic() async {
+    _musicStarted = false;
     try {
       await _musicPlayer?.stop();
     } catch (e) {
       debugPrint('Error stopping music: $e');
+    }
+  }
+
+  /// App went to background — suspend without losing position.
+  Future<void> pauseBackgroundMusic() async {
+    if (!_musicStarted) return;
+    try {
+      await _musicPlayer?.pause();
+    } catch (e) {
+      debugPrint('Error pausing music: $e');
+    }
+  }
+
+  /// App resumed — continue only when music is enabled AND a track was
+  /// actually playing this session (missing asset stays a no-op).
+  Future<void> resumeBackgroundMusic() async {
+    if (!_musicEnabled || !_musicStarted) return;
+    try {
+      await _musicPlayer?.resume();
+    } catch (e) {
+      debugPrint('Error resuming music: $e');
     }
   }
 

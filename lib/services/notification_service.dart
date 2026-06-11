@@ -74,6 +74,10 @@ class NotificationService {
       await _loadNotificationPreferences();
 
       _initialized = true;
+      // Align FCM topic subscriptions with the saved toggles. Fire and
+      // forget — FCM topic calls can be slow and must not block boot;
+      // internally no-ops when the token is unavailable.
+      unawaited(_syncTopicSubscriptions());
       AppLogger.success('Notification service initialized successfully');
     } catch (e) {
       AppLogger.error('Failed to initialize notification service', e);
@@ -353,25 +357,128 @@ class NotificationService {
       AppLogger.error('Failed to save notification preference: $e');
     }
 
-    if (type == NotificationType.dailyReminder) {
-      // The backend's send-daily-reminder Hangfire job filters on
-      // user_preferences.notifications_enabled. Flipping that DB flag
-      // is what actually stops/starts the daily ping in the wild —
-      // the local _notificationPreferences map only gates which incoming
-      // FCM messages we render in foreground, not what the server sends.
-      //
-      // Queued (not direct PUT) so an offline / auth-not-ready toggle
-      // still propagates once connectivity returns. DataSyncService's
-      // 'preferences' handler POSTs to PUT /users/me with
-      // { preferences: { notifications_enabled } } — partial update.
-      await DataSyncService().queueSync(
-        'preferences',
-        {'notifications_enabled': enabled},
-        priority: SyncPriority.normal,
-      );
-      AppLogger.info(
-        '📤 Queued daily-reminder preference (enabled=$enabled) for backend sync',
-      );
+    // Push the FULL per-type preference set to the backend. The server's
+    // token-based send paths (daily reminder, win-back, promos,
+    // tournament results) filter on the matching user_preferences
+    // notify_* column — flipping these DB flags is what actually
+    // stops/starts pushes in the wild; the local map above only gates
+    // foreground rendering.
+    //
+    // Queued (not direct PUT) so an offline / auth-not-ready toggle still
+    // propagates once connectivity returns. DataSyncService's
+    // 'preferences' handler forwards this map verbatim as
+    // PUT /users/me { preferences: {...} } — partial update.
+    // notifications_enabled stays the legacy master alias for the
+    // daily-reminder toggle (pre-overhaul servers filter on it alone).
+    await DataSyncService().queueSync(
+      'preferences',
+      {
+        'notifications_enabled':
+            _notificationPreferences[NotificationType.dailyReminder] ?? true,
+        'notify_daily_reminder':
+            _notificationPreferences[NotificationType.dailyReminder] ?? true,
+        'notify_tournament':
+            _notificationPreferences[NotificationType.tournament] ?? true,
+        'notify_achievement':
+            _notificationPreferences[NotificationType.achievement] ?? true,
+        'notify_social':
+            _notificationPreferences[NotificationType.social] ?? true,
+        'notify_special_event':
+            _notificationPreferences[NotificationType.specialEvent] ?? true,
+      },
+      priority: SyncPriority.normal,
+    );
+    AppLogger.info(
+      '📤 Queued notification preferences (${type.key}=$enabled) for backend sync',
+    );
+
+    // Topic-based sends are controlled by SUBSCRIPTION, not a server
+    // filter — keep the FCM topics aligned with the toggle live.
+    if (type == NotificationType.tournament) {
+      await _setTournamentTopics(enabled);
+    } else if (type == NotificationType.specialEvent) {
+      enabled
+          ? await subscribeToTopic(_leaderboardTopic)
+          : await unsubscribeFromTopic(_leaderboardTopic);
+    }
+  }
+
+  // ==================== FCM topic subscriptions ====================
+
+  /// Topic names must match the backend senders exactly
+  /// (NotificationJobService: 'tournaments', 'tournament_{id}',
+  /// 'leaderboard_updates').
+  static const String _tournamentsTopic = 'tournaments';
+  static const String _leaderboardTopic = 'leaderboard_updates';
+
+  /// SP key: per-tournament topics we've joined, so a tournament
+  /// toggle-off (or back on) can fan out across every joined tournament.
+  static const String _tournamentTopicsKey = 'subscribed_tournament_topics';
+
+  /// Align FCM topic subscriptions with the current toggles. Called at
+  /// the end of [initialize] and idempotent — Firebase subscribe /
+  /// unsubscribe calls are safe to repeat.
+  Future<void> _syncTopicSubscriptions() async {
+    if (_fcmToken == null) return; // permission denied / FCM unavailable
+    final tournamentsOn = isNotificationEnabled(NotificationType.tournament);
+    final eventsOn = isNotificationEnabled(NotificationType.specialEvent);
+    tournamentsOn
+        ? await subscribeToTopic(_tournamentsTopic)
+        : await unsubscribeFromTopic(_tournamentsTopic);
+    eventsOn
+        ? await subscribeToTopic(_leaderboardTopic)
+        : await unsubscribeFromTopic(_leaderboardTopic);
+    if (tournamentsOn) {
+      for (final topic in await _storedTournamentTopics()) {
+        await subscribeToTopic(topic);
+      }
+    }
+  }
+
+  /// Toggle-driven fan-out: the broadcast topic plus every joined
+  /// per-tournament topic on file.
+  Future<void> _setTournamentTopics(bool enabled) async {
+    final perTournament = await _storedTournamentTopics();
+    if (enabled) {
+      await subscribeToTopic(_tournamentsTopic);
+      for (final topic in perTournament) {
+        await subscribeToTopic(topic);
+      }
+    } else {
+      await unsubscribeFromTopic(_tournamentsTopic);
+      for (final topic in perTournament) {
+        await unsubscribeFromTopic(topic);
+      }
+    }
+  }
+
+  /// Called by TournamentService on a successful join: remember the
+  /// per-tournament topic and subscribe immediately when the tournament
+  /// toggle is on (the backend sends reminders to 'tournament_{id}').
+  Future<void> onTournamentJoined(String tournamentId) async {
+    final topic = 'tournament_$tournamentId';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final topics =
+          prefs.getStringList(_tournamentTopicsKey) ?? <String>[];
+      if (!topics.contains(topic)) {
+        topics.add(topic);
+        await prefs.setStringList(_tournamentTopicsKey, topics);
+      }
+    } catch (e) {
+      AppLogger.error('Failed to record tournament topic $topic', e);
+    }
+    if (_initialized && isNotificationEnabled(NotificationType.tournament)) {
+      await subscribeToTopic(topic);
+    }
+  }
+
+  Future<List<String>> _storedTournamentTopics() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getStringList(_tournamentTopicsKey) ?? <String>[];
+    } catch (_) {
+      return <String>[];
     }
   }
 

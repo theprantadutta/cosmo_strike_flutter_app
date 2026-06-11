@@ -5,6 +5,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_state
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/preferences_service.dart';
+import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/widgets/theme_transition_system.dart';
 
@@ -15,9 +16,15 @@ export 'theme_state.dart';
 /// Cubit for managing app theme state
 class ThemeCubit extends Cubit<ThemeState> {
   final PreferencesService _preferencesService;
+
+  /// Drift mirror for the SYNCED settings columns. PreferencesService
+  /// stays the synchronous read store, but every theme/trail write also
+  /// lands in the Drift GameSettings row so the value that rides
+  /// /sync/settings is the user's real choice, not the default.
+  final StorageService _storageService;
   final AnalyticsFacade _analytics;
 
-  ThemeCubit(this._preferencesService, this._analytics)
+  ThemeCubit(this._preferencesService, this._storageService, this._analytics)
       : super(ThemeState.initial());
 
   /// Initialize the theme cubit by loading saved preferences
@@ -51,6 +58,9 @@ class ThemeCubit extends Cubit<ThemeState> {
 
     emit(state.copyWith(currentTheme: theme));
     await _preferencesService.setTheme(theme);
+    // Mirror into the Drift settings row so the synced theme_index
+    // column carries the real choice (and enqueues the outbox push).
+    unawaited(_storageService.saveSelectedTheme(theme));
     _analytics.trackThemeSelected(theme.name);
 
     // Push the choice to the backend so it survives reinstall/device-switch.
@@ -70,6 +80,9 @@ class ThemeCubit extends Cubit<ThemeState> {
     if (target == null || target == GameTheme.classic) return;
     emit(state.copyWith(currentTheme: target));
     await _preferencesService.setTheme(target);
+    // Keep the Drift mirror consistent (echoes a push of a value that
+    // came FROM the backend — harmless and idempotent server-side).
+    unawaited(_storageService.saveSelectedTheme(target));
   }
 
   /// Drop back to Classic if the currently-applied premium theme is no
@@ -83,6 +96,7 @@ class ThemeCubit extends Cubit<ThemeState> {
     if (premiumState.isThemeUnlocked(current)) return;
     emit(state.copyWith(currentTheme: GameTheme.classic));
     await _preferencesService.setTheme(GameTheme.classic);
+    unawaited(_storageService.saveSelectedTheme(GameTheme.classic));
   }
 
   /// Cycle to the next theme (only free themes; premium themes require explicit selection)
@@ -107,6 +121,20 @@ class ThemeCubit extends Cubit<ThemeState> {
 
     emit(state.copyWith(trailSystemEnabled: enabled));
     await _preferencesService.setTrailSystemEnabled(enabled);
+    // Mirror into the synced Drift column (see _storageService docs).
+    unawaited(_storageService.setTrailSystemEnabled(enabled));
+  }
+
+  /// Cloud-restore path (SyncEngine first-sign-in pull): the snapshot
+  /// apply already wrote Drift, so this only updates state + the
+  /// SharedPreferences mirror — no Drift write, no backend echo.
+  Future<void> applyRestoredSettings({
+    required GameTheme theme,
+    required bool trailEnabled,
+  }) async {
+    emit(state.copyWith(currentTheme: theme, trailSystemEnabled: trailEnabled));
+    await _preferencesService.setTheme(theme);
+    await _preferencesService.setTrailSystemEnabled(trailEnabled);
   }
 
   /// Toggle trail system
