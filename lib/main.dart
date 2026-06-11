@@ -35,6 +35,7 @@ import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/services/sync/sync_engine.dart';
 import 'package:cosmo_strike_flutter_app/ui/design/immersive.dart';
 import 'package:cosmo_strike_flutter_app/services/unified_user_service.dart';
+import 'package:cosmo_strike_flutter_app/services/walkthrough_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:cosmo_strike_flutter_app/utils/typography.dart';
 // import 'package:cosmo_strike_flutter_app/utils/performance_monitor.dart'; // temporarily disabled
@@ -120,6 +121,12 @@ void main() async {
       },
     );
     AppLogger.success('Audio service initialized');
+
+    // Walkthrough flags (home tour / game tutorial / control choice) are
+    // read SYNCHRONOUSLY at screen-build time — hydrate the prefs-backed
+    // service up front so a launch into Play can never mis-read
+    // "tutorial already done".
+    await WalkthroughService().initialize();
 
     // NotificationService.initialize() is no longer called here — it
     // requests the OS notification permission as a side effect, and

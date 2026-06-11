@@ -103,6 +103,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     });
   }
 
+  /// One-time control-method chooser (touch-drag vs D-pad), shown on the
+  /// first Play tap — right where the choice is about to matter, and
+  /// before the in-game tutorial so its steer beat demos the input the
+  /// player actually picked. Changeable any time in Settings.
+  Future<void> _maybeShowControlChoicePrompt() async {
+    if (!mounted) return;
+    final walkthroughs = WalkthroughService();
+    if (!walkthroughs.isInitialized) await walkthroughs.initialize();
+    if (walkthroughs.isComplete(WalkthroughService.controlChoiceId)) return;
+    if (!mounted) return;
+
+    final settingsCubit = context.read<GameSettingsCubit>();
+    final useDPad = await showModalBottomSheet<bool>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => const _ControlChoiceSheet(),
+    );
+
+    if (useDPad != null) {
+      await settingsCubit.setDPadEnabled(useDPad);
+    }
+    await walkthroughs.markComplete(WalkthroughService.controlChoiceId);
+  }
+
   /// Shows the first-launch game-mode picker if it hasn't been shown
   /// before. Returns once the sheet is dismissed (or immediately if the
   /// user has already seen it). Triggered from the Play button so it
@@ -693,8 +720,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget _buildLaunchHero(BuildContext context, GameTheme theme) {
     return GestureDetector(
       onTap: () async {
-        // Show the one-time game-mode picker before launching the first
-        // game; no-op for users who've already picked.
+        // First-launch setup prompts, in the order they matter: how you
+        // fly, then how you want the run tuned. Both are one-time no-ops
+        // for users who've already chosen.
+        await _maybeShowControlChoicePrompt();
+        if (!context.mounted) return;
         await _maybeShowGameModePrompt();
         if (!context.mounted) return;
         // Campaign level select — pick a start level there; it routes on
@@ -1410,6 +1440,222 @@ class _NavItem {
 
 /// First-launch bottom sheet that asks the user to pick a default game mode.
 /// Returns the selected GameMode, or null if dismissed without confirming.
+/// First-launch control chooser: touch-drag steering vs on-screen D-pad.
+/// Pops `true` for D-pad, `false` for touch. Same borderless glow sheet
+/// language as the game-mode picker below.
+class _ControlChoiceSheet extends StatefulWidget {
+  const _ControlChoiceSheet();
+
+  @override
+  State<_ControlChoiceSheet> createState() => _ControlChoiceSheetState();
+}
+
+class _ControlChoiceSheetState extends State<_ControlChoiceSheet> {
+  bool _useDPad = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<ThemeCubit>().state.currentTheme;
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.backgroundColor.withValues(alpha: 0.98),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: theme.accentColor.withValues(alpha: 0.25),
+              blurRadius: 24,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text(
+              'HOW DO YOU WANT TO FLY?',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: theme.accentColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'You can change this anytime in Settings',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: theme.textMuted, fontSize: 11),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildOption(
+                    theme,
+                    useDPad: false,
+                    icon: Icons.swipe,
+                    title: 'TOUCH DRAG',
+                    tagline: 'Recommended',
+                    description: 'Drag anywhere on screen — your ship '
+                        'mirrors your finger.',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildOption(
+                    theme,
+                    useDPad: true,
+                    icon: Icons.gamepad,
+                    title: 'D-PAD',
+                    tagline: 'Classic',
+                    description: 'An on-screen directional pad, '
+                        'old-school handheld style.',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => Navigator.of(context).pop(_useDPad),
+              child: Container(
+                height: 46,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [theme.neonPrimary, theme.neonSecondary],
+                  ),
+                  borderRadius: BorderRadius.circular(23),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.neonPrimary.withValues(alpha: 0.35),
+                      blurRadius: 14,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  'CONFIRM',
+                  style: TextStyle(
+                    color: Color(0xFF03040A),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOption(
+    GameTheme theme, {
+    required bool useDPad,
+    required IconData icon,
+    required String title,
+    required String tagline,
+    required String description,
+  }) {
+    final isSelected = _useDPad == useDPad;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _useDPad = useDPad),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 30,
+              color: isSelected ? theme.neonPrimary : theme.textMuted,
+              shadows: isSelected
+                  ? [
+                      Shadow(
+                        color: theme.neonPrimary.withValues(alpha: 0.7),
+                        blurRadius: 14,
+                      ),
+                    ]
+                  : null,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                color: isSelected ? theme.textPrimary : theme.textMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              tagline,
+              style: TextStyle(
+                color: isSelected ? theme.neonPrimary : theme.textMuted,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 11,
+                height: 1.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Glowing dot marks the selection — no boxes, no borders.
+            Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: isSelected ? theme.neonPrimary : Colors.transparent,
+                shape: BoxShape.circle,
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: theme.neonPrimary.withValues(alpha: 0.7),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _GameModeFirstLaunchSheet extends StatefulWidget {
   const _GameModeFirstLaunchSheet({
     required this.initialMode,

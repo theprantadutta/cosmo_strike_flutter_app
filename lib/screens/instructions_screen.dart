@@ -25,8 +25,9 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
   static const _sections = [
     (Icons.flag, 'Objective'),
     (Icons.touch_app, 'Controls'),
-    (Icons.flare, 'Pickups'),
-    (Icons.rule, 'Rules'),
+    (Icons.military_tech, 'Combat'),
+    (Icons.flare, 'Power-Ups'),
+    (Icons.warning_amber, 'Bosses & Terrain'),
     (Icons.lightbulb, 'Pro Tips'),
   ];
 
@@ -151,83 +152,213 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
           _sectionLabel(theme, 'OBJECTIVE'),
           const SizedBox(height: 12),
           Text(
-            'Pilot your ship to destroy enemies and survive as long as '
-            'possible while dodging enemy fire and asteroids!',
+            'Fight through a 12-level campaign across 4 alien biomes. '
+            'Each level is a choreographed gauntlet of enemy waves and '
+            'formations that ends in a boss fight — bring the boss down '
+            'to clear the level and unlock the next.',
             style: TextStyle(
               color: theme.textPrimary,
               fontSize: 15,
               height: 1.6,
             ),
           ).gameListItem(0),
+          const SizedBox(height: 12),
+          _buildRuleItem(
+            'Clearing a level unlocks the next — progress is saved the '
+            'moment the boss falls',
+            theme,
+            1,
+          ),
+          _buildRuleItem(
+            'Game modes (Settings) change the rules: lives, pacing, '
+            'enemy fire, one-hit runs, or a Time Attack clock',
+            theme,
+            2,
+          ),
+          _buildRuleItem(
+            'Earn coins every run — more for kills, bosses, and '
+            'first-time level clears',
+            theme,
+            3,
+          ),
         ];
       case 1:
         return [
           _sectionLabel(theme, 'CONTROLS'),
           const SizedBox(height: 12),
-          _buildControlItem('Swipe Up ↑', 'Move ship up', theme, 0),
-          _buildControlItem('Swipe Down ↓', 'Move ship down', theme, 1),
-          _buildControlItem('Swipe Left ←', 'Move ship left', theme, 2),
-          _buildControlItem('Swipe Right →', 'Move ship right', theme, 3),
-          _buildControlItem('Tap Screen', 'Pause/Resume game', theme, 4),
-          const SizedBox(height: 8),
           _buildControlItem(
-            'Arrow Keys (Desktop)',
-            'Change direction',
+            'Drag Anywhere',
+            'Steer — your ship mirrors your finger, so your thumb '
+                'never covers it',
             theme,
-            5,
+            0,
           ),
-          _buildControlItem('WASD (Desktop)', 'Change direction', theme, 6),
           _buildControlItem(
-            'Spacebar (Desktop)',
-            'Pause/Resume game',
+            'Auto-Fire',
+            'Your cannon fires by itself — focus on flying',
             theme,
-            7,
+            1,
+          ),
+          _buildControlItem(
+            'Double-Tap',
+            'Launch a missile (or use the missile button)',
+            theme,
+            2,
+          ),
+          _buildControlItem(
+            'Pause Button',
+            'Pause the run — resume or quit safely',
+            theme,
+            3,
+          ),
+          _buildControlItem(
+            'D-Pad (optional)',
+            'Prefer old-school? Enable the on-screen D-pad in Settings',
+            theme,
+            4,
           ),
         ];
       case 2:
         return [
-          _sectionLabel(theme, 'PICKUP TYPES'),
+          _sectionLabel(theme, 'COMBAT SYSTEMS'),
           const SizedBox(height: 12),
-          _buildFoodItem('Pickup', '10 points', theme.foodColor, theme, 0),
-          _buildFoodItem('Bonus Pickup', '25 points', Colors.orange, theme, 1),
           _buildFoodItem(
-            'Power-Up',
-            '50 points + Level Up',
-            const Color(0xFFFFD700),
-            theme,
-            2,
-          ),
-        ];
-      case 3:
-        return [
-          _sectionLabel(theme, 'RULES'),
-          const SizedBox(height: 12),
-          _buildRuleItem(
-            'Destroy enemies to increase your score',
+            'Combo Chain',
+            'up to ×4 score',
+            const Color(0xFFFF7BD5),
             theme,
             0,
           ),
           _buildRuleItem(
-            'Enemy waves get faster as you level up',
+            'Chain kills without getting hit to raise your score '
+            'multiplier — one landed hit breaks the chain',
             theme,
             1,
           ),
-          _buildRuleItem('Game ends if your ship is destroyed', theme, 2),
-          _buildRuleItem('A Power-Up appears every 10 pickups', theme, 3),
-          _buildRuleItem('Bonus Pickups expire after 15 seconds', theme, 4),
+          const SizedBox(height: 8),
+          _buildFoodItem(
+            'Graze',
+            '+15 & meter',
+            const Color(0xFF7DE8FF),
+            theme,
+            2,
+          ),
+          _buildRuleItem(
+            'Let enemy bullets just miss your hull: each near miss pays '
+            'points and charges the graze meter — a full meter loads '
+            '+1 missile',
+            theme,
+            3,
+          ),
+          const SizedBox(height: 8),
+          _buildFoodItem(
+            'Formation Wipe',
+            'bonus + orb',
+            const Color(0xFFFFD37B),
+            theme,
+            4,
+          ),
+          _buildRuleItem(
+            'Destroy an entire enemy formation quickly for a wipe bonus '
+            'and a guaranteed power-up drop',
+            theme,
+            5,
+          ),
+        ];
+      case 3:
+        return [
+          _sectionLabel(theme, 'POWER-UP DROPS'),
+          const SizedBox(height: 12),
+          _buildRuleItem(
+            'Destroyed enemies sometimes drop power-up orbs — fly into '
+            'them to collect',
+            theme,
+            0,
+          ),
+          _buildFoodItem('Weapon', 'tier up', const Color(0xFF7DE8FF), theme, 1),
+          _buildFoodItem('Shield', 'blocks 1 hit', const Color(0xFF8AB4FF), theme, 2),
+          _buildFoodItem('Missiles', '+3 ammo', const Color(0xFFFFD37B), theme, 3),
+          _buildFoodItem('Speed', 'move faster', const Color(0xFF9CFF8A), theme, 4),
+          _buildFoodItem('×2 Score', '10 seconds', const Color(0xFFFF7BD5), theme, 5),
+          _buildFoodItem('Slow-Mo', 'slows enemies', const Color(0xFFC59CFF), theme, 6),
+          _buildFoodItem('Magnet', 'pulls orbs in', const Color(0xFFFFB37B), theme, 7),
+          _buildFoodItem('Ghost', 'phase through', const Color(0xFFB0BEC5), theme, 8),
+          _buildFoodItem('Bomb', 'clears screen', const Color(0xFFFF8A8A), theme, 9),
+          _buildFoodItem('Extra Life', '+1 ship', const Color(0xFFFF6E9C), theme, 10),
+        ];
+      case 4:
+        return [
+          _sectionLabel(theme, 'BOSSES & TERRAIN'),
+          const SizedBox(height: 12),
+          _buildRuleItem(
+            'Every boss attack is telegraphed — a warning flash shows '
+            'where it will hit before it fires. Watch, then move',
+            theme,
+            0,
+          ),
+          _buildRuleItem(
+            'Bosses fight in phases: each phase flip clears their '
+            'bullets and changes their attack pattern',
+            theme,
+            1,
+          ),
+          _buildRuleItem(
+            'Terrain is a threat: clipping the floor, ceiling, or an '
+            'obstacle damages your ship and bounces you away',
+            theme,
+            2,
+          ),
+          _buildRuleItem(
+            'Watch for canyon squeezes — the corridor narrows during '
+            'set pieces, and wall-mounted turrets pour aimed fire',
+            theme,
+            3,
+          ),
+          _buildRuleItem(
+            'Out of lives? You get ONE revive per run — watch an ad or '
+            'spend 200 coins to keep the run alive',
+            theme,
+            4,
+          ),
         ];
       default:
         return [
           _sectionLabel(theme, 'PRO TIPS'),
           const SizedBox(height: 12),
           _buildTipItem(
-            'Anticipate enemy waves before they arrive',
+            'Wipe whole formations fast — the bonus and guaranteed orb '
+            'beat picking off stragglers',
             theme,
             0,
           ),
-          _buildTipItem('Grab power-ups to upgrade your weapons', theme, 1),
-          _buildTipItem('Weave between asteroids and enemy fire', theme, 2),
-          _buildTipItem('Learn each boss\'s attack patterns', theme, 3),
+          _buildTipItem(
+            'Graze on purpose: skimming bullet streams is the fastest '
+            'way to bank missiles',
+            theme,
+            1,
+          ),
+          _buildTipItem(
+            'Save missiles for armored hulls and boss phases',
+            theme,
+            2,
+          ),
+          _buildTipItem(
+            'Protect your combo — backing off for a second beats '
+            'breaking a ×4 chain',
+            theme,
+            3,
+          ),
+          _buildTipItem(
+            'Arm a store power-up before launch for a head start '
+            '(loadout chip on the home screen)',
+            theme,
+            4,
+          ),
+          _buildTipItem(
+            'Learn each boss\'s telegraphs — every attack has a tell',
+            theme,
+            5,
+          ),
         ];
     }
   }

@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 import '../data/database/app_database.dart';
 import '../game/cosmo_palette.dart';
 import '../game/cosmo_strike_game.dart';
+import '../game/tutorial_director.dart';
 import '../models/level_run_result.dart';
 import '../models/ship_coins.dart';
 import '../presentation/bloc/coins/coins_cubit.dart';
@@ -18,7 +19,9 @@ import '../presentation/bloc/power_up/power_up_cubit.dart';
 import '../presentation/bloc/premium/battle_pass_cubit.dart';
 import '../router/routes.dart';
 import '../services/ads/ad_service.dart';
+import '../services/analytics/analytics_facade.dart';
 import '../services/api_service.dart';
+import '../services/walkthrough_service.dart';
 import '../ui/design.dart';
 import '../utils/campaign_catalog.dart';
 import '../utils/constants.dart';
@@ -62,6 +65,17 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   bool _quitPersisted = false;
 
+  /// First-run tutorial: true when this run opened with the guided beats.
+  bool _tutorialRun = false;
+
+  /// Drives the PILOT CERTIFIED celebration overlay after the tutorial's
+  /// final beat (auto-dismisses).
+  bool _showCertified = false;
+
+  /// Coins granted for finishing the tutorial — the celebration overlay
+  /// shows the same number it actually pays out.
+  static const int _tutorialRewardCoins = 150;
+
   @override
   void initState() {
     super.initState();
@@ -86,6 +100,18 @@ class _GameplayScreenState extends State<GameplayScreen>
     // Pre-load a rewarded ad so the revive offer is ready when needed.
     AdService().preloadRewarded();
 
+    // First-run tutorial: only on a Level-1 start, only until completed
+    // or skipped once (the flag is prefs-backed and resettable from
+    // Settings). The service is hydrated in main() so this sync read is
+    // always safe.
+    final walkthroughs = WalkthroughService();
+    _tutorialRun = widget.startLevel == 1 &&
+        walkthroughs.isInitialized &&
+        !walkthroughs.isComplete(WalkthroughService.gameTutorialId);
+    if (_tutorialRun) {
+      unawaited(GetIt.I<AnalyticsFacade>().trackGameTutorialStarted());
+    }
+
     // The selected game mode is a MODIFIER on top of the campaign level
     // (lives, pacing, enemy fire, drops, one-hit, Time Attack clock).
     // Snapshot at run start.
@@ -96,7 +122,34 @@ class _GameplayScreenState extends State<GameplayScreen>
       startLevel: widget.startLevel,
       armedLoadoutKey: loadoutKey,
       screenShake: settings.screenShakeEnabled,
+      tutorial: _tutorialRun,
+      dPadControls: _dPadEnabled,
+      onTutorialOutcome: _handleTutorialOutcome,
     );
+  }
+
+  /// Tutorial resolved: certified (completed) or skipped. Either way the
+  /// flag flips so the beats never replay uninvited; only certification
+  /// pays the reward + celebration.
+  void _handleTutorialOutcome(bool completed) {
+    unawaited(WalkthroughService().markComplete(
+      WalkthroughService.gameTutorialId,
+    ));
+    final analytics = GetIt.I<AnalyticsFacade>();
+    if (!completed) {
+      unawaited(analytics.trackGameTutorialSkipped());
+      return;
+    }
+    unawaited(analytics.trackGameTutorialCompleted());
+    if (!mounted) return;
+    unawaited(context.read<CoinsCubit>().earnCoins(
+          CoinEarningSource.achievementUnlocked,
+          customAmount: _tutorialRewardCoins,
+        ));
+    setState(() => _showCertified = true);
+    Future.delayed(const Duration(milliseconds: 3200), () {
+      if (mounted) setState(() => _showCertified = false);
+    });
   }
 
   @override
@@ -436,6 +489,29 @@ class _GameplayScreenState extends State<GameplayScreen>
               );
             },
           ),
+
+          // First-run tutorial prompt — a floating instruction banner at
+          // the top of the playfield. Input passes straight through to
+          // the game except for the Skip pill.
+          ValueListenableBuilder<TutorialPrompt?>(
+            valueListenable: _game.tutorialNotifier,
+            builder: (context, prompt, _) {
+              if (prompt == null) return const SizedBox.shrink();
+              return SafeArea(
+                child: _TutorialBanner(
+                  prompt: prompt,
+                  onSkip: _game.skipTutorial,
+                ),
+              );
+            },
+          ),
+
+          // PILOT CERTIFIED celebration (tutorial completed) — pure
+          // flourish, never blocks input, auto-dismisses.
+          if (_showCertified)
+            IgnorePointer(
+              child: _CertifiedCelebration(coins: _tutorialRewardCoins),
+            ),
 
           ValueListenableBuilder<GamePhase>(
             valueListenable: _game.phaseNotifier,
@@ -1309,6 +1385,181 @@ class _CenterOverlay extends StatelessWidget {
             ],
             const SizedBox(height: 24),
             ...actions,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// First-run tutorial instruction banner: floats top-center over the
+/// playfield, borderless per the clean design (neon icon + text + glow).
+/// Everything except the SKIP pill ignores pointers so drag-steering
+/// works straight through it.
+class _TutorialBanner extends StatelessWidget {
+  const _TutorialBanner({required this.prompt, required this.onSkip});
+
+  final TutorialPrompt prompt;
+  final VoidCallback onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: const Alignment(0, -0.92),
+      child: TweenAnimationBuilder<double>(
+        key: ValueKey(prompt.title),
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutBack,
+        builder: (_, t, child) => Opacity(
+          opacity: t.clamp(0, 1),
+          child: Transform.scale(scale: 0.85 + 0.15 * t, child: child),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IgnorePointer(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          prompt.icon,
+                          size: 18,
+                          color: CosmoPalette.highlight,
+                          shadows: [
+                            Shadow(
+                              color: CosmoPalette.highlight
+                                  .withValues(alpha: 0.8),
+                              blurRadius: 12,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          prompt.title,
+                          style: TextStyle(
+                            color: CosmoPalette.highlight,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 3,
+                            shadows: [
+                              Shadow(
+                                color: CosmoPalette.highlight
+                                    .withValues(alpha: 0.7),
+                                blurRadius: 14,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      prompt.body,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: CosmoPalette.hull,
+                        fontSize: 13.5,
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                        shadows: [
+                          Shadow(color: Color(0xCC05060F), blurRadius: 8),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (prompt.showSkip) ...[
+                const SizedBox(height: 8),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onSkip,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 6),
+                    child: Text(
+                      'SKIP TUTORIAL',
+                      style: TextStyle(
+                        color: CosmoPalette.hull.withValues(alpha: 0.65),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.6,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "PILOT CERTIFIED" tutorial-complete flourish: a gold banner with the
+/// coin payout that scales in, holds, and is removed by the screen after
+/// ~3 s. Pure celebration — wrapped in IgnorePointer by the caller.
+class _CertifiedCelebration extends StatelessWidget {
+  const _CertifiedCelebration({required this.coins});
+
+  final int coins;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: const Alignment(0, -0.45),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutBack,
+        builder: (_, t, child) => Opacity(
+          opacity: t.clamp(0, 1),
+          child: Transform.scale(scale: 0.7 + 0.3 * t, child: child),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.military_tech,
+              size: 44,
+              color: Color(0xFFFFD37B),
+              shadows: [
+                Shadow(color: Color(0xAAFFD37B), blurRadius: 22),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'PILOT CERTIFIED',
+              style: TextStyle(
+                color: Color(0xFFFFD37B),
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 5,
+                shadows: [
+                  Shadow(color: Color(0xAAFFD37B), blurRadius: 18),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '+$coins COINS',
+              style: const TextStyle(
+                color: CosmoPalette.hull,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2.5,
+                shadows: [
+                  Shadow(color: Color(0xCC05060F), blurRadius: 8),
+                ],
+              ),
+            ),
           ],
         ),
       ),

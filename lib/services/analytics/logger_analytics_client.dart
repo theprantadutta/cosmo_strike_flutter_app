@@ -280,6 +280,21 @@ class LoggerAnalyticsClient implements AnalyticsClient {
   }
 
   @override
+  Future<void> trackGameTutorialStarted() async {
+    AppLogger.info('$_tag game_tutorial_started');
+  }
+
+  @override
+  Future<void> trackGameTutorialCompleted() async {
+    AppLogger.info('$_tag game_tutorial_completed');
+  }
+
+  @override
+  Future<void> trackGameTutorialSkipped() async {
+    AppLogger.info('$_tag game_tutorial_skipped');
+  }
+
+  @override
   Future<void> trackReviewRequested(String trigger) async {
     AppLogger.info('$_tag review_requested: trigger=$trigger');
   }

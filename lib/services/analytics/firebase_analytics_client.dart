@@ -346,6 +346,21 @@ class FirebaseAnalyticsClient implements AnalyticsClient {
   }
 
   @override
+  Future<void> trackGameTutorialStarted() {
+    return _analytics.logEvent(name: 'game_tutorial_started');
+  }
+
+  @override
+  Future<void> trackGameTutorialCompleted() {
+    return _analytics.logEvent(name: 'game_tutorial_completed');
+  }
+
+  @override
+  Future<void> trackGameTutorialSkipped() {
+    return _analytics.logEvent(name: 'game_tutorial_skipped');
+  }
+
+  @override
   Future<void> trackReviewRequested(String trigger) {
     return _analytics.logEvent(
       name: 'review_requested',

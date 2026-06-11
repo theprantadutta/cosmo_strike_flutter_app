@@ -27,6 +27,7 @@ import 'levels/level_def.dart';
 import 'levels/script_runner.dart';
 import 'pools.dart';
 import 'run_effects.dart';
+import 'tutorial_director.dart';
 
 enum GamePhase {
   ready,
@@ -112,7 +113,10 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     this.startLevel = 1,
     this.armedLoadoutKey,
     this.screenShake = false,
-  });
+    this.tutorial = false,
+    this.dPadControls = false,
+    this.onTutorialOutcome,
+  }) : _tutorialPending = tutorial;
 
   /// Called once when the run ends (out of lives / time / VICTORY). The
   /// screen persists campaign progress + submits the score.
@@ -138,6 +142,20 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   /// Settings toggle: jolt the view on hits / deaths / boss kills.
   final bool screenShake;
+
+  /// First-run interactive tutorial: when true the guided beats run
+  /// BEFORE Level 1's script (see [TutorialDirector]); the real level
+  /// choreography starts only when the tutorial certifies or is skipped.
+  final bool tutorial;
+
+  /// Whether the player chose D-pad controls — the tutorial's steer
+  /// prompt demos whichever input they actually have.
+  final bool dPadControls;
+
+  /// Fired once when the tutorial resolves: `true` = all beats done
+  /// (PILOT CERTIFIED — the screen awards the completion bonus),
+  /// `false` = skipped. Never fired when [tutorial] is false.
+  final void Function(bool completed)? onTutorialOutcome;
 
   final math.Random rng = math.Random();
 
@@ -172,6 +190,9 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   final ValueNotifier<String?> calloutNotifier = ValueNotifier(null);
   // Bumped on every LANDED hit — the HUD flashes a red edge vignette.
   final ValueNotifier<int> hitPulseNotifier = ValueNotifier(0);
+  // Active first-run tutorial prompt; null = no banner. Only ever set
+  // while [tutorial] is running.
+  final ValueNotifier<TutorialPrompt?> tutorialNotifier = ValueNotifier(null);
 
   // Run state.
   int levelIndex = 1;
@@ -219,6 +240,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   bool _armedApplied = false;
   bool _runEnded = false;
+
+  // Tutorial run state: pending until certified/skipped; the director
+  // is kept so the HUD skip button can reach it.
+  bool _tutorialPending;
+  TutorialDirector? _tutorialDirector;
 
   GamePhase get phase => phaseNotifier.value;
 
@@ -355,7 +381,9 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       biome: b,
       perTenSeconds: level.obstaclesPerTenSeconds,
     );
-    add(_obstacleSpawner!);
+    // During the first-run tutorial the sky belongs to the guided beats —
+    // the spawner mounts when the tutorial hands off (endTutorial).
+    if (!_tutorialPending) add(_obstacleSpawner!);
 
     _starfield.setTint(b.starTint);
   }
@@ -371,7 +399,35 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       ArmedLoadout.apply(this, key);
     }
 
+    // First run: the tutorial owns the field; the level script starts
+    // from endTutorial() once the player is certified (or skips).
+    if (_tutorialPending) {
+      _tutorialDirector = TutorialDirector();
+      add(_tutorialDirector!);
+      return;
+    }
+
     _scriptRunner.startLevel(level.script);
+  }
+
+  /// HUD skip button (visible from the tutorial's second beat).
+  void skipTutorial() => _tutorialDirector?.skip();
+
+  /// Tutorial handoff: called by the [TutorialDirector] after the player
+  /// is certified (or skips). Mounts the held obstacle spawner, resets
+  /// the level clock so the terrain profile and timings play level 1 as
+  /// designed, and starts the real script.
+  void endTutorial() {
+    if (!_tutorialPending) return;
+    _tutorialPending = false;
+    _tutorialDirector = null;
+    tutorialNotifier.value = null;
+    final spawner = _obstacleSpawner;
+    if (spawner != null && spawner.parent == null) add(spawner);
+    _levelClock = 0;
+    if (phase == GamePhase.playing) {
+      _scriptRunner.startLevel(level.script);
+    }
   }
 
   /// Called by the ScriptRunner when a section-opening formation fires —

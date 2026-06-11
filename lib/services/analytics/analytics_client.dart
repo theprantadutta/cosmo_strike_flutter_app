@@ -128,6 +128,12 @@ abstract class AnalyticsClient {
   Future<void> trackWalkthroughStarted();
   Future<void> trackWalkthroughCompleted();
 
+  /// First-run in-game tutorial (the guided Level 1 beats — distinct
+  /// from the home-screen walkthrough above).
+  Future<void> trackGameTutorialStarted();
+  Future<void> trackGameTutorialCompleted();
+  Future<void> trackGameTutorialSkipped();
+
   /// Fires when ReviewService dispatches a `requestReview()` to the native
   /// platform. [trigger] is the human-readable name of the moment that
   /// caused the request (e.g. `newHighScore`). The platform does not report
