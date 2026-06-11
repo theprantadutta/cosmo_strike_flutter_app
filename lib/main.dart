@@ -124,8 +124,7 @@ void main() async {
     );
     AppLogger.success('Audio service initialized');
 
-    // Start the background-music loop (no-op while the toggle is off or
-    // the track at assets/audio/background_music.mp3 hasn't shipped).
+    // Start the background-music loop (no-op while the toggle is off).
     unawaited(AudioService().playBackgroundMusic());
 
     // Walkthrough flags (home tour / game tutorial / control choice) are

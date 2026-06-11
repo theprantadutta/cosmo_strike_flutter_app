@@ -137,9 +137,8 @@ class AudioService {
   /// file hasn't shipped yet.
   bool _musicStarted = false;
 
-  /// Loop the background track. Drop the file at
-  /// `assets/audio/background_music.mp3` (the pubspec already globs the
-  /// directory); until it exists this logs once per attempt and no-ops.
+  /// Loop the background track at `assets/audio/background_music.wav`.
+  /// If the file is ever missing this logs once per attempt and no-ops.
   Future<void> playBackgroundMusic() async {
     if (!_initialized || !_musicEnabled) return;
 
@@ -148,7 +147,7 @@ class AudioService {
     try {
       await _musicPlayer!.setReleaseMode(ReleaseMode.loop);
       await _musicPlayer!.setVolume(0.4);
-      await _musicPlayer!.play(AssetSource('audio/background_music.mp3'));
+      await _musicPlayer!.play(AssetSource('audio/background_music.wav'));
       _musicStarted = true;
     } catch (e) {
       debugPrint('Background music not available: $e');
