@@ -18,6 +18,7 @@ import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dar
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
+import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 import 'package:cosmo_strike_flutter_app/ui/design.dart';
 
 class StoreScreen extends StatefulWidget {
@@ -2415,7 +2416,17 @@ class _StoreScreenState extends State<StoreScreen>
         onTap: ready
             ? () {
                 final powerUps = context.read<PowerUpCubit>();
-                ads.showRewarded(onReward: powerUps.grantFreePowerUp);
+                // Capped like the identical home placement (3/day).
+                ads.showRewardedCapped(
+                  capKey: AdService.capFreePowerUp,
+                  onReward: () {
+                    powerUps.grantFreePowerUp();
+                    RewardToast.show(
+                      icon: Icons.bolt,
+                      amount: '+1 SPEED BOOST',
+                    );
+                  },
+                );
               }
             : null,
         child: Container(

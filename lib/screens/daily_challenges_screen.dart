@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,9 +12,9 @@ import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
-import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 
 class DailyChallengesScreen extends ConsumerStatefulWidget {
   const DailyChallengesScreen({super.key});
@@ -25,8 +24,6 @@ class DailyChallengesScreen extends ConsumerStatefulWidget {
 }
 
 class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
-  final AudioService _audioService = AudioService();
-
   Future<void> _refreshChallenges() async {
     await ref.read(dailyChallengesProvider.notifier).refresh();
   }
@@ -35,89 +32,59 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
     final success = await ref.read(dailyChallengesProvider.notifier).claimReward(challenge.id);
     if (success) {
       getIt<AnalyticsFacade>().trackDailyChallengeRewardClaimed();
-      // Actually earn the coins via CoinsCubit
-      if (mounted) {
-        context.read<CoinsCubit>().earnCoins(
-          CoinEarningSource.dailyChallenge,
-          customAmount: challenge.coinReward,
-          itemName: challenge.title,
-          metadata: {
-            'challengeId': challenge.id,
-            'xpReward': challenge.xpReward,
-            'difficulty': challenge.difficulty.name,
-          },
-        );
-      }
-
-      HapticFeedback.mediumImpact();
-      _audioService.playSound('coin_collect');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.monetization_on, color: Colors.amber),
-                const SizedBox(width: 8),
-                Text(
-                  'Claimed ${challenge.coinReward} coins and ${challenge.xpReward} XP!',
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green.shade700,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      // Coins + BP XP are credited inside DailyChallengeService.claimReward
+      // — crediting here again was paying the reward twice. The toast
+      // brings its own sound + haptic.
+      RewardToast.show(
+        title: 'DIRECTIVE COMPLETE',
+        amount:
+            '+${challenge.coinReward} COINS · +${challenge.xpReward} XP',
+      );
     }
   }
 
   Future<void> _claimAllRewards() async {
     final totalClaimed = await ref.read(dailyChallengesProvider.notifier).claimAllRewards();
     if (totalClaimed > 0) {
-      // Actually earn the coins via CoinsCubit
+      // Coins are credited inside DailyChallengeService.claimAllRewards —
+      // crediting here again was paying the reward twice. The toast brings
+      // its own sound + haptic.
+      RewardToast.show(
+        title: 'ALL DIRECTIVES CLAIMED',
+        amount: '+$totalClaimed COINS',
+      );
       if (mounted) {
-        context.read<CoinsCubit>().earnCoins(
-          CoinEarningSource.dailyChallenge,
-          customAmount: totalClaimed,
-          itemName: 'All Daily Challenges',
-          metadata: {'bulkClaim': true},
-        );
-      }
-
-      HapticFeedback.heavyImpact();
-      _audioService.playSound('coin_collect');
-      if (mounted) {
-        // Offer a rewarded "2×" on the claimed total when an ad is available.
+        // The toast is non-interactive, so the rewarded "2×" entry point
+        // stays on a slim SnackBar action when an ad is available.
         final ads = getIt.isRegistered<AdService>() ? getIt<AdService>() : null;
         final canDouble = ads != null && ads.adsEnabled && ads.isRewardedReady;
-        final coins = context.read<CoinsCubit>();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.celebration, color: Colors.amber),
-                const SizedBox(width: 8),
-                Text('Claimed $totalClaimed coins!'),
-              ],
+        if (canDouble) {
+          final coins = context.read<CoinsCubit>();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Double your $totalClaimed coins?'),
+              duration: const Duration(seconds: 6),
+              action: SnackBarAction(
+                label: 'WATCH TO 2×',
+                textColor: Colors.amber,
+                onPressed: () => ads.showRewarded(
+                  onReward: () {
+                    coins.earnCoins(
+                      CoinEarningSource.dailyChallenge,
+                      customAmount: totalClaimed,
+                      itemName: 'Daily Challenges 2x',
+                      metadata: const {'doubled': true},
+                    );
+                    RewardToast.show(
+                      title: 'COINS DOUBLED',
+                      amount: '+$totalClaimed COINS',
+                    );
+                  },
+                ),
+              ),
             ),
-            backgroundColor: Colors.green.shade700,
-            duration: Duration(seconds: canDouble ? 6 : 2),
-            action: canDouble
-                ? SnackBarAction(
-                    label: 'WATCH TO 2×',
-                    textColor: Colors.amber,
-                    onPressed: () => ads.showRewarded(
-                      onReward: () => coins.earnCoins(
-                        CoinEarningSource.dailyChallenge,
-                        customAmount: totalClaimed,
-                        itemName: 'Daily Challenges 2x',
-                        metadata: const {'doubled': true},
-                      ),
-                    ),
-                  )
-                : null,
-          ),
-        );
+          );
+        }
       }
     }
   }

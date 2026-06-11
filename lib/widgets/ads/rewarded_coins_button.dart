@@ -5,6 +5,7 @@ import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
+import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 
 /// "Watch an ad for coins" card. Self-hides for Pro users / when ads are
 /// unavailable, and disables itself once the daily cap is hit or no ad is
@@ -39,6 +40,7 @@ class _RewardedCoinsButtonState extends State<RewardedCoinsButton> {
           itemName: 'Watched ad',
           metadata: const {'placement': 'store_free_coins'},
         );
+        RewardToast.show(amount: '+$amount COINS');
       },
     );
     if (mounted) setState(() {}); // refresh "N left today"

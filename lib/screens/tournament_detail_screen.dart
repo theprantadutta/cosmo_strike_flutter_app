@@ -15,6 +15,7 @@ import 'package:cosmo_strike_flutter_app/screens/gameplay_screen.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
 import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 import 'package:cosmo_strike_flutter_app/widgets/themed_loading.dart';
 
 class TournamentDetailScreen extends StatefulWidget {
@@ -1313,7 +1314,14 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
                 onPressed: () {
                   Navigator.of(context).pop();
                   getIt<AdService>().showRewarded(
-                    onReward: () => premiumCubit.addTournamentEntry('bronze'),
+                    onReward: () {
+                      premiumCubit.addTournamentEntry('bronze');
+                      RewardToast.show(
+                        icon: Icons.emoji_events,
+                        title: 'ENTRY GRANTED',
+                        amount: '+1 BRONZE ENTRY',
+                      );
+                    },
                   );
                 },
                 icon: const Icon(Icons.play_circle_fill,

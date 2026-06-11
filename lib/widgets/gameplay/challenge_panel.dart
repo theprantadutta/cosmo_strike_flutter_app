@@ -6,6 +6,7 @@ import '../../models/daily_challenge.dart';
 import '../../providers/daily_challenges_provider.dart';
 import '../../ui/design.dart';
 import '../../utils/constants.dart';
+import '../reward_toast.dart';
 import 'run_stat_tiles.dart';
 
 /// Today's daily challenges ("directives") for the pause / game-over
@@ -87,9 +88,17 @@ class ChallengePanel extends ConsumerWidget {
             padding: const EdgeInsets.only(bottom: GameTokens.space12),
             child: NeonButton(
               label: 'CLAIM ALL ($claimable)',
-              onPressed: () => ref
-                  .read(dailyChallengesProvider.notifier)
-                  .claimAllRewards(),
+              onPressed: () async {
+                final total = await ref
+                    .read(dailyChallengesProvider.notifier)
+                    .claimAllRewards();
+                if (total > 0) {
+                  RewardToast.show(
+                    title: 'ALL DIRECTIVES CLAIMED',
+                    amount: '+$total COINS',
+                  );
+                }
+              },
               theme: GameTheme.classic,
               height: 32,
               width: 168,
@@ -104,8 +113,17 @@ class ChallengePanel extends ConsumerWidget {
                   ? (c.currentProgress - (runStartProgress?[c.id] ?? c.currentProgress))
                       .clamp(0, c.currentProgress)
                   : 0,
-              onClaim: () =>
-                  ref.read(dailyChallengesProvider.notifier).claimReward(c.id),
+              onClaim: () async {
+                final ok = await ref
+                    .read(dailyChallengesProvider.notifier)
+                    .claimReward(c.id);
+                if (ok) {
+                  RewardToast.show(
+                    title: 'DIRECTIVE COMPLETE',
+                    amount: '+${c.coinReward} COINS · +${c.xpReward} XP',
+                  );
+                }
+              },
             ),
           ),
       ],

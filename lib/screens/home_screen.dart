@@ -28,6 +28,7 @@ import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
 import 'package:cosmo_strike_flutter_app/widgets/credits_dialog.dart';
 import 'package:cosmo_strike_flutter_app/widgets/daily_bonus_popup.dart';
 import 'package:cosmo_strike_flutter_app/widgets/player_progression.dart';
+import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 import 'package:cosmo_strike_flutter_app/widgets/theme_transition_system.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
 import 'package:cosmo_strike_flutter_app/widgets/walkthrough/home_walkthrough.dart';
@@ -255,6 +256,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           final success = await context.read<CoinsCubit>().collectDailyBonus();
           if (success) {
             getIt<AnalyticsFacade>().trackDailyBonusCollected();
+            RewardToast.show(
+              title: 'DAILY BONUS',
+              amount: '+$bonusCoins COINS',
+            );
           }
           return success;
         },
@@ -265,13 +270,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 final ok = await coins.collectDailyBonus();
                 if (!ok) return;
                 getIt<AnalyticsFacade>().trackDailyBonusCollected();
+                RewardToast.show(
+                  title: 'DAILY BONUS',
+                  amount: '+$bonusCoins COINS',
+                );
                 // Grant the same amount again on ad completion → 2× total.
                 await ads.showRewarded(
-                  onReward: () => coins.earnCoins(
-                    CoinEarningSource.dailyLogin,
-                    customAmount: bonusCoins,
-                    itemName: 'Daily bonus 2x',
-                  ),
+                  onReward: () {
+                    coins.earnCoins(
+                      CoinEarningSource.dailyLogin,
+                      customAmount: bonusCoins,
+                      itemName: 'Daily bonus 2x',
+                    );
+                    RewardToast.show(
+                      title: 'BONUS DOUBLED',
+                      amount: '+$bonusCoins COINS',
+                    );
+                  },
                 );
               }
             : null,
@@ -981,9 +996,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       return;
     }
     final coins = context.read<CoinsCubit>();
-    // Capture the messenger up front — onCoins fires after the ad is
-    // dismissed (an async gap), so reading context then isn't safe.
-    final messenger = ScaffoldMessenger.of(context);
     await ads.showRewardedForCoins(
       onCoins: (amount) async {
         // Deposit first (offline-first via CoinsCubit), confirm after.
@@ -993,28 +1005,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           itemName: 'Watched ad',
           metadata: const {'placement': 'home_free_coins'},
         );
-        messenger.showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.monetization_on,
-                    color: Colors.amber, size: 20),
-                const SizedBox(width: 10),
-                Text(
-                  '+$amount coins added to your balance!',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green.shade700,
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            duration: const Duration(seconds: 2),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
+        RewardToast.show(amount: '+$amount COINS');
       },
     );
   }
@@ -1955,7 +1946,13 @@ class _LoadoutBottomSheet extends StatelessWidget {
                     final powerUps = context.read<PowerUpCubit>();
                     await getIt<AdService>().showRewardedCapped(
                       capKey: AdService.capFreePowerUp,
-                      onReward: powerUps.grantFreePowerUp,
+                      onReward: () {
+                        powerUps.grantFreePowerUp();
+                        RewardToast.show(
+                          icon: Icons.bolt,
+                          amount: '+1 SPEED BOOST',
+                        );
+                      },
                     );
                   },
                 ),

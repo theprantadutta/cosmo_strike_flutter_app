@@ -25,7 +25,9 @@ import '../services/achievement_service.dart';
 import '../services/ads/ad_service.dart';
 import '../services/analytics/analytics_facade.dart';
 import '../services/api_service.dart';
+import '../services/audio_service.dart';
 import '../services/daily_challenge_service.dart';
+import '../services/haptic_service.dart';
 import '../services/walkthrough_service.dart';
 import '../ui/design.dart';
 import '../utils/campaign_catalog.dart';
@@ -33,6 +35,7 @@ import '../utils/constants.dart';
 import '../widgets/game_dpad.dart';
 import '../widgets/gameplay/game_over_overlay.dart';
 import '../widgets/gameplay/pause_overlay.dart';
+import '../widgets/reward_toast.dart';
 
 /// Hosts the Flame shoot-'em-up. Flame is scoped to this screen only; the
 /// HUD, pause / level-clear / revive / game-over overlays, d-pad, missile
@@ -78,6 +81,9 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// Drives the PILOT CERTIFIED celebration overlay after the tutorial's
   /// final beat (auto-dismisses).
   bool _showCertified = false;
+
+  /// Drives the gold REVIVED flourish after a paid continue (auto-dismisses).
+  bool _showRevived = false;
 
   /// Coins granted for finishing the tutorial — the celebration overlay
   /// shows the same number it actually pays out.
@@ -408,8 +414,23 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   // ---- Revive ----
 
+  /// The continue was paid (ad or coins) and the run is back: a short gold
+  /// flourish + sound + haptic so the reward never lands silently.
+  void _celebrateRevive() {
+    AudioService().playSound('revive');
+    unawaited(HapticService().customHaptic(HapticIntensity.success));
+    if (!mounted) return;
+    setState(() => _showRevived = true);
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _showRevived = false);
+    });
+  }
+
   void _reviveWithAd() {
-    AdService().showRewarded(onReward: _game.revive).then((shown) {
+    AdService().showRewarded(onReward: () {
+      _game.revive();
+      _celebrateRevive();
+    }).then((shown) {
       // Ad failed to show (expired between readiness check and tap):
       // keep the offer up; the countdown continues.
       if (!shown && mounted) {
@@ -434,6 +455,7 @@ class _GameplayScreenState extends State<GameplayScreen>
           itemName: 'Game over 2× coins',
           metadata: const {'placement': 'game_over_double'},
         ));
+        RewardToast.show(title: 'COINS DOUBLED', amount: '+$earned COINS');
         if (mounted) setState(() => _coinsDoubled = true);
       },
     );
@@ -463,6 +485,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     );
     if (ok) {
       _game.revive();
+      _celebrateRevive();
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Not enough coins')),
@@ -626,6 +649,11 @@ class _GameplayScreenState extends State<GameplayScreen>
             IgnorePointer(
               child: _CertifiedCelebration(coins: _tutorialRewardCoins),
             ),
+
+          // REVIVED flourish after a paid continue — pure celebration,
+          // never blocks input, auto-dismisses.
+          if (_showRevived)
+            const IgnorePointer(child: _ReviveFlourish()),
 
           ValueListenableBuilder<GamePhase>(
             valueListenable: _game.phaseNotifier,
@@ -1690,6 +1718,68 @@ class _CertifiedCelebration extends StatelessWidget {
             Text(
               '+$coins COINS',
               style: const TextStyle(
+                color: CosmoPalette.hull,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2.5,
+                shadows: [
+                  Shadow(color: Color(0xCC05060F), blurRadius: 8),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "REVIVED" continue flourish: a gold banner that scales in over the
+/// playfield right as the run resumes, removed by the screen after ~1.5 s.
+/// Pure celebration — wrapped in IgnorePointer by the caller.
+class _ReviveFlourish extends StatelessWidget {
+  const _ReviveFlourish();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: const Alignment(0, -0.45),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutBack,
+        builder: (_, t, child) => Opacity(
+          opacity: t.clamp(0, 1),
+          child: Transform.scale(scale: 0.7 + 0.3 * t, child: child),
+        ),
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.rocket_launch,
+              size: 40,
+              color: Color(0xFFFFD37B),
+              shadows: [
+                Shadow(color: Color(0xAAFFD37B), blurRadius: 22),
+              ],
+            ),
+            SizedBox(height: 6),
+            Text(
+              'REVIVED',
+              style: TextStyle(
+                color: Color(0xFFFFD37B),
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 5,
+                shadows: [
+                  Shadow(color: Color(0xAAFFD37B), blurRadius: 18),
+                ],
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              '+1 SHIP',
+              style: TextStyle(
                 color: CosmoPalette.hull,
                 fontSize: 15,
                 fontWeight: FontWeight.w800,

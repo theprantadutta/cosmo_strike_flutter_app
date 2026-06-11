@@ -3,7 +3,6 @@ import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/rewarded_action_button.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/models/battle_pass.dart';
@@ -13,6 +12,7 @@ import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/ui/design.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
+import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 import 'package:cosmo_strike_flutter_app/widgets/themed_loading.dart';
 
 /// Reward-Showcase battle pass — landscape "Command HUD" two-region layout:
@@ -68,26 +68,11 @@ class _BattlePassScreenState extends State<BattlePassScreen> {
 
       if (!mounted) return;
       if (ok) {
-        HapticFeedback.mediumImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Text(reward.icon, style: const TextStyle(fontSize: 20)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text('${reward.name} claimed!',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green.shade700,
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            duration: const Duration(seconds: 2),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-          ),
+        // reward.icon is an emoji String, not an IconData — use the medal.
+        RewardToast.show(
+          icon: Icons.military_tech,
+          title: 'TIER $tier CLAIMED',
+          amount: reward.name.toUpperCase(),
         );
       }
     } finally {
@@ -200,43 +185,15 @@ class _BattlePassScreenState extends State<BattlePassScreen> {
                                   capKey: AdService.capBattlePassXp,
                                   onWatch: () async {
                                     final bp = context.read<BattlePassCubit>();
-                                    // Capture the messenger up front — onReward
-                                    // fires after the ad is dismissed (an async
-                                    // gap), so we can't safely read context then.
-                                    final messenger =
-                                        ScaffoldMessenger.of(context);
                                     await getIt<AdService>().showRewardedCapped(
                                       capKey: AdService.capBattlePassXp,
                                       onReward: () {
                                         bp.bufferXP(50, source: 'ad_boost');
                                         bp.flushXP();
-                                        messenger.showSnackBar(
-                                          SnackBar(
-                                            content: const Row(
-                                              children: [
-                                                Icon(Icons.bolt,
-                                                    color: Colors.white,
-                                                    size: 20),
-                                                SizedBox(width: 10),
-                                                Text(
-                                                    '+50 Battle Pass XP earned!',
-                                                    style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w600)),
-                                              ],
-                                            ),
-                                            backgroundColor:
-                                                Colors.green.shade700,
-                                            behavior: SnackBarBehavior.floating,
-                                            margin: const EdgeInsets.fromLTRB(
-                                                16, 0, 16, 16),
-                                            duration:
-                                                const Duration(seconds: 2),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                          ),
+                                        RewardToast.show(
+                                          icon: Icons.bolt,
+                                          title: 'XP BOOST',
+                                          amount: '+50 BP XP',
                                         );
                                       },
                                     );
