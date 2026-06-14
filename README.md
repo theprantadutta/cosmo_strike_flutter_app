@@ -37,15 +37,15 @@ screen only.
 
 | Main Menu | Level Select |
 |:---:|:---:|
-| <img src="screenshots/menu.png" width="420" alt="Main menu" /> | <img src="screenshots/level_select.png" width="420" alt="Level select" /> |
+| <img src="screenshots/menu.jpg" width="420" alt="Main menu" /> | <img src="screenshots/level_select.jpg" width="420" alt="Level select" /> |
 | **Gameplay** | **Boss Fight** |
-| <img src="screenshots/gameplay.png" width="420" alt="Gameplay HUD" /> | <img src="screenshots/boss.png" width="420" alt="Boss fight" /> |
+| <img src="screenshots/gameplay.jpg" width="420" alt="Gameplay HUD" /> | <img src="screenshots/boss.jpg" width="420" alt="Boss fight" /> |
 | **Pause — Mission Console** | **Game Over — Debrief** |
-| <img src="screenshots/pause.png" width="420" alt="Pause mission console" /> | <img src="screenshots/game_over.png" width="420" alt="Game over debrief" /> |
+| <img src="screenshots/pause.jpg" width="420" alt="Pause mission console" /> | <img src="screenshots/game_over.jpg" width="420" alt="Game over debrief" /> |
 | **Daily Challenges** | **Leaderboard** |
-| <img src="screenshots/daily_challenges.png" width="420" alt="Daily challenges" /> | <img src="screenshots/leaderboard.png" width="420" alt="Leaderboard" /> |
+| <img src="screenshots/daily_challenges.jpg" width="420" alt="Daily challenges" /> | <img src="screenshots/leaderboard.jpg" width="420" alt="Leaderboard" /> |
 | **Battle Pass** | **Store** |
-| <img src="screenshots/battle_pass.png" width="420" alt="Battle pass" /> | <img src="screenshots/store.png" width="420" alt="Store" /> |
+| <img src="screenshots/battle_pass.jpg" width="420" alt="Battle pass" /> | <img src="screenshots/store.jpg" width="420" alt="Store" /> |
 
 ## Gameplay (Flame engine)
 
