@@ -289,6 +289,8 @@ class _CosmoStrikeAppState extends State<CosmoStrikeApp>
       // Re-authenticate with backend if JWT expired and refresh premium state
       _refreshOnResume();
       unawaited(AudioService().resumeBackgroundMusic());
+      // Finish any interrupted/ready in-app update (never starts a new one).
+      unawaited(InAppUpdateService().resumeUpdateIfNeeded());
     }
 
     // Music pauses ONLY on a real background transition — `inactive`

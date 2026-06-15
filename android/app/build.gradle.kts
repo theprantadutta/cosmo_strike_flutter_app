@@ -60,6 +60,15 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+
+            // R8 shrinks/obfuscates release builds. Several deps (WorkManager's
+            // Room DB, Flutter embedding, Firebase, Play Core) are reflection-
+            // loaded and crash on launch when renamed, so apply our keep rules.
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
