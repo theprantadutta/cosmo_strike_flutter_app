@@ -107,14 +107,6 @@ dependencies:
   flame: ^1.37.0
   flame_audio: ^2.12.1
 
-# TODO: Remove this override once firebase_analytics > 12.4.1 ships with the AGP 9 / built-in Kotlin fix.
-# Tracking: https://github.com/firebase/flutterfire/issues/18297 (PR branch: analytics_18297)
-dependency_overrides:
-  firebase_analytics:
-    git:
-      url: https://github.com/firebase/flutterfire.git
-      ref: analytics_18297
-      path: packages/firebase_analytics/firebase_analytics
 
 dev_dependencies:
   flutter_test:
