@@ -641,7 +641,7 @@ enum GameMode {
   // ---------------------------------------------------------------------
   // SHOOTER rules — consumed by CosmoStrikeGame (the real Flame game).
   // The legacy grid getters below (hasWalls / hasMultipleFood / etc.) are
-  // snake-era mechanics still referenced by the old GameCubit grid engine;
+  // legacy grid mechanics still referenced by the old GameCubit grid engine;
   // do NOT use them for the shooter.
   // ---------------------------------------------------------------------
 

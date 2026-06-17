@@ -1908,10 +1908,10 @@ class GameCubit extends Cubit<GameCubitState> {
       // could take 200ms–1.5s online (and used to take ~15s offline before
       // the BattlePass connectivity gate landed), producing a visible
       // stale-then-fresh flash on those screens.
-      // NOTE: This is the legacy snake GameCubit path and is no longer the
+      // NOTE: This is the legacy grid GameCubit path and is no longer the
       // live single-player loop (the shmup runs in Flame and records stats
       // from gameplay_screen._submitRun). The lifetime-stats recording and
-      // snake-era lifetime-achievement checks that used to live here were
+      // legacy lifetime-achievement checks that used to live here were
       // removed when GameStatistics was refactored to shmup vocabulary; this
       // method survives only because tournament mode still reads it.
 

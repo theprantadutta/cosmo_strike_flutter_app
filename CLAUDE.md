@@ -100,7 +100,7 @@ modifiers on top. Key pieces (all in `lib/game/`):
   TelegraphEvent / BossEvent, RELATIVE delays, barrier events wait for a
   clear field) driven by `levels/script_runner.dart`. Formations
   (`levels/formation.dart` + `components/formation_unit.dart`) are the spawn
-  unit — 9 shapes (stream/vWedge/snakeChain/pincer/wallWithGap/columnDive/
+  unit — 9 shapes (stream/vWedge/serpentine/pincer/wallWithGap/columnDive/
   ambushRear/ringSpinner/escortConvoy); wiping one fast = bonus + orb.
   The 12 scripts live in `levels/level_catalog.dart`; adding a level =
   appending data + a name in `lib/utils/campaign_catalog.dart`.

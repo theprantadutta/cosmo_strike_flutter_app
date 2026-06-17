@@ -751,6 +751,26 @@ class SyncEngine {
             send: _api.syncCoinBalance,
           );
 
+        case SyncDataType.powerUpInventory:
+          return _dispatchSnapshot(
+            read: () async {
+              final row = await _storeDao!.getPowerUpInventoryRow();
+              if (row == null) return null;
+              final decoded = jsonDecode(row.inventoryJson);
+              final inventory = <String, int>{
+                if (decoded is Map)
+                  for (final e in decoded.entries)
+                    if (e.value is int) e.key as String: e.value as int,
+              };
+              return {
+                'inventory': inventory,
+                // Row's actual updatedAt — sending now() would break LWW.
+                'updated_at': _utcIso(row.updatedAt),
+              };
+            },
+            send: _api.syncPowerUpInventory,
+          );
+
         case SyncDataType.premiumStatus:
           return _dispatchSnapshot(
             read: () async {
@@ -970,6 +990,7 @@ class SyncEngine {
       case SyncDataType.dailyBonusClaim:
       case SyncDataType.playerProgress:
       case SyncDataType.stageProgress:
+      case SyncDataType.powerUpInventory:
         return true;
       default:
         return false;
@@ -1294,6 +1315,43 @@ class SyncEngine {
             entityKey: 'coin_balance:1',
           );
           // No Drift write — local already holds the correct value.
+        }
+      }
+
+      // ----- power-up inventory (consumable; last-write-wins by updatedAt) -----
+      // Unlike coins/high-score this is NOT magnitude-merged — power-up counts
+      // go DOWN on consume, so "bigger" isn't "newer". Compare timestamps: if
+      // the local row is newer (an offline purchase/consume the pre-pull drain
+      // didn't ship), keep it and re-enqueue; otherwise adopt the cloud blob.
+      final powerUps = snapshot['power_up_inventory'];
+      if (powerUps is Map<String, dynamic>) {
+        final cloudInv = <String, int>{};
+        final rawInv = powerUps['inventory'];
+        if (rawInv is Map) {
+          rawInv.forEach((k, v) {
+            if (v is int && v > 0) cloudInv[k as String] = v;
+          });
+        }
+        final cloudUpdated = _parseDate(powerUps['updated_at']);
+        final localRow = await _storeDao!.getPowerUpInventoryRow();
+        final localAhead = localRow != null &&
+            cloudUpdated != null &&
+            localRow.updatedAt.isAfter(cloudUpdated);
+        if (localAhead) {
+          AppLogger.network(
+            'SyncEngine: power-up inventory restore — local is newer than '
+            'cloud; keeping local and re-enqueueing for push',
+          );
+          await _db!.enqueueSyncOutbox(
+            dataType: SyncDataType.powerUpInventory,
+            entityKey: 'power_up_inventory:1',
+          );
+        } else {
+          await _storeDao!.savePowerUpInventory(
+            cloudInv,
+            enqueueSync: false,
+            updatedAt: cloudUpdated,
+          );
         }
       }
 

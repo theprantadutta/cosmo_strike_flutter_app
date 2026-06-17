@@ -368,7 +368,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     // Feed the run into daily challenges + achievements — the debrief
     // panels watch both and update live as these land. Kills ride the
-    // legacy FoodEaten wire type (snake-era challenge vocabulary).
+    // legacy FoodEaten wire type (the kills -> foodEaten challenge mapping).
     final modeName = settings.state.gameMode.name;
     unawaited(DailyChallengeService().updateProgressBatch([
       (type: ChallengeType.score, value: r.score, gameMode: null),

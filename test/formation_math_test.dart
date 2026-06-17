@@ -43,16 +43,16 @@ void main() {
     });
   });
 
-  group('snakeY', () {
+  group('serpentineOffset', () {
     test('is bounded by the amplitude', () {
       for (var t = 0.0; t < 10; t += 0.1) {
-        expect(snakeY(t, 100).abs(), lessThanOrEqualTo(100));
+        expect(serpentineOffset(t, 100).abs(), lessThanOrEqualTo(100));
       }
     });
 
     test('followers sampling the past reproduce the leader path', () {
       const delay = 0.4;
-      expect(snakeY(2.0 - delay, 80), snakeY(1.6, 80));
+      expect(serpentineOffset(2.0 - delay, 80), serpentineOffset(1.6, 80));
     });
   });
 

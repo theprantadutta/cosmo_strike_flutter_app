@@ -460,6 +460,9 @@ class ApiService {
   Future<SyncOutcome> syncCoinBalance(Map<String, dynamic> payload) =>
       _postSync('coins/balance', payload);
 
+  Future<SyncOutcome> syncPowerUpInventory(Map<String, dynamic> payload) =>
+      _postSync('power-up-inventory', payload);
+
   Future<SyncOutcome> syncPremiumStatus(Map<String, dynamic> payload) =>
       _postSync('premium-status', payload);
 

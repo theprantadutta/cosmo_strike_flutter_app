@@ -190,7 +190,7 @@ abstract final class LevelCatalog {
         aimedCount: 2,
       ),
     ),
-    // L2 teaches: snake chains weave + column dives drop from above.
+    // L2 teaches: serpentine chains weave + column dives drop from above.
     LevelDef(
       index: 2,
       biomeId: 'asteroid',
@@ -202,7 +202,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             0.8,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.wasp,
                 count: 6),
             countsAsSection: true),
@@ -234,7 +234,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             6.0,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.chevron,
                 count: 7,
                 y01: 0.5),
@@ -276,7 +276,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             3.5,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.wasp,
                 count: 6)),
         FormationEvent(
@@ -354,7 +354,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             1.2,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.drone,
                 count: 5),
             countsAsSection: true,
@@ -477,7 +477,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             1.2,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.kamikaze,
                 count: 6),
             countsAsSection: true,
@@ -538,7 +538,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             0.8,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.wasp,
                 count: 7),
             countsAsSection: true),
@@ -567,7 +567,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             8.0,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.wasp,
                 count: 8,
                 y01: 0.45),
@@ -611,7 +611,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             3.0,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.saucer,
                 count: 5,
                 y01: 0.6)),
@@ -650,7 +650,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             12.0,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.kamikaze,
                 count: 7),
             countsAsSection: true),
@@ -724,7 +724,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             2.5,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.drone,
                 count: 7)),
         DropEvent(1.5, PowerUpKind.shield, y01: 0.3),
@@ -745,7 +745,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             2.0,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.wasp,
                 count: 7,
                 y01: 0.55)),
@@ -888,7 +888,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             2.0,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.drone,
                 count: 7)),
         FormationEvent(
@@ -932,7 +932,7 @@ abstract final class LevelCatalog {
         FormationEvent(
             3.0,
             FormationSpec(
-                shape: FormationShape.snakeChain,
+                shape: FormationShape.serpentine,
                 type: EnemyType.wasp,
                 count: 7)),
         FormationEvent(

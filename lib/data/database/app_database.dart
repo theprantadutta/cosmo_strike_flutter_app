@@ -41,6 +41,9 @@ class SyncDataType {
   // frozen in the outbox at game-over and drained to POST /scores/batch, so an
   // offline run still reaches the global/weekly/daily boards on reconnect.
   static const String gameScore = 'game_score';
+  // Consumable pre-game power-up inventory blob. Offline-first like
+  // coin_balance: the client is authoritative and the server LWW-upserts.
+  static const String powerUpInventory = 'power_up_inventory';
 }
 
 // =====================================================
@@ -243,6 +246,21 @@ class CoinTransactions extends Table {
   /// schema symmetry with the other synced tables.
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
+}
+
+// =====================================================
+// TABLE: Power-Up Inventory (consumable pre-game power-ups)
+// =====================================================
+// Singleton row (id = 1) holding the JSON map of power-up key -> remaining
+// count. Offline-first like [Coins]: PowerUpCubit writes through here and the
+// SyncEngine pushes the blob to /sync/power-up-inventory (last-write-wins on
+// [updatedAt] — counts are consumable, so this is NOT a MAX merge).
+class PowerUpInventory extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get inventoryJson => text().withDefault(const Constant('{}'))();
+
+  /// Sync-engine timestamp — see [GameSettings.updatedAt].
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 // =====================================================
@@ -729,6 +747,7 @@ class StageProgressTable extends Table {
     FriendsMeta,
     PlayerProgressTable,
     StageProgressTable,
+    PowerUpInventory,
   ],
   daos: [
     SettingsDao,
@@ -745,7 +764,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -777,6 +796,12 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(dailyChallenges, dailyChallenges.rewardXp);
         await m.addColumn(dailyChallenges, dailyChallenges.difficulty);
         await m.addColumn(dailyChallenges, dailyChallenges.requiredGameMode);
+      }
+      if (from < 5) {
+        // v5: power-ups become offline-first. The inventory singleton blob
+        // replaces the old SharedPreferences store; PowerUpCubit imports the
+        // legacy `power_up_inventory_v1` key into this table once on first load.
+        await m.createTable(powerUpInventory);
       }
     },
   );
