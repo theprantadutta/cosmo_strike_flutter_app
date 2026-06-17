@@ -1,3 +1,5 @@
+import 'package:cosmo_strike_flutter_app/utils/logger.dart';
+
 enum ChallengeType {
   score,
   foodEaten,
@@ -5,25 +7,36 @@ enum ChallengeType {
   survival,
   gamesPlayed;
 
+  /// Canonical wire value — the backend serializes its `ChallengeType` enum as
+  /// snake_case (JsonStringEnumConverter(SnakeCaseLower)), so we mirror that
+  /// exactly. `foodEaten` maps to the backend's `enemies_killed`.
   String get apiValue {
     switch (this) {
       case ChallengeType.score:
-        return 'Score';
+        return 'score';
       case ChallengeType.foodEaten:
-        return 'FoodEaten';
+        return 'enemies_killed';
       case ChallengeType.gameMode:
-        return 'GameMode';
+        return 'game_mode';
       case ChallengeType.survival:
-        return 'Survival';
+        return 'survival';
       case ChallengeType.gamesPlayed:
-        return 'GamesPlayed';
+        return 'games_played';
     }
   }
 
-  static ChallengeType fromString(String value) {
-    switch (value.toLowerCase()) {
+  /// Parse a backend (snake_case) or legacy (PascalCase / camelCase) type
+  /// string. Normalizes by lowercasing and stripping separators so
+  /// `enemies_killed`, `EnemiesKilled` and the legacy `FoodEaten` all resolve
+  /// to [ChallengeType.foodEaten]. Returns null for an unrecognized value so
+  /// the caller can log + skip instead of silently miscounting it as a score
+  /// challenge.
+  static ChallengeType? tryParse(String value) {
+    final normalized = value.toLowerCase().replaceAll(RegExp(r'[_\s-]'), '');
+    switch (normalized) {
       case 'score':
         return ChallengeType.score;
+      case 'enemieskilled':
       case 'foodeaten':
         return ChallengeType.foodEaten;
       case 'gamemode':
@@ -33,8 +46,20 @@ enum ChallengeType {
       case 'gamesplayed':
         return ChallengeType.gamesPlayed;
       default:
-        return ChallengeType.score;
+        return null;
     }
+  }
+
+  static ChallengeType fromString(String value) {
+    final parsed = tryParse(value);
+    if (parsed == null) {
+      AppLogger.warning(
+        'ChallengeType.fromString: unrecognized type "$value" — '
+        'defaulting to score',
+      );
+      return ChallengeType.score;
+    }
+    return parsed;
   }
 }
 
@@ -105,11 +130,19 @@ class DailyChallenge {
   bool get canClaim => isCompleted && !claimedReward;
 
   factory DailyChallenge.fromJson(Map<String, dynamic> json) {
+    // Strict on type: an unrecognized type would otherwise be silently
+    // tracked as a score challenge (wrong completion metric). Throw so the
+    // caller's parse loop skips this entry instead.
+    final rawType = json['type'] as String;
+    final parsedType = ChallengeType.tryParse(rawType);
+    if (parsedType == null) {
+      throw FormatException('Unknown challenge type: "$rawType"');
+    }
     return DailyChallenge(
       id: json['id'] as String,
       title: json['title'] as String,
       description: json['description'] as String,
-      type: ChallengeType.fromString(json['type'] as String),
+      type: parsedType,
       difficulty: ChallengeDifficulty.fromString(json['difficulty'] as String),
       targetValue: (json['target_value'] ?? json['targetValue']) as int,
       currentProgress:

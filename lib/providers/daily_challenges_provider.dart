@@ -150,7 +150,15 @@ class DailyChallengesNotifier extends StateNotifier<DailyChallengesState> {
 
   void _startTtlTimer() {
     _ttlTimer?.cancel();
-    _ttlTimer = Timer.periodic(_ttl, (_) {
+    _ttlTimer = Timer.periodic(_ttl, (_) async {
+      // Detect a midnight rollover during a long-open session so the screen
+      // doesn't keep showing yesterday's challenges. refresh() also re-checks
+      // the day, but clearing here forces a clean fetch even while offline.
+      final today = DateTime.now().toIso8601String().split('T')[0];
+      if (_lastRefreshDate != null && _lastRefreshDate != today) {
+        await _service.clearCache();
+        _syncStateFromService();
+      }
       final isOnline = _ref.read(isOnlineSyncProvider);
       if (isOnline) {
         refresh();

@@ -318,8 +318,18 @@ class DailyChallenges extends Table {
   IntColumn get currentProgress => integer().withDefault(const Constant(0))();
   IntColumn get targetProgress => integer()();
   IntColumn get rewardCoins => integer().withDefault(const Constant(0))();
+  /// Battle-pass XP reward (display/fidelity). Persisted so an offline
+  /// hydration from Drift can reconstruct the full challenge.
+  IntColumn get rewardXp => integer().withDefault(const Constant(0))();
   BoolColumn get isCompleted => boolean().withDefault(const Constant(false))();
   BoolColumn get rewardClaimed => boolean().withDefault(const Constant(false))();
+  /// Difficulty label ('easy'/'medium'/'hard'); nullable for legacy rows and
+  /// the synthetic all-complete bonus row.
+  TextColumn get difficulty => text().nullable()();
+  /// Required game mode for GameMode-type challenges (e.g. 'classic', 'zen').
+  /// MUST be persisted: without it an offline-hydrated GameMode challenge would
+  /// match any mode and over-count progress.
+  TextColumn get requiredGameMode => text().nullable()();
   DateTimeColumn get challengeDate => dateTime()();
   DateTimeColumn get expiresAt => dateTime()();
   DateTimeColumn get completedAt => dateTime().nullable()();
@@ -731,7 +741,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -754,6 +764,15 @@ class AppDatabase extends _$AppDatabase {
         // data migration.
         await m.addColumn(gameSettings, gameSettings.gameModeIndex);
         await m.addColumn(gameSettings, gameSettings.hapticsEnabled);
+      }
+      if (from < 4) {
+        // v4: daily-challenge fidelity columns so an offline Drift hydration
+        // can reconstruct the full challenge (reward XP, difficulty, and the
+        // game-mode requirement for GameMode-type challenges). All nullable /
+        // defaulted, so existing rows migrate without a data backfill.
+        await m.addColumn(dailyChallenges, dailyChallenges.rewardXp);
+        await m.addColumn(dailyChallenges, dailyChallenges.difficulty);
+        await m.addColumn(dailyChallenges, dailyChallenges.requiredGameMode);
       }
     },
   );
