@@ -694,16 +694,14 @@ class StoreDao extends DatabaseAccessor<AppDatabase> with _$StoreDaoMixin {
     final seasonStart = data['season_start_date'] as String?;
     final seasonEnd = data['season_end_date'] as String? ?? expiry;
 
-    // Pin to the EXISTING row's seasonId when one is present. BattlePassCubit
-    // doesn't carry a stable seasonId, so deriving it from its display label
-    // (season_name) can disagree with the seasonId the cloud snapshot wrote —
-    // producing a SECOND row. getCurrentBattlePass() (limit 1) then reads the
-    // other row, so a just-saved claim looks like it reverted (the claimed
-    // reward chip vanishes then reappears). Reusing the current row's id keeps
-    // every read and write on the same single row.
+    // Prefer the explicit, stable backend season id the cubit now carries
+    // (`season_id`). This is what makes a season rollover write a fresh row for
+    // the new season instead of overwriting the previous one. Fall back to the
+    // current row's id (keeps a single row when the cubit hasn't loaded a
+    // season id yet), then the display label, then a default.
     final existing = await getCurrentBattlePass();
-    final resolvedSeasonId = existing?.seasonId ??
-        (data['season_id'] as String?) ??
+    final resolvedSeasonId = (data['season_id'] as String?) ??
+        existing?.seasonId ??
         (data['season_name'] as String?) ??
         'default';
 

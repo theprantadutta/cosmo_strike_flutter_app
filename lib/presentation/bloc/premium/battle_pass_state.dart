@@ -97,12 +97,6 @@ class BattlePassState extends Equatable {
   /// Maximum tier level (derived from season if available)
   int get maxTier => season?.levels.length ?? 100;
 
-  /// XP required per tier (can be customized)
-  int xpRequiredForTier(int tier) {
-    // Base: 100 XP, increasing by 50 per tier
-    return 100 + (tier * 50);
-  }
-
   @override
   List<Object?> get props => [
     status,

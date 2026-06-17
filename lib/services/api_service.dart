@@ -480,6 +480,26 @@ class ApiService {
   Future<SyncOutcome> syncBattlePass(List<Map<String, dynamic>> items) =>
       _postSync('battle-pass', {'items': items});
 
+  /// Fetch the active battle-pass season catalog (tiers + rewards + dates).
+  /// Server-driven and `[AllowAnonymous]`; the client caches the result in
+  /// Drift and renders/grants from it (offline-first). Returns the season as a
+  /// snake_case map that `BattlePassSeason.fromJson` parses, or null when the
+  /// request fails or there's no active season.
+  Future<Map<String, dynamic>?> getCurrentSeasonRemote() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/battle-pass/current-season'),
+            headers: _authHeaders,
+          )
+          .timeout(_timeout);
+      return _handleResponse(response);
+    } catch (e) {
+      AppLogger.error('Error GET /battle-pass/current-season', e);
+      return null;
+    }
+  }
+
   Future<SyncOutcome> syncDailyChallengeClaims(
     List<Map<String, dynamic>> items,
   ) =>

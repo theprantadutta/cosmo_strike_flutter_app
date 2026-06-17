@@ -1040,22 +1040,28 @@ class SyncEngine {
         'updated_at': _utcIso(r.updatedAt),
       };
 
-  Map<String, dynamic> _battlePassToPayload(BattlePassesData r) => {
-        'season_id': r.seasonId,
-        'current_tier': r.currentTier,
-        'current_xp': r.currentXp,
-        'xp_for_next_tier': r.xpForNextTier,
-        'is_premium_pass': r.isPremiumPass,
-        // Wire schema is a flat List<int>; the local Drift column
-        // stores `{"free": [...], "premium": [...]}` (see StoreDao).
-        // Flatten via union+sort here. Cross-device restore loses the
-        // free-vs-premium split — acceptable until the wire format is
-        // updated to carry the structure.
-        'claimed_rewards': _flattenClaimedRewards(r.claimedRewards),
-        'season_start_date': _utcIsoNullable(r.seasonStartDate),
-        'season_end_date': _utcIsoNullable(r.seasonEndDate),
-        'updated_at': _utcIso(r.updatedAt),
-      };
+  Map<String, dynamic> _battlePassToPayload(BattlePassesData r) {
+    // Local Drift column stores `{"free": [...], "premium": [...]}`.
+    final split = StoreDao.decodeClaimedRewards(r.claimedRewards);
+    final free = split['free'] ?? const <int>[];
+    final premium = split['premium'] ?? const <int>[];
+    return {
+      'season_id': r.seasonId,
+      'current_tier': r.currentTier,
+      'current_xp': r.currentXp,
+      'xp_for_next_tier': r.xpForNextTier,
+      'is_premium_pass': r.isPremiumPass,
+      // Carry the free/premium split so the backend mirror + admin analytics
+      // distinguish tracks. `claimed_rewards` (flat union) stays for backward
+      // compatibility with older server builds.
+      'claimed_free': [...free]..sort(),
+      'claimed_premium': [...premium]..sort(),
+      'claimed_rewards': _flattenClaimedRewards(r.claimedRewards),
+      'season_start_date': _utcIsoNullable(r.seasonStartDate),
+      'season_end_date': _utcIsoNullable(r.seasonEndDate),
+      'updated_at': _utcIso(r.updatedAt),
+    };
+  }
 
   /// Reduce the structured `{"free":[...], "premium":[...]}` Drift
   /// payload (or a legacy flat array) to the flat `List<int>` the
@@ -1419,33 +1425,30 @@ class SyncEngine {
           if (raw is! Map<String, dynamic>) continue;
           final seasonId = raw['season_id'] as String?;
           if (seasonId == null) continue;
-          // Wire payload is a flat List<int>; store under "free" in the
-          // structured local format. The free-vs-premium split is lost
-          // on restore (see [_flattenClaimedRewards] comment) — a user
-          // who reinstalls may need to re-claim premium-side rewards.
-          final wireRewards = raw['claimed_rewards'];
-          final wireSet = wireRewards is List
-              ? wireRewards.map((e) => (e as num).toInt()).toSet()
-              : <int>{};
-          // Preserve the LOCAL free/premium split. The wire payload flattens
-          // both tracks into one list and can't be un-flattened, so blindly
-          // writing it with premium=[] WIPES premium-track claims the user
-          // already made locally — which is why a just-claimed premium reward
-          // reappeared after a sync. Merge instead: keep local premium claims
-          // as-is, and union any wire tiers we don't already know as premium
-          // into the free track.
+          // The wire now carries the explicit free/premium split
+          // (`claimed_free` / `claimed_premium`). Fall back to the legacy flat
+          // `claimed_rewards` (treated as free) for older server builds.
+          List<int> wireList(dynamic v) => v is List
+              ? v.map((e) => (e as num).toInt()).toList()
+              : const <int>[];
+          final wireFreeRaw = raw['claimed_free'];
+          final wirePremiumRaw = raw['claimed_premium'];
+          final hasSplit = wireFreeRaw is List || wirePremiumRaw is List;
+          final wireFree = hasSplit
+              ? wireList(wireFreeRaw)
+              : wireList(raw['claimed_rewards']);
+          final wirePremium = hasSplit ? wireList(wirePremiumRaw) : const <int>[];
+          // Union with any local claims so a restore never drops a claim made
+          // on this device while it was offline.
           final existing = await _storeDao!.getBattlePass(seasonId);
           final localSplit = StoreDao.decodeClaimedRewards(
             existing?.claimedRewards ?? '',
           );
-          final localPremium = localSplit['premium']!.toSet();
-          final mergedFree = <int>{
-            ...localSplit['free']!,
-            ...wireSet.difference(localPremium),
-          };
+          final mergedFree = <int>{...localSplit['free']!, ...wireFree};
+          final mergedPremium = <int>{...localSplit['premium']!, ...wirePremium};
           final claimedJson = jsonEncode({
             'free': mergedFree.toList()..sort(),
-            'premium': localPremium.toList()..sort(),
+            'premium': mergedPremium.toList()..sort(),
           });
           await _storeDao!.saveBattlePass(
             BattlePassesCompanion(

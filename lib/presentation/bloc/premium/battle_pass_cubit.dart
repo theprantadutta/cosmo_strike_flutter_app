@@ -8,10 +8,13 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit
 import 'package:get_it/get_it.dart';
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
+import 'package:cosmo_strike_flutter_app/services/api_service.dart';
+import 'package:cosmo_strike_flutter_app/data/daos/store_dao.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/power_up/power_up_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/progression_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
+import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 
 import 'battle_pass_state.dart';
@@ -85,6 +88,11 @@ class BattlePassCubit extends Cubit<BattlePassState> {
       // flip isActive locally so the premium-pass UI unlocks immediately.
       _watchPremiumCubit();
       _wireDriftWatch();
+
+      // Server-driven season catalog: fetch + cache in the background so the
+      // local render stays instant and offline-first. Updates the season (and
+      // handles season rollover) when it lands.
+      unawaited(refreshSeasonFromBackend());
     } catch (e) {
       AppLogger.error('Error initializing BattlePassCubit', e);
       emit(
@@ -174,7 +182,10 @@ class BattlePassCubit extends Cubit<BattlePassState> {
           isActive: data['is_active'] ?? false,
           currentTier: data['current_tier'] ?? 0,
           currentXP: data['current_xp'] ?? 0,
-          xpForNextTier: data['xp_for_next_tier'] ?? 100,
+          // Seed from the season curve so the saved value can't drift from the
+          // ladder the screen renders (legacy rows used a hardcoded formula).
+          xpForNextTier:
+              _xpForNextTier(season, (data['current_tier'] ?? 0) as int),
           expiryDate: data['expiry_date'] != null
               ? DateTime.tryParse(data['expiry_date'])
               : null,
@@ -201,15 +212,92 @@ class BattlePassCubit extends Cubit<BattlePassState> {
     }
   }
 
-  /// Reload local state. Backend refresh path was removed in the
-  /// offline-first refactor.
+  /// Reload local state, then refresh the season catalog from the backend.
   Future<void> refresh() async {
     await _loadFromLocalStorage();
+    await refreshSeasonFromBackend();
+  }
+
+  /// XP cost to advance from [tier] to [tier]+1, read from the loaded season's
+  /// per-level curve (1-based level == tier+1). Falls back to the legacy linear
+  /// formula when no season is loaded or the level is out of range.
+  int _xpForNextTier(BattlePassSeason? season, int tier) {
+    if (season != null && tier >= 0 && tier < season.levels.length) {
+      final cost = season.getXpForLevel(tier + 1);
+      if (cost > 0) return cost;
+    }
+    return 100 + (tier * 50);
+  }
+
+  /// Fetch the active season catalog from the backend and cache it for offline
+  /// use. Offline-first: on failure we keep whatever cached/sample season the
+  /// local load produced. When the fetched season id differs from the current
+  /// one it's a new season — adopt any local progress already stored for it
+  /// (e.g. restored from the first-sign-in snapshot), else start fresh. Premium
+  /// entitlement is Pro-based and is not reset here.
+  Future<void> refreshSeasonFromBackend() async {
+    try {
+      final raw = await ApiService().getCurrentSeasonRemote();
+      if (raw == null) return; // offline / no active season — keep cached/sample
+      final season = BattlePassSeason.fromJson(raw);
+      await _storageService.setCachedSeasonJson(json.encode(season.toJson()));
+
+      if (season.id == state.season?.id) {
+        // Same season — refresh the catalog (rewards/dates may have changed),
+        // keep progress; re-seed the next-tier cost from the (possibly updated)
+        // curve.
+        emit(state.copyWith(
+          status: BattlePassStatus.ready,
+          season: season,
+          seasonName: season.name,
+          xpForNextTier: _xpForNextTier(season, state.currentTier),
+          expiryDate: season.endDate,
+        ));
+        await _saveState();
+        return;
+      }
+
+      // New season id. Adopt existing local progress for it if present.
+      final existing = await _storageService.storeDao.getBattlePass(season.id);
+      if (existing != null) {
+        final split = StoreDao.decodeClaimedRewards(existing.claimedRewards);
+        emit(state.copyWith(
+          status: BattlePassStatus.ready,
+          season: season,
+          seasonName: season.name,
+          currentTier: existing.currentTier,
+          currentXP: existing.currentXp,
+          xpForNextTier: _xpForNextTier(season, existing.currentTier),
+          claimedFreeTiers: split['free']!.toSet(),
+          claimedPremiumTiers: split['premium']!.toSet(),
+          expiryDate: existing.seasonEndDate ?? season.endDate,
+        ));
+      } else {
+        // First time this device sees this season — reset seasonal progress.
+        emit(state.copyWith(
+          status: BattlePassStatus.ready,
+          season: season,
+          seasonName: season.name,
+          currentTier: 0,
+          currentXP: 0,
+          xpForNextTier: _xpForNextTier(season, 0),
+          claimedFreeTiers: <int>{},
+          claimedPremiumTiers: <int>{},
+          expiryDate: season.endDate,
+        ));
+      }
+      await _saveState();
+    } catch (e) {
+      AppLogger.error('refreshSeasonFromBackend failed', e);
+    }
   }
 
   Future<void> _saveState() async {
     final data = {
       'is_active': state.isActive,
+      // Stable backend season id keys the Drift row, so a season rollover
+      // writes a fresh row instead of overwriting the previous season.
+      'season_id': state.season?.id,
       'current_tier': state.currentTier,
       'current_xp': state.currentXP,
       'xp_for_next_tier': state.xpForNextTier,
@@ -275,12 +363,14 @@ class BattlePassCubit extends Cubit<BattlePassState> {
     var newXP = state.currentXP + xp;
     final oldTier = state.currentTier;
     var newTier = state.currentTier;
-    var xpForNext = state.xpForNextTier;
+    // Drive the curve from the loaded season so progression matches the
+    // server-defined ladder the screen renders (not a hardcoded formula).
+    var xpForNext = _xpForNextTier(state.season, newTier);
 
     while (newXP >= xpForNext && newTier < state.maxTier) {
       newXP -= xpForNext;
       newTier++;
-      xpForNext = state.xpRequiredForTier(newTier);
+      xpForNext = _xpForNextTier(state.season, newTier);
     }
 
     emit(
@@ -307,10 +397,11 @@ class BattlePassCubit extends Cubit<BattlePassState> {
 
     switch (reward.type) {
       case BattlePassRewardType.tournamentEntry:
-        _premiumCubit.addTournamentEntry(
-          reward.itemId ?? 'bronze',
-          count: reward.quantity,
-        );
+        // The season emits ids like 'tournament_bronze'; addTournamentEntry
+        // switches on the bare tier ('bronze'/'silver'/'gold') and silently
+        // no-ops on anything else, so strip the prefix before granting.
+        final tier = (reward.itemId ?? 'bronze').replaceFirst('tournament_', '');
+        _premiumCubit.addTournamentEntry(tier, count: reward.quantity);
         break;
       case BattlePassRewardType.skin:
         if (reward.itemId != null) {
@@ -342,10 +433,29 @@ class BattlePassCubit extends Cubit<BattlePassState> {
         }
         break;
       case BattlePassRewardType.theme:
-        // Theme unlocks require a GameTheme enum value, not a string id.
-        // The local-season generator only emits cosmetic/coin rewards
-        // for now, so this branch is dormant; if a season ever issues
-        // a theme reward, hand the unlock off to the store flow.
+        // Backend seasons emit premium theme rewards (e.g. itemId
+        // 'space_theme'). Map the id to its GameTheme and unlock it so the
+        // claim actually applies — strip the '_theme' suffix and match by name.
+        final themeId = reward.itemId;
+        if (themeId != null) {
+          final name = themeId.endsWith('_theme')
+              ? themeId.substring(0, themeId.length - '_theme'.length)
+              : themeId;
+          GameTheme? theme;
+          for (final t in GameTheme.values) {
+            if (t.name == name) {
+              theme = t;
+              break;
+            }
+          }
+          if (theme != null) {
+            unawaited(_premiumCubit.unlockTheme(theme));
+          } else {
+            AppLogger.warning(
+              'BattlePass: unknown theme reward id "$themeId"',
+            );
+          }
+        }
         break;
       case BattlePassRewardType.xp:
         // XP rewards (e.g. "XP Boost" / "Mega XP") grant battle-pass XP so the
