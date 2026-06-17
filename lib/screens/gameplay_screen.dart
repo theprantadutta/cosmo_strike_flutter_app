@@ -26,6 +26,7 @@ import '../services/ads/ad_service.dart';
 import '../services/analytics/analytics_facade.dart';
 import '../services/audio_service.dart';
 import '../services/daily_challenge_service.dart';
+import '../services/statistics_service.dart';
 import '../services/tournament_service.dart';
 import '../services/haptic_service.dart';
 import '../services/walkthrough_service.dart';
@@ -382,6 +383,32 @@ class _GameplayScreenState extends State<GameplayScreen>
             gameMode: modeName, difficulty: 'normal')
         ..checkSurvivalAchievements(r.durationSeconds,
             gameMode: modeName, difficulty: 'normal');
+    } catch (_) {}
+
+    // Fold this run into lifetime statistics. This is the ONLY place the live
+    // single-player shmup records stats — the run lives in Flame, so the
+    // legacy GameCubit recording path never fires for it. Writing here keeps
+    // totalGamesPlayed / score / enemies / stage / play-time accurate, and
+    // StatisticsService persists to Drift + enqueues the statistics sync.
+    try {
+      final noHitClears =
+          r.levelResults.where((lr) => lr.cleared && lr.noHit).length;
+      await StatisticsService().recordGameResult(
+        score: r.score,
+        durationSeconds: r.durationSeconds,
+        stageReached: r.stageReached,
+        waveReached: r.waveReached,
+        enemiesKilled: r.enemiesKilled,
+        bossesKilled: r.bossesKilled,
+        levelsCleared: r.levelsCleared,
+        missilesFired: r.missilesFired,
+        revivesUsed: r.revivesUsed,
+        victory: r.cleared,
+        noHitClears: noHitClears,
+        maxCombo: r.maxCombo,
+        grazeCount: r.grazeCount,
+        gameMode: modeName,
+      );
     } catch (_) {}
   }
 

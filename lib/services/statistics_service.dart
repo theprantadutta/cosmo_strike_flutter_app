@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart' as db;
 import 'package:cosmo_strike_flutter_app/models/game_statistics.dart';
+import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/data_sync_service.dart';
 import 'package:cosmo_strike_flutter_app/services/unified_user_service.dart';
@@ -13,6 +14,7 @@ class StatisticsService extends ChangeNotifier {
   final StorageService _storageService = StorageService();
   final DataSyncService _syncService = DataSyncService();
   final UnifiedUserService _userService = UnifiedUserService();
+  final ApiService _apiService = ApiService();
 
   GameStatistics _currentStatistics = GameStatistics.initial();
   bool _initialized = false;
@@ -178,263 +180,48 @@ class StatisticsService extends ChangeNotifier {
   /// resetStatistics, forceSync) compile unchanged.
   Future<void> _syncWithCloud() async {}
 
-  /// Overlay server-aggregated cumulative fields onto a local GameStatistics
-  /// snapshot. Dormant in the offline-first build but retained in case the
-  /// server merge path is revived.
-  // ignore: unused_element
-  GameStatistics _applyServerAggregates(
-    GameStatistics local,
-    Map<String, dynamic> server,
-  ) {
-    final serverGames = (server['totalGamesPlayed'] ?? 0) as int;
-    if (serverGames <= 0) return local;
-
-    final serverScore = (server['totalScore'] ?? 0) as int;
-    final serverHigh = (server['highScore'] ?? 0) as int;
-    final serverTime = (server['totalPlayTimeSeconds'] ?? 0) as int;
-    final serverFoods = (server['totalFoodsEaten'] ?? 0) as int;
-    // gamesSurvived30s only present after Phase 6a backend deploy. Older
-    // backends won't include the field; fall back to the local count so
-    // we don't zero out the survival numerator pre-deploy.
-    final serverSurvived = (server['gamesSurvived30s'] is int)
-        ? server['gamesSurvived30s'] as int
-        : local.gamesSurvived30s;
-
-    // Take max() of server vs local for each cumulative field so a brief
-    // backend lag (e.g. local just played a game whose score-submit hasn't
-    // landed yet) doesn't visibly decrement a number on the screen.
-    return GameStatistics(
-      totalGamesPlayed:
-          serverGames > local.totalGamesPlayed ? serverGames : local.totalGamesPlayed,
-      totalScore: serverScore > local.totalScore ? serverScore : local.totalScore,
-      highScore: serverHigh > local.highScore ? serverHigh : local.highScore,
-      totalGameTime:
-          serverTime > local.totalGameTime ? serverTime : local.totalGameTime,
-      averageGameTime: local.averageGameTime,
-      totalFoodConsumed: serverFoods > local.totalFoodConsumed
-          ? serverFoods
-          : local.totalFoodConsumed,
-      foodTypeCount: local.foodTypeCount,
-      totalFoodPoints: local.totalFoodPoints,
-      totalPowerUpsCollected: local.totalPowerUpsCollected,
-      powerUpTypeCount: local.powerUpTypeCount,
-      totalPowerUpTime: local.totalPowerUpTime,
-      longestSurvivalTime: local.longestSurvivalTime,
-      highestLevel: local.highestLevel,
-      totalLevelsGained: local.totalLevelsGained,
-      averageScore: local.averageScore,
-      gamesSurvived30s: serverSurvived > local.gamesSurvived30s
-          ? serverSurvived
-          : local.gamesSurvived30s,
-      wallCollisions: local.wallCollisions,
-      selfCollisions: local.selfCollisions,
-      totalCollisions: local.totalCollisions,
-      collisionRate: local.collisionRate,
-      currentWinStreak: local.currentWinStreak,
-      longestWinStreak: local.longestWinStreak,
-      gamesWithoutWallHit: local.gamesWithoutWallHit,
-      perfectGames: local.perfectGames,
-      totalSessions: local.totalSessions,
-      averageGamesPerSession: local.averageGamesPerSession,
-      lastPlayedDate: local.lastPlayedDate,
-      firstPlayedDate: local.firstPlayedDate,
-      recentScores: local.recentScores,
-      dailyPlayTime: local.dailyPlayTime,
-      achievementsUnlocked: local.achievementsUnlocked,
-      totalAchievements: local.totalAchievements,
-      achievementProgress: local.achievementProgress,
-    );
-  }
-
-  /// Merge two GameStatistics by taking max values for each field.
-  /// Dormant in the offline-first build but kept in case cloud merge
-  /// is revived.
-  // ignore: unused_element
-  GameStatistics _mergeStatistics(
-    GameStatistics a,
-    GameStatistics b,
-  ) {
-    // Cumulative fields: take max (both devices accumulate independently)
-    final totalGamesPlayed = max(a.totalGamesPlayed, b.totalGamesPlayed);
-    final totalScore = max(a.totalScore, b.totalScore);
-    final totalGameTime = max(a.totalGameTime, b.totalGameTime);
-    final totalFoodConsumed = max(a.totalFoodConsumed, b.totalFoodConsumed);
-    final totalFoodPoints = max(a.totalFoodPoints, b.totalFoodPoints);
-    final totalPowerUpsCollected = max(
-      a.totalPowerUpsCollected,
-      b.totalPowerUpsCollected,
-    );
-    final totalPowerUpTime = max(a.totalPowerUpTime, b.totalPowerUpTime);
-    final totalLevelsGained = max(a.totalLevelsGained, b.totalLevelsGained);
-    final wallCollisions = max(a.wallCollisions, b.wallCollisions);
-    final selfCollisions = max(a.selfCollisions, b.selfCollisions);
-    final totalCollisions = wallCollisions + selfCollisions;
-    final totalSessions = max(a.totalSessions, b.totalSessions);
-    final achievementsUnlocked = max(
-      a.achievementsUnlocked,
-      b.achievementsUnlocked,
-    );
-    final perfectGames = max(a.perfectGames, b.perfectGames);
-    final gamesWithoutWallHit = max(
-      a.gamesWithoutWallHit,
-      b.gamesWithoutWallHit,
-    );
-
-    // Record fields: take max
-    final highScore = max(a.highScore, b.highScore);
-    final longestSurvivalTime = max(
-      a.longestSurvivalTime,
-      b.longestSurvivalTime,
-    );
-    final highestLevel = max(a.highestLevel, b.highestLevel);
-    final longestWinStreak = max(a.longestWinStreak, b.longestWinStreak);
-    final currentWinStreak = max(a.currentWinStreak, b.currentWinStreak);
-
-    // Maps: merge by taking max per key
-    final foodTypeCount = _mergeMaps(a.foodTypeCount, b.foodTypeCount);
-    final powerUpTypeCount = _mergeMaps(a.powerUpTypeCount, b.powerUpTypeCount);
-    final dailyPlayTime = _mergeMaps(a.dailyPlayTime, b.dailyPlayTime);
-
-    // Lists: take whichever is longer (more history)
-    final recentScores = a.recentScores.length >= b.recentScores.length
-        ? a.recentScores
-        : b.recentScores;
-
-    // Dates: earliest first, latest last
-    final firstPlayedDate = _earlierDate(a.firstPlayedDate, b.firstPlayedDate);
-    final lastPlayedDate = _laterDate(a.lastPlayedDate, b.lastPlayedDate);
-
-    // Derived fields: recalculate from merged base values
-    final averageScore = totalGamesPlayed > 0
-        ? totalScore / totalGamesPlayed
-        : 0.0;
-    final averageGameTime = totalGamesPlayed > 0
-        ? (totalGameTime / totalGamesPlayed).round()
-        : 0;
-    final collisionRate = totalGamesPlayed > 0
-        ? totalCollisions / totalGamesPlayed
-        : 0.0;
-    // survivalRate is now a derived getter on GameStatistics, so the
-    // merged value comes from the merged gamesSurvived30s counter below.
-    final gamesSurvived30s = max(a.gamesSurvived30s, b.gamesSurvived30s);
-    final averageGamesPerSession = totalSessions > 0
-        ? (totalGamesPlayed / totalSessions).round()
-        : totalGamesPlayed;
-    final totalAchievements = max(a.totalAchievements, b.totalAchievements);
-    final achievementProgress = totalAchievements > 0
-        ? achievementsUnlocked / totalAchievements
-        : 0.0;
-
-    return GameStatistics(
-      totalGamesPlayed: totalGamesPlayed,
-      totalScore: totalScore,
-      highScore: highScore,
-      totalGameTime: totalGameTime,
-      averageGameTime: averageGameTime,
-      totalFoodConsumed: totalFoodConsumed,
-      foodTypeCount: foodTypeCount,
-      totalFoodPoints: totalFoodPoints,
-      totalPowerUpsCollected: totalPowerUpsCollected,
-      powerUpTypeCount: powerUpTypeCount,
-      totalPowerUpTime: totalPowerUpTime,
-      longestSurvivalTime: longestSurvivalTime,
-      highestLevel: highestLevel,
-      totalLevelsGained: totalLevelsGained,
-      averageScore: averageScore,
-      gamesSurvived30s: gamesSurvived30s,
-      wallCollisions: wallCollisions,
-      selfCollisions: selfCollisions,
-      totalCollisions: totalCollisions,
-      collisionRate: collisionRate,
-      currentWinStreak: currentWinStreak,
-      longestWinStreak: longestWinStreak,
-      gamesWithoutWallHit: gamesWithoutWallHit,
-      perfectGames: perfectGames,
-      totalSessions: totalSessions,
-      averageGamesPerSession: averageGamesPerSession,
-      lastPlayedDate: lastPlayedDate,
-      firstPlayedDate: firstPlayedDate,
-      recentScores: recentScores,
-      dailyPlayTime: dailyPlayTime,
-      achievementsUnlocked: achievementsUnlocked,
-      totalAchievements: totalAchievements,
-      achievementProgress: achievementProgress,
-    );
-  }
-
-  /// Merge two maps by taking the max value for each key.
-  Map<String, int> _mergeMaps(Map<String, int> a, Map<String, int> b) {
-    final merged = Map<String, int>.from(a);
-    for (final entry in b.entries) {
-      merged[entry.key] = max(merged[entry.key] ?? 0, entry.value);
-    }
-    return merged;
-  }
-
-  /// Return the earlier of two nullable DateTimes.
-  DateTime? _earlierDate(DateTime? a, DateTime? b) {
-    if (a == null) return b;
-    if (b == null) return a;
-    return a.isBefore(b) ? a : b;
-  }
-
-  /// Return the later of two nullable DateTimes.
-  DateTime? _laterDate(DateTime? a, DateTime? b) {
-    if (a == null) return b;
-    if (b == null) return a;
-    return a.isAfter(b) ? a : b;
-  }
-
-  /// No-op in the offline-first build — stats live in Drift, and the
-  /// `statistics` sync handler was removed when the backend endpoint
-  /// went away. Earlier this still queued an item that immediately
-  /// short-circuited through the default-true sync case, producing
-  /// misleading "Synced: statistics" log noise on every game-end.
-  Future<void> _uploadToCloud() async {}
-
+  /// Fold a finished shmup run into the lifetime stats. Offline-first: writes
+  /// to Drift (which enqueues the statistics sync) and notifies listeners so
+  /// the cached display map + stats screen refresh immediately.
   Future<void> recordGameResult({
     required int score,
-    required int gameTime,
-    required int level,
-    required int foodConsumed,
-    required Map<String, int> foodTypes,
-    required int foodPoints,
-    required int powerUpsCollected,
-    required Map<String, int> powerUpTypes,
-    required int powerUpTime,
-    required int wallHits,
-    required int selfHits,
-    required bool isPerfectGame,
-    required List<String> unlockedAchievements,
+    required int durationSeconds,
+    required int stageReached,
+    required int waveReached,
+    required int enemiesKilled,
+    required int bossesKilled,
+    required int levelsCleared,
+    int missilesFired = 0,
+    int revivesUsed = 0,
+    bool victory = false,
+    int noHitClears = 0,
+    int maxCombo = 0,
+    int grazeCount = 0,
+    String gameMode = 'classic',
   }) async {
     if (!_initialized) {
       await initialize();
     }
 
-    // Update statistics with new game data
     _currentStatistics = _currentStatistics.updateWithGameResult(
       score: score,
-      gameTime: gameTime,
-      level: level,
-      foodConsumed: foodConsumed,
-      foodTypes: foodTypes,
-      foodPoints: foodPoints,
-      powerUpsCollected: powerUpsCollected,
-      powerUpTypes: powerUpTypes,
-      powerUpTime: powerUpTime,
-      wallHits: wallHits,
-      selfHits: selfHits,
-      isPerfectGame: isPerfectGame,
-      unlockedAchievements: unlockedAchievements,
+      durationSeconds: durationSeconds,
+      stageReached: stageReached,
+      waveReached: waveReached,
+      enemiesKilled: enemiesKilled,
+      bossesKilled: bossesKilled,
+      levelsCleared: levelsCleared,
+      missilesFired: missilesFired,
+      revivesUsed: revivesUsed,
+      victory: victory,
+      noHitClears: noHitClears,
+      maxCombo: maxCombo,
+      grazeCount: grazeCount,
+      gameMode: gameMode,
     );
 
-    // Save locally
     await _persistToDrift();
-
-    // Upload to cloud if signed in
-    if (_userService.isSignedIn) {
-      await _uploadToCloud();
-    }
+    notifyListeners();
   }
 
   Future<void> _persistToDrift() async {
@@ -475,10 +262,6 @@ class StatisticsService extends ChangeNotifier {
 
     _currentStatistics = _currentStatistics.startNewSession();
     await _persistToDrift();
-
-    if (_userService.isSignedIn) {
-      await _uploadToCloud();
-    }
   }
 
   // Get specific statistics for UI display
@@ -490,30 +273,26 @@ class StatisticsService extends ChangeNotifier {
       // the rounded integer hours so users with sub-hour totals don't see
       // a confusing '0h'. The formatter emits 'Xs' / 'Xm Ys' / 'Xh Ym'
       // depending on magnitude; the screen drops the inline 'h' suffix.
-      'totalPlayTime': _formatDuration(_currentStatistics.totalGameTime),
+      'totalPlayTime': _formatDuration(_currentStatistics.totalPlayTimeSeconds),
       'averageScore': _currentStatistics.averageScore.round(),
-      'totalFood': _currentStatistics.totalFoodConsumed,
-      'totalPowerUps': _currentStatistics.totalPowerUpsCollected,
       'longestSurvival': _formatDuration(
-        _currentStatistics.longestSurvivalTime,
+        _currentStatistics.longestSurvivalSeconds,
       ),
-      'highestLevel': _currentStatistics.highestLevel,
+      'highestStage': _currentStatistics.highestStageReached,
+      'highestWave': _currentStatistics.highestWaveReached,
+      'enemiesKilled': _currentStatistics.totalEnemiesKilled,
+      'bossesKilled': _currentStatistics.totalBossesKilled,
+      'stagesCleared': _currentStatistics.totalLevelsCleared,
+      'victories': _currentStatistics.victories,
+      'bestCombo': _currentStatistics.bestCombo,
+      'noHitClears': _currentStatistics.noHitClears,
       'winStreak': _currentStatistics.currentWinStreak,
       'longestStreak': _currentStatistics.longestWinStreak,
       'survivalRate': '${(_currentStatistics.survivalRate * 100).round()}%',
-      'perfectGames': _currentStatistics.perfectGames,
-      'favoriteFood': _currentStatistics.favoriteFood,
-      'favoritePowerUp': _currentStatistics.favoritePowerUp,
+      'favoriteMode': _currentStatistics.favoriteMode,
       'achievementProgress':
           '${(_currentStatistics.achievementProgress * 100).round()}%',
       'recentScores': _currentStatistics.recentScores,
-      'foodBreakdown': _currentStatistics.foodTypeCount,
-      'powerUpBreakdown': _currentStatistics.powerUpTypeCount,
-      'collisionStats': {
-        'wall': _currentStatistics.wallCollisions,
-        'self': _currentStatistics.selfCollisions,
-        'total': _currentStatistics.totalCollisions,
-      },
     };
   }
 
@@ -592,7 +371,7 @@ class StatisticsService extends ChangeNotifier {
 
     for (int i = 6; i >= 0; i--) {
       final date = now.subtract(Duration(days: i));
-      final key = '${date.year}-${date.month}-${date.day}';
+      final key = GameStatistics.dayKey(date);
       last7Days[_formatDateForChart(date)] = dailyPlayTime[key] ?? 0;
     }
 
@@ -619,18 +398,50 @@ class StatisticsService extends ChangeNotifier {
     return sortedDays.first.key;
   }
 
-  // Reset statistics (for testing or user request)
-  Future<void> resetStatistics() async {
-    _currentStatistics = GameStatistics.initial();
-    await _persistToDrift();
+  /// Wipe all statistics, high score, and leaderboard scores.
+  ///
+  /// This is deliberately NOT offline-first. Everything else in the app
+  /// merges UPWARD (the statistics blob MAX-folds, the high score is
+  /// never-decrease, scores are absorbing), so a purely-local reset would
+  /// be undone by the next sync. The wipe only sticks if the SERVER clears
+  /// its mirror first — so we require connectivity, await the backend reset,
+  /// and only touch local state once it succeeds.
+  ///
+  /// Returns true on a full wipe, false if offline / the backend rejected it
+  /// (local state left intact so the user can retry once connected).
+  Future<bool> resetStatistics() async {
+    if (!_initialized) {
+      await initialize();
+    }
 
-    // Reset high score in storage. Has to go through the explicit
-    // resetHighScore path — saveHighScore now refuses any write that
-    // would decrease the stored value, by design.
+    // A guest with no account has no server mirror to clear; there's nothing
+    // that could resurrect the data, so a local wipe is authoritative.
+    final signedIn = _userService.isSignedIn;
+    if (signedIn) {
+      final outcome = await _apiService.resetStatisticsRemote();
+      if (!outcome.isSuccess) return false;
+    }
+
+    // Purge pending outbox rows that would otherwise resurrect the wiped
+    // data on the next drain: game_score (leaderboard), the statistics blob,
+    // and settings (carries the high score). The zeroed re-push enqueued by
+    // _persistToDrift below replaces the statistics row we just removed.
+    try {
+      final syncDao = getIt<db.AppDatabase>().syncDao;
+      await syncDao.removeSyncItemsByType(db.SyncDataType.gameScore);
+      await syncDao.removeSyncItemsByType(db.SyncDataType.statistics);
+      await syncDao.removeSyncItemsByType(db.SyncDataType.settings);
+    } catch (_) {}
+
+    // Reset high score FIRST (resetHighScore bypasses the never-decrease
+    // guard), so the high-score reconciliation inside _persistToDrift sees
+    // the canonical 0 instead of restoring the old value back onto the model.
     await _storageService.resetHighScore();
 
-    // No backend reset call in the offline-first build — local state
-    // is authoritative.
+    _currentStatistics = GameStatistics.initial();
+    await _persistToDrift();
+    notifyListeners();
+    return true;
   }
 
   // Force sync with cloud (for manual sync)
@@ -638,7 +449,6 @@ class StatisticsService extends ChangeNotifier {
     if (!_userService.isSignedIn) return false;
 
     try {
-      await _uploadToCloud();
       await _syncService.forceSyncNow();
       return true;
     } catch (e) {

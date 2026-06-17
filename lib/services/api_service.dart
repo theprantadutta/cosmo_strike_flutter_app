@@ -1030,6 +1030,18 @@ class ApiService {
   Future<SyncOutcome> batchSubmitScores(List<Map<String, dynamic>> items) =>
       _postOutcome('$baseUrl/scores/batch', {'scores': items}, '/scores/batch');
 
+  /// Server-authoritative statistics wipe. Unlike the rest of the app this is
+  /// NOT offline-first: the backend deletes Scores, resets achievements +
+  /// daily-challenge claims, zeroes the User aggregate, and clears the synced
+  /// statistics blob. We must wait for it to succeed before touching local
+  /// state, otherwise the next /sync/statistics MAX-merge would resurrect the
+  /// pre-reset totals.
+  Future<SyncOutcome> resetStatisticsRemote() => _postOutcome(
+        '$baseUrl/users/me/reset-statistics',
+        const {},
+        '/users/me/reset-statistics',
+      );
+
   /// POST [body] to [url] and map the HTTP result to a [SyncOutcome] with the
   /// same transient/permanent rules the SyncEngine drain relies on. Shared by
   /// the /sync/* senders and the offline score batch (/scores/batch).

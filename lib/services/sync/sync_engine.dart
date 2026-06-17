@@ -1234,10 +1234,32 @@ class SyncEngine {
       }
 
       // ----- statistics -----
+      // MAX-merge parity with high score (above). The statistics blob merges
+      // upward server-side — SyncStatistics MAX-folds every cumulative
+      // counter — so if local is ahead (a guest who ground out games offline
+      // before this first sign-in), adopting the cloud blob wholesale would
+      // wipe that progress. Keep local and re-enqueue the statistics push
+      // (the post-clearSyncQueue drain ships it up, where the backend
+      // MAX-merges it). totalGamesPlayed is the monotonic proxy for "who has
+      // more progress".
       final stats = snapshot['statistics'];
       if (stats is Map<String, dynamic>) {
-        final modelJson = stats['model_json'] as String? ?? '{}';
-        await _gameDao!.updateStatisticsFromJson(modelJson, enqueueSync: false);
+        final cloudJson = stats['model_json'] as String? ?? '{}';
+        final localJson = await _gameDao!.getStatisticsAsJson();
+        final cloudGames = _statGamesPlayed(cloudJson);
+        final localGames = _statGamesPlayed(localJson);
+        if (localGames > cloudGames) {
+          AppLogger.network(
+            'SyncEngine: statistics restore — local ($localGames games) ahead '
+            'of cloud ($cloudGames); keeping local and re-enqueueing for push',
+          );
+          await _db!.enqueueSyncOutbox(
+            dataType: SyncDataType.statistics,
+            entityKey: 'statistics:1',
+          );
+        } else {
+          await _gameDao!.updateStatisticsFromJson(cloudJson, enqueueSync: false);
+        }
       }
 
       // ----- coin balance -----
@@ -1674,6 +1696,22 @@ class SyncEngine {
     if (raw is DateTime) return raw;
     if (raw is String) return DateTime.tryParse(raw);
     return null;
+  }
+
+  /// Read `totalGamesPlayed` out of a GameStatistics JSON blob, treating any
+  /// missing/malformed blob as 0. Used by the first-sign-in apply to decide
+  /// whether local stats are ahead of the cloud snapshot.
+  int _statGamesPlayed(String json) {
+    if (json.isEmpty) return 0;
+    try {
+      final decoded = jsonDecode(json);
+      if (decoded is Map<String, dynamic>) {
+        final v = decoded['totalGamesPlayed'];
+        if (v is int) return v;
+        if (v is num) return v.toInt();
+      }
+    } catch (_) {}
+    return 0;
   }
 
   /// Cleanup. Idempotent.

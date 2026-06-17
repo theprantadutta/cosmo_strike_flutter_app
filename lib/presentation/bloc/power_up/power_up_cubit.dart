@@ -71,16 +71,7 @@ class PowerUpCubit extends Cubit<PowerUpState> {
         return;
       }
       final decoded = jsonDecode(raw);
-      var inventory = _parseInventory(decoded);
-      // One-shot legacy migration: fold snake-classic keys (camelCase /
-      // mega variants / dead types) into the 8 working keys. Idempotent,
-      // so no version bump is needed; persists only when something folded.
-      final migrated = _migrateLegacyKeys(inventory);
-      if (migrated != null) {
-        inventory = migrated;
-        await _persistInventory(inventory);
-        AppLogger.info('Power-up inventory migrated to working keys');
-      }
+      final inventory = _parseInventory(decoded);
       emit(PowerUpState(
         inventory: inventory,
         loading: false,
@@ -89,38 +80,6 @@ class PowerUpCubit extends Cubit<PowerUpState> {
       AppLogger.error('Failed to load power-up inventory', e);
       emit(state.copyWith(loading: false));
     }
-  }
-
-  /// Legacy → working key fold. MUST stay in lockstep with the backend's
-  /// PowerUpCatalog.LegacyKeyMap (ProductCatalog.cs). The six keys with
-  /// no gameplay at all convert 1:1 into score_multiplier as goodwill.
-  /// Returns null when nothing needed folding.
-  static const Map<String, String> _legacyKeyMap = {
-    'megaSpeedBoost': 'speed_boost',
-    'megaInvincibility': 'invincibility',
-    'mega_invincibility': 'invincibility',
-    'megaScoreMultiplier': 'score_multiplier',
-    'megaSlowMotion': 'slow_motion',
-    'ghostMode': 'ghost_mode',
-    'scoreShield': 'score_shield',
-    'magneticFood': 'magnetic_pickup',
-    'sizeReducer': 'score_multiplier',
-    'comboMultiplier': 'score_multiplier',
-    'timeWarp': 'score_multiplier',
-    'doubleTrouble': 'score_multiplier',
-    'luckyCharm': 'score_multiplier',
-    'powerSurge': 'score_multiplier',
-  };
-
-  static Map<String, int>? _migrateLegacyKeys(Map<String, int> inventory) {
-    var changed = false;
-    final result = <String, int>{};
-    inventory.forEach((key, count) {
-      final target = _legacyKeyMap[key] ?? key;
-      if (target != key) changed = true;
-      result[target] = (result[target] ?? 0) + count;
-    });
-    return changed ? result : null;
   }
 
   /// Buy one use of a basic power-up. Local-only: spends coins via
