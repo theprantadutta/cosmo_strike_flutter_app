@@ -65,6 +65,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
     if (_tournament != null) {
       // Tournament provided via navigation, load leaderboard
       _loadLeaderboard();
+      _maybeClaimPrize();
     } else {
       // Deep link: need to load tournament from service
       _loadTournamentFromId();
@@ -88,6 +89,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
             _isLoadingTournament = false;
           });
           _loadLeaderboard();
+          _maybeClaimPrize();
         } else {
           setState(() {
             _loadError = 'Tournament not found';
@@ -153,6 +155,29 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         _tournament = updatedTournament;
       });
       _loadLeaderboard();
+      _maybeClaimPrize();
+    }
+  }
+
+  /// Once per screen, if this is a completed tournament the user joined,
+  /// claim the prize. Prizes are server-determined but credited locally
+  /// (offline-first coin balance is client-authoritative); the claim is
+  /// idempotent server-side, so coins are credited at most once.
+  bool _prizeClaimAttempted = false;
+  Future<void> _maybeClaimPrize() async {
+    if (_prizeClaimAttempted) return;
+    final t = _tournament;
+    if (t == null ||
+        t.status != TournamentStatus.ended ||
+        !t.isJoinedServer) {
+      return;
+    }
+    _prizeClaimAttempted = true;
+    final coins = await _tournamentService.claimPrize(t.id);
+    if (coins > 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('🏆 Tournament prize claimed: +$coins coins!')),
+      );
     }
   }
 
@@ -1148,7 +1173,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
   Future<void> _joinTournament() async {
     final tournament = _tournament!;
     final tier = _getTournamentTier(tournament.type);
-    final entryCost = tournament.entryCost.clamp(1, 99);
+    // Entry costs exactly ONE ticket of the tournament's tier. (The server's
+    // numeric entry_fee is a coins value we no longer charge — it only drives
+    // the requiresEntry gate; it is NOT a ticket count.)
+    const ticketsRequired = 1;
 
     // Check entry requirement
     if (tournament.requiresEntry) {
@@ -1158,7 +1186,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
       if (!premiumCubit.state.hasPremium) {
         final availableEntries =
             premiumCubit.state.getTournamentEntryCount(tier);
-        if (availableEntries < entryCost) {
+        if (availableEntries < ticketsRequired) {
           _showNoEntryDialog(tier);
           return;
         }
@@ -1182,11 +1210,11 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
           _tournament = _tournament!.copyWith(isJoinedServer: true);
         });
 
-        // Consume entries AFTER backend confirms the join succeeded
+        // Consume one tier ticket AFTER backend confirms the join succeeded
         if (tournament.requiresEntry) {
           final premiumCubit = context.read<PremiumCubit>();
           if (!premiumCubit.state.hasPremium) {
-            await premiumCubit.useTournamentEntry(tier, count: entryCost);
+            await premiumCubit.useTournamentEntry(tier, count: ticketsRequired);
           }
         }
 

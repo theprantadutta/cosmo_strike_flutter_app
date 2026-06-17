@@ -830,6 +830,25 @@ class ApiService {
     }
   }
 
+  /// Claim the caller's tournament prize. Idempotent server-side: returns
+  /// `{ success, already_claimed, prize_coins, rank, message }`. The client
+  /// credits the coins locally only when `already_claimed` is false (the
+  /// server never touches the coin balance — it's client-authoritative).
+  Future<Map<String, dynamic>?> claimTournamentPrizeRemote(String id) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/tournaments/$id/claim-prize'),
+            headers: _authHeaders,
+          )
+          .timeout(_timeout);
+      return _handleResponse(response);
+    } catch (e) {
+      AppLogger.error('Error POST /tournaments/$id/claim-prize', e);
+      return null;
+    }
+  }
+
   /// Live score submission. [idempotencyKey] should be a UUID minted by
   /// the caller so duplicate retries de-dupe server-side.
   Future<Map<String, dynamic>?> submitTournamentScoreRemote({

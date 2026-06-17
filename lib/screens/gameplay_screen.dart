@@ -15,7 +15,7 @@ import '../models/daily_challenge.dart';
 import '../models/level_run_result.dart';
 import '../models/ship_coins.dart';
 import '../presentation/bloc/coins/coins_cubit.dart';
-import '../presentation/bloc/game/game_settings_cubit.dart';
+import '../presentation/bloc/game/game_cubit.dart';
 import '../presentation/bloc/power_up/power_up_cubit.dart';
 import '../presentation/bloc/premium/battle_pass_cubit.dart';
 import '../presentation/bloc/premium/premium_cubit.dart';
@@ -27,6 +27,7 @@ import '../services/analytics/analytics_facade.dart';
 import '../services/api_service.dart';
 import '../services/audio_service.dart';
 import '../services/daily_challenge_service.dart';
+import '../services/tournament_service.dart';
 import '../services/haptic_service.dart';
 import '../services/walkthrough_service.dart';
 import '../ui/design.dart';
@@ -75,6 +76,16 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   bool _quitPersisted = false;
 
+  /// The tree-provided GameCubit (tournament context lives here). Captured in
+  /// initState so we read THIS run's tournament id and can clear it on dispose
+  /// — tournament mode is otherwise never reset and would leak into the next
+  /// run, mis-attributing a normal game's score to the tournament.
+  GameCubit? _gameCubit;
+
+  /// Tournament this run counts toward (null for a normal game). Captured at
+  /// run start; the final score is submitted to it in [_submitRun].
+  String? _tournamentId;
+
   /// First-run tutorial: true when this run opened with the guided beats.
   bool _tutorialRun = false;
 
@@ -118,6 +129,17 @@ class _GameplayScreenState extends State<GameplayScreen>
     final settings = context.read<GameSettingsCubit>().state;
     _dPadEnabled = settings.dPadEnabled;
     _dPadPosition = settings.dPadPosition;
+
+    // Capture the tournament context for this run (set by the tournament
+    // detail screen before launching). Held for the screen's lifetime so the
+    // game-over submit attributes the score to the right tournament.
+    try {
+      _gameCubit = context.read<GameCubit>();
+      _tournamentId = _gameCubit?.state.tournamentId;
+    } catch (_) {
+      _gameCubit = null;
+      _tournamentId = null;
+    }
 
     // The debrief shows only THIS run's achievement unlocks and challenge
     // deltas — reset/snapshot both at run start.
@@ -218,6 +240,10 @@ class _GameplayScreenState extends State<GameplayScreen>
   void dispose() {
     // Restore the menu chrome (status/nav bars) when leaving the game.
     Immersive.enterMenu();
+    // Clear tournament mode so it can't leak into the next (possibly normal)
+    // run — nothing else resets it. The next tournament run re-sets it from
+    // the detail screen.
+    _gameCubit?.exitTournamentMode();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -270,6 +296,10 @@ class _GameplayScreenState extends State<GameplayScreen>
     CoinsCubit coins,
     BattlePassCubit battlePass,
   ) async {
+    // One idempotency key for this run, reused across retries of any submit
+    // so a timed-out request that actually landed isn't double-counted.
+    final runIdempotencyKey = const Uuid().v4();
+
     try {
       await settings.updateHighScore(r.score);
     } catch (_) {}
@@ -300,7 +330,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       stageReached: r.stageReached,
       waveReached: r.waveReached,
       bossesKilled: r.bossesKilled,
-      idempotencyKey: const Uuid().v4(),
+      idempotencyKey: runIdempotencyKey,
       gameData: {
         'campaign': {
           'start_level': r.startLevel,
@@ -320,6 +350,22 @@ class _GameplayScreenState extends State<GameplayScreen>
         },
       },
     ));
+
+    // Tournament run: submit the score to the live leaderboard. Reuses the
+    // run's idempotency key so a retry de-dupes server-side (BestScore is
+    // max-merged, GamesPlayed is guarded by the key).
+    final tournamentId = _tournamentId;
+    if (tournamentId != null) {
+      unawaited(TournamentService().submitScore(
+        tournamentId,
+        r.score,
+        {
+          'gameDurationSeconds': r.durationSeconds,
+          'foodsEaten': r.enemiesKilled,
+        },
+        idempotencyKey: runIdempotencyKey,
+      ));
+    }
 
     try {
       final coinsEarned = 10 +

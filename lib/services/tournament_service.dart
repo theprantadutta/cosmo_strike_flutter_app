@@ -5,7 +5,9 @@ import 'package:drift/drift.dart' as d;
 import 'package:get_it/get_it.dart';
 import 'package:cosmo_strike_flutter_app/data/daos/tournament_dao.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart';
+import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/models/tournament.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
@@ -271,8 +273,9 @@ class TournamentService {
   Future<bool> submitScore(
     String tournamentId,
     int score,
-    Map<String, dynamic> gameStats,
-  ) async {
+    Map<String, dynamic> gameStats, {
+    String? idempotencyKey,
+  }) async {
     if (!_api.isAuthenticated) return false;
     final body = await _safeFetch(
       () => _api.submitTournamentScoreRemote(
@@ -283,7 +286,9 @@ class TournamentService {
                     as int? ??
                 0,
         foodsEaten: gameStats['foodsEaten'] as int? ?? 0,
-        idempotencyKey: _uuid.v4(),
+        // Caller-supplied stable key (per game run) so a timeout-retry
+        // de-dupes server-side; fall back to a fresh key if not provided.
+        idempotencyKey: idempotencyKey ?? _uuid.v4(),
       ),
     );
     if (body == null) return false;
@@ -293,6 +298,39 @@ class TournamentService {
     unawaited(refreshTournament(tournamentId));
     unawaited(refreshTournamentLeaderboard(tournamentId));
     return true;
+  }
+
+  /// Claim the caller's prize for [tournamentId] (idempotent on the server).
+  /// Prizes are server-determined but credited CLIENT-SIDE so they ride the
+  /// offline-first, client-authoritative coin balance (a server-side credit
+  /// would be clobbered by the next coin sync). Credits coins locally only
+  /// when this call actually performed the claim (`already_claimed == false`).
+  /// Returns the coins credited (0 when nothing to claim / already claimed).
+  Future<int> claimPrize(String tournamentId) async {
+    if (!_api.isAuthenticated) return 0;
+    final body =
+        await _safeFetch(() => _api.claimTournamentPrizeRemote(tournamentId));
+    if (body == null) return 0;
+
+    final success = (body['success'] as bool?) ?? false;
+    final alreadyClaimed =
+        (body['already_claimed'] ?? body['alreadyClaimed']) as bool? ?? false;
+    final prizeCoins =
+        (body['prize_coins'] ?? body['prizeCoins']) as int? ?? 0;
+
+    if (!success || alreadyClaimed || prizeCoins <= 0) return 0;
+
+    if (GetIt.I.isRegistered<CoinsCubit>()) {
+      await GetIt.I<CoinsCubit>().earnCoins(
+        CoinEarningSource.tournamentReward,
+        customAmount: prizeCoins,
+        itemName: 'Tournament prize',
+        metadata: {'tournament_id': tournamentId},
+      );
+    }
+    // Refresh so the cached tournament reflects prize_claimed = true.
+    unawaited(refreshTournament(tournamentId));
+    return prizeCoins;
   }
 
   // -------------- Internals --------------
