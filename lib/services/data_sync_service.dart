@@ -392,14 +392,6 @@ class DataSyncService extends ChangeNotifier {
     }
   }
 
-  /// No-op in the offline-first build — score submission lost its
-  /// backend endpoint. Any queued 'score' items are marked completed
-  /// immediately so they don't sit in the queue forever.
-  Future<List<String>> _syncScoresBatch(List<SyncQueueItem> scoreItems) async {
-    if (scoreItems.isEmpty) return [];
-    return scoreItems.map((item) => item.id).toList();
-  }
-
   /// Perform sync with retry logic
   Future<void> _performSync() async {
     if (!_connectivityService.isOnline || _currentUserId == null) return;
@@ -410,6 +402,9 @@ class DataSyncService extends ChangeNotifier {
     // are drained by SyncEngine in batches; skip them here so the two
     // engines don't fight over the same rows. DataSyncService still
     // handles its own legacy types (profile, preferences, fcm_token_register).
+    // Must list EVERY SyncEngine-owned type: _syncItem's default branch
+    // returns true (marks done) for unknown types, so any SyncEngine type
+    // missing here would be silently swallowed without ever being sent.
     const outboxOwned = <String>{
       SyncDataType.settings,
       SyncDataType.statistics,
@@ -420,6 +415,11 @@ class DataSyncService extends ChangeNotifier {
       SyncDataType.unlockedItem,
       SyncDataType.battlePass,
       SyncDataType.dailyChallengeClaim,
+      SyncDataType.weeklyQuestClaim,
+      SyncDataType.dailyBonusClaim,
+      SyncDataType.playerProgress,
+      SyncDataType.stageProgress,
+      SyncDataType.gameScore,
     };
 
     final pendingItems = _syncQueue
@@ -445,40 +445,11 @@ class DataSyncService extends ChangeNotifier {
     final completedIds = <String>[];
     final retryItems = <SyncQueueItem>[];
 
-    // Separate score items for batch processing
-    final scoreItems =
-        pendingItems.where((item) => item.dataType == 'score').toList();
-    final otherItems =
-        pendingItems.where((item) => item.dataType != 'score').toList();
+    // Per-run score submission now rides the SyncEngine outbox
+    // (SyncDataType.gameScore → /scores/batch); DataSyncService no longer
+    // special-cases scores. Process every (legacy) pending item individually.
+    final otherItems = pendingItems;
 
-    // Batch sync scores if there are multiple
-    if (scoreItems.length >= 2) {
-      for (final item in scoreItems) {
-        item.status = SyncItemStatus.syncing;
-      }
-      _emitSyncState();
-
-      final batchCompleted = await _syncScoresBatch(scoreItems);
-      completedIds.addAll(batchCompleted);
-
-      // Handle failures
-      for (final item in scoreItems) {
-        if (!batchCompleted.contains(item.id)) {
-          item.retryCount++;
-          if (item.retryCount >= _maxRetries) {
-            item.status = SyncItemStatus.failed;
-          } else {
-            item.status = SyncItemStatus.pending;
-            retryItems.add(item);
-          }
-        }
-      }
-    } else {
-      // Single score, add to otherItems for individual processing
-      otherItems.addAll(scoreItems);
-    }
-
-    // Process non-score items individually
     for (final item in otherItems) {
       item.status = SyncItemStatus.syncing;
       _emitSyncState();

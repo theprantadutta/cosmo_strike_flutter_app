@@ -820,6 +820,14 @@ class SyncEngine {
           final payloads = _extractPayloads(items);
           return _mapOutcome(await _api.syncUnlockedItems(payloads));
 
+        case SyncDataType.gameScore:
+          // Event-typed: each run's payload was frozen at game-over (with its
+          // played_at + idempotency key). Drain them to /scores/batch so an
+          // offline run reaches the leaderboards on the next online tick.
+          final scorePayloads = _extractPayloads(items);
+          if (scorePayloads.isEmpty) return _DispatchResult.success;
+          return _mapOutcome(await _api.batchSubmitScores(scorePayloads));
+
         case SyncDataType.dailyChallengeClaim:
           // Per-row snapshot keyed by challenge id — read the current
           // Drift row to get the authoritative coin reward + claim

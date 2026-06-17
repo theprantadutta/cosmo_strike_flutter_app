@@ -24,7 +24,6 @@ import '../router/routes.dart';
 import '../services/achievement_service.dart';
 import '../services/ads/ad_service.dart';
 import '../services/analytics/analytics_facade.dart';
-import '../services/api_service.dart';
 import '../services/audio_service.dart';
 import '../services/daily_challenge_service.dart';
 import '../services/tournament_service.dart';
@@ -86,6 +85,10 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// run start; the final score is submitted to it in [_submitRun].
   String? _tournamentId;
 
+  /// Game mode name for this run (for the per-mode leaderboard tag). Captured
+  /// at run start so the abandoned-run path doesn't need a live context.
+  String _gameModeName = 'classic';
+
   /// First-run tutorial: true when this run opened with the guided beats.
   bool _tutorialRun = false;
 
@@ -129,6 +132,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     final settings = context.read<GameSettingsCubit>().state;
     _dPadEnabled = settings.dPadEnabled;
     _dPadPosition = settings.dPadPosition;
+    _gameModeName = settings.gameMode.name;
 
     // Capture the tournament context for this run (set by the tournament
     // detail screen before launching). Held for the screen's lifetime so the
@@ -323,33 +327,10 @@ class _GameplayScreenState extends State<GameplayScreen>
       firstClears = _outcomes.values.where((o) => o.firstClear).length;
     } catch (_) {}
 
-    unawaited(ApiService().submitGameRun(
-      score: r.score,
-      gameDurationSeconds: r.durationSeconds,
-      enemiesKilled: r.enemiesKilled,
-      stageReached: r.stageReached,
-      waveReached: r.waveReached,
-      bossesKilled: r.bossesKilled,
-      idempotencyKey: runIdempotencyKey,
-      gameData: {
-        'campaign': {
-          'start_level': r.startLevel,
-          'furthest_level': r.stageReached,
-          'levels_cleared': [
-            for (final lr in r.levelResults.where((lr) => lr.cleared))
-              {
-                'stage_id': lr.stageId,
-                'score': lr.score,
-                'time_seconds': lr.timeSeconds,
-                'no_hit': lr.noHit,
-              },
-          ],
-          'missiles_fired': r.missilesFired,
-          'revives_used': r.revivesUsed,
-          if (r.cleared) 'victory': true,
-        },
-      },
-    ));
+    // Offline-first: queue the run to the sync outbox (drained to
+    // /scores/batch by SyncEngine) instead of a live fire-and-forget call, so
+    // a run played offline still reaches the leaderboards on reconnect.
+    unawaited(_enqueueScore(r, runIdempotencyKey));
 
     // Tournament run: submit the score to the live leaderboard. Reuses the
     // run's idempotency key so a retry de-dupes server-side (BestScore is
@@ -404,6 +385,58 @@ class _GameplayScreenState extends State<GameplayScreen>
     } catch (_) {}
   }
 
+  /// Queue a finished/aborted run to the sync outbox (drained to
+  /// /scores/batch). Frozen-payload event type — `played_at` is stamped now so
+  /// a run synced later still lands in the weekly/daily window it was played
+  /// in; the idempotency key dedupes retries server-side.
+  Future<void> _enqueueScore(
+    GameResult r,
+    String idempotencyKey, {
+    bool aborted = false,
+  }) async {
+    try {
+      await GetIt.I<AppDatabase>().enqueueSyncOutbox(
+        dataType: SyncDataType.gameScore,
+        entityKey: idempotencyKey,
+        priority: 1,
+        payload: {
+          'score': r.score,
+          'game_duration_seconds': r.durationSeconds,
+          'enemies_killed': r.enemiesKilled,
+          'stage_reached': r.stageReached,
+          'wave_reached': r.waveReached,
+          'bosses_killed': r.bossesKilled,
+          'game_mode': _gameModeName,
+          'difficulty': 'Normal',
+          'idempotency_key': idempotencyKey,
+          'played_at': DateTime.now().toUtc().toIso8601String(),
+          'game_data': aborted
+              ? const {'aborted': true}
+              : {
+                  'campaign': {
+                    'start_level': r.startLevel,
+                    'furthest_level': r.stageReached,
+                    'levels_cleared': [
+                      for (final lr in r.levelResults.where((lr) => lr.cleared))
+                        {
+                          'stage_id': lr.stageId,
+                          'score': lr.score,
+                          'time_seconds': lr.timeSeconds,
+                          'no_hit': lr.noHit,
+                        },
+                    ],
+                    'missiles_fired': r.missilesFired,
+                    'revives_used': r.revivesUsed,
+                    if (r.cleared) 'victory': true,
+                  },
+                },
+        },
+      );
+    } catch (_) {
+      // A queue write shouldn't ever fail, but never let it block game-over.
+    }
+  }
+
   /// Abandon the run mid-game (quit or restart from pause): persist the
   /// partial run so campaign progress (bestWaveReached, cleared levels)
   /// survives, submit the aborted score for forensics. No coin/XP rewards.
@@ -420,16 +453,7 @@ class _GameplayScreenState extends State<GameplayScreen>
             .applyRunResults(pending)
             .catchError((_) => const <StageClearOutcome>[]));
       }
-      unawaited(ApiService().submitGameRun(
-        score: partial.score,
-        gameDurationSeconds: partial.durationSeconds,
-        enemiesKilled: partial.enemiesKilled,
-        stageReached: partial.stageReached,
-        waveReached: partial.waveReached,
-        bossesKilled: partial.bossesKilled,
-        idempotencyKey: const Uuid().v4(),
-        gameData: const {'aborted': true},
-      ));
+      unawaited(_enqueueScore(partial, const Uuid().v4(), aborted: true));
     }
   }
 

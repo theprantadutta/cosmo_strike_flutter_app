@@ -37,6 +37,10 @@ class SyncDataType {
   static const String dailyBonusClaim = 'daily_bonus_claim';
   static const String playerProgress = 'player_progress';
   static const String stageProgress = 'stage_progress';
+  // Per-run game score / leaderboard submission. Event-typed: the payload is
+  // frozen in the outbox at game-over and drained to POST /scores/batch, so an
+  // offline run still reaches the global/weekly/daily boards on reconnect.
+  static const String gameScore = 'game_score';
 }
 
 // =====================================================

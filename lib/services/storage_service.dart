@@ -604,38 +604,6 @@ class StorageService {
     await _syncDao?.clearSyncQueue();
   }
 
-  // ==================== Local Scores Queue ====================
-
-  Future<List<Map<String, dynamic>>> getPendingLocalScores() async {
-    final items = await _syncDao?.getSyncQueueAsMaps() ?? [];
-    return items.where((item) => item['dataType'] == 'score').toList();
-  }
-
-  Future<void> addPendingLocalScore(Map<String, dynamic> score) async {
-    final id = 'score_${DateTime.now().millisecondsSinceEpoch}';
-    await _syncDao?.addToSyncQueue(
-      id: id,
-      dataType: 'score',
-      data: score,
-      priority: 1, // High priority
-    );
-  }
-
-  Future<void> clearPendingLocalScores() async {
-    final items = await _syncDao?.getSyncQueueAsMaps() ?? [];
-    for (final item in items) {
-      if (item['dataType'] == 'score') {
-        await _syncDao?.removeSyncItem(item['id']);
-      }
-    }
-  }
-
-  Future<void> removePendingLocalScores(List<String> ids) async {
-    for (final id in ids) {
-      await _syncDao?.removeSyncItem(id);
-    }
-  }
-
   // ==================== Trial Data ====================
 
   Future<Map<String, dynamic>> getTrialData() async {
