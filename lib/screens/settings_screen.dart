@@ -445,7 +445,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ];
 
       // 2. Gameplay (mode + effects). Board size and the crash-feedback
-      // duration were snake-era grid settings with no meaning in the
+      // duration were legacy grid settings with no meaning in the
       // shooter — both removed (the data plumbing stays for sync compat).
       case 1:
         return [

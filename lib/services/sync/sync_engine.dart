@@ -751,6 +751,26 @@ class SyncEngine {
             send: _api.syncCoinBalance,
           );
 
+        case SyncDataType.powerUpInventory:
+          return _dispatchSnapshot(
+            read: () async {
+              final row = await _storeDao!.getPowerUpInventoryRow();
+              if (row == null) return null;
+              final decoded = jsonDecode(row.inventoryJson);
+              final inventory = <String, int>{
+                if (decoded is Map)
+                  for (final e in decoded.entries)
+                    if (e.value is int) e.key as String: e.value as int,
+              };
+              return {
+                'inventory': inventory,
+                // Row's actual updatedAt — sending now() would break LWW.
+                'updated_at': _utcIso(row.updatedAt),
+              };
+            },
+            send: _api.syncPowerUpInventory,
+          );
+
         case SyncDataType.premiumStatus:
           return _dispatchSnapshot(
             read: () async {
@@ -819,6 +839,14 @@ class SyncEngine {
         case SyncDataType.unlockedItem:
           final payloads = _extractPayloads(items);
           return _mapOutcome(await _api.syncUnlockedItems(payloads));
+
+        case SyncDataType.gameScore:
+          // Event-typed: each run's payload was frozen at game-over (with its
+          // played_at + idempotency key). Drain them to /scores/batch so an
+          // offline run reaches the leaderboards on the next online tick.
+          final scorePayloads = _extractPayloads(items);
+          if (scorePayloads.isEmpty) return _DispatchResult.success;
+          return _mapOutcome(await _api.batchSubmitScores(scorePayloads));
 
         case SyncDataType.dailyChallengeClaim:
           // Per-row snapshot keyed by challenge id — read the current
@@ -962,6 +990,7 @@ class SyncEngine {
       case SyncDataType.dailyBonusClaim:
       case SyncDataType.playerProgress:
       case SyncDataType.stageProgress:
+      case SyncDataType.powerUpInventory:
         return true;
       default:
         return false;
@@ -1040,22 +1069,28 @@ class SyncEngine {
         'updated_at': _utcIso(r.updatedAt),
       };
 
-  Map<String, dynamic> _battlePassToPayload(BattlePassesData r) => {
-        'season_id': r.seasonId,
-        'current_tier': r.currentTier,
-        'current_xp': r.currentXp,
-        'xp_for_next_tier': r.xpForNextTier,
-        'is_premium_pass': r.isPremiumPass,
-        // Wire schema is a flat List<int>; the local Drift column
-        // stores `{"free": [...], "premium": [...]}` (see StoreDao).
-        // Flatten via union+sort here. Cross-device restore loses the
-        // free-vs-premium split — acceptable until the wire format is
-        // updated to carry the structure.
-        'claimed_rewards': _flattenClaimedRewards(r.claimedRewards),
-        'season_start_date': _utcIsoNullable(r.seasonStartDate),
-        'season_end_date': _utcIsoNullable(r.seasonEndDate),
-        'updated_at': _utcIso(r.updatedAt),
-      };
+  Map<String, dynamic> _battlePassToPayload(BattlePassesData r) {
+    // Local Drift column stores `{"free": [...], "premium": [...]}`.
+    final split = StoreDao.decodeClaimedRewards(r.claimedRewards);
+    final free = split['free'] ?? const <int>[];
+    final premium = split['premium'] ?? const <int>[];
+    return {
+      'season_id': r.seasonId,
+      'current_tier': r.currentTier,
+      'current_xp': r.currentXp,
+      'xp_for_next_tier': r.xpForNextTier,
+      'is_premium_pass': r.isPremiumPass,
+      // Carry the free/premium split so the backend mirror + admin analytics
+      // distinguish tracks. `claimed_rewards` (flat union) stays for backward
+      // compatibility with older server builds.
+      'claimed_free': [...free]..sort(),
+      'claimed_premium': [...premium]..sort(),
+      'claimed_rewards': _flattenClaimedRewards(r.claimedRewards),
+      'season_start_date': _utcIsoNullable(r.seasonStartDate),
+      'season_end_date': _utcIsoNullable(r.seasonEndDate),
+      'updated_at': _utcIso(r.updatedAt),
+    };
+  }
 
   /// Reduce the structured `{"free":[...], "premium":[...]}` Drift
   /// payload (or a legacy flat array) to the flat `List<int>` the
@@ -1220,10 +1255,32 @@ class SyncEngine {
       }
 
       // ----- statistics -----
+      // MAX-merge parity with high score (above). The statistics blob merges
+      // upward server-side — SyncStatistics MAX-folds every cumulative
+      // counter — so if local is ahead (a guest who ground out games offline
+      // before this first sign-in), adopting the cloud blob wholesale would
+      // wipe that progress. Keep local and re-enqueue the statistics push
+      // (the post-clearSyncQueue drain ships it up, where the backend
+      // MAX-merges it). totalGamesPlayed is the monotonic proxy for "who has
+      // more progress".
       final stats = snapshot['statistics'];
       if (stats is Map<String, dynamic>) {
-        final modelJson = stats['model_json'] as String? ?? '{}';
-        await _gameDao!.updateStatisticsFromJson(modelJson, enqueueSync: false);
+        final cloudJson = stats['model_json'] as String? ?? '{}';
+        final localJson = await _gameDao!.getStatisticsAsJson();
+        final cloudGames = _statGamesPlayed(cloudJson);
+        final localGames = _statGamesPlayed(localJson);
+        if (localGames > cloudGames) {
+          AppLogger.network(
+            'SyncEngine: statistics restore — local ($localGames games) ahead '
+            'of cloud ($cloudGames); keeping local and re-enqueueing for push',
+          );
+          await _db!.enqueueSyncOutbox(
+            dataType: SyncDataType.statistics,
+            entityKey: 'statistics:1',
+          );
+        } else {
+          await _gameDao!.updateStatisticsFromJson(cloudJson, enqueueSync: false);
+        }
       }
 
       // ----- coin balance -----
@@ -1258,6 +1315,43 @@ class SyncEngine {
             entityKey: 'coin_balance:1',
           );
           // No Drift write — local already holds the correct value.
+        }
+      }
+
+      // ----- power-up inventory (consumable; last-write-wins by updatedAt) -----
+      // Unlike coins/high-score this is NOT magnitude-merged — power-up counts
+      // go DOWN on consume, so "bigger" isn't "newer". Compare timestamps: if
+      // the local row is newer (an offline purchase/consume the pre-pull drain
+      // didn't ship), keep it and re-enqueue; otherwise adopt the cloud blob.
+      final powerUps = snapshot['power_up_inventory'];
+      if (powerUps is Map<String, dynamic>) {
+        final cloudInv = <String, int>{};
+        final rawInv = powerUps['inventory'];
+        if (rawInv is Map) {
+          rawInv.forEach((k, v) {
+            if (v is int && v > 0) cloudInv[k as String] = v;
+          });
+        }
+        final cloudUpdated = _parseDate(powerUps['updated_at']);
+        final localRow = await _storeDao!.getPowerUpInventoryRow();
+        final localAhead = localRow != null &&
+            cloudUpdated != null &&
+            localRow.updatedAt.isAfter(cloudUpdated);
+        if (localAhead) {
+          AppLogger.network(
+            'SyncEngine: power-up inventory restore — local is newer than '
+            'cloud; keeping local and re-enqueueing for push',
+          );
+          await _db!.enqueueSyncOutbox(
+            dataType: SyncDataType.powerUpInventory,
+            entityKey: 'power_up_inventory:1',
+          );
+        } else {
+          await _storeDao!.savePowerUpInventory(
+            cloudInv,
+            enqueueSync: false,
+            updatedAt: cloudUpdated,
+          );
         }
       }
 
@@ -1419,33 +1513,30 @@ class SyncEngine {
           if (raw is! Map<String, dynamic>) continue;
           final seasonId = raw['season_id'] as String?;
           if (seasonId == null) continue;
-          // Wire payload is a flat List<int>; store under "free" in the
-          // structured local format. The free-vs-premium split is lost
-          // on restore (see [_flattenClaimedRewards] comment) — a user
-          // who reinstalls may need to re-claim premium-side rewards.
-          final wireRewards = raw['claimed_rewards'];
-          final wireSet = wireRewards is List
-              ? wireRewards.map((e) => (e as num).toInt()).toSet()
-              : <int>{};
-          // Preserve the LOCAL free/premium split. The wire payload flattens
-          // both tracks into one list and can't be un-flattened, so blindly
-          // writing it with premium=[] WIPES premium-track claims the user
-          // already made locally — which is why a just-claimed premium reward
-          // reappeared after a sync. Merge instead: keep local premium claims
-          // as-is, and union any wire tiers we don't already know as premium
-          // into the free track.
+          // The wire now carries the explicit free/premium split
+          // (`claimed_free` / `claimed_premium`). Fall back to the legacy flat
+          // `claimed_rewards` (treated as free) for older server builds.
+          List<int> wireList(dynamic v) => v is List
+              ? v.map((e) => (e as num).toInt()).toList()
+              : const <int>[];
+          final wireFreeRaw = raw['claimed_free'];
+          final wirePremiumRaw = raw['claimed_premium'];
+          final hasSplit = wireFreeRaw is List || wirePremiumRaw is List;
+          final wireFree = hasSplit
+              ? wireList(wireFreeRaw)
+              : wireList(raw['claimed_rewards']);
+          final wirePremium = hasSplit ? wireList(wirePremiumRaw) : const <int>[];
+          // Union with any local claims so a restore never drops a claim made
+          // on this device while it was offline.
           final existing = await _storeDao!.getBattlePass(seasonId);
           final localSplit = StoreDao.decodeClaimedRewards(
             existing?.claimedRewards ?? '',
           );
-          final localPremium = localSplit['premium']!.toSet();
-          final mergedFree = <int>{
-            ...localSplit['free']!,
-            ...wireSet.difference(localPremium),
-          };
+          final mergedFree = <int>{...localSplit['free']!, ...wireFree};
+          final mergedPremium = <int>{...localSplit['premium']!, ...wirePremium};
           final claimedJson = jsonEncode({
             'free': mergedFree.toList()..sort(),
-            'premium': localPremium.toList()..sort(),
+            'premium': mergedPremium.toList()..sort(),
           });
           await _storeDao!.saveBattlePass(
             BattlePassesCompanion(
@@ -1663,6 +1754,22 @@ class SyncEngine {
     if (raw is DateTime) return raw;
     if (raw is String) return DateTime.tryParse(raw);
     return null;
+  }
+
+  /// Read `totalGamesPlayed` out of a GameStatistics JSON blob, treating any
+  /// missing/malformed blob as 0. Used by the first-sign-in apply to decide
+  /// whether local stats are ahead of the cloud snapshot.
+  int _statGamesPlayed(String json) {
+    if (json.isEmpty) return 0;
+    try {
+      final decoded = jsonDecode(json);
+      if (decoded is Map<String, dynamic>) {
+        final v = decoded['totalGamesPlayed'];
+        if (v is int) return v;
+        if (v is num) return v.toInt();
+      }
+    } catch (_) {}
+    return 0;
   }
 
   /// Cleanup. Idempotent.

@@ -160,10 +160,10 @@ class Formation extends Component with HasGameReference<CosmoStrikeGame> {
           final o = vWedgeOffset(i, spec.spacing);
           x = ax + o.x;
           y = _centerY + o.y;
-        case FormationShape.snakeChain:
+        case FormationShape.serpentine:
           final delay = spec.spacing / math.max(40, _speed);
           x = ax + i * spec.spacing;
-          y = _centerY + snakeY(_t - i * delay, _span * 0.32);
+          y = _centerY + serpentineOffset(_t - i * delay, _span * 0.32);
         case FormationShape.pincer:
           final j = i ~/ 2;
           final side = i.isEven ? -1.0 : 1.0;

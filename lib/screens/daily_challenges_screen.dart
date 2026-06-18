@@ -687,7 +687,7 @@ class _DailyChallengesScreenState extends ConsumerState<DailyChallengesScreen> {
         iconData = Icons.stars;
         break;
       case ChallengeType.foodEaten:
-        // Energy pickups — flare reads space-y (was the snake-era cutlery).
+        // Energy pickups — flare reads space-y for the shooter.
         iconData = Icons.flare;
         break;
       case ChallengeType.gameMode:

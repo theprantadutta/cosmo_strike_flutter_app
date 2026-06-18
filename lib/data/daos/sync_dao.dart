@@ -93,6 +93,14 @@ class SyncDao extends DatabaseAccessor<AppDatabase> with _$SyncDaoMixin {
     await delete(syncQueue).go();
   }
 
+  /// Remove every pending outbox row of a given [dataType] (the verbatim
+  /// string stored on enqueue, e.g. `SyncDataType.gameScore`). Used by the
+  /// statistics reset to purge in-flight `game_score` pushes so a run that
+  /// hasn't drained yet can't repopulate the leaderboards after the wipe.
+  Future<int> removeSyncItemsByType(String dataType) async {
+    return (delete(syncQueue)..where((t) => t.dataType.equals(dataType))).go();
+  }
+
   /// Get sync queue count. Uses a COUNT(*) so the result is accurate
   /// regardless of the [getPendingSyncItems] page-limit cap.
   Future<int> getPendingSyncCount() async {

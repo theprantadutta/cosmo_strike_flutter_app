@@ -9,9 +9,77 @@ part 'store_dao.g.dart';
 const _uuid = Uuid();
 
 @DriftAccessor(
-    tables: [Coins, CoinTransactions, PremiumStatus, UnlockedItems, BattlePasses, PurchaseHistory, DailyBonusState])
+    tables: [Coins, CoinTransactions, PremiumStatus, UnlockedItems, BattlePasses, PurchaseHistory, DailyBonusState, PowerUpInventory])
 class StoreDao extends DatabaseAccessor<AppDatabase> with _$StoreDaoMixin {
   StoreDao(super.db);
+
+  // ==================== Power-Up Inventory ====================
+
+  /// Read the consumable power-up inventory (key -> remaining count).
+  Future<Map<String, int>> getPowerUpInventory() async {
+    final row = await (select(powerUpInventory)..where((t) => t.id.equals(1)))
+        .getSingleOrNull();
+    return _decodePowerUpInventory(row?.inventoryJson);
+  }
+
+  /// Watch the inventory map for reactive UI (PowerUpCubit subscribes).
+  Stream<Map<String, int>> watchPowerUpInventory() =>
+      (select(powerUpInventory)..where((t) => t.id.equals(1)))
+          .watchSingleOrNull()
+          .map((r) => _decodePowerUpInventory(r?.inventoryJson));
+
+  /// Full singleton row — SyncEngine reads the authentic `updatedAt` so
+  /// server-side last-write-wins isn't broken by stamping `now` at dispatch.
+  Future<PowerUpInventoryData?> getPowerUpInventoryRow() =>
+      (select(powerUpInventory)..where((t) => t.id.equals(1)))
+          .getSingleOrNull();
+
+  /// Write-through the inventory blob and (by default) enqueue a
+  /// `power_up_inventory` sync outbox row. Offline-first: local Drift is the
+  /// source of truth; the SyncEngine drains the latest blob to the backend
+  /// mirror (last-write-wins). [enqueueSync] is false on the first-sign-in
+  /// cloud apply — the snapshot IS the server's value, so re-pushing is moot.
+  Future<void> savePowerUpInventory(
+    Map<String, int> inventory, {
+    bool enqueueSync = true,
+    DateTime? updatedAt,
+  }) async {
+    // On the first-sign-in cloud apply we pass the snapshot's updatedAt so the
+    // adopted row keeps the server's clock (LWW stays accurate); local writes
+    // stamp `now`.
+    final now = updatedAt ?? DateTime.now();
+    final json = jsonEncode(inventory);
+    await transaction(() async {
+      await into(powerUpInventory).insertOnConflictUpdate(
+        PowerUpInventoryCompanion(
+          id: const Value(1),
+          inventoryJson: Value(json),
+          updatedAt: Value(now),
+        ),
+      );
+      if (enqueueSync) {
+        await attachedDatabase.enqueueSyncOutbox(
+          dataType: SyncDataType.powerUpInventory,
+          entityKey: 'power_up_inventory:1',
+        );
+      }
+    });
+  }
+
+  Map<String, int> _decodePowerUpInventory(String? json) {
+    if (json == null || json.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(json);
+      if (decoded is Map) {
+        return {
+          for (final e in decoded.entries)
+            if (e.value is int && (e.value as int) > 0)
+              e.key as String: e.value as int,
+        };
+      }
+    } catch (_) {}
+    return {};
+  }
 
   // ==================== Coins ====================
 
@@ -694,16 +762,14 @@ class StoreDao extends DatabaseAccessor<AppDatabase> with _$StoreDaoMixin {
     final seasonStart = data['season_start_date'] as String?;
     final seasonEnd = data['season_end_date'] as String? ?? expiry;
 
-    // Pin to the EXISTING row's seasonId when one is present. BattlePassCubit
-    // doesn't carry a stable seasonId, so deriving it from its display label
-    // (season_name) can disagree with the seasonId the cloud snapshot wrote —
-    // producing a SECOND row. getCurrentBattlePass() (limit 1) then reads the
-    // other row, so a just-saved claim looks like it reverted (the claimed
-    // reward chip vanishes then reappears). Reusing the current row's id keeps
-    // every read and write on the same single row.
+    // Prefer the explicit, stable backend season id the cubit now carries
+    // (`season_id`). This is what makes a season rollover write a fresh row for
+    // the new season instead of overwriting the previous one. Fall back to the
+    // current row's id (keeps a single row when the cubit hasn't loaded a
+    // season id yet), then the display label, then a default.
     final existing = await getCurrentBattlePass();
-    final resolvedSeasonId = existing?.seasonId ??
-        (data['season_id'] as String?) ??
+    final resolvedSeasonId = (data['season_id'] as String?) ??
+        existing?.seasonId ??
         (data['season_name'] as String?) ??
         'default';
 

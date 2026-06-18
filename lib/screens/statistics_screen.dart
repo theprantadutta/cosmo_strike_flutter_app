@@ -217,8 +217,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             ),
             Expanded(
               child: _buildStatCard(
-                'Highest Level',
-                '${_displayStats['highestLevel'] ?? 1}',
+                'Highest Stage',
+                '${_displayStats['highestStage'] ?? 0}',
                 Icons.military_tech,
                 Colors.indigo,
                 theme,
@@ -226,9 +226,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             ),
             Expanded(
               child: _buildStatCard(
-                'Perfect Games',
-                '${_displayStats['perfectGames'] ?? 0}',
-                Icons.star,
+                'Furthest Wave',
+                '${_displayStats['highestWave'] ?? 0}',
+                Icons.waves,
                 Colors.pink,
                 theme,
               ),
@@ -240,71 +240,97 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   Widget _buildConsumptionStats(GameTheme theme) {
-    final foodBreakdown =
-        _displayStats['foodBreakdown'] as Map<String, int>? ?? {};
-    final powerUpBreakdown =
-        _displayStats['powerUpBreakdown'] as Map<String, int>? ?? {};
-
     return _buildStatSection(
-      title: 'Kills & Power-Ups',
-      icon: Icons.restaurant,
+      title: 'Combat Record',
+      icon: Icons.military_tech,
       theme: theme,
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Enemies Destroyed',
-                  '${_displayStats['totalFood'] ?? 0}',
-                  Icons.apple,
-                  Colors.red,
-                  theme,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Power-ups Used',
-                  '${_displayStats['totalPowerUps'] ?? 0}',
-                  Icons.flash_on,
-                  Colors.yellow,
-                  theme,
-                ),
-              ),
-            ],
-          ),
-
-          if (foodBreakdown.isNotEmpty || powerUpBreakdown.isNotEmpty) ...[
-            const SizedBox(height: 16),
-
-            Row(
+          IntrinsicHeight(
+            child: Row(
               children: [
-                if (foodBreakdown.isNotEmpty)
-                  Expanded(
-                    child: _buildBreakdownCard(
-                      'Favorite Target',
-                      '${_displayStats['favoriteFood'] ?? 'None'}',
-                      foodBreakdown,
-                      theme,
-                    ),
+                Expanded(
+                  child: _buildStatCard(
+                    'Enemies Destroyed',
+                    '${_displayStats['enemiesKilled'] ?? 0}',
+                    Icons.rocket_launch,
+                    Colors.red,
+                    theme,
                   ),
-
-                if (foodBreakdown.isNotEmpty && powerUpBreakdown.isNotEmpty)
-                  const SizedBox(width: 12),
-
-                if (powerUpBreakdown.isNotEmpty)
-                  Expanded(
-                    child: _buildBreakdownCard(
-                      'Favorite Power-up',
-                      '${_displayStats['favoritePowerUp'] ?? 'None'}',
-                      powerUpBreakdown,
-                      theme,
-                    ),
+                ),
+                Expanded(
+                  child: _buildStatCard(
+                    'Bosses Defeated',
+                    '${_displayStats['bossesKilled'] ?? 0}',
+                    Icons.dangerous,
+                    Colors.deepOrange,
+                    theme,
                   ),
+                ),
+                Expanded(
+                  child: _buildStatCard(
+                    'Stages Cleared',
+                    '${_displayStats['stagesCleared'] ?? 0}',
+                    Icons.flag,
+                    Colors.green,
+                    theme,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatCard(
+                    'Best Combo',
+                    '${_displayStats['bestCombo'] ?? 0}',
+                    Icons.bolt,
+                    Colors.yellow,
+                    theme,
+                  ),
+                ),
               ],
             ),
-          ],
+          ),
+          const SizedBox(height: 16),
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    'Victories',
+                    '${_displayStats['victories'] ?? 0}',
+                    Icons.emoji_events,
+                    Colors.amber,
+                    theme,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatCard(
+                    'No-Hit Clears',
+                    '${_displayStats['noHitClears'] ?? 0}',
+                    Icons.shield,
+                    Colors.cyan,
+                    theme,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatCard(
+                    'Survival Rate',
+                    '${_displayStats['survivalRate'] ?? '0%'}',
+                    Icons.favorite,
+                    Colors.pinkAccent,
+                    theme,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatCard(
+                    'Best Streak',
+                    '${_displayStats['longestStreak'] ?? 0}',
+                    Icons.local_fire_department,
+                    Colors.orange,
+                    theme,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -851,72 +877,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
-  Widget _buildBreakdownCard(
-    String title,
-    String favorite,
-    Map<String, int> breakdown,
-    GameTheme theme,
-  ) {
-    // Fully transparent per the clean design.
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: theme.textMuted,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            favorite,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: theme.textPrimary,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          ...breakdown.entries
-              .take(3)
-              .map(
-                (entry) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        entry.key,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: theme.textMuted,
-                        ),
-                      ),
-                      Text(
-                        '${entry.value}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: theme.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildDailyActivityChart(Map<String, int> dailyData, GameTheme theme) {
     final maxTime = dailyData.values.isNotEmpty
         ? dailyData.values.reduce((a, b) => a > b ? a : b)
@@ -996,6 +956,24 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
   void _showResetDialog() {
     final theme = context.read<ThemeCubit>().state.currentTheme;
+    final muted = theme.accentColor.withValues(alpha: 0.8);
+
+    Widget bullet(String text) => Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.remove, size: 14, color: Colors.redAccent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(color: muted, fontSize: 13, height: 1.3),
+                ),
+              ),
+            ],
+          ),
+        );
 
     showDialog(
       context: context,
@@ -1005,12 +983,37 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           borderRadius: BorderRadius.circular(16),
         ),
         title: Text(
-          'Reset Statistics?',
+          'Reset everything?',
           style: TextStyle(color: theme.accentColor),
         ),
-        content: Text(
-          'This will permanently delete all your game statistics. This action cannot be undone.',
-          style: TextStyle(color: theme.accentColor.withValues(alpha: 0.8)),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This permanently deletes, on this device and the server:',
+                style: TextStyle(color: muted, fontSize: 13, height: 1.3),
+              ),
+              const SizedBox(height: 10),
+              bullet('All play statistics — games, enemies, bosses, stages, '
+                  'combos, survival and win streaks'),
+              bullet('Your high score, total score and total games'),
+              bullet('Every leaderboard score (global, weekly and daily)'),
+              bullet('Achievement progress and unlocks'),
+              bullet('Daily-challenge progress'),
+              const SizedBox(height: 10),
+              Text(
+                'This cannot be undone.',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -1023,12 +1026,34 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           TextButton(
             onPressed: () async {
               Navigator.of(context).pop();
-              await _statisticsService.resetStatistics();
-              await _refreshStatistics();
+              await _performReset();
             },
-            child: const Text('Reset', style: TextStyle(color: Colors.red)),
+            child: const Text(
+              'Delete everything',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _performReset() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await _statisticsService.resetStatistics();
+    if (ok) {
+      await _refreshStatistics();
+    }
+    if (!mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Everything has been reset.'
+              : 'Couldn\'t reach the server. Connect to the internet and try '
+                  'again — nothing was changed.',
+        ),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

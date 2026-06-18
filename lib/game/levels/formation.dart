@@ -19,7 +19,7 @@ enum FormationShape {
   vWedge,
 
   /// Follow-the-leader chain weaving along a sine path.
-  snakeChain,
+  serpentine,
 
   /// Two columns converging from the top and bottom edges.
   pincer,
@@ -158,9 +158,9 @@ Vector2 ringOffset(int i, int n, double t, double radius,
   return Vector2(math.cos(a) * radius, math.sin(a) * radius);
 }
 
-/// snakeChain: the leader's vertical path; follower i samples it
+/// serpentine: the leader's vertical path; follower i samples it
 /// [i * delay] seconds in the past.
-double snakeY(double t, double amp, {double freq = 2.4}) =>
+double serpentineOffset(double t, double amp, {double freq = 2.4}) =>
     math.sin(t * freq) * amp;
 
 /// escortConvoy: slot 0 = tank center; escorts diamond around it.

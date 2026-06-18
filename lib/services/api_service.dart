@@ -460,6 +460,9 @@ class ApiService {
   Future<SyncOutcome> syncCoinBalance(Map<String, dynamic> payload) =>
       _postSync('coins/balance', payload);
 
+  Future<SyncOutcome> syncPowerUpInventory(Map<String, dynamic> payload) =>
+      _postSync('power-up-inventory', payload);
+
   Future<SyncOutcome> syncPremiumStatus(Map<String, dynamic> payload) =>
       _postSync('premium-status', payload);
 
@@ -479,6 +482,26 @@ class ApiService {
 
   Future<SyncOutcome> syncBattlePass(List<Map<String, dynamic>> items) =>
       _postSync('battle-pass', {'items': items});
+
+  /// Fetch the active battle-pass season catalog (tiers + rewards + dates).
+  /// Server-driven and `[AllowAnonymous]`; the client caches the result in
+  /// Drift and renders/grants from it (offline-first). Returns the season as a
+  /// snake_case map that `BattlePassSeason.fromJson` parses, or null when the
+  /// request fails or there's no active season.
+  Future<Map<String, dynamic>?> getCurrentSeasonRemote() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/battle-pass/current-season'),
+            headers: _authHeaders,
+          )
+          .timeout(_timeout);
+      return _handleResponse(response);
+    } catch (e) {
+      AppLogger.error('Error GET /battle-pass/current-season', e);
+      return null;
+    }
+  }
 
   Future<SyncOutcome> syncDailyChallengeClaims(
     List<Map<String, dynamic>> items,
@@ -810,6 +833,25 @@ class ApiService {
     }
   }
 
+  /// Claim the caller's tournament prize. Idempotent server-side: returns
+  /// `{ success, already_claimed, prize_coins, rank, message }`. The client
+  /// credits the coins locally only when `already_claimed` is false (the
+  /// server never touches the coin balance — it's client-authoritative).
+  Future<Map<String, dynamic>?> claimTournamentPrizeRemote(String id) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/tournaments/$id/claim-prize'),
+            headers: _authHeaders,
+          )
+          .timeout(_timeout);
+      return _handleResponse(response);
+    } catch (e) {
+      AppLogger.error('Error POST /tournaments/$id/claim-prize', e);
+      return null;
+    }
+  }
+
   /// Live score submission. [idempotencyKey] should be a UUID minted by
   /// the caller so duplicate retries de-dupe server-side.
   Future<Map<String, dynamic>?> submitTournamentScoreRemote({
@@ -842,52 +884,10 @@ class ApiService {
     }
   }
 
-  /// Submit a finished Cosmo Strike run to the leaderboard. The backend
-  /// SubmitScore handler updates the user's high score / totals, evaluates
-  /// achievements, and the score feeds the global/stage leaderboards.
-  /// [idempotencyKey] should be a UUID minted by the caller so duplicate
-  /// retries de-dupe server-side.
-  Future<Map<String, dynamic>?> submitGameRun({
-    required int score,
-    required int gameDurationSeconds,
-    required int enemiesKilled,
-    required int stageReached,
-    required int waveReached,
-    required int bossesKilled,
-    String gameMode = 'Classic',
-    String difficulty = 'Normal',
-    String? idempotencyKey,
-    // Free-form forensics blob (e.g. the campaign breakdown:
-    // start/furthest level + per-level results). Stored verbatim by the
-    // backend's SubmitScore handler; informational only — authoritative
-    // campaign progress flows through /sync/stage-progress.
-    Map<String, dynamic>? gameData,
-  }) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/scores'),
-            headers: _authHeaders,
-            body: jsonEncode({
-              'score': score,
-              'game_duration_seconds': gameDurationSeconds,
-              'enemies_killed': enemiesKilled,
-              'stage_reached': stageReached,
-              'wave_reached': waveReached,
-              'bosses_killed': bossesKilled,
-              'game_mode': gameMode,
-              'difficulty': difficulty,
-              'idempotency_key': ?idempotencyKey,
-              'game_data': ?gameData,
-            }),
-          )
-          .timeout(_timeout);
-      return _handleResponse(response);
-    } catch (e) {
-      AppLogger.error('Error POST /scores', e);
-      return null;
-    }
-  }
+  // Per-run score submission is no longer a live call: the gameplay flow
+  // queues each run to the SyncEngine outbox (SyncDataType.gameScore), which
+  // drains to batchSubmitScores (POST /scores/batch). This keeps offline runs
+  // from being lost — they reach the leaderboards on the next online tick.
 
   // ==================== Leaderboards ====================
   //
@@ -1024,25 +1024,53 @@ class ApiService {
   Future<SyncOutcome> _postSync(
     String path,
     Map<String, dynamic> body,
+  ) =>
+      _postOutcome('$baseUrl/sync/$path', body, '/sync/$path');
+
+  /// Offline score batch drain target. The SyncEngine pushes queued game runs
+  /// here; the backend BatchSubmitScores handler validates + idempotently
+  /// ingests each run (so retries de-dupe on the per-run idempotency key).
+  Future<SyncOutcome> batchSubmitScores(List<Map<String, dynamic>> items) =>
+      _postOutcome('$baseUrl/scores/batch', {'scores': items}, '/scores/batch');
+
+  /// Server-authoritative statistics wipe. Unlike the rest of the app this is
+  /// NOT offline-first: the backend deletes Scores, resets achievements +
+  /// daily-challenge claims, zeroes the User aggregate, and clears the synced
+  /// statistics blob. We must wait for it to succeed before touching local
+  /// state, otherwise the next /sync/statistics MAX-merge would resurrect the
+  /// pre-reset totals.
+  Future<SyncOutcome> resetStatisticsRemote() => _postOutcome(
+        '$baseUrl/users/me/reset-statistics',
+        const {},
+        '/users/me/reset-statistics',
+      );
+
+  /// POST [body] to [url] and map the HTTP result to a [SyncOutcome] with the
+  /// same transient/permanent rules the SyncEngine drain relies on. Shared by
+  /// the /sync/* senders and the offline score batch (/scores/batch).
+  Future<SyncOutcome> _postOutcome(
+    String url,
+    Map<String, dynamic> body,
+    String label,
   ) async {
     http.Response response;
     try {
       response = await http
           .post(
-            Uri.parse('$baseUrl/sync/$path'),
+            Uri.parse(url),
             headers: _authHeaders,
             body: jsonEncode(body),
           )
           .timeout(_timeout);
     } catch (e) {
-      AppLogger.error('Error POST /sync/$path', e);
+      AppLogger.error('Error POST $label', e);
       return SyncOutcome.transient();
     }
 
     final code = response.statusCode;
 
     if (code == 401) {
-      AppLogger.error('Unauthorized POST /sync/$path - token may be expired');
+      AppLogger.error('Unauthorized POST $label - token may be expired');
       clearToken();
       onUnauthorized?.call();
       return SyncOutcome.transient(statusCode: code);
@@ -1057,7 +1085,7 @@ class ApiService {
         );
       } catch (e) {
         AppLogger.error(
-          'POST /sync/$path returned 2xx with undecodable body',
+          'POST $label returned 2xx with undecodable body',
           e,
         );
         // Body is malformed but status was 2xx — treat as a permanent
@@ -1068,14 +1096,14 @@ class ApiService {
     }
 
     if (code >= 500) {
-      AppLogger.error('POST /sync/$path failed with $code (transient)', response.body);
+      AppLogger.error('POST $label failed with $code (transient)', response.body);
       return SyncOutcome.transient(statusCode: code);
     }
 
     // Remaining 4xx — bad request, validation error, payload too large,
     // etc. Bumping retries and eventually marking failed is the right
     // call; retrying forever just spams the backend.
-    AppLogger.error('POST /sync/$path failed with $code (permanent)', response.body);
+    AppLogger.error('POST $label failed with $code (permanent)', response.body);
     return SyncOutcome.permanent(statusCode: code);
   }
 

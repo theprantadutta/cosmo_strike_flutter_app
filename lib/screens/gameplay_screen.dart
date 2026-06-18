@@ -15,7 +15,7 @@ import '../models/daily_challenge.dart';
 import '../models/level_run_result.dart';
 import '../models/ship_coins.dart';
 import '../presentation/bloc/coins/coins_cubit.dart';
-import '../presentation/bloc/game/game_settings_cubit.dart';
+import '../presentation/bloc/game/game_cubit.dart';
 import '../presentation/bloc/power_up/power_up_cubit.dart';
 import '../presentation/bloc/premium/battle_pass_cubit.dart';
 import '../presentation/bloc/premium/premium_cubit.dart';
@@ -24,9 +24,10 @@ import '../router/routes.dart';
 import '../services/achievement_service.dart';
 import '../services/ads/ad_service.dart';
 import '../services/analytics/analytics_facade.dart';
-import '../services/api_service.dart';
 import '../services/audio_service.dart';
 import '../services/daily_challenge_service.dart';
+import '../services/statistics_service.dart';
+import '../services/tournament_service.dart';
 import '../services/haptic_service.dart';
 import '../services/walkthrough_service.dart';
 import '../ui/design.dart';
@@ -75,6 +76,20 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   bool _quitPersisted = false;
 
+  /// The tree-provided GameCubit (tournament context lives here). Captured in
+  /// initState so we read THIS run's tournament id and can clear it on dispose
+  /// — tournament mode is otherwise never reset and would leak into the next
+  /// run, mis-attributing a normal game's score to the tournament.
+  GameCubit? _gameCubit;
+
+  /// Tournament this run counts toward (null for a normal game). Captured at
+  /// run start; the final score is submitted to it in [_submitRun].
+  String? _tournamentId;
+
+  /// Game mode name for this run (for the per-mode leaderboard tag). Captured
+  /// at run start so the abandoned-run path doesn't need a live context.
+  String _gameModeName = 'classic';
+
   /// First-run tutorial: true when this run opened with the guided beats.
   bool _tutorialRun = false;
 
@@ -118,6 +133,18 @@ class _GameplayScreenState extends State<GameplayScreen>
     final settings = context.read<GameSettingsCubit>().state;
     _dPadEnabled = settings.dPadEnabled;
     _dPadPosition = settings.dPadPosition;
+    _gameModeName = settings.gameMode.name;
+
+    // Capture the tournament context for this run (set by the tournament
+    // detail screen before launching). Held for the screen's lifetime so the
+    // game-over submit attributes the score to the right tournament.
+    try {
+      _gameCubit = context.read<GameCubit>();
+      _tournamentId = _gameCubit?.state.tournamentId;
+    } catch (_) {
+      _gameCubit = null;
+      _tournamentId = null;
+    }
 
     // The debrief shows only THIS run's achievement unlocks and challenge
     // deltas — reset/snapshot both at run start.
@@ -218,6 +245,10 @@ class _GameplayScreenState extends State<GameplayScreen>
   void dispose() {
     // Restore the menu chrome (status/nav bars) when leaving the game.
     Immersive.enterMenu();
+    // Clear tournament mode so it can't leak into the next (possibly normal)
+    // run — nothing else resets it. The next tournament run re-sets it from
+    // the detail screen.
+    _gameCubit?.exitTournamentMode();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -270,6 +301,10 @@ class _GameplayScreenState extends State<GameplayScreen>
     CoinsCubit coins,
     BattlePassCubit battlePass,
   ) async {
+    // One idempotency key for this run, reused across retries of any submit
+    // so a timed-out request that actually landed isn't double-counted.
+    final runIdempotencyKey = const Uuid().v4();
+
     try {
       await settings.updateHighScore(r.score);
     } catch (_) {}
@@ -293,33 +328,26 @@ class _GameplayScreenState extends State<GameplayScreen>
       firstClears = _outcomes.values.where((o) => o.firstClear).length;
     } catch (_) {}
 
-    unawaited(ApiService().submitGameRun(
-      score: r.score,
-      gameDurationSeconds: r.durationSeconds,
-      enemiesKilled: r.enemiesKilled,
-      stageReached: r.stageReached,
-      waveReached: r.waveReached,
-      bossesKilled: r.bossesKilled,
-      idempotencyKey: const Uuid().v4(),
-      gameData: {
-        'campaign': {
-          'start_level': r.startLevel,
-          'furthest_level': r.stageReached,
-          'levels_cleared': [
-            for (final lr in r.levelResults.where((lr) => lr.cleared))
-              {
-                'stage_id': lr.stageId,
-                'score': lr.score,
-                'time_seconds': lr.timeSeconds,
-                'no_hit': lr.noHit,
-              },
-          ],
-          'missiles_fired': r.missilesFired,
-          'revives_used': r.revivesUsed,
-          if (r.cleared) 'victory': true,
+    // Offline-first: queue the run to the sync outbox (drained to
+    // /scores/batch by SyncEngine) instead of a live fire-and-forget call, so
+    // a run played offline still reaches the leaderboards on reconnect.
+    unawaited(_enqueueScore(r, runIdempotencyKey));
+
+    // Tournament run: submit the score to the live leaderboard. Reuses the
+    // run's idempotency key so a retry de-dupes server-side (BestScore is
+    // max-merged, GamesPlayed is guarded by the key).
+    final tournamentId = _tournamentId;
+    if (tournamentId != null) {
+      unawaited(TournamentService().submitScore(
+        tournamentId,
+        r.score,
+        {
+          'gameDurationSeconds': r.durationSeconds,
+          'foodsEaten': r.enemiesKilled,
         },
-      },
-    ));
+        idempotencyKey: runIdempotencyKey,
+      ));
+    }
 
     try {
       final coinsEarned = 10 +
@@ -340,7 +368,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     // Feed the run into daily challenges + achievements — the debrief
     // panels watch both and update live as these land. Kills ride the
-    // legacy FoodEaten wire type (snake-era challenge vocabulary).
+    // legacy FoodEaten wire type (the kills -> foodEaten challenge mapping).
     final modeName = settings.state.gameMode.name;
     unawaited(DailyChallengeService().updateProgressBatch([
       (type: ChallengeType.score, value: r.score, gameMode: null),
@@ -356,6 +384,84 @@ class _GameplayScreenState extends State<GameplayScreen>
         ..checkSurvivalAchievements(r.durationSeconds,
             gameMode: modeName, difficulty: 'normal');
     } catch (_) {}
+
+    // Fold this run into lifetime statistics. This is the ONLY place the live
+    // single-player shmup records stats — the run lives in Flame, so the
+    // legacy GameCubit recording path never fires for it. Writing here keeps
+    // totalGamesPlayed / score / enemies / stage / play-time accurate, and
+    // StatisticsService persists to Drift + enqueues the statistics sync.
+    try {
+      final noHitClears =
+          r.levelResults.where((lr) => lr.cleared && lr.noHit).length;
+      await StatisticsService().recordGameResult(
+        score: r.score,
+        durationSeconds: r.durationSeconds,
+        stageReached: r.stageReached,
+        waveReached: r.waveReached,
+        enemiesKilled: r.enemiesKilled,
+        bossesKilled: r.bossesKilled,
+        levelsCleared: r.levelsCleared,
+        missilesFired: r.missilesFired,
+        revivesUsed: r.revivesUsed,
+        victory: r.cleared,
+        noHitClears: noHitClears,
+        maxCombo: r.maxCombo,
+        grazeCount: r.grazeCount,
+        gameMode: modeName,
+      );
+    } catch (_) {}
+  }
+
+  /// Queue a finished/aborted run to the sync outbox (drained to
+  /// /scores/batch). Frozen-payload event type — `played_at` is stamped now so
+  /// a run synced later still lands in the weekly/daily window it was played
+  /// in; the idempotency key dedupes retries server-side.
+  Future<void> _enqueueScore(
+    GameResult r,
+    String idempotencyKey, {
+    bool aborted = false,
+  }) async {
+    try {
+      await GetIt.I<AppDatabase>().enqueueSyncOutbox(
+        dataType: SyncDataType.gameScore,
+        entityKey: idempotencyKey,
+        priority: 1,
+        payload: {
+          'score': r.score,
+          'game_duration_seconds': r.durationSeconds,
+          'enemies_killed': r.enemiesKilled,
+          'stage_reached': r.stageReached,
+          'wave_reached': r.waveReached,
+          'bosses_killed': r.bossesKilled,
+          'game_mode': _gameModeName,
+          'difficulty': 'Normal',
+          'idempotency_key': idempotencyKey,
+          'played_at': DateTime.now().toUtc().toIso8601String(),
+          'game_data': aborted
+              ? const {'aborted': true}
+              : {
+                  'campaign': {
+                    'start_level': r.startLevel,
+                    'furthest_level': r.stageReached,
+                    'levels_cleared': [
+                      for (final lr in r.levelResults.where((lr) => lr.cleared))
+                        {
+                          'stage_id': lr.stageId,
+                          'score': lr.score,
+                          'time_seconds': lr.timeSeconds,
+                          'no_hit': lr.noHit,
+                        },
+                    ],
+                    'missiles_fired': r.missilesFired,
+                    'revives_used': r.revivesUsed,
+                    if (r.cleared) 'victory': true,
+                  },
+                },
+        },
+      );
+    } catch (_) {
+      // A queue write shouldn't ever fail, but never let it block game-over.
+    }
   }
 
   /// Abandon the run mid-game (quit or restart from pause): persist the
@@ -374,16 +480,7 @@ class _GameplayScreenState extends State<GameplayScreen>
             .applyRunResults(pending)
             .catchError((_) => const <StageClearOutcome>[]));
       }
-      unawaited(ApiService().submitGameRun(
-        score: partial.score,
-        gameDurationSeconds: partial.durationSeconds,
-        enemiesKilled: partial.enemiesKilled,
-        stageReached: partial.stageReached,
-        waveReached: partial.waveReached,
-        bossesKilled: partial.bossesKilled,
-        idempotencyKey: const Uuid().v4(),
-        gameData: const {'aborted': true},
-      ));
+      unawaited(_enqueueScore(partial, const Uuid().v4(), aborted: true));
     }
   }
 

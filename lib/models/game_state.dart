@@ -197,7 +197,7 @@ class GameState {
   bool get shouldLevelUp => score >= targetScore;
 
   // Additional power-up effect getters (hasInvincibility is defined later
-  // in file). The premium "mega" variants and snake-era exclusive checks
+  // in file). The premium "mega" variants and legacy exclusive checks
   // were removed with the legacy PremiumActivePowerUp model — premium
   // power-ups now ride the armed-loadout path (ArmedLoadout.apply), not
   // this legacy GameState power-up list.

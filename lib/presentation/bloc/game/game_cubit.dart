@@ -80,8 +80,6 @@ class GameCubit extends Cubit<GameCubitState> {
   // multi-respawn games record the true number of collisions instead of 1.
   bool _hitWallThisGame = false;
   bool _hitSelfThisGame = false;
-  int _wallHitsThisGame = 0;
-  int _selfHitsThisGame = 0;
   int _powerUpsCollectedThisGame = 0;
   int _consecutiveGamesWithoutWallHits = 0;
 
@@ -121,7 +119,6 @@ class GameCubit extends Cubit<GameCubitState> {
 
   // Statistics tracking
   final Map<String, int> _currentGameFoodTypes = {};
-  int _currentGameFoodPoints = 0;
   final Map<String, int> _currentGamePowerUpTypes = {};
   int _currentGamePowerUpTime = 0;
 
@@ -228,11 +225,8 @@ class GameCubit extends Cubit<GameCubitState> {
     _foodTypesEatenThisGame.clear();
     _hitWallThisGame = false;
     _hitSelfThisGame = false;
-    _wallHitsThisGame = 0;
-    _selfHitsThisGame = 0;
     _powerUpsCollectedThisGame = 0;
     _currentGameFoodTypes.clear();
-    _currentGameFoodPoints = 0;
     _currentGamePowerUpTypes.clear();
     _currentGamePowerUpTime = 0;
     _updateCount = 0;
@@ -911,7 +905,6 @@ class GameCubit extends Cubit<GameCubitState> {
       final comboBonus = (basePoints * newComboMultiplier).round();
       final multipliedPoints = comboBonus * previousState.scoreMultiplier;
       newScore += multipliedPoints;
-      _currentGameFoodPoints += multipliedPoints;
 
       // Battle pass score milestones - deferred to avoid event loop contention
       // during the game tick (addXP can trigger HTTP calls on first invocation)
@@ -1274,11 +1267,9 @@ class GameCubit extends Cubit<GameCubitState> {
     // accumulate while the booleans stay true after the first hit.
     if (reason == model.CrashReason.wallCollision) {
       _hitWallThisGame = true;
-      _wallHitsThisGame++;
       _hapticService.wallHit();
     } else if (reason == model.CrashReason.selfCollision) {
       _hitSelfThisGame = true;
-      _selfHitsThisGame++;
       _hapticService.selfCollision();
     }
 
@@ -1917,38 +1908,12 @@ class GameCubit extends Cubit<GameCubitState> {
       // could take 200ms–1.5s online (and used to take ~15s offline before
       // the BattlePass connectivity gate landed), producing a visible
       // stale-then-fresh flash on those screens.
-      await _statisticsService.recordGameResult(
-        score: gameState.score,
-        gameTime: gameDurationSeconds,
-        level: gameState.level,
-        foodConsumed: foodEaten,
-        foodTypes: _currentGameFoodTypes,
-        foodPoints: _currentGameFoodPoints,
-        powerUpsCollected: _powerUpsCollectedThisGame,
-        powerUpTypes: _currentGamePowerUpTypes,
-        powerUpTime: _currentGamePowerUpTime,
-        wallHits: _wallHitsThisGame,
-        selfHits: _selfHitsThisGame,
-        // Perfect game = no wall/self hits + lasted >= 30 seconds. The
-        // original spec; TimeAttack timeouts naturally satisfy this since
-        // surviving the full 3 minutes without crashing IS impressive.
-        isPerfectGame:
-            !_hitWallThisGame && !_hitSelfThisGame && gameDurationSeconds >= 30,
-        unlockedAchievements: [],
-      );
-
-      // Now that lifetime stats include this game, check the catalog's
-      // lifetime-driven achievements (power-ups, food variety, perfect
-      // games, streaks, weekend days).
-      final stats = _statisticsService.statistics;
-      _achievementService.checkLifetimeAchievements(
-        totalPowerUps: stats.totalPowerUpsCollected,
-        powerUpTypeCount: stats.powerUpTypeCount,
-        foodTypeCount: stats.foodTypeCount,
-        perfectGames: stats.perfectGames,
-        currentWinStreak: stats.currentWinStreak,
-        dailyPlayTime: stats.dailyPlayTime,
-      );
+      // NOTE: This is the legacy grid GameCubit path and is no longer the
+      // live single-player loop (the shmup runs in Flame and records stats
+      // from gameplay_screen._submitRun). The lifetime-stats recording and
+      // legacy lifetime-achievement checks that used to live here were
+      // removed when GameStatistics was refactored to shmup vocabulary; this
+      // method survives only because tournament mode still reads it.
 
       // Daily reminder scheduling moved server-side — the Hangfire job
       // `send-daily-reminder` (backend) reads streak / challenge / high-

@@ -823,26 +823,20 @@ class MultiplayerCubit extends Cubit<MultiplayerState> {
     final gameTimeSeconds = _matchTimer.elapsed.inSeconds;
     _matchStatsRecorded = true;
 
-    // Treat any non-null eliminationRank as "the player crashed at some
-    // point". We can't differentiate wall vs self from this info; bucket
-    // into selfHits since multiplayer modes rarely have walls.
+    // A non-null eliminationRank means the player was knocked out before the
+    // match ended; surviving to the finish counts as a "win" so it feeds the
+    // current/longest win-streak counters.
     final eliminated = me.eliminationRank != null;
-    final selfHits = eliminated ? 1 : 0;
 
     _statisticsService.recordGameResult(
       score: me.score,
-      gameTime: gameTimeSeconds,
-      level: 1,
-      foodConsumed: 0,
-      foodTypes: const <String, int>{},
-      foodPoints: 0,
-      powerUpsCollected: 0,
-      powerUpTypes: const <String, int>{},
-      powerUpTime: 0,
-      wallHits: 0,
-      selfHits: selfHits,
-      isPerfectGame: !eliminated && gameTimeSeconds >= 30,
-      unlockedAchievements: const [],
+      durationSeconds: gameTimeSeconds,
+      stageReached: 0,
+      waveReached: 0,
+      enemiesKilled: 0,
+      bossesKilled: 0,
+      levelsCleared: eliminated ? 0 : 1,
+      gameMode: 'multiplayer',
     );
   }
 

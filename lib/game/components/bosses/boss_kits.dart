@@ -76,7 +76,7 @@ class HiveQueenBrain extends BossBrain {
   const HiveQueenBrain();
 
   static const _larva = FormationSpec(
-    shape: FormationShape.snakeChain,
+    shape: FormationShape.serpentine,
     type: EnemyType.wasp,
     count: 4,
     y01: 0.35,

@@ -37,6 +37,13 @@ class SyncDataType {
   static const String dailyBonusClaim = 'daily_bonus_claim';
   static const String playerProgress = 'player_progress';
   static const String stageProgress = 'stage_progress';
+  // Per-run game score / leaderboard submission. Event-typed: the payload is
+  // frozen in the outbox at game-over and drained to POST /scores/batch, so an
+  // offline run still reaches the global/weekly/daily boards on reconnect.
+  static const String gameScore = 'game_score';
+  // Consumable pre-game power-up inventory blob. Offline-first like
+  // coin_balance: the client is authoritative and the server LWW-upserts.
+  static const String powerUpInventory = 'power_up_inventory';
 }
 
 // =====================================================
@@ -242,6 +249,21 @@ class CoinTransactions extends Table {
 }
 
 // =====================================================
+// TABLE: Power-Up Inventory (consumable pre-game power-ups)
+// =====================================================
+// Singleton row (id = 1) holding the JSON map of power-up key -> remaining
+// count. Offline-first like [Coins]: PowerUpCubit writes through here and the
+// SyncEngine pushes the blob to /sync/power-up-inventory (last-write-wins on
+// [updatedAt] — counts are consumable, so this is NOT a MAX merge).
+class PowerUpInventory extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get inventoryJson => text().withDefault(const Constant('{}'))();
+
+  /// Sync-engine timestamp — see [GameSettings.updatedAt].
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+// =====================================================
 // TABLE 5: Premium Status
 // =====================================================
 class PremiumStatus extends Table {
@@ -318,8 +340,18 @@ class DailyChallenges extends Table {
   IntColumn get currentProgress => integer().withDefault(const Constant(0))();
   IntColumn get targetProgress => integer()();
   IntColumn get rewardCoins => integer().withDefault(const Constant(0))();
+  /// Battle-pass XP reward (display/fidelity). Persisted so an offline
+  /// hydration from Drift can reconstruct the full challenge.
+  IntColumn get rewardXp => integer().withDefault(const Constant(0))();
   BoolColumn get isCompleted => boolean().withDefault(const Constant(false))();
   BoolColumn get rewardClaimed => boolean().withDefault(const Constant(false))();
+  /// Difficulty label ('easy'/'medium'/'hard'); nullable for legacy rows and
+  /// the synthetic all-complete bonus row.
+  TextColumn get difficulty => text().nullable()();
+  /// Required game mode for GameMode-type challenges (e.g. 'classic', 'zen').
+  /// MUST be persisted: without it an offline-hydrated GameMode challenge would
+  /// match any mode and over-count progress.
+  TextColumn get requiredGameMode => text().nullable()();
   DateTimeColumn get challengeDate => dateTime()();
   DateTimeColumn get expiresAt => dateTime()();
   DateTimeColumn get completedAt => dateTime().nullable()();
@@ -715,6 +747,7 @@ class StageProgressTable extends Table {
     FriendsMeta,
     PlayerProgressTable,
     StageProgressTable,
+    PowerUpInventory,
   ],
   daos: [
     SettingsDao,
@@ -731,7 +764,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -754,6 +787,21 @@ class AppDatabase extends _$AppDatabase {
         // data migration.
         await m.addColumn(gameSettings, gameSettings.gameModeIndex);
         await m.addColumn(gameSettings, gameSettings.hapticsEnabled);
+      }
+      if (from < 4) {
+        // v4: daily-challenge fidelity columns so an offline Drift hydration
+        // can reconstruct the full challenge (reward XP, difficulty, and the
+        // game-mode requirement for GameMode-type challenges). All nullable /
+        // defaulted, so existing rows migrate without a data backfill.
+        await m.addColumn(dailyChallenges, dailyChallenges.rewardXp);
+        await m.addColumn(dailyChallenges, dailyChallenges.difficulty);
+        await m.addColumn(dailyChallenges, dailyChallenges.requiredGameMode);
+      }
+      if (from < 5) {
+        // v5: power-ups become offline-first. The inventory singleton blob
+        // replaces the old SharedPreferences store; PowerUpCubit imports the
+        // legacy `power_up_inventory_v1` key into this table once on first load.
+        await m.createTable(powerUpInventory);
       }
     },
   );
