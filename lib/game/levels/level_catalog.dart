@@ -339,10 +339,10 @@ abstract final class LevelCatalog {
       index: 4,
       biomeId: 'city',
       hpScale: 1.3,
-      speedScale: 1.15,
-      fireRateScale: 1.1,
+      speedScale: 1.2,
+      fireRateScale: 1.15,
       scoreScale: 1.3,
-      obstaclesPerTenSeconds: 2,
+      obstaclesPerTenSeconds: 3,
       script: LevelScript([
         FormationEvent(
             0.8,
@@ -364,6 +364,14 @@ abstract final class LevelCatalog {
         FormationEvent(2.0,
             FormationSpec.stream(EnemyType.turret, count: 2, every: 2.6)),
         DropEvent(2.0, PowerUpKind.weapon),
+        // The City biome's first terrain beat — the underpass squeezes the
+        // floor and rains mines as the corridor scrolls past.
+        SetPieceEvent(1.5,
+            duration: 10,
+            banner: 'NEON UNDERPASS',
+            floorScale: 2.6,
+            scrollScale: 1.3,
+            mineRainPerSecond: 0.5),
         FormationEvent(
             2.0,
             FormationSpec(
@@ -390,10 +398,10 @@ abstract final class LevelCatalog {
       index: 5,
       biomeId: 'city',
       hpScale: 1.4,
-      speedScale: 1.2,
-      fireRateScale: 1.15,
+      speedScale: 1.22,
+      fireRateScale: 1.2,
       scoreScale: 1.4,
-      obstaclesPerTenSeconds: 2.5,
+      obstaclesPerTenSeconds: 3.2,
       script: LevelScript([
         FormationEvent(
             0.8,
@@ -421,11 +429,11 @@ abstract final class LevelCatalog {
         FormationEvent(3.0,
             FormationSpec.stream(EnemyType.turret, count: 2, every: 2.4)),
         SetPieceEvent(2.0,
-            duration: 9,
+            duration: 10,
             banner: 'ROOFTOP PRESSURE',
             floorScale: 2.6,
             scrollScale: 1.4,
-            mineRainPerSecond: 0.3),
+            mineRainPerSecond: 0.5),
         DropEvent(3.0, PowerUpKind.x2),
         FormationEvent(
             7.0,
@@ -494,7 +502,7 @@ abstract final class LevelCatalog {
             banner: 'SKYLINE SQUEEZE',
             floorScale: 3.0,
             scrollScale: 1.5,
-            mineRainPerSecond: 0.4),
+            mineRainPerSecond: 0.55),
         DropEvent(3.0, PowerUpKind.shield),
         FormationEvent(
             8.0,
