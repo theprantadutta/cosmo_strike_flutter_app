@@ -40,8 +40,9 @@ class DreadnoughtBrain extends BossBrain {
       ];
 }
 
-/// WAR MACHINE (Neon Ruins): artillery. Mortars arc onto marked ground;
-/// at half health it raises shield generator pods you must break first.
+/// WAR MACHINE (Neon Ruins): artillery. Mortars arc onto marked ground; at
+/// half health it raises shield-generator pods you break under fire, and the
+/// finale brings out the twin crossfire beams. Every attack telegraphs.
 class WarMachineBrain extends BossBrain {
   const WarMachineBrain();
 
@@ -51,20 +52,24 @@ class WarMachineBrain extends BossBrain {
           untilHpFrac: 0.66,
           attacks: [MortarLobAttack(count: 3), AimedBurstAttack()],
         ),
+        // Pods up — but the boss keeps fighting: mortars + an aimed scatter
+        // cone you must dodge WHILE breaking the shield generators.
         BossPhase(
           untilHpFrac: 0.33,
           intervalScale: 0.9,
           podCount: 2,
           invulnerableWhilePods: true,
-          attacks: [MortarLobAttack(count: 4), RadialSprayAttack()],
+          attacks: [MortarLobAttack(count: 4), AimedFanAttack()],
         ),
+        // Escalation: twin crossfire beams (hold the centre lane) layered
+        // over heavier mortar barrages and the cone.
         BossPhase(
           untilHpFrac: 0,
           intervalScale: 0.75,
           attacks: [
             MortarLobAttack(count: 5),
-            AimedBurstAttack(),
-            RadialSprayAttack(),
+            CrossfireBeamsAttack(),
+            AimedFanAttack(),
           ],
         ),
       ];
@@ -157,30 +162,36 @@ class MothershipBrain extends BossBrain {
 
   @override
   List<BossPhase> get phases => const [
+        // Pods up, but already an active fight: aimed bursts + a telegraphed
+        // scatter cone while you break the four escort pods.
         BossPhase(
           untilHpFrac: 0.66,
           podCount: 4,
           invulnerableWhilePods: true,
-          attacks: [AimedBurstAttack(), RadialSprayAttack()],
+          attacks: [AimedBurstAttack(), AimedFanAttack()],
         ),
+        // Core exposed: the flagship's rotating spiral barrage arrives,
+        // mixed with the cone and arcing mortars; drone escorts pressure.
         BossPhase(
           untilHpFrac: 0.33,
           intervalScale: 0.88,
           addWave: _drones,
           attacks: [
-            RadialSprayAttack(),
-            AimedBurstAttack(),
+            AimedFanAttack(),
+            SpiralBarrageAttack(),
             MortarLobAttack(count: 3),
           ],
         ),
+        // Desperation finale: rotating-gap radials and the spiral together —
+        // track the moving safe wedge and weave the spinning arms.
         BossPhase(
           untilHpFrac: 0,
           intervalScale: 0.72,
           addWave: _drones,
           attacks: [
             RotatingGapRadialAttack(),
+            SpiralBarrageAttack(),
             AimedBurstAttack(),
-            RotatingGapRadialAttack(),
           ],
         ),
       ];

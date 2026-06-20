@@ -30,25 +30,49 @@ Vector2 _fanFromMuzzle(
   return Vector2(-speed, (laneY - muzzle.y) / t);
 }
 
-/// Left-facing half-circle spray (the old shared pattern, now just one
-/// tool among many).
-class RadialSprayAttack extends BossAttack {
-  const RadialSprayAttack({double telegraph = 0.8}) : _telegraph = telegraph;
+/// Aimed scatter cone: a TIGHT fan of bullets along a ray captured at
+/// telegraph start and shown as a dashed aim-line. The spread cousin of
+/// [AimedBurstAttack] — you read the cone's direction and sidestep it. This
+/// replaced the old blind 180° half-circle spray (which had no telegraph and
+/// no aim, the "blind darts" that made the late bosses feel cheap).
+class AimedFanAttack extends BossAttack {
+  const AimedFanAttack({double telegraph = 0.9, this.spreadDeg = 42})
+      : _telegraph = telegraph;
 
   final double _telegraph;
+
+  /// Half-angle of the cone (degrees) on each side of the captured aim.
+  final double spreadDeg;
 
   @override
   double get telegraphSeconds => _telegraph;
 
   @override
+  void telegraph(Boss boss, CosmoStrikeGame game) {
+    boss.capturedAim
+      ..setFrom(game.player.position - boss.muzzle)
+      ..normalize();
+    game.add(AimLineMarker(
+      origin: boss.muzzle,
+      direction: boss.capturedAim,
+      life: telegraphSeconds,
+    ));
+  }
+
+  @override
   void execute(Boss boss, CosmoStrikeGame game) {
     final count = boss.def.sprayCount;
+    final base = math.atan2(boss.capturedAim.y, boss.capturedAim.x);
+    final spread = spreadDeg * math.pi / 180;
+    final muzzle = boss.muzzle;
     for (var i = 0; i < count; i++) {
-      final angle = math.pi * 0.5 + (i / (count - 1)) * math.pi;
+      // Even spread across [-spread, +spread] around the captured aim.
+      final f = count <= 1 ? 0.0 : (i / (count - 1)) * 2 - 1; // -1..1
+      final angle = base + f * spread;
       game.pools.enemyBullet(
-        spawn: boss.muzzle,
-        velocity:
-            Vector2(math.cos(angle), math.sin(angle)) * boss.def.bulletSpeed,
+        spawn: muzzle,
+        velocity: Vector2(math.cos(angle), math.sin(angle)) *
+            boss.def.bulletSpeed,
         damage: 0.25,
         fromBoss: true,
       );
@@ -390,6 +414,102 @@ class DashSweepAttack extends BossAttack {
     boss.position.setValues(leftX + (startX - leftX) * eased, boss.capturedY);
     return p < 1;
   }
+}
+
+/// Rotating spiral barrage (sustained): a steady stream of [arms] that
+/// sweep a full turn, the gaps between arms rotating each emit. Weave the
+/// gaps — it's dense but readable (slow bullets, even spacing), the
+/// flagship's "bullet-hell but fair" pressure. The boss holds still while it
+/// spins (the sustained-attack freeze keeps the muzzle stable).
+class SpiralBarrageAttack extends BossAttack {
+  const SpiralBarrageAttack({this.arms = 3, this.duration = 1.6});
+
+  final int arms;
+  final double duration;
+  static const double _emitInterval = 0.08;
+  static const double _spin = 0.42; // radians the arms rotate per emit
+
+  @override
+  double get telegraphSeconds => 1.0;
+
+  @override
+  bool get sustained => true;
+
+  @override
+  void execute(Boss boss, CosmoStrikeGame game) {
+    boss.scratchCount = 0;
+    // scratchAngle carries over between casts so the spiral doesn't reset to
+    // the same orientation every time.
+  }
+
+  @override
+  bool updateExecution(Boss boss, CosmoStrikeGame game, double dt) {
+    final due = (boss.execClock / _emitInterval).floor() + 1;
+    while (boss.scratchCount < due && boss.execClock < duration) {
+      final base = boss.scratchAngle;
+      for (var a = 0; a < arms; a++) {
+        final angle = base + a * (2 * math.pi / arms);
+        game.pools.enemyBullet(
+          spawn: boss.muzzle,
+          velocity: Vector2(math.cos(angle), math.sin(angle)) *
+              (boss.def.bulletSpeed * 0.7),
+          damage: 0.22,
+          fromBoss: true,
+        );
+      }
+      boss.scratchAngle += _spin;
+      boss.scratchCount++;
+    }
+    return boss.execClock < duration;
+  }
+}
+
+/// Twin crossfire beams (sustained): two charge beams rake an UPPER and a
+/// LOWER row at once — both telegraphed with row bands — leaving a safe lane
+/// down the middle. Hold the centre. Heavy-weapon escalation; reuses the
+/// same [BossBeam] + freeze as [BeamRowAttack].
+class CrossfireBeamsAttack extends BossAttack {
+  const CrossfireBeamsAttack({this.duration = 0.9});
+
+  final double duration;
+
+  @override
+  double get telegraphSeconds => 1.2;
+
+  @override
+  bool get sustained => true;
+
+  @override
+  void telegraph(Boss boss, CosmoStrikeGame game) {
+    final top = game.playfieldTop;
+    final span = game.playfieldBottom - top;
+    // Upper and lower rows ~a quarter in from each edge; the middle ~half
+    // of the field stays safe.
+    boss.capturedPoints
+      ..clear()
+      ..add(Vector2(0, top + span * 0.25))
+      ..add(Vector2(0, top + span * 0.75));
+    for (final p in boss.capturedPoints) {
+      game.add(RowBandMarker(
+        centerY: p.y,
+        bandHeight: 44,
+        life: telegraphSeconds,
+      ));
+    }
+  }
+
+  @override
+  void execute(Boss boss, CosmoStrikeGame game) {
+    GameAudio.beamFire();
+    final fromX = boss.muzzle.x;
+    for (final p in boss.capturedPoints) {
+      game.add(BossBeam(rowY: p.y, fromX: fromX, duration: duration));
+    }
+  }
+
+  @override
+  bool updateExecution(Boss boss, CosmoStrikeGame game, double dt) =>
+      boss.execClock < duration;
 }
 
 /// The beam itself: a glowing full-row raking damage zone. Procedurally

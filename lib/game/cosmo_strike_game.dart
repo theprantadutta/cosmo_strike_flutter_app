@@ -479,7 +479,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     GameAudio.bossWarn();
     add(Boss(
       def: level.boss,
-      hpScale: 1, // BossDef.baseHp is already per-level data
+      // BossDef.baseHp is per-level, but it grows far slower than the enemy
+      // hpScale curve — so late bosses used to melt before their kit played
+      // out. Track the difficulty curve at HALF rate so later fights last
+      // long enough to reach phase 3 without dragging.
+      hpScale: 1 + (level.hpScale - 1) * 0.5,
       spawn: Vector2(size.x + 100, size.y / 2),
     ));
     bossHealthNotifier.value = 1.0;
