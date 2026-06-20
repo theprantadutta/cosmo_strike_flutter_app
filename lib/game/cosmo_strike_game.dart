@@ -219,6 +219,9 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   int enemiesKilled = 0;
   int bossesKilled = 0;
   int missilesFired = 0;
+  // Lifetime power-ups collected this run — a monotonic baseline the
+  // tutorial reads to detect a pickup (mirrors enemiesKilled/missilesFired).
+  int powerUpsCollected = 0;
   int levelsClearedCount = 0;
   bool _reviveUsed = false;
   double _elapsed = 0;
@@ -946,6 +949,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   void applyPowerUp(PowerUpKind kind) {
     player.applyPowerUp(kind);
+    powerUpsCollected++;
     addScore(50);
     GameAudio.pickup();
     switch (kind) {

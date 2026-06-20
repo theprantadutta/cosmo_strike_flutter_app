@@ -46,6 +46,9 @@ class Boss extends PositionComponent
   double _telegraphLeft = 0;
   bool _executing = false;
   BossAttack? _current;
+  // The attack fired last — lets later-level randomisation avoid picking
+  // the same attack twice in a row.
+  BossAttack? _lastAttack;
   double _age = 0;
   double _phaseFlash = 0;
   double _shieldPopupCd = 0;
@@ -71,11 +74,20 @@ class Boss extends PositionComponent
   final List<BossPod> pods = [];
 
   late final double _stationX = game.size.x * 0.78;
-  late final double _baseY = game.size.y / 2;
+  // The centre of the vertical weave. Mutable: later levels relocate it
+  // between attacks (see _scheduleNext) so the boss doesn't fire from a
+  // predictable height.
+  late double _baseY = game.size.y / 2;
   late final Sprite _sprite = Sprite(Flame.images.fromCache(def.type.asset));
 
   BossPhase get phase => brain.phases[_phaseIndex];
   bool get shieldedByPods => phase.invulnerableWhilePods && pods.isNotEmpty;
+
+  /// The boss's firing point — the front-centre of the hull (it faces and
+  /// fires LEFT). Projectile attacks originate here so volleys read as
+  /// leaving the boss's mouth instead of its geometric centre. Returns a
+  /// fresh vector each call, safe to hand straight to the bullet pool.
+  Vector2 get muzzle => position + Vector2(-size.x * 0.4, 0);
 
   @override
   Future<void> onLoad() async {
@@ -105,7 +117,15 @@ class Boss extends PositionComponent
 
     final movementOwned =
         _executing && (_current?.controlsMovement ?? false);
-    final frozen = _telegraphLeft > 0; // hold still while winding up
+    // A sustained attack that doesn't drive its own movement (turret rake,
+    // beam) must hold the hull still while it fires — otherwise the boss
+    // weaves away from where the volley/beam originates (the "layout shift"
+    // where the special appears to fire from a different place than the
+    // boss). Attacks like the dash own their movement and are unaffected.
+    final firingSustained =
+        _executing && !(_current?.controlsMovement ?? false);
+    final frozen =
+        _telegraphLeft > 0 || firingSustained; // hold still: winding up OR firing
     if (!movementOwned && !frozen) _updateMovement(dt);
 
     // Zen mode: the boss doesn't attack — it's a moving obstacle.
@@ -117,7 +137,7 @@ class Boss extends PositionComponent
       if (!busy) {
         _executing = false;
         _current = null;
-        _idleTimer = def.attackInterval * phase.intervalScale;
+        _scheduleNext();
       }
       return;
     }
@@ -132,7 +152,7 @@ class Boss extends PositionComponent
           _executing = true;
         } else {
           _current = null;
-          _idleTimer = def.attackInterval * phase.intervalScale;
+          _scheduleNext();
         }
       }
       return;
@@ -173,12 +193,53 @@ class Boss extends PositionComponent
 
   void _startNextAttack() {
     final attacks = phase.attacks;
-    final attack = attacks[_attackCursor % attacks.length];
-    _attackCursor++;
+    final BossAttack attack;
+    if (attacks.length > 1 && game.rng.nextDouble() < _chaos * 0.7) {
+      // Later levels: break the fixed rotation so the player can't memorise
+      // the order. Avoid an immediate repeat so it still feels varied.
+      var idx = game.rng.nextInt(attacks.length);
+      if (identical(attacks[idx], _lastAttack)) {
+        idx = (idx + 1) % attacks.length;
+      }
+      attack = attacks[idx];
+      _attackCursor = idx + 1;
+    } else {
+      attack = attacks[_attackCursor % attacks.length];
+      _attackCursor++;
+    }
+    _lastAttack = attack;
     _current = attack;
     _telegraphLeft = attack.telegraphSeconds;
     GameAudio.telegraph();
     attack.telegraph(this, game);
+  }
+
+  /// 0 in the first biome (levels 1–3) → ramps to 1 by the final levels.
+  /// Drives how unpredictable the boss's cadence, attack order, and firing
+  /// height get — early bosses stay readable; late bosses keep you guessing.
+  double get _chaos => ((game.levelIndex - 3) / 7).clamp(0.0, 1.0).toDouble();
+
+  /// Gap before the next attack. Later levels tighten it slightly AND
+  /// jitter it so the rhythm isn't a metronome you can count down.
+  double _nextInterval() {
+    final base = def.attackInterval * phase.intervalScale;
+    final c = _chaos;
+    final tighten = 1 - 0.18 * c;
+    final jitter = 1 + (game.rng.nextDouble() * 2 - 1) * 0.4 * c;
+    return base * tighten * jitter;
+  }
+
+  /// Schedule the idle gap and, in later levels, relocate the weave centre
+  /// so the next volley — and the beam, which rakes the boss's own row —
+  /// originates from an unpredictable height instead of the same band.
+  void _scheduleNext() {
+    _idleTimer = _nextInterval();
+    if (game.rng.nextDouble() < _chaos * 0.6) {
+      final halfH = size.y / 2;
+      final top = game.playfieldTop + halfH;
+      final bottom = game.playfieldBottom - halfH;
+      _baseY = top + game.rng.nextDouble() * math.max(1, bottom - top);
+    }
   }
 
   void _enterPhase(int index, {bool initial = false}) {

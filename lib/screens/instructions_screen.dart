@@ -230,8 +230,9 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
             0,
           ),
           _buildRuleItem(
-            'Chain kills without getting hit to raise your score '
-            'multiplier — one landed hit breaks the chain',
+            'Chain kills fast — without getting hit — to climb the score '
+            'multiplier: ×2 at 5 kills, ×3 at 10, ×4 at 20. The chain '
+            'decays if you stop killing, and one landed hit resets it',
             theme,
             1,
           ),
@@ -252,17 +253,32 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
           ),
           const SizedBox(height: 8),
           _buildFoodItem(
+            'Counter Fire',
+            'shoot bullets',
+            const Color(0xFF9CFF8A),
+            theme,
+            4,
+          ),
+          _buildRuleItem(
+            'Your cannon can shoot incoming fire out of the sky for points. '
+            'Boss energy bolts are tougher — land about 3 hits on one to '
+            'break it and clear a path',
+            theme,
+            5,
+          ),
+          const SizedBox(height: 8),
+          _buildFoodItem(
             'Formation Wipe',
             'bonus + orb',
             const Color(0xFFFFD37B),
             theme,
-            4,
+            6,
           ),
           _buildRuleItem(
             'Destroy an entire enemy formation quickly for a wipe bonus '
             'and a guaranteed power-up drop',
             theme,
-            5,
+            7,
           ),
         ];
       case 3:
@@ -285,6 +301,19 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
           _buildFoodItem('Ghost', 'phase through', const Color(0xFFB0BEC5), theme, 8),
           _buildFoodItem('Bomb', 'clears screen', const Color(0xFFFF8A8A), theme, 9),
           _buildFoodItem('Extra Life', '+1 ship', const Color(0xFFFF6E9C), theme, 10),
+          const SizedBox(height: 10),
+          _buildRuleItem(
+            'Timed boosts (×2 Score, Speed, Slow-Mo, Ghost, Magnet) run for '
+            'a few seconds; Shield and Weapon last until used or upgraded',
+            theme,
+            11,
+          ),
+          _buildRuleItem(
+            'Arm a store-bought power-up before launch from the loadout chip '
+            'on the home screen for an instant head start',
+            theme,
+            12,
+          ),
         ];
       case 4:
         return [
@@ -297,28 +326,34 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
             0,
           ),
           _buildRuleItem(
+            'Boss energy bolts can be shot down — it takes about 3 hits '
+            'each, so focus your fire to punch a gap in the curtain',
+            theme,
+            1,
+          ),
+          _buildRuleItem(
             'Bosses fight in phases: each phase flip clears their '
             'bullets and changes their attack pattern',
             theme,
-            1,
+            2,
           ),
           _buildRuleItem(
             'Terrain is a threat: clipping the floor, ceiling, or an '
             'obstacle damages your ship and bounces you away',
             theme,
-            2,
+            3,
           ),
           _buildRuleItem(
             'Watch for canyon squeezes — the corridor narrows during '
             'set pieces, and wall-mounted turrets pour aimed fire',
             theme,
-            3,
+            4,
           ),
           _buildRuleItem(
             'Out of lives? You get ONE revive per run — watch an ad or '
             'spend 200 coins to keep the run alive',
             theme,
-            4,
+            5,
           ),
         ];
       default:
@@ -358,6 +393,12 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
             'Learn each boss\'s telegraphs — every attack has a tell',
             theme,
             5,
+          ),
+          _buildTipItem(
+            'When dodging gets tight, shoot the boss bolts down — 3 hits '
+            'clears one and opens a lane',
+            theme,
+            6,
           ),
         ];
     }

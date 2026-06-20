@@ -12,6 +12,24 @@ import 'boss_brain.dart';
 /// Shared parameterized boss attacks. Tuning numbers (counts, bullet
 /// speed, cadence) come from the level's BossDef; shapes come from here.
 
+/// Velocity that streams a field-spanning bullet OUT of the boss [muzzle]
+/// and fans it to its lane, reconverging to [laneY] at [convergeX] (the
+/// player's zone) while keeping a constant horizontal [speed]. This makes
+/// curtains/rakes read as leaving the boss's gun instead of materialising
+/// across the whole screen — yet they still arrive in their lanes with the
+/// same gap, so the dodge geometry near the player is unchanged.
+Vector2 _fanFromMuzzle(
+  Vector2 muzzle,
+  double convergeX,
+  double laneY,
+  double speed,
+) {
+  // Horizontal travel time to the convergence column; vy is solved so the
+  // bullet is exactly on its lane when it gets there.
+  final t = ((muzzle.x - convergeX) / speed).clamp(0.0001, double.infinity);
+  return Vector2(-speed, (laneY - muzzle.y) / t);
+}
+
 /// Left-facing half-circle spray (the old shared pattern, now just one
 /// tool among many).
 class RadialSprayAttack extends BossAttack {
@@ -28,7 +46,7 @@ class RadialSprayAttack extends BossAttack {
     for (var i = 0; i < count; i++) {
       final angle = math.pi * 0.5 + (i / (count - 1)) * math.pi;
       game.pools.enemyBullet(
-        spawn: boss.position.clone(),
+        spawn: boss.muzzle,
         velocity:
             Vector2(math.cos(angle), math.sin(angle)) * boss.def.bulletSpeed,
         damage: 0.25,
@@ -49,10 +67,10 @@ class AimedBurstAttack extends BossAttack {
   @override
   void telegraph(Boss boss, CosmoStrikeGame game) {
     boss.capturedAim
-      ..setFrom(game.player.position - boss.position)
+      ..setFrom(game.player.position - boss.muzzle)
       ..normalize();
     game.add(AimLineMarker(
-      origin: boss.position,
+      origin: boss.muzzle,
       direction: boss.capturedAim,
       life: telegraphSeconds,
     ));
@@ -63,7 +81,7 @@ class AimedBurstAttack extends BossAttack {
     final half = boss.def.aimedCount ~/ 2;
     for (var i = -half; i <= boss.def.aimedCount - half - 1; i++) {
       game.pools.enemyBullet(
-        spawn: boss.position.clone(),
+        spawn: boss.muzzle,
         velocity: boss.capturedAim * (boss.def.bulletSpeed + 80) +
             Vector2(0, i * 60.0),
         damage: 0.3,
@@ -102,20 +120,23 @@ class BulletWallAttack extends BossAttack {
   void execute(Boss boss, CosmoStrikeGame game) {
     final top = game.playfieldTop + 10;
     final bottom = game.playfieldBottom - 10;
+    final muzzle = boss.muzzle;
+    final convergeX = game.size.x * 0.16; // the wall "forms" at the player zone
     const step = 46.0;
     for (var w = 0; w < walls; w++) {
-      // The second wall trails behind with its gap shifted — thread one,
-      // then drift to the other.
+      // The second wall trails behind (slower) with its gap shifted —
+      // thread one, then drift to the other.
       final gapY = w == 0
           ? boss.capturedY
           : (boss.capturedY + (bottom - top) * 0.35)
               .clamp(top + gapHalf, bottom - gapHalf);
-      final x = boss.position.x - boss.size.x * 0.3 + w * 130;
+      final speed = boss.def.bulletSpeed * (1 - 0.18 * w);
       for (double y = top; y <= bottom; y += step) {
         if ((y - gapY).abs() < gapHalf) continue;
+        // All bullets leave the boss's muzzle and fan out to the curtain.
         game.pools.enemyBullet(
-          spawn: Vector2(x, y),
-          velocity: Vector2(-boss.def.bulletSpeed, 0),
+          spawn: muzzle,
+          velocity: _fanFromMuzzle(muzzle, convergeX, y, speed),
           damage: 0.3,
           fromBoss: true,
         );
@@ -138,7 +159,7 @@ class PulseRingAttack extends BossAttack {
     for (var i = 0; i < count; i++) {
       final a = (i / count) * math.pi * 2;
       game.pools.enemyBullet(
-        spawn: boss.position.clone(),
+        spawn: boss.muzzle,
         velocity:
             Vector2(math.cos(a), math.sin(a)) * (boss.def.bulletSpeed * 0.7),
         damage: 0.25,
@@ -169,7 +190,7 @@ class RotatingGapRadialAttack extends BossAttack {
       if (d > math.pi) d = math.pi * 2 - d;
       if (d < gapWidth / 2) continue;
       game.pools.enemyBullet(
-        spawn: boss.position.clone(),
+        spawn: boss.muzzle,
         velocity:
             Vector2(math.cos(a), math.sin(a)) * (boss.def.bulletSpeed * 0.85),
         damage: 0.3,
@@ -247,13 +268,18 @@ class TurretSweepAttack extends BossAttack {
   @override
   bool updateExecution(Boss boss, CosmoStrikeGame game, double dt) {
     final due = (boss.execClock / _rowInterval).floor() + 1;
+    final muzzle = boss.muzzle;
+    final convergeX = game.size.x * 0.16;
+    final speed = boss.def.bulletSpeed + 40;
     while (boss.scratchCount < due && boss.scratchCount < rows) {
       final top = game.playfieldTop;
       final span = game.playfieldBottom - top;
       final y = top + (boss.scratchCount + 0.5) * span / rows;
+      // Each successive shot leaves the muzzle and angles to its row, so
+      // the rake reads as the boss's turret sweeping top → bottom.
       game.pools.enemyBullet(
-        spawn: Vector2(boss.position.x - boss.size.x * 0.35, y),
-        velocity: Vector2(-(boss.def.bulletSpeed + 40), 0),
+        spawn: muzzle,
+        velocity: _fanFromMuzzle(muzzle, convergeX, y, speed),
         damage: 0.25,
         fromBoss: true,
       );
@@ -278,7 +304,11 @@ class BeamRowAttack extends BossAttack {
 
   @override
   void telegraph(Boss boss, CosmoStrikeGame game) {
-    boss.capturedY = game.player.position.y;
+    // Fire along the BOSS's own row, not the player's — the boss holds
+    // still through the windup + beam (see Boss._updateMovement freeze),
+    // so the beam and the hull stay locked together instead of the beam
+    // raking the middle of the screen while the boss sits up top.
+    boss.capturedY = boss.muzzle.y;
     game.add(RowBandMarker(
       centerY: boss.capturedY,
       bandHeight: 44,
@@ -291,7 +321,7 @@ class BeamRowAttack extends BossAttack {
     GameAudio.beamFire();
     game.add(BossBeam(
       rowY: boss.capturedY,
-      fromX: boss.position.x - boss.size.x * 0.2,
+      fromX: boss.muzzle.x,
       duration: duration,
     ));
   }

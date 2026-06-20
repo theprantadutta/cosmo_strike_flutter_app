@@ -1,8 +1,10 @@
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart' show Color, IconData, Icons;
 
+import 'components/bullets.dart';
 import 'components/enemy.dart';
 import 'components/fx.dart';
+import 'components/power_up.dart';
 import 'cosmo_strike_game.dart';
 import 'game_audio.dart';
 import 'levels/level_def.dart';
@@ -25,13 +27,23 @@ class TutorialPrompt {
   final bool showSkip;
 }
 
-enum _TutorialBeat { steer, destroy, missile, dodge, certified }
+enum _TutorialBeat {
+  steer,
+  destroy,
+  missile,
+  dodge,
+  combo,
+  powerUp,
+  counterFire,
+  certified,
+}
 
 /// Drives the one-time interactive first run: a sequence of guided beats
-/// (steer → destroy → missile → dodge) that each WAIT for the player to
-/// actually perform the action before advancing. Mounted by the game
-/// instead of the level script on a fresh install; when the last beat
-/// lands it hands the run off to the real Level 1 choreography.
+/// (steer → destroy → missile → dodge → combo → power-up → counter-fire)
+/// that each WAIT for the player to actually perform the action before
+/// advancing. Mounted by the game instead of the level script on a fresh
+/// install; when the last beat lands it hands the run off to the real
+/// Level 1 choreography.
 ///
 /// Pure game-time component (no wall clocks), so pause / revive / app
 /// backgrounding freeze it exactly like the rest of the sim.
@@ -60,6 +72,20 @@ class TutorialDirector extends Component
   double _dodgeClock = 0;
   static const double _dodgeWindow = 8;
 
+  // Beat 5 — combo: keep a cluster of drones alive until the kill chain
+  // tiers the score multiplier up to ×2 (chain ≥ 5).
+  static const int _comboClusterSize = 6;
+  static const int _comboTargetMultiplier = 2;
+
+  // Beat 6 — power-up: collected baseline + the live drop on screen.
+  int _powerUpBaseline = 0;
+  PowerUp? _drop;
+
+  // Beat 7 — counter-fire: the boss bolt the player must shoot down
+  // (3 hits) + a small cooldown before re-firing a fresh one.
+  EnemyBullet? _bossBolt;
+  double _boltCooldown = 0;
+
   bool _ending = false;
 
   @override
@@ -87,6 +113,15 @@ class TutorialDirector extends Component
         break;
       case _TutorialBeat.dodge:
         _updateDodge(dt);
+        break;
+      case _TutorialBeat.combo:
+        _updateCombo();
+        break;
+      case _TutorialBeat.powerUp:
+        _updatePowerUp();
+        break;
+      case _TutorialBeat.counterFire:
+        _updateCounterFire(dt);
         break;
       case _TutorialBeat.certified:
         break;
@@ -143,6 +178,35 @@ class TutorialDirector extends Component
         _grazeBaseline = game.combo.grazeCount;
         _volleyTimer = 0.4;
         _dodgeClock = 0;
+        break;
+      case _TutorialBeat.combo:
+        game.tutorialNotifier.value = const TutorialPrompt(
+          title: 'BUILD A COMBO',
+          body: 'Chain kills FAST to raise your ×2–×4 score multiplier — '
+              'wipe a whole group quickly for a bonus drop!',
+          icon: Icons.bolt,
+        );
+        _spawnComboCluster();
+        break;
+      case _TutorialBeat.powerUp:
+        game.tutorialNotifier.value = const TutorialPrompt(
+          title: 'GRAB THE POWER-UP',
+          body: 'Fly into the glowing orb to collect it — power-ups upgrade '
+              'your ship, shields, missiles and more.',
+          icon: Icons.auto_awesome,
+        );
+        _powerUpBaseline = game.powerUpsCollected;
+        _spawnDrop();
+        break;
+      case _TutorialBeat.counterFire:
+        game.tutorialNotifier.value = const TutorialPrompt(
+          title: 'RETURN FIRE',
+          body: 'Boss bolts can be SHOT DOWN — but they are tough. Pour fire '
+              'into the incoming bolt until it breaks!',
+          icon: Icons.shield_moon,
+        );
+        _boltCooldown = 0;
+        _fireBossBolt();
         break;
       case _TutorialBeat.certified:
         break;
@@ -251,7 +315,7 @@ class TutorialDirector extends Component
     final grazed = game.combo.grazeCount - _grazeBaseline >= 1;
     if (grazed || _dodgeClock >= _dodgeWindow) {
       game.pools.clearEnemyBullets();
-      _certify();
+      _advance(_TutorialBeat.combo, cheer: 'NICE DODGE!');
     }
   }
 
@@ -266,6 +330,80 @@ class TutorialDirector extends Component
       game.pools.enemyBullet(spawn: from.clone(), velocity: velocity);
     }
     GameAudio.telegraph();
+  }
+
+  // ---- Beat 5: combo ----
+
+  void _spawnComboCluster() {
+    for (var i = 0; i < _comboClusterSize; i++) {
+      _addHostile(EnemyType.drone, offsetX: i * 60.0, lane: i);
+    }
+  }
+
+  void _updateCombo() {
+    if (game.combo.multiplier >= _comboTargetMultiplier) {
+      _sweepSpawned();
+      _advance(_TutorialBeat.powerUp, cheer: 'COMBO ×${game.combo.multiplier}!');
+      return;
+    }
+    // Keep the sky busy so the kill chain never starves between the 3s
+    // chain windows — a thin field would let the multiplier decay.
+    _spawned.removeWhere((e) => e.parent == null);
+    var lane = 0;
+    while (_spawned.length < _comboClusterSize) {
+      _addHostile(EnemyType.drone, offsetX: lane * 56.0, lane: lane);
+      lane++;
+    }
+  }
+
+  // ---- Beat 6: power-up ----
+
+  void _spawnDrop() {
+    final drop = PowerUp(
+      kind: PowerUpKind.weapon,
+      spawn: Vector2(game.size.x + 40, game.player.position.y),
+    );
+    _drop = drop;
+    game.add(drop);
+  }
+
+  void _updatePowerUp() {
+    if (game.powerUpsCollected - _powerUpBaseline >= 1) {
+      _drop = null;
+      _advance(_TutorialBeat.counterFire, cheer: 'POWERED UP!');
+      return;
+    }
+    // The orb drifts left and self-removes once it leaves the screen —
+    // keep dropping a fresh one until the player flies into it.
+    if (_drop?.parent == null) _spawnDrop();
+  }
+
+  // ---- Beat 7: counter-fire ----
+
+  void _fireBossBolt() {
+    GameAudio.telegraph();
+    _bossBolt = game.pools.enemyBullet(
+      spawn: Vector2(game.size.x + 10, game.player.position.y),
+      velocity: Vector2(-150, 0),
+      fromBoss: true,
+    );
+  }
+
+  void _updateCounterFire(double dt) {
+    if (_boltCooldown > 0) _boltCooldown -= dt;
+    final bolt = _bossBolt;
+    if (bolt != null && !bolt.active) {
+      // hitsTaken survives deactivate(), so it tells "shot down" (reached
+      // hitsRequired) apart from "expired off-screen / clipped the hull".
+      if (bolt.hitsTaken >= bolt.hitsRequired) {
+        _bossBolt = null;
+        _certify();
+        return;
+      }
+      _bossBolt = null;
+      _boltCooldown = 0.6; // missed — send a fresh bolt after a short beat
+    }
+    if (_bossBolt == null && _boltCooldown <= 0) _fireBossBolt();
   }
 
   // ---- Wrap-up ----
@@ -302,6 +440,8 @@ class TutorialDirector extends Component
     _ending = true;
     game.tutorialNotifier.value = null;
     _sweepSpawned();
+    _drop?.removeFromParent();
+    _drop = null;
     game.pools.clearEnemyBullets();
     game.onTutorialOutcome?.call(false);
     game.endTutorial();

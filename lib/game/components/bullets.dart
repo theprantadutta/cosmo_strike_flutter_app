@@ -100,11 +100,17 @@ class PlayerBullet extends PositionComponent
     } else if (other is EnemyBullet) {
       // Intercept: shoot incoming fire out of the sky. Trades your shot
       // for safety (+10 pts); the heavy laser pierces straight through.
-      // Boss energy bolts can't be shot down — but mortar shells can.
+      // Regular shots pop on the first hit; boss energy bolts take a few
+      // hits (hitsRequired) and flash on each non-lethal one.
       if (other.active && other.canBeShotDown) {
         game.pools.hitSpark(other.position);
-        game.addScore(10);
-        other.deactivate();
+        other.hitsTaken++;
+        if (other.hitsTaken >= other.hitsRequired) {
+          game.addScore(10);
+          other.deactivate();
+        } else {
+          other.flashHit();
+        }
         if (!heavy) deactivate();
       }
     } else if (other is Boss) {
@@ -227,9 +233,23 @@ class EnemyBullet extends PositionComponent
   double gravity = 0;
   bool _grazed = false;
 
-  /// Player fire can intercept regular shots and physical mortar shells;
-  /// boss energy bolts (walls, radials, beams) cannot be shot down.
-  bool get canBeShotDown => !fromBoss || gravity != 0;
+  /// Intercept durability. Regular enemy shots and mortar shells pop on the
+  /// first player hit; boss energy bolts are tougher and take several hits
+  /// before they break, so countering boss fire is a deliberate effort.
+  int hitsTaken = 0;
+  int get hitsRequired => (fromBoss && gravity == 0) ? 3 : 1;
+
+  /// Brief per-hit feedback timer (set by [flashHit]) — drives a flash/swell
+  /// in render so a bolt that's been hit-but-not-destroyed reads as damaged.
+  double _hitFlash = 0;
+
+  /// All incoming fire can now be shot down — boss energy bolts just take
+  /// [hitsRequired] hits. (Charge beams are a separate BossBeam component,
+  /// not an EnemyBullet, so they stay unblockable.)
+  bool get canBeShotDown => true;
+
+  /// Register a non-lethal intercept hit for the flash feedback.
+  void flashHit() => _hitFlash = 0.12;
 
   // Graze ring: closer than the outer radius but not dead-center (a
   // straight hit is a hit, not a graze). Center-to-center, squared.
@@ -271,6 +291,8 @@ class EnemyBullet extends PositionComponent
     this.fromBoss = fromBoss;
     this.gravity = gravity;
     _grazed = false;
+    hitsTaken = 0;
+    _hitFlash = 0;
     final side = gravity != 0 ? 22.0 : (fromBoss ? 18.0 : 14.0);
     size.setValues(side, side);
     position.setFrom(spawn);
@@ -290,6 +312,7 @@ class EnemyBullet extends PositionComponent
     if (!active) return;
     // Slow-mo power-up stretches enemy time.
     final scaledDt = dt * game.enemyTimeScale;
+    if (_hitFlash > 0) _hitFlash -= dt;
     if (gravity != 0) velocity.y += gravity * scaledDt;
     position += velocity * scaledDt;
     // Graze: once per bullet, while the player can actually be hit (no
@@ -322,6 +345,24 @@ class EnemyBullet extends PositionComponent
       canvas.rotate(math.atan2(velocity.y, velocity.x) + math.pi / 4);
       canvas.translate(-size.x / 2, -size.y / 2);
       _sprite.render(canvas, size: size);
+      canvas.restore();
+      return;
+    }
+    // Damaged-but-alive boss bolt: a brief white swell so the player sees
+    // their hits landing on the way to the 3-hit break.
+    if (_hitFlash > 0) {
+      final t = (_hitFlash / 0.12).clamp(0.0, 1.0);
+      final swell = 1.0 + 0.28 * t;
+      canvas.save();
+      canvas.translate(size.x / 2, size.y / 2);
+      canvas.scale(swell);
+      canvas.translate(-size.x / 2, -size.y / 2);
+      _sprite.render(canvas, size: size);
+      canvas.drawCircle(
+        Offset(size.x / 2, size.y / 2),
+        size.x / 2,
+        Paint()..color = Color.fromRGBO(255, 255, 255, 0.55 * t),
+      );
       canvas.restore();
       return;
     }

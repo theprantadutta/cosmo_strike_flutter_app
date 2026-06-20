@@ -90,12 +90,14 @@ class PlayerShip extends PositionComponent
   final Vector2 _vel = Vector2.zero();
 
   double get _leftBound => game.size.x * 0.04 + size.x / 2;
-  // The classic Space Impact stance: hold the LEFT third and shoot
-  // across the field. Kept proportional to the shorter dimension so an
-  // ultra-wide (21:9+) landscape screen doesn't hand the player half
-  // the field. The BoundaryGlow component lights this wall up when the
-  // ship presses against it.
-  double get _rightBound => math.min(game.size.x * 0.35, game.size.y * 0.9);
+  // The classic Space Impact stance: hold the LEFT lane and shoot across
+  // the field. The band is deliberately tight (~4%–20% of the width) so
+  // the game is about vertical dodging, not roaming the screen. Kept
+  // proportional to the shorter dimension so an ultra-wide (21:9+)
+  // landscape screen doesn't hand the player half the field. The
+  // BoundaryGlow component lights this wall up when the ship presses
+  // against it.
+  double get _rightBound => math.min(game.size.x * 0.20, game.size.y * 0.9);
 
   /// Public for the boundary glow renderer.
   double get rightBound => _rightBound;
