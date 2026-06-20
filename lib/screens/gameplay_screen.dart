@@ -31,10 +31,10 @@ import '../services/tournament_service.dart';
 import '../services/haptic_service.dart';
 import '../services/walkthrough_service.dart';
 import '../ui/design.dart';
-import '../utils/campaign_catalog.dart';
 import '../utils/constants.dart';
 import '../widgets/game_dpad.dart';
 import '../widgets/gameplay/game_over_overlay.dart';
+import '../widgets/gameplay/level_complete_overlay.dart';
 import '../widgets/gameplay/pause_overlay.dart';
 import '../widgets/reward_toast.dart';
 
@@ -73,6 +73,11 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   /// Stage ids already persisted incrementally (skip at game over).
   final Set<int> _persistedClears = {};
+
+  /// Per-level persisted best snapshot captured the instant before this run
+  /// merged in — lets the level-complete summary show accurate NEW BEST /
+  /// FASTEST / FIRST NO-HIT badges (the merge overwrites the stored best).
+  final Map<int, StageProgressRow?> _priorBest = {};
 
   bool _quitPersisted = false;
 
@@ -259,11 +264,14 @@ class _GameplayScreenState extends State<GameplayScreen>
     _persistedClears.add(result.stageId);
     unawaited(() async {
       try {
-        final outcomes = await GetIt.I<AppDatabase>()
-            .stageProgressDao
-            .applyRunResults([result]);
+        final dao = GetIt.I<AppDatabase>().stageProgressDao;
+        // Snapshot the prior best BEFORE merging this run, so the
+        // level-complete summary can flag genuine new records.
+        final prior = await dao.getStage(result.stageId);
+        final outcomes = await dao.applyRunResults([result]);
         if (!mounted) return;
         setState(() {
+          _priorBest[result.stageId] = prior;
           for (final o in outcomes) {
             _outcomes[o.stageId] = o;
           }
@@ -523,6 +531,14 @@ class _GameplayScreenState extends State<GameplayScreen>
     });
   }
 
+  /// Premium perk: revive with no ad and no coins (still one-per-run, gated
+  /// by the game's `_reviveUsed`). Premium users can't watch ads, so this is
+  /// their continue path.
+  void _reviveFree() {
+    _game.revive();
+    _celebrateRevive();
+  }
+
   void _reviveWithAd() {
     AdService().showRewarded(onReward: () {
       _game.revive();
@@ -765,17 +781,28 @@ class _GameplayScreenState extends State<GameplayScreen>
                     onQuit: _quitToHome,
                   );
                 case GamePhase.levelClear:
-                  return _LevelClearOverlay(
+                  return LevelCompleteOverlay(
                     game: _game,
                     outcome: _outcomes[_game.levelIndex],
+                    priorBest: _priorBest[_game.levelIndex],
+                    onContinue: _game.advanceToNextLevel,
+                    onQuit: _quitToHome,
                   );
                 case GamePhase.reviveOffer:
+                  final isPremium = GetIt.I.isRegistered<PremiumCubit>() &&
+                      GetIt.I<PremiumCubit>().state.hasPremium;
+                  final coinsEnough =
+                      context.read<CoinsCubit>().state.balance.total >= 200;
                   return _ReviveOverlay(
-                    onWatchAd: AdService().isRewardedReady ? _reviveWithAd : null,
-                    onSpendCoins:
-                        context.read<CoinsCubit>().state.balance.total >= 200
-                            ? _reviveWithCoins
-                            : null,
+                    isPremium: isPremium,
+                    adReady: AdService().isRewardedReady,
+                    level: _game.levelIndex,
+                    score: _game.scoreNotifier.value,
+                    wave: _game.wave,
+                    onWatchAd: _reviveWithAd,
+                    onFreeRevive: _reviveFree,
+                    onSpendCoins: _reviveWithCoins,
+                    coinsEnough: coinsEnough,
                     onGiveUp: _game.declineRevive,
                   );
                 case GamePhase.gameOver:
@@ -1402,103 +1429,38 @@ class _LevelIntroBanner extends StatelessWidget {
   }
 }
 
-/// LEVEL CLEAR: star pips for THIS run's performance, auto-continue after
-/// a beat, plus an explicit CONTINUE button.
-class _LevelClearOverlay extends StatefulWidget {
-  const _LevelClearOverlay({required this.game, this.outcome});
-  final CosmoStrikeGame game;
-  final StageClearOutcome? outcome;
-
-  @override
-  State<_LevelClearOverlay> createState() => _LevelClearOverlayState();
-}
-
-class _LevelClearOverlayState extends State<_LevelClearOverlay> {
-  Timer? _autoContinue;
-
-  @override
-  void initState() {
-    super.initState();
-    _autoContinue = Timer(const Duration(seconds: 3), () {
-      widget.game.advanceToNextLevel();
-    });
-  }
-
-  @override
-  void dispose() {
-    _autoContinue?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final game = widget.game;
-    final level = game.levelIndex;
-    // This run's per-level performance (the result was just recorded).
-    final result = game.buildPartialResult().levelResults.lastWhere(
-          (lr) => lr.stageId == level,
-          orElse: () => LevelRunResult(
-            stageId: level,
-            cleared: true,
-            score: 0,
-            timeSeconds: 0,
-            waveReached: 1,
-            noHit: false,
-          ),
-        );
-    final stars = CampaignCatalog.starsFor(
-      stageId: level,
-      cleared: true,
-      noHit: result.noHit,
-      bestTimeSeconds: result.timeSeconds,
-      bestScore: result.score,
-    );
-
-    return _CenterOverlay(
-      title: 'LEVEL $level CLEAR',
-      subtitle: 'Score +${result.score}   •   ${result.timeSeconds}s'
-          '${result.noHit ? '   •   NO HIT' : ''}'
-          '${(widget.outcome?.unlockedNextStage ?? false) ? '\nLEVEL ${level + 1} UNLOCKED' : ''}',
-      extra: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: List.generate(3, (i) {
-          final earned = i < stars;
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Icon(
-              earned ? Icons.star_rounded : Icons.star_outline_rounded,
-              size: 34,
-              color: earned
-                  ? const Color(0xFFFFD54F)
-                  : CosmoPalette.hullDark.withValues(alpha: 0.6),
-            ),
-          );
-        }),
-      ),
-      actions: [
-        _OverlayButton(
-          label: 'CONTINUE TO LEVEL ${level + 1}',
-          onTap: () {
-            _autoContinue?.cancel();
-            game.advanceToNextLevel();
-          },
-        ),
-      ],
-    );
-  }
-}
-
-/// CONTINUE? — one revive per run, paid with a rewarded ad or coins,
-/// under a 6-second decision countdown.
+/// SHIP DOWN — the one-revive-per-run continue offer, under a decision
+/// countdown. Free users revive by watching a rewarded ad; premium users get
+/// a free revive (no ad); coins are the universal fallback.
 class _ReviveOverlay extends StatefulWidget {
   const _ReviveOverlay({
+    required this.isPremium,
+    required this.adReady,
+    required this.level,
+    required this.score,
+    required this.wave,
     required this.onWatchAd,
+    required this.onFreeRevive,
     required this.onSpendCoins,
+    required this.coinsEnough,
     required this.onGiveUp,
   });
 
-  final VoidCallback? onWatchAd;
-  final VoidCallback? onSpendCoins;
+  /// Premium users see a free revive instead of the ad path (ads are off
+  /// for them).
+  final bool isPremium;
+
+  /// A rewarded ad is loaded right now (free users only).
+  final bool adReady;
+
+  final int level;
+  final int score;
+  final int wave;
+
+  final VoidCallback onWatchAd;
+  final VoidCallback onFreeRevive;
+  final VoidCallback onSpendCoins;
+  final bool coinsEnough;
   final VoidCallback onGiveUp;
 
   @override
@@ -1507,6 +1469,7 @@ class _ReviveOverlay extends StatefulWidget {
 
 class _ReviveOverlayState extends State<_ReviveOverlay>
     with SingleTickerProviderStateMixin {
+  static const int _seconds = 8;
   late final AnimationController _countdown;
   bool _resolved = false;
 
@@ -1515,7 +1478,7 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
     super.initState();
     _countdown = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 6),
+      duration: const Duration(seconds: _seconds),
     )
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed && !_resolved) {
@@ -1545,111 +1508,172 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
   void _watchAd() {
     if (_resolved) return;
     _countdown.stop();
-    widget.onWatchAd?.call();
+    widget.onWatchAd();
   }
 
   @override
   Widget build(BuildContext context) {
-    return _CenterOverlay(
-      title: 'CONTINUE?',
-      extra: SizedBox(
-        width: 52,
-        height: 52,
-        child: AnimatedBuilder(
-          animation: _countdown,
-          builder: (_, _) => Stack(
-            alignment: Alignment.center,
-            children: [
-              CircularProgressIndicator(
-                value: 1 - _countdown.value,
-                strokeWidth: 4,
-                backgroundColor: CosmoPalette.bgHigh,
-                valueColor: const AlwaysStoppedAnimation(CosmoPalette.hull),
-              ),
-              Text(
-                '${(6 * (1 - _countdown.value)).ceil()}',
-                style: const TextStyle(
-                  color: CosmoPalette.highlight,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {},
+            child: Container(
+              color: const Color(0xFF05060F).withValues(alpha: 0.86),
+            ),
           ),
         ),
-      ),
-      actions: [
-        if (widget.onWatchAd != null)
-          _OverlayButton(
-            label: 'WATCH AD',
-            onTap: _watchAd,
+        Center(
+          // Landscape card: status/countdown on the LEFT, the continue
+          // actions on the RIGHT — uses the wide-short viewport instead of
+          // stacking everything into a column that overflows. FittedBox is
+          // a safety net for very short screens.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: GlassPanel(
+              theme: _hudSkin,
+              glow: true,
+              padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 26),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 230,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _countdownRing(),
+                        const SizedBox(height: 16),
+                        Text(
+                          'SHIP DOWN',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: CosmoPalette.hostile,
+                            fontSize: 30,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 3,
+                            shadows: [
+                              Shadow(
+                                color: CosmoPalette.hostile
+                                    .withValues(alpha: 0.6),
+                                blurRadius: 16,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Resume Level ${widget.level}\n'
+                          'Score ${widget.score}  •  Wave ${widget.wave}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: CosmoPalette.highlight,
+                            fontSize: 14,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 28),
+                  Container(
+                    width: 1,
+                    height: 150,
+                    color: CosmoPalette.hull.withValues(alpha: 0.15),
+                  ),
+                  const SizedBox(width: 28),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Primary continue path: premium → free revive; free →
+                      // watch an ad (kept visible but disabled while the ad
+                      // loads, so the path is always discoverable).
+                      if (widget.isPremium)
+                        _OverlayButton(
+                          label: '✦ FREE REVIVE',
+                          onTap: () => _resolve(widget.onFreeRevive),
+                        )
+                      else if (widget.adReady)
+                        _OverlayButton(
+                          label: '▶ WATCH AD — REVIVE',
+                          onTap: _watchAd,
+                        )
+                      else
+                        _disabledButton('WATCH AD — LOADING…'),
+                      // Universal coin fallback.
+                      if (widget.coinsEnough)
+                        _OverlayButton(
+                          label: 'REVIVE  ·  200 COINS',
+                          onTap: () => _resolve(widget.onSpendCoins),
+                          secondary: true,
+                        )
+                      else
+                        _disabledButton('REVIVE  ·  NEED 200 COINS'),
+                      _OverlayButton(
+                        label: 'GIVE UP',
+                        onTap: () => _resolve(widget.onGiveUp),
+                        secondary: true,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-        if (widget.onSpendCoins != null)
-          _OverlayButton(
-            label: 'REVIVE  ·  200 COINS',
-            onTap: () => _resolve(widget.onSpendCoins!),
-          ),
-        _OverlayButton(
-          label: 'GIVE UP',
-          onTap: () => _resolve(widget.onGiveUp),
-          secondary: true,
         ),
       ],
     );
   }
-}
 
-class _CenterOverlay extends StatelessWidget {
-  const _CenterOverlay({
-    required this.title,
-    required this.actions,
-    this.subtitle,
-    this.extra,
-  });
-
-  final String title;
-  final String? subtitle;
-  final Widget? extra;
-  final List<Widget> actions;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF05060F).withValues(alpha: 0.86),
-      alignment: Alignment.center,
-      child: GlassPanel(
-        theme: _hudSkin,
-        glow: true,
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+  Widget _countdownRing() {
+    return SizedBox(
+      width: 60,
+      height: 60,
+      child: AnimatedBuilder(
+        animation: _countdown,
+        builder: (_, _) => Stack(
+          alignment: Alignment.center,
           children: [
+            CircularProgressIndicator(
+              value: 1 - _countdown.value,
+              strokeWidth: 4,
+              backgroundColor: CosmoPalette.bgHigh,
+              valueColor: const AlwaysStoppedAnimation(CosmoPalette.hostile),
+            ),
             Text(
-              title,
-              textAlign: TextAlign.center,
+              '${(_seconds * (1 - _countdown.value)).ceil()}',
               style: const TextStyle(
-                color: CosmoPalette.hull,
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 3,
+                color: CosmoPalette.highlight,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
               ),
             ),
-            if (extra != null) ...[
-              const SizedBox(height: 14),
-              extra!,
-            ],
-            if (subtitle != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                subtitle!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: CosmoPalette.highlight, fontSize: 15),
-              ),
-            ],
-            const SizedBox(height: 24),
-            ...actions,
           ],
+        ),
+      ),
+    );
+  }
+
+  /// A dimmed, non-tappable button — keeps an option visible (ad still
+  /// loading, or not enough coins) so the path is discoverable, without
+  /// letting it fire.
+  Widget _disabledButton(String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Opacity(
+        opacity: 0.45,
+        child: AbsorbPointer(
+          child: SizedBox(
+            width: 240,
+            child: NeonButton(
+              label: label,
+              onPressed: () {},
+              theme: _hudSkin,
+              variant: NeonButtonVariant.outline,
+            ),
+          ),
         ),
       ),
     );
