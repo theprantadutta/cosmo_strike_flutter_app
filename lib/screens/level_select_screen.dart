@@ -68,33 +68,24 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
               final totalStars =
                   rows.fold<int>(0, (sum, r) => sum + r.stars);
 
+              // Primary-CTA state for the selected level. Computed here (not
+              // inside the rail) because the button now lives OUTSIDE the
+              // scaled-down rail so it always renders at full size.
+              final selRow = byStage[selected];
+              final selUnlocked = selRow?.unlocked ?? (selected == 1);
+              final selCleared = selRow?.cleared ?? false;
+              final launchLabel = !selUnlocked
+                  ? 'LOCKED'
+                  : (selected == furthest && !selCleared
+                      ? 'CONTINUE'
+                      : 'LAUNCH');
+
               return Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      flex: 4,
-                      // Never scrolls: natural size, scaled down to fit.
-                      child: Center(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: SizedBox(
-                            width: 280,
-                            child: _CampaignRail(
-                              theme: theme,
-                              clearedCount: clearedCount,
-                              totalStars: totalStars,
-                              selected: selected,
-                              row: byStage[selected],
-                              furthest: furthest,
-                              onLaunch: () => _launch(selected),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 20),
+                    // LEFT now: the level grid (1, 2, 3 … tiles by biome).
                     Expanded(
                       flex: 6,
                       child: ListView(
@@ -109,9 +100,63 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
                               byStage: byStage,
                               selected: selected,
                               furthest: furthest,
-                              onSelect: (level) =>
-                                  setState(() => _selected = level),
+                              onLevelTap: (level) {
+                                // Tap-to-play: an unlocked tile launches
+                                // straight into that level (the natural
+                                // "tap the level to play it" instinct).
+                                // A locked tile just selects, so the rail
+                                // shows the "clear N to unlock" hint.
+                                final row = byStage[level];
+                                final unlocked =
+                                    row?.unlocked ?? (level == 1);
+                                if (unlocked) {
+                                  _launch(level);
+                                } else {
+                                  setState(() => _selected = level);
+                                }
+                              },
                             ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    // RIGHT now: the selected-level details rail + CTA.
+                    Expanded(
+                      flex: 4,
+                      child: Column(
+                        children: [
+                          // Telemetry rail: never scrolls — natural size,
+                          // scaled down to fit the available height.
+                          Expanded(
+                            child: Center(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: SizedBox(
+                                  width: 280,
+                                  child: _CampaignRail(
+                                    theme: theme,
+                                    clearedCount: clearedCount,
+                                    totalStars: totalStars,
+                                    selected: selected,
+                                    row: selRow,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          // Primary CTA lives OUTSIDE the FittedBox so it
+                          // always renders at full size and never shrinks
+                          // into looking like just another stat label.
+                          SizedBox(
+                            width: double.infinity,
+                            child: NeonButton(
+                              label: launchLabel,
+                              onPressed:
+                                  selUnlocked ? () => _launch(selected) : null,
+                              theme: theme,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -134,8 +179,6 @@ class _CampaignRail extends StatelessWidget {
     required this.totalStars,
     required this.selected,
     required this.row,
-    required this.furthest,
-    required this.onLaunch,
   });
 
   final GameTheme theme;
@@ -143,82 +186,88 @@ class _CampaignRail extends StatelessWidget {
   final int totalStars;
   final int selected;
   final StageProgressRow? row;
-  final int furthest;
-  final VoidCallback onLaunch;
 
   @override
   Widget build(BuildContext context) {
     final unlocked = row?.unlocked ?? (selected == 1);
-    final cleared = row?.cleared ?? false;
     final stars = row?.stars ?? 0;
     final progress = clearedCount / CampaignCatalog.totalLevels;
+    final bestScore = row?.bestScore ?? 0;
+    final bestTime = row?.bestTimeSeconds ?? 0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Cleared ring.
-        SizedBox(
-          width: 96,
-          height: 96,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 96,
-                height: 96,
-                child: CircularProgressIndicator(
-                  value: progress,
-                  strokeWidth: 7,
-                  strokeCap: StrokeCap.round,
-                  backgroundColor: Colors.white.withValues(alpha: 0.08),
-                  valueColor: AlwaysStoppedAnimation(
-                      progress >= 1 ? Colors.green : theme.neonPrimary),
-                ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
+        // Compact campaign-progress strip. Horizontal (ring + counters
+        // side by side) instead of a tall stacked ring — that's what used
+        // to dominate the rail's height and force the whole thing to scale
+        // down into illegibility.
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 56,
+              height: 56,
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
+                  CircularProgressIndicator(
+                    value: progress,
+                    strokeWidth: 6,
+                    strokeCap: StrokeCap.round,
+                    backgroundColor: Colors.white.withValues(alpha: 0.08),
+                    valueColor: AlwaysStoppedAnimation(
+                        progress >= 1 ? Colors.green : theme.neonPrimary),
+                  ),
                   Text(
-                    '$clearedCount/${CampaignCatalog.totalLevels}',
+                    '$clearedCount',
                     style: TextStyle(
                       color: theme.textPrimary,
                       fontWeight: FontWeight.w900,
-                      fontSize: 20,
-                    ),
-                  ),
-                  Text(
-                    'CLEARED',
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 9,
-                      letterSpacing: 1.4,
+                      fontSize: 18,
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.star_rounded,
-                size: 16, color: Color(0xFFFFD54F)),
-            const SizedBox(width: 4),
-            Text(
-              '$totalStars / ${CampaignCatalog.totalStars}',
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-              ),
+            ),
+            const SizedBox(width: 14),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$clearedCount / ${CampaignCatalog.totalLevels} CLEARED',
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.star_rounded,
+                        size: 16, color: Color(0xFFFFD54F)),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$totalStars / ${CampaignCatalog.totalStars}',
+                      style: TextStyle(
+                        color: theme.textPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ],
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 18),
 
-        // Selected level detail.
+        // Selected level detail — the part that changes as you tap tiles.
         Text(
           CampaignCatalog.biomeNameFor(selected),
           style: TextStyle(
@@ -228,12 +277,12 @@ class _CampaignRail extends StatelessWidget {
             letterSpacing: 2.2,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           'LEVEL $selected',
           style: TextStyle(
             color: theme.textPrimary,
-            fontSize: 26,
+            fontSize: 28,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.5,
           ),
@@ -243,7 +292,7 @@ class _CampaignRail extends StatelessWidget {
           CampaignCatalog.levelNameFor(selected),
           style: TextStyle(
             color: theme.textMuted,
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.6,
           ),
@@ -258,7 +307,7 @@ class _CampaignRail extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: Icon(
                 earned ? Icons.star_rounded : Icons.star_outline_rounded,
-                size: 22,
+                size: 24,
                 color: earned
                     ? const Color(0xFFFFD54F)
                     : theme.textMuted.withValues(alpha: 0.5),
@@ -266,19 +315,26 @@ class _CampaignRail extends StatelessWidget {
             );
           }),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         if (unlocked) ...[
-          _bestLine(
-            'BEST SCORE',
-            (row?.bestScore ?? 0) > 0 ? '${row!.bestScore}' : '—',
-          ),
-          _bestLine(
-            'BEST TIME',
-            (row?.bestTimeSeconds ?? 0) > 0 ? '${row!.bestTimeSeconds}s' : '—',
+          // Best score + time merged onto one compact line (two stacked
+          // lines were just extra height the scaler had to fight).
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _bestStat('BEST', bestScore > 0 ? '$bestScore' : '—'),
+              Container(
+                width: 1,
+                height: 22,
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                color: theme.textMuted.withValues(alpha: 0.2),
+              ),
+              _bestStat('TIME', bestTime > 0 ? '${bestTime}s' : '—'),
+            ],
           ),
           if (row?.clearedNoHit ?? false)
             Padding(
-              padding: const EdgeInsets.only(top: 6),
+              padding: const EdgeInsets.only(top: 8),
               child: Text(
                 'NO-HIT CLEAR',
                 style: TextStyle(
@@ -296,52 +352,41 @@ class _CampaignRail extends StatelessWidget {
               'CLEAR LEVEL ${selected - 1} TO UNLOCK',
               style: TextStyle(
                 color: theme.textMuted,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.6,
               ),
             ),
           ),
-        const SizedBox(height: 20),
-        SizedBox(
-          width: 220,
-          child: NeonButton(
-            label: !unlocked
-                ? 'LOCKED'
-                : (selected == furthest && !cleared ? 'CONTINUE' : 'LAUNCH'),
-            onPressed: unlocked ? onLaunch : null,
-            theme: theme,
-          ),
-        ),
       ],
     );
   }
 
-  Widget _bestLine(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            '$label  ',
-            style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.4,
-            ),
+  /// One compact labelled stat (label above value), used in the merged
+  /// best-score / best-time row.
+  Widget _bestStat(String label, String value) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: theme.textMuted,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.4,
           ),
-          Text(
-            value,
-            style: TextStyle(
-              color: theme.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: TextStyle(
+            color: theme.textPrimary,
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -354,7 +399,7 @@ class _BiomeSection extends StatelessWidget {
     required this.byStage,
     required this.selected,
     required this.furthest,
-    required this.onSelect,
+    required this.onLevelTap,
   });
 
   final GameTheme theme;
@@ -362,7 +407,7 @@ class _BiomeSection extends StatelessWidget {
   final Map<int, StageProgressRow> byStage;
   final int selected;
   final int furthest;
-  final ValueChanged<int> onSelect;
+  final ValueChanged<int> onLevelTap;
 
   @override
   Widget build(BuildContext context) {
@@ -417,7 +462,7 @@ class _BiomeSection extends StatelessWidget {
                     row: byStage[level],
                     isSelected: level == selected,
                     isFurthest: level == furthest,
-                    onTap: () => onSelect(level),
+                    onTap: () => onLevelTap(level),
                   ),
                 ),
                 if (level != levels.last) const SizedBox(width: 12),

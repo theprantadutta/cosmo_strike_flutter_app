@@ -12,6 +12,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dar
 import 'package:cosmo_strike_flutter_app/providers/walkthrough_provider.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
+import 'package:cosmo_strike_flutter_app/data/database/app_database.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/providers/daily_challenges_provider.dart';
 import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
@@ -742,10 +743,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         if (!context.mounted) return;
         await _maybeShowGameModePrompt();
         if (!context.mounted) return;
-        // Campaign level select — pick a start level there; it routes on
-        // through the themed pre-game loader (which pushReplacements to
-        // /game so back from the game lands here, not on the loader).
-        context.push(AppRoutes.levelSelect);
+        // Drop STRAIGHT into the next unlocked level — the "continue"
+        // target — so the most common intent (just keep playing) is a
+        // single tap with no campaign screen in the way. Players who want
+        // to replay or jump around tap "Choose level" below to open the
+        // campaign map. Routes through the themed pre-game loader (which
+        // pushReplacements to /game so back from the game lands here).
+        final startLevel =
+            await getIt<AppDatabase>().stageProgressDao.getFurthestUnlocked();
+        if (!context.mounted) return;
+        context.push(AppRoutes.playLoading, extra: startLevel);
       },
       // No GlassPanel — its backdrop blur frosts the starfield into a visible
       // box. A plain transparent Container (opaque hit-test on the parent
@@ -790,7 +797,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
             const SizedBox(height: 4),
             Text(
-              'Tap to deploy',
+              'Continue campaign',
               style: TextStyle(
                 color: theme.textMuted,
                 fontSize: 13,
@@ -800,6 +807,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             const SizedBox(height: 8),
             // Loadout chip self-hides when the user owns no power-ups.
             _buildPowerUpLoadoutChip(theme),
+            const SizedBox(height: 10),
+            // Secondary action: open the campaign map to replay / jump to a
+            // specific level. Nested GestureDetector wins the tap over the
+            // parent launch-bay handler, so this never triggers a launch.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => context.push(AppRoutes.levelSelect),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.grid_view_rounded,
+                      size: 14,
+                      color: theme.neonSecondary.withValues(alpha: 0.9),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'CHOOSE LEVEL',
+                      style: TextStyle(
+                        color: theme.neonSecondary.withValues(alpha: 0.9),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
