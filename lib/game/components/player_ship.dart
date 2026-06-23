@@ -39,6 +39,12 @@ class PlayerShip extends PositionComponent
   double ghostTimer = 0;
   double magnetTimer = 0;
 
+  /// Post-revive protection: a timed shield that keeps the ship fully
+  /// invulnerable AND renders the shield bubble for its whole duration, so the
+  /// player can clearly see they can't die for the next few seconds. Distinct
+  /// from the one-hit [shielded] power-up; surfaced as a HUD effect chip.
+  double protectTimer = 0;
+
   /// Red hull flash on landed hits — the ship itself must scream "hit".
   double _damageFlash = 0;
   static final Paint _damagePaint = Paint()
@@ -70,11 +76,13 @@ class PlayerShip extends PositionComponent
   bool get ghosted => ghostTimer > 0;
   bool get magnetActive => magnetTimer > 0;
   bool get speedBoosted => speedTimer > 0;
+  bool get protected => protectTimer > 0;
 
   double get weaponTimeLeft => _weaponTimer;
   double get speedTimeLeft => speedTimer;
   double get ghostTimeLeft => ghostTimer;
   double get magnetTimeLeft => magnetTimer;
+  double get protectTimeLeft => protectTimer;
 
   double get _moveSpeed => speedBoosted ? 700 : 520;
 
@@ -172,6 +180,14 @@ class PlayerShip extends PositionComponent
     if (_invuln < seconds) _invuln = seconds;
   }
 
+  /// Timed protective shield (used on revive): the ship can't be hit for
+  /// [seconds] and the shield bubble renders the whole time so the grace
+  /// window reads clearly. The bubble and invulnerability expire together.
+  void grantProtection(double seconds) {
+    if (protectTimer < seconds) protectTimer = seconds;
+    grantInvuln(seconds);
+  }
+
   /// Terrain rising under/over the ship displaces it without damage
   /// (the fairness rule for animated corridors).
   void pushOutY(double y) {
@@ -267,6 +283,7 @@ class PlayerShip extends PositionComponent
   @override
   void update(double dt) {
     if (_invuln > 0) _invuln -= dt;
+    if (protectTimer > 0) protectTimer -= dt;
     if (_damageFlash > 0) _damageFlash -= dt;
     if (speedTimer > 0) speedTimer -= dt;
     if (ghostTimer > 0) ghostTimer -= dt;
@@ -419,7 +436,9 @@ class PlayerShip extends PositionComponent
         : (_vySmoothed > 60 ? _spriteDown : _spriteLevel);
     sprite.render(canvas, size: size, overridePaint: paint);
 
-    if (shielded) {
+    // Shield bubble: the one-hit [shielded] power-up OR the timed post-revive
+    // protection window — both read as the same protective dome.
+    if (shielded || protectTimer > 0) {
       _shieldSprite.render(
         canvas,
         position: Vector2(-7, -10),

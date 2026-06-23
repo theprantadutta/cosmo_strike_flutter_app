@@ -17,6 +17,7 @@ class RunStatTile extends StatelessWidget {
     required this.value,
     required this.label,
     this.accent,
+    this.width = 158,
   });
 
   final IconData icon;
@@ -24,11 +25,14 @@ class RunStatTile extends StatelessWidget {
   final String label;
   final Color? accent;
 
+  /// Tile width — the game-over grid packs a tighter 3-column layout.
+  final double width;
+
   @override
   Widget build(BuildContext context) {
     final color = accent ?? CosmoPalette.hull;
     return SizedBox(
-      width: 158,
+      width: width,
       child: Row(
         children: [
           Container(

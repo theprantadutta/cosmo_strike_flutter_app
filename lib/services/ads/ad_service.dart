@@ -19,10 +19,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AdService {
   // ---- tunables ----
   static const int _interstitialEveryNGames = 3;
+  // Level-clear → continue is the busiest natural break; show one every couple
+  // of clears. The shared min-gap below still throttles the effective rate, so
+  // this never stacks back-to-back with the game-over interstitial.
+  static const int _interstitialEveryNLevels = 2;
   static const Duration _interstitialMinGap = Duration(minutes: 3);
 
   // SharedPreferences keys (device-only, never synced).
   static const _kGamesSinceInterstitial = 'ads_games_since_interstitial';
+  static const _kLevelsSinceInterstitial = 'ads_levels_since_interstitial';
   static const _kLastInterstitialMs = 'ads_last_interstitial_ms';
   static const _kSessionIsFirst = 'ads_first_session_done';
 
@@ -192,7 +197,29 @@ class AdService {
 
   /// Show an interstitial if the frequency cap allows. Call this on game-over.
   /// Returns true if an ad was shown. Counts the game regardless.
-  Future<bool> maybeShowInterstitialOnGameOver() async {
+  Future<bool> maybeShowInterstitialOnGameOver() => _maybeShowInterstitial(
+        counterKey: _kGamesSinceInterstitial,
+        everyN: _interstitialEveryNGames,
+      );
+
+  /// Show an interstitial when the player continues past a cleared level — the
+  /// busiest natural break. Returns true if an ad was shown; counts the clear
+  /// regardless. Shares the min-gap + first-session skip with the game-over
+  /// interstitial, so the two never fire back-to-back.
+  Future<bool> maybeShowInterstitialOnLevelClear() => _maybeShowInterstitial(
+        counterKey: _kLevelsSinceInterstitial,
+        everyN: _interstitialEveryNLevels,
+      );
+
+  /// Shared interstitial gate. Counts [counterKey] each call; shows once it
+  /// reaches [everyN] AND the shared min-gap has elapsed AND an ad is loaded.
+  /// The first session is always ad-light (skipped + marked done). The gap
+  /// timestamp ([_kLastInterstitialMs]) and first-session flag are shared
+  /// across every placement, so different placements can't stack.
+  Future<bool> _maybeShowInterstitial({
+    required String counterKey,
+    required int everyN,
+  }) async {
     if (!adsEnabled) return false;
     final prefs = _prefs;
     if (prefs == null) return false;
@@ -203,13 +230,13 @@ class AdService {
       return false;
     }
 
-    final games = (prefs.getInt(_kGamesSinceInterstitial) ?? 0) + 1;
+    final count = (prefs.getInt(counterKey) ?? 0) + 1;
     final lastMs = prefs.getInt(_kLastInterstitialMs) ?? 0;
     final gapOk = DateTime.now().millisecondsSinceEpoch - lastMs >=
         _interstitialMinGap.inMilliseconds;
 
-    if (games < _interstitialEveryNGames || !gapOk || _interstitial == null) {
-      await prefs.setInt(_kGamesSinceInterstitial, games);
+    if (count < everyN || !gapOk || _interstitial == null) {
+      await prefs.setInt(counterKey, count);
       _loadInterstitial();
       return false;
     }
@@ -231,7 +258,7 @@ class AdService {
       },
     );
     await ad.show();
-    await prefs.setInt(_kGamesSinceInterstitial, 0);
+    await prefs.setInt(counterKey, 0);
     await prefs.setInt(
         _kLastInterstitialMs, DateTime.now().millisecondsSinceEpoch);
     return shown.future;

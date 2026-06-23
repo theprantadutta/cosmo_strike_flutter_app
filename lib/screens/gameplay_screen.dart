@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../data/database/app_database.dart';
+import '../game/components/power_up.dart';
 import '../game/cosmo_palette.dart';
 import '../game/cosmo_strike_game.dart';
 import '../game/tutorial_director.dart';
@@ -32,6 +33,7 @@ import '../services/haptic_service.dart';
 import '../services/walkthrough_service.dart';
 import '../ui/design.dart';
 import '../utils/constants.dart';
+import '../widgets/ads/banner_ad_widget.dart';
 import '../widgets/game_dpad.dart';
 import '../widgets/gameplay/game_over_overlay.dart';
 import '../widgets/gameplay/level_complete_overlay.dart';
@@ -173,8 +175,8 @@ class _GameplayScreenState extends State<GameplayScreen>
     // ready when needed, and an interstitial for the game-over exit
     // (frequency-capped inside AdService — every 3rd game, 3-min gap,
     // never in the first session, never for Pro).
-    AdService().preloadRewarded();
-    AdService().preloadInterstitial();
+    GetIt.I<AdService>().preloadRewarded();
+    GetIt.I<AdService>().preloadInterstitial();
 
     // First-run tutorial: only on a Level-1 start, only until completed
     // or skipped once (the flag is prefs-backed and resettable from
@@ -262,6 +264,12 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// Drift (and enqueues sync) the moment the boss falls.
   void _handleLevelCleared(LevelRunResult result) {
     _persistedClears.add(result.stageId);
+    // Re-warm the interstitial/rewarded the instant the boss falls — the
+    // level-clear summary buys a few seconds of lead time before the player
+    // taps Continue, so the ad is already loaded at the break instead of
+    // starting to load on-demand (no-op if one's already in hand).
+    GetIt.I<AdService>().preloadInterstitial();
+    GetIt.I<AdService>().preloadRewarded();
     unawaited(() async {
       try {
         final dao = GetIt.I<AppDatabase>().stageProgressDao;
@@ -285,6 +293,11 @@ class _GameplayScreenState extends State<GameplayScreen>
   void _handleGameOver(GameResult result) {
     _lastResult = result;
     widget.onRunComplete?.call(result);
+    // Re-warm both ad types now so the game-over screen's "2× coins" rewarded
+    // and the Retry/Exit interstitial are already loaded by the time the
+    // player taps — never loaded on-demand at the tap.
+    GetIt.I<AdService>().preloadInterstitial();
+    GetIt.I<AdService>().preloadRewarded();
     if (!mounted) return;
     // The submit below overwrites the stored high score — capture the
     // previous best first for the NEW RECORD comparison.
@@ -540,7 +553,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _reviveWithAd() {
-    AdService().showRewarded(onReward: () {
+    GetIt.I<AdService>().showRewarded(onReward: () {
       _game.revive();
       _celebrateRevive();
     }).then((shown) {
@@ -559,7 +572,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   Future<void> _doubleRunCoins() async {
     final coins = context.read<CoinsCubit>();
     final earned = _runCoinsEarned;
-    final shown = await AdService().showRewardedCapped(
+    final shown = await GetIt.I<AdService>().showRewardedCapped(
       capKey: AdService.capDoubleCoins,
       onReward: () {
         unawaited(coins.earnCoins(
@@ -584,9 +597,40 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// the first session, never for Pro — all enforced inside AdService.
   /// The navigation always runs, ad or no ad.
   void _exitWithInterstitial(VoidCallback navigate) {
-    AdService().maybeShowInterstitialOnGameOver().whenComplete(() {
+    GetIt.I<AdService>().maybeShowInterstitialOnGameOver().whenComplete(() {
       if (mounted) navigate();
     });
+  }
+
+  /// Continue past a cleared level through the (frequency-capped) level-clear
+  /// interstitial — the busiest natural break. Capped every couple of clears,
+  /// shares the 3-min gap with the game-over interstitial, never the first
+  /// session, never for Pro (all enforced in AdService). The engine is frozen
+  /// during `levelClear`, so nothing runs behind the ad; the next level always
+  /// loads afterwards whether an ad showed or not.
+  void _advanceWithInterstitial() {
+    GetIt.I<AdService>().maybeShowInterstitialOnLevelClear().whenComplete(() {
+      if (mounted) _game.advanceToNextLevel();
+    });
+  }
+
+  /// Pause-menu opt-in rewarded perk: watch an ad → +1 life. Reuses the
+  /// existing power-up grant and the daily-capped power-up placement, so it
+  /// can't be ground infinitely. The engine stays frozen on the pause overlay
+  /// throughout; the lives HUD animates the gain when play resumes.
+  Future<void> _watchAdForLife() async {
+    final shown = await GetIt.I<AdService>().showRewardedCapped(
+      capKey: AdService.capFreePowerUp,
+      onReward: () {
+        _game.applyPowerUp(PowerUpKind.life);
+        RewardToast.show(title: 'EXTRA LIFE', amount: '+1 SHIP');
+      },
+    );
+    if (!shown && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ad not ready — try again in a moment')),
+      );
+    }
   }
 
   Future<void> _reviveWithCoins() async {
@@ -612,9 +656,19 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     return Scaffold(
       backgroundColor: CosmoPalette.bgDeep,
-      body: Stack(
+      // Single in-play banner pinned to the TOP edge (the bottom is taken by
+      // the d-pad / missile button / boss bar). Reserves its height up front
+      // so the playfield never jumps; takes zero space for Pro / non-mobile.
+      // The GameWidget + HUD + overlays live below it in the Expanded, so the
+      // one banner also persists above the pause / level-clear / game-over
+      // overlays — no duplicate banners.
+      body: Column(
         children: [
-          GestureDetector(
+          const ShipBannerAd(top: true),
+          Expanded(
+            child: Stack(
+              children: [
+                GestureDetector(
             behavior: HitTestBehavior.opaque,
             // Relative drag: touching down does NOT teleport the steer
             // target to the finger — only movement steers.
@@ -779,13 +833,18 @@ class _GameplayScreenState extends State<GameplayScreen>
                     onResume: _game.resumeGame,
                     onRestart: _restartFromPause,
                     onQuit: _quitToHome,
+                    // Opt-in rewarded "+1 life" perk — shown only when an ad
+                    // is loaded and the daily power-up cap isn't hit.
+                    lifeAdReady:
+                        GetIt.I<AdService>().canShowCapped(AdService.capFreePowerUp),
+                    onWatchAdForLife: _watchAdForLife,
                   );
                 case GamePhase.levelClear:
                   return LevelCompleteOverlay(
                     game: _game,
                     outcome: _outcomes[_game.levelIndex],
                     priorBest: _priorBest[_game.levelIndex],
-                    onContinue: _game.advanceToNextLevel,
+                    onContinue: _advanceWithInterstitial,
                     onQuit: _quitToHome,
                   );
                 case GamePhase.reviveOffer:
@@ -795,7 +854,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                       context.read<CoinsCubit>().state.balance.total >= 200;
                   return _ReviveOverlay(
                     isPremium: isPremium,
-                    adReady: AdService().isRewardedReady,
+                    adReady: GetIt.I<AdService>().isRewardedReady,
                     level: _game.levelIndex,
                     score: _game.scoreNotifier.value,
                     wave: _game.wave,
@@ -821,11 +880,18 @@ class _GameplayScreenState extends State<GameplayScreen>
                     runCoinsEarned: _runCoinsEarned,
                     runXpEarned: _runXpEarned,
                     coinsDoubled: _coinsDoubled,
-                    // "Watch ad → 2× coins": live while coins were earned,
-                    // an ad is loaded and the daily cap isn't hit; swaps to
-                    // a confirmation once claimed.
+                    // "Watch ad → 2× coins": offered whenever coins were
+                    // earned, ads are on (not Pro/offline) and the daily cap
+                    // isn't hit. Deliberately NOT gated on the ad being loaded
+                    // *this instant* — that snapshot isn't reactive, so the
+                    // button could otherwise never appear if the ad finished
+                    // loading a beat later. The tap handles a not-yet-ready ad
+                    // (retry snackbar). Swaps to a confirmation once claimed.
                     canDoubleCoins: _runCoinsEarned > 0 &&
-                        AdService().canShowCapped(AdService.capDoubleCoins),
+                        GetIt.I<AdService>().adsEnabled &&
+                        GetIt.I<AdService>()
+                                .dailyRemaining(AdService.capDoubleCoins) >
+                            0,
                     onDoubleCoins: _doubleRunCoins,
                     onRetry: () => _exitWithInterstitial(
                       () => context.pushReplacement(
@@ -846,6 +912,9 @@ class _GameplayScreenState extends State<GameplayScreen>
                   return const SizedBox.shrink();
               }
             },
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1242,6 +1311,7 @@ class _EffectChip extends StatelessWidget {
     'slowmo': Icons.slow_motion_video,
     'magnet': Icons.attractions,
     'ghost': Icons.blur_on,
+    'shield': Icons.shield, // post-revive protection window
   };
 
   @override

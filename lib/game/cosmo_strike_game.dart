@@ -639,6 +639,14 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   void _publishEffects() {
     final effects = <ActiveEffectHud>[
+      // Post-revive protection — first so the grace window is the most
+      // prominent chip while it's counting down.
+      if (player.protected)
+        ActiveEffectHud(
+            id: 'shield',
+            remaining01: (player.protectTimeLeft / _reviveProtectSeconds)
+                .clamp(0, 1)
+                .toDouble()),
       if (player.weapon != WeaponMode.single)
         ActiveEffectHud(
             id: 'weapon',
@@ -924,6 +932,12 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   // ---- Revive ----
 
+  /// Seconds of protective shield granted on revive — the comeback can't die
+  /// for this long, and the shield bubble + HUD chip make the grace window
+  /// obvious. Longer than the default respawn invuln (3.0s) since the player
+  /// just paid to continue.
+  static const double _reviveProtectSeconds = 4.5;
+
   /// Resume the SAME level + wave after the player paid for a continue
   /// (rewarded ad / coins). The ScriptRunner is game-time, so the paused
   /// spawn timeline resumes exactly where it froze.
@@ -939,6 +953,10 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     pools.clearEnemyBullets();
     _scriptRunner.notifyRevived();
     player.respawn(withWarpFx: true);
+    // Visible, timed protection so the player can't be cheap-shotted the
+    // instant they're back — a shield bubble + HUD countdown chip.
+    player.grantProtection(_reviveProtectSeconds);
+    _publishEffects();
     GameAudio.revive();
     phaseNotifier.value = GamePhase.playing;
     resumeEngine();

@@ -27,6 +27,8 @@ class PauseOverlay extends StatefulWidget {
     required this.onResume,
     required this.onRestart,
     required this.onQuit,
+    this.lifeAdReady = false,
+    required this.onWatchAdForLife,
   });
 
   final CosmoStrikeGame game;
@@ -38,6 +40,14 @@ class PauseOverlay extends StatefulWidget {
   final VoidCallback onResume;
   final VoidCallback onRestart;
   final VoidCallback onQuit;
+
+  /// A rewarded ad is loaded AND the daily power-up cap isn't hit — gate the
+  /// opt-in "+1 life" perk on this so the button never appears dead (and never
+  /// for Pro users, who can't watch ads).
+  final bool lifeAdReady;
+
+  /// Watch a rewarded ad → grant +1 life (handled by the host screen).
+  final VoidCallback onWatchAdForLife;
 
   @override
   State<PauseOverlay> createState() => _PauseOverlayState();
@@ -193,6 +203,21 @@ class _PauseOverlayState extends State<PauseOverlay> {
                           ),
                         ),
                       ),
+                      // Opt-in rewarded perk: watch an ad → +1 life. Only
+                      // rendered when an ad is loaded and the daily cap isn't
+                      // hit, so it never shows as a dead button (and never for
+                      // Pro users, who can't watch ads).
+                      if (widget.lifeAdReady) ...[
+                        const SizedBox(height: GameTokens.space12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OverlayActionButton(
+                            label: '▶ WATCH AD  ·  +1 LIFE',
+                            onTap: widget.onWatchAdForLife,
+                            variant: NeonButtonVariant.outline,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: GameTokens.space12),
                       Row(
                         children: [

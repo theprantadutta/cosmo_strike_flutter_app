@@ -14,7 +14,13 @@ import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 /// users would otherwise see when a banner pops in a moment after the screen
 /// renders.
 class ShipBannerAd extends StatefulWidget {
-  const ShipBannerAd({super.key});
+  const ShipBannerAd({super.key, this.top = false});
+
+  /// Anchor the banner to the TOP edge instead of the bottom. Used in the
+  /// gameplay screen, where the bottom edge is crowded with the d-pad, missile
+  /// button, and boss health bar. Defaults to bottom so existing placements
+  /// are unaffected.
+  final bool top;
 
   @override
   State<ShipBannerAd> createState() => _ShipBannerAdState();
@@ -73,7 +79,10 @@ class _ShipBannerAdState extends State<ShipBannerAd> {
     // changes size, so the ad fills it without shifting surrounding layout.
     final ad = _ad;
     return SafeArea(
-      top: false,
+      // Hug the anchored edge: a bottom banner ignores the bottom inset, a top
+      // banner ignores the top inset (so it sits flush under the status bar).
+      top: widget.top,
+      bottom: !widget.top,
       child: SizedBox(
         width: double.infinity,
         height: AdSize.banner.height.toDouble(),
