@@ -1,4 +1,5 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 import 'analytics_client.dart';
 
@@ -6,11 +7,18 @@ import 'analytics_client.dart';
 ///
 /// Uses Firebase's built-in methods where available (screen view, user ID,
 /// user properties) and custom `logEvent` for everything else.
+///
+/// This client is only registered for release builds (see injection.dart), so
+/// it doubles as the single release-only chokepoint for setting the Crashlytics
+/// user identifier — keeping crash reports attributable without scattering
+/// `kDebugMode` guards across every auth call site.
 class FirebaseAnalyticsClient implements AnalyticsClient {
   final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
 
   @override
   Future<void> setUserId(String? userId) {
+    // Mirror the identity onto Crashlytics so crashes are attributable.
+    FirebaseCrashlytics.instance.setUserIdentifier(userId ?? '');
     return _analytics.setUserId(id: userId);
   }
 

@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_performance/firebase_performance.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -88,6 +90,14 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     AppLogger.success('Firebase initialized successfully');
+
+    // Crash reporting + performance monitoring. Collection is gated to release
+    // builds so local dev crashes/traces never pollute the production
+    // dashboards — mirrors the analytics debug/release split in injection.dart.
+    await FirebaseCrashlytics.instance
+        .setCrashlyticsCollectionEnabled(!kDebugMode);
+    await FirebasePerformance.instance
+        .setPerformanceCollectionEnabled(!kDebugMode);
 
     // Landscape-only: Cosmo Strike is a horizontal command-HUD experience
     // (side-scrolling shmup + wide UI). Lock both landscape orientations so
@@ -193,12 +203,30 @@ void main() async {
     AppLogger.error('Failed to initialize Cosmo Strike', error, stackTrace);
   }
 
-  // Setup global error handling — always, not just in debug mode
+  // Setup global error handling — always, not just in debug mode. In release
+  // builds (with Firebase initialized) fatal errors are forwarded to
+  // Crashlytics; in debug they're surfaced locally only. The _initSucceeded
+  // guard prevents touching FirebaseCrashlytics.instance when Firebase failed
+  // to initialize.
   FlutterError.onError = (details) {
     AppLogger.error('Flutter Error', details.exception, details.stack);
     if (kDebugMode) {
       FlutterError.presentError(details);
+    } else if (_initSucceeded) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
     }
+  };
+
+  // Uncaught async errors outside the Flutter framework (e.g. in Futures /
+  // event handlers). Returning true marks them handled. This + FlutterError
+  // .onError above is the current FlutterFire-recommended pattern (replaces
+  // the older runZonedGuarded approach).
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppLogger.error('Uncaught async error', error, stack);
+    if (!kDebugMode && _initSucceeded) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    }
+    return true;
   };
 
   if (_initSucceeded) {
