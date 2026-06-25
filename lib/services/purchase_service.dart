@@ -165,6 +165,27 @@ class PurchaseService {
   bool get purchasePending => _purchasePending;
   String? get queryProductError => _queryProductError;
 
+  /// Whether any store products have been loaded yet. False means the store
+  /// query hasn't completed (or returned nothing) — distinct from a specific
+  /// product simply not being configured.
+  bool get hasLoadedProducts => _products.isNotEmpty;
+
+  /// Re-run the store product query on demand (e.g. a "Retry" button after a
+  /// transient load failure). Re-checks billing availability first so a device
+  /// that came online / installed Play services since boot can recover.
+  /// Clears the previous error so the UI reflects the fresh attempt.
+  Future<void> retryLoadProducts() async {
+    _queryProductError = null;
+    if (!_isAvailable) {
+      _isAvailable = await _inAppPurchase.isAvailable();
+    }
+    if (!_isAvailable) {
+      _queryProductError = 'In-app purchases are not available on this device.';
+      return;
+    }
+    await loadProducts();
+  }
+
   // Stream controllers for UI updates
   final StreamController<bool> _purchasePendingController =
       StreamController<bool>.broadcast();

@@ -470,7 +470,13 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
   }
 
   /// Real subscription purchase — opens the Google Play sheet.
-  void _subscribe() {
+  ///
+  /// When the product can't be purchased we no longer show a single opaque
+  /// "not available" toast. We distinguish the actual cause so the user knows
+  /// what to do, offer a Retry when the store query simply hasn't completed,
+  /// and point them at the in-app free trial (rendered below) as a fallback so
+  /// premium is never a dead end.
+  Future<void> _subscribe() async {
     final purchaseService = PurchaseService();
     final productId = _isYearly
         ? ProductIds.proYearly
@@ -478,15 +484,63 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     final product = purchaseService.getProduct(productId);
 
     if (product != null) {
-      purchaseService.buyProduct(product);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Premium subscription not available'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      await purchaseService.buyProduct(product);
+      return;
     }
+
+    // Device has no billing support at all (no Play services, emulator, etc.).
+    if (!purchaseService.isAvailable) {
+      _showSubscribeIssue(
+        "In-app purchases aren't available on this device. "
+        'You can still start the free trial below.',
+      );
+      return;
+    }
+
+    // Store query hasn't returned products yet, or it errored — this is a
+    // transient/recoverable state, so offer a Retry that re-runs the query.
+    if (!purchaseService.hasLoadedProducts ||
+        purchaseService.queryProductError != null) {
+      _showSubscribeIssue(
+        'The store is still loading. Please check your connection and retry.',
+        actionLabel: 'RETRY',
+        onAction: () async {
+          await purchaseService.retryLoadProducts();
+          if (mounted) setState(() {});
+        },
+      );
+      return;
+    }
+
+    // Billing works and products loaded, but this specific subscription isn't
+    // configured/active on the store yet. Steer the user to the free trial.
+    _showSubscribeIssue(
+      "Pro subscriptions aren't available right now. "
+      'Try the free trial below while we sort it out.',
+    );
+  }
+
+  /// Shows a subscription problem as a snackbar, optionally with a single
+  /// recovery action (e.g. Retry). Uses the muted neutral surface rather than
+  /// an alarming red — these are recoverable states, not crashes.
+  void _showSubscribeIssue(
+    String message, {
+    String? actionLabel,
+    Future<void> Function()? onAction,
+  }) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 5),
+        action: (actionLabel != null && onAction != null)
+            ? SnackBarAction(
+                label: actionLabel,
+                onPressed: () => onAction(),
+              )
+            : null,
+      ),
+    );
   }
 
   /// In-app 3-day trial — no payment, no Google Play sheet. One-shot per user

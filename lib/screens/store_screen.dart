@@ -1620,6 +1620,8 @@ class _StoreScreenState extends State<StoreScreen>
         return 'Canyon + cactus teal';
       case GameTheme.crystal:
         return 'Icy crystalline blue';
+      case GameTheme.accessible:
+        return 'High-contrast, color-blind friendly';
     }
   }
 

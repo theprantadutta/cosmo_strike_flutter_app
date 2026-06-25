@@ -16,9 +16,12 @@ import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
 import 'package:cosmo_strike_flutter_app/services/haptic_service.dart';
 import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
+import 'package:cosmo_strike_flutter_app/services/preferences_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/username_service.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
+import 'package:cosmo_strike_flutter_app/services/review_service.dart';
+import 'package:cosmo_strike_flutter_app/services/share_service.dart';
 import 'package:cosmo_strike_flutter_app/services/walkthrough_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/ui/design.dart';
@@ -49,6 +52,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Hydrated in main.dart from the Drift settings row — the in-memory
   // singleton value is authoritative by the time this screen builds.
   bool _hapticsEnabled = HapticService().isEnabled;
+  // Accessibility: reduce-motion mirror. PreferencesService is a boot-time
+  // singleton, so its value is authoritative by the time this screen builds.
+  bool _reduceMotion = PreferencesService().reduceMotion;
   DPadPosition _dPadPosition = DPadPosition.bottomCenter;
   GameMode _selectedGameMode = GameMode.classic;
 
@@ -277,6 +283,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       (Icons.person, 'Profile'),
       (Icons.help_outline, 'Help'),
       (Icons.workspace_premium, 'Premium'),
+      (Icons.accessibility_new, 'Access'),
     ];
 
     return Column(
@@ -621,6 +628,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSection('HELP & TUTORIAL', [
             _buildReplayTutorialButton(theme),
             const SizedBox(height: 16),
+            _buildRateButton(theme),
+            const SizedBox(height: 16),
+            _buildShareButton(theme),
+            const SizedBox(height: 16),
             _buildCreditsButton(theme),
             _buildPrivacyChoicesButton(theme),
           ], theme),
@@ -643,9 +654,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ], theme),
         ];
 
+      // 9. Accessibility
+      case 8:
+        return [
+          _buildSection('ACCESSIBILITY', [
+            _buildColorBlindControl(themeState, theme),
+            const SizedBox(height: 24),
+            _buildReduceMotionControl(theme),
+          ], theme),
+        ];
+
       default:
         return const [];
     }
+  }
+
+  /// One-tap color-blind friendly skin. Toggling on applies the high-contrast
+  /// blue↔orange [GameTheme.accessible] palette through the normal ThemeCubit
+  /// path (persisted + synced); toggling off returns to Classic.
+  Widget _buildColorBlindControl(ThemeState themeState, GameTheme theme) {
+    final isOn = themeState.currentTheme == GameTheme.accessible;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildAudioSwitch('Color-Blind Friendly', isOn, (value) async {
+          await context
+              .read<ThemeCubit>()
+              .setTheme(value ? GameTheme.accessible : GameTheme.classic);
+          _analytics.trackSettingChanged(
+            settingName: 'color_blind_mode',
+            value: '$value',
+          );
+        }, theme),
+        const SizedBox(height: 8),
+        Text(
+          'High-contrast blue & orange palette that stays distinct for all '
+          'types of color blindness.',
+          style: TextStyle(color: theme.textMuted, fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  /// Reduce-motion accessibility toggle. Persists the preference and, when
+  /// enabled, immediately calms the most motion-heavy effects (screen shake +
+  /// engine trails) through their existing cubits for instant feedback.
+  Widget _buildReduceMotionControl(GameTheme theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildAudioSwitch('Reduce Motion', _reduceMotion, (value) async {
+          // Capture cubits before any await so we never touch context across
+          // an async gap.
+          final settingsCubit = context.read<GameSettingsCubit>();
+          final themeCubit = context.read<ThemeCubit>();
+          setState(() => _reduceMotion = value);
+          await PreferencesService().setReduceMotion(value);
+          if (value) {
+            setState(() => _screenShakeEnabled = false);
+            await settingsCubit.setScreenShakeEnabled(false);
+            await themeCubit.setTrailSystemEnabled(false);
+          }
+          _analytics.trackSettingChanged(
+            settingName: 'reduce_motion',
+            value: '$value',
+          );
+        }, theme),
+        const SizedBox(height: 8),
+        Text(
+          'Dials down screen shake, engine trails, and busy background motion.',
+          style: TextStyle(color: theme.textMuted, fontSize: 12),
+        ),
+      ],
+    );
   }
 
   /// Section pane: uppercase HUD label + content floating directly on the
@@ -1423,6 +1504,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 8),
         Text(
           'Manage personalized ad consent',
+          style: TextStyle(color: theme.textMuted, fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  /// User-initiated app rating. Unlike the auto-prompt (which is gated to
+  /// strong moments), this always tries to surface the native review sheet
+  /// and falls back to the store listing when the in-app API isn't available.
+  Widget _buildRateButton(GameTheme theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        NeonButton(
+          onPressed: () => getIt<ReviewService>().rateAppManually(),
+          label: 'RATE THIS GAME',
+          theme: theme,
+          variant: NeonButtonVariant.outline,
+          icon: Icons.star_rate,
+          expand: true,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Enjoying Cosmo Strike? Leave us a rating',
+          style: TextStyle(color: theme.textMuted, fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  /// Opens the native OS share sheet with a pre-filled invite + store link.
+  Widget _buildShareButton(GameTheme theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        NeonButton(
+          onPressed: () => ShareService().shareApp(),
+          label: 'SHARE WITH FRIENDS',
+          theme: theme,
+          variant: NeonButtonVariant.outline,
+          icon: Icons.share,
+          expand: true,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Invite friends to join the fight',
           style: TextStyle(color: theme.textMuted, fontSize: 12),
         ),
       ],

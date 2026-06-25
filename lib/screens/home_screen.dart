@@ -16,6 +16,7 @@ import 'package:cosmo_strike_flutter_app/data/database/app_database.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/providers/daily_challenges_provider.dart';
 import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
+import 'package:cosmo_strike_flutter_app/services/share_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/walkthrough_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/design.dart';
@@ -576,12 +577,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ),
 
         // RIGHT: tools, ordered from the right edge inward as
-        // profile, settings, help, about — i.e. left-to-right:
-        // about, help, settings, profile.
+        // profile, settings, help, about, share — i.e. left-to-right:
+        // share, about, help, settings, profile.
         Expanded(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              _buildTopIconButton(
+                icon: Icons.share,
+                color: theme.foodColor,
+                isSmallScreen: isSmallScreen,
+                onTap: () => ShareService().shareApp(),
+              ),
+              gap,
               _buildTopIconButton(
                 icon: Icons.info_outline,
                 color: theme.accentColor,

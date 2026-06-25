@@ -270,6 +270,15 @@ class GameConstants {
   static const Color crystalFood = Color(0xFFF0ABFC); // orchid
   static const Color crystalAccent = Color(0xFFC4B5FD); // lavender
 
+  // High Contrast skin (accessibility / color-blind friendly). Built on a
+  // blue↔orange axis — the one neon pair that stays distinguishable across
+  // deuteranopia, protanopia, and tritanopia — over a near-black base for
+  // maximum contrast. Surfaced only via Settings → Accessibility, not the store.
+  static const Color accessibleBackground = Color(0xFF05070D); // near-black
+  static const Color accessibleShip = Color(0xFF4DA3FF);       // vivid blue
+  static const Color accessibleFood = Color(0xFFFF9E1B);       // vivid orange
+  static const Color accessibleAccent = Color(0xFFFFFFFF);     // pure white
+
   // Animation durations
   static const Duration shortAnimation = Duration(milliseconds: 150);
   static const Duration mediumAnimation = Duration(milliseconds: 300);
@@ -295,6 +304,7 @@ class GameConstants {
   // `gameDao.getStatisticsAsJson()` / `updateStatisticsFromJson()`. No
   // SharedPreferences blob is read or written for stats anymore.
   static const String trailSystemEnabledKey = 'trail_system_enabled';
+  static const String reduceMotionKey = 'reduce_motion';
 }
 
 enum GameTheme {
@@ -307,7 +317,8 @@ enum GameTheme {
   cyberpunk,
   forest,
   desert,
-  crystal;
+  crystal,
+  accessible;
 
   String get name {
     switch (this) {
@@ -331,6 +342,8 @@ enum GameTheme {
         return 'Desert';
       case GameTheme.crystal:
         return 'Crystal';
+      case GameTheme.accessible:
+        return 'Accessible';
     }
   }
 
@@ -356,6 +369,8 @@ enum GameTheme {
         return GameConstants.desertBackground;
       case GameTheme.crystal:
         return GameConstants.crystalBackground;
+      case GameTheme.accessible:
+        return GameConstants.accessibleBackground;
     }
   }
 
@@ -381,6 +396,8 @@ enum GameTheme {
         return GameConstants.desertShip;
       case GameTheme.crystal:
         return GameConstants.crystalShip;
+      case GameTheme.accessible:
+        return GameConstants.accessibleShip;
     }
   }
 
@@ -406,6 +423,8 @@ enum GameTheme {
         return GameConstants.desertFood;
       case GameTheme.crystal:
         return GameConstants.crystalFood;
+      case GameTheme.accessible:
+        return GameConstants.accessibleFood;
     }
   }
 
@@ -431,6 +450,8 @@ enum GameTheme {
         return GameConstants.desertAccent;
       case GameTheme.crystal:
         return GameConstants.crystalAccent;
+      case GameTheme.accessible:
+        return GameConstants.accessibleAccent;
     }
   }
 
@@ -456,6 +477,8 @@ enum GameTheme {
         return GameConstants.desertShip;
       case GameTheme.crystal:
         return GameConstants.crystalShip;
+      case GameTheme.accessible:
+        return GameConstants.accessibleShip;
     }
   }
 
@@ -526,6 +549,8 @@ enum GameTheme {
         return 'Solar Flare';
       case GameTheme.crystal:
         return 'Prism Core';
+      case GameTheme.accessible:
+        return 'High Contrast';
     }
   }
 
@@ -547,6 +572,7 @@ enum GameTheme {
       case GameTheme.modern:
       case GameTheme.neon:
       case GameTheme.retro:
+      case GameTheme.accessible:
         return false;
     }
   }

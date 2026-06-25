@@ -35,6 +35,11 @@ class PreferencesService extends ChangeNotifier {
   bool get trailSystemEnabled =>
       _preferences['trailSystemEnabled'] as bool? ?? false;
 
+  /// Accessibility: when true, motion-heavy effects (screen shake, engine
+  /// trails, busy background animation) are dialed down for players sensitive
+  /// to motion. Defaults to off.
+  bool get reduceMotion => _preferences['reduceMotion'] as bool? ?? false;
+
   BoardSize get boardSize {
     final sizeData = _preferences['boardSize'] as Map<String, dynamic>?;
     if (sizeData != null) {
@@ -107,6 +112,8 @@ class PreferencesService extends ChangeNotifier {
         'musicEnabled': _prefs!.getBool('music_enabled') ?? true,
         'trailSystemEnabled':
             _prefs!.getBool(GameConstants.trailSystemEnabledKey) ?? false,
+        'reduceMotion':
+            _prefs!.getBool(GameConstants.reduceMotionKey) ?? false,
         'boardSize': await _getLocalBoardSize(),
         'crashFeedbackDurationSeconds':
             _prefs!.getInt(GameConstants.crashFeedbackDurationKey) ??
@@ -148,6 +155,7 @@ class PreferencesService extends ChangeNotifier {
       'soundEnabled': true,
       'musicEnabled': true,
       'trailSystemEnabled': false,
+      'reduceMotion': false,
       'boardSize': {
         'width': 20,
         'height': 20,
@@ -205,6 +213,7 @@ class PreferencesService extends ChangeNotifier {
         GameConstants.trailSystemEnabledKey,
         trailSystemEnabled,
       );
+      await _prefs!.setBool(GameConstants.reduceMotionKey, reduceMotion);
 
       final boardSizeData = _preferences['boardSize'] as Map<String, dynamic>;
       final boardSizeIndex = GameConstants.availableBoardSizes.indexWhere(
@@ -242,6 +251,10 @@ class PreferencesService extends ChangeNotifier {
 
   Future<void> setTrailSystemEnabled(bool enabled) async {
     await _updatePreference('trailSystemEnabled', enabled);
+  }
+
+  Future<void> setReduceMotion(bool enabled) async {
+    await _updatePreference('reduceMotion', enabled);
   }
 
   Future<void> setBoardSize(BoardSize boardSize) async {

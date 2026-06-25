@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../services/preferences_service.dart';
 import '../../utils/constants.dart';
 
 /// The unified command-HUD backdrop: a full "middle of deep space" scene —
@@ -63,7 +64,9 @@ class _StarfieldBackgroundState extends State<StarfieldBackground>
   @override
   void initState() {
     super.initState();
-    if (widget.animated) _c.repeat();
+    // Honor the reduce-motion accessibility preference: keep the scene static
+    // (no drifting parallax / comet) for players sensitive to motion.
+    if (widget.animated && !PreferencesService().reduceMotion) _c.repeat();
   }
 
   @override

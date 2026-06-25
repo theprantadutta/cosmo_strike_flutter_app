@@ -99,10 +99,13 @@ class ThemeCubit extends Cubit<ThemeState> {
     unawaited(_storageService.saveSelectedTheme(GameTheme.classic));
   }
 
-  /// Cycle to the next theme (only free themes; premium themes require explicit selection)
+  /// Cycle to the next theme (only free themes; premium themes require explicit
+  /// selection). The accessibility skin is excluded — it's opt-in via Settings,
+  /// not part of the casual free-theme rotation.
   void cycleTheme() {
     final themes = GameTheme.values
-        .where((t) => !PremiumContent.isPremiumTheme(t))
+        .where((t) =>
+            !PremiumContent.isPremiumTheme(t) && t != GameTheme.accessible)
         .toList();
     if (themes.isEmpty) return;
     final currentIndex = themes.indexOf(state.currentTheme);

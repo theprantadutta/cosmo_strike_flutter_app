@@ -499,6 +499,10 @@ class EnhancedAudioService {
       case GameTheme.crystal:
         musicId = 'crystal_theme';
         break;
+      case GameTheme.accessible:
+        // Accessibility skin has no bespoke track — reuse the default theme.
+        musicId = 'classic_theme';
+        break;
     }
 
     await setAudioEnvironment(_themeToAudioEnvironment(theme));
@@ -552,6 +556,8 @@ class EnhancedAudioService {
         return AudioEnvironment.desert;
       case GameTheme.crystal:
         return AudioEnvironment.crystal;
+      case GameTheme.accessible:
+        return AudioEnvironment.classic;
     }
   }
 

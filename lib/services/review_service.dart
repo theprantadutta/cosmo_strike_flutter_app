@@ -90,6 +90,30 @@ class ReviewService {
     }
   }
 
+  /// User-initiated rating (e.g. a "Rate this game" button in Settings).
+  ///
+  /// Unlike [maybeRequestReview], this is NOT gated — the user explicitly
+  /// asked to rate, so we always try. Prefers the native in-app review sheet;
+  /// if the platform reports it unavailable (debug build, sideloaded APK, or a
+  /// device without Play / a recent enough OS), falls back to opening the store
+  /// listing directly so the action is never a dead end. Fire-and-forget safe.
+  Future<void> rateAppManually() async {
+    try {
+      _analytics.trackReviewRequested('manual');
+      if (await _inAppReview.isAvailable()) {
+        await _inAppReview.requestReview();
+      } else {
+        await _inAppReview.openStoreListing();
+      }
+    } catch (e) {
+      AppLogger.info('$_kEligibilityTag manual rate failed: $e');
+      // Last-ditch fallback — if requestReview() threw, still try the listing.
+      try {
+        await _inAppReview.openStoreListing();
+      } catch (_) {}
+    }
+  }
+
   Future<bool> _isEligible(ReviewTrigger trigger) async {
     // Per-trigger guards — keeps weak signals from burning the local cap.
     if (trigger == ReviewTrigger.achievementUnlocked) {
