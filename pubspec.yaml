@@ -44,8 +44,8 @@ dependencies:
   # Animations and effects
   flutter_animate: ^4.5.0
 
-  # Custom fonts
-  google_fonts: ^8.0.1
+  # Fonts (Orbitron + Rajdhani) are bundled as assets under assets/fonts/ and
+  # declared in the flutter: fonts: section — no runtime download, fully offline.
 
   # Vector math for game calculations
   vector_math: ^2.1.4
@@ -143,3 +143,24 @@ flutter:
     - assets/game/terrain/
     - PRIVACY.md
     - .env
+
+  # Bundled fonts — replaces the google_fonts runtime download so text renders
+  # correctly offline. Orbitron ships as a single variable font (covers the full
+  # 400–900 weight axis); Rajdhani ships as static weights 300–700. Neither
+  # family has italic or sub-400 masters upstream.
+  fonts:
+    - family: Orbitron
+      fonts:
+        - asset: assets/fonts/Orbitron-VariableFont_wght.ttf
+    - family: Rajdhani
+      fonts:
+        - asset: assets/fonts/Rajdhani-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Rajdhani-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Rajdhani-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Rajdhani-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Rajdhani-Bold.ttf
+          weight: 700
