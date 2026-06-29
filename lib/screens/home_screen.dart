@@ -580,9 +580,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // profile, settings, help, about, share — i.e. left-to-right:
         // share, about, help, settings, profile.
         Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
               _buildTopIconButton(
                 icon: Icons.share,
                 color: theme.foodColor,
@@ -619,7 +622,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 photoUrl: authState.isSignedIn ? authState.photoURL : null,
                 onTap: () => context.push(AppRoutes.profile),
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ],

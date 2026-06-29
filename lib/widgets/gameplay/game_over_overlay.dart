@@ -98,17 +98,19 @@ class GameOverOverlay extends StatelessWidget {
             ),
             child: Column(
               children: [
-                _headline(newRecord),
-                const SizedBox(height: 12),
-                // 50 / 50 content split. Each half fills its space; nothing
-                // scrolls.
+                // Three FULL-HEIGHT columns across the wide landscape so the
+                // width is actually used: run verdict + payout · telemetry grid
+                // · today's directives. Directives get extra width (flex 5) for
+                // their wide title·bar·claim rows.
                 Expanded(
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: _telemetry()),
-                      const SizedBox(width: GameTokens.space24),
-                      Expanded(child: _directives()),
+                      Expanded(flex: 3, child: _verdictColumn(newRecord)),
+                      const SizedBox(width: GameTokens.space20),
+                      Expanded(flex: 5, child: _telemetry(columns: 2)),
+                      const SizedBox(width: GameTokens.space20),
+                      Expanded(flex: 6, child: _directives()),
                     ],
                   ),
                 ),
@@ -122,109 +124,93 @@ class GameOverOverlay extends StatelessWidget {
     );
   }
 
-  /// Full-width headline: verdict + score on the left, this run's payout (and
-  /// unlock / claimed flourish) on the right. Compact so the body gets the
-  /// height it needs.
-  Widget _headline(bool newRecord) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+  /// COLUMN 1 — the run verdict, final score / best, and this run's payout
+  /// (coins · XP · unlock) stacked vertically so a narrow column reads cleanly
+  /// and fills its height.
+  Widget _verdictColumn(bool newRecord) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                victory ? 'VICTORY' : 'GAME OVER',
-                style: TextStyle(
-                  color: _accent,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 3,
-                  shadows: [
-                    Shadow(color: _accent.withValues(alpha: 0.7), blurRadius: 16),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 2),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    '${result.score}',
-                    style: const TextStyle(
-                      color: CosmoPalette.highlight,
-                      fontSize: 38,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  if (newRecord)
-                    _NewRecordBadge()
-                  else
-                    Text(
-                      'BEST $previousBest',
-                      style: TextStyle(
-                        color: CosmoPalette.hull.withValues(alpha: 0.7),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.4,
-                      ),
-                    ),
-                ],
-              ),
+        Text(
+          victory ? 'VICTORY' : 'GAME OVER',
+          style: TextStyle(
+            color: _accent,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 3,
+            shadows: [
+              Shadow(color: _accent.withValues(alpha: 0.7), blurRadius: 16),
             ],
           ),
         ),
-        const SizedBox(width: GameTokens.space16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _RewardsRow(coins: runCoinsEarned, xp: runXpEarned),
-            if (unlockedLevel > 0) ...[
-              const SizedBox(height: 5),
-              Text(
-                'LEVEL $unlockedLevel UNLOCKED',
-                style: TextStyle(
-                  color: _gold,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.4,
-                  shadows: [
-                    Shadow(color: _gold.withValues(alpha: 0.7), blurRadius: 12),
-                  ],
-                ),
-              ),
-            ],
-            if (coinsDoubled) ...[
-              const SizedBox(height: 5),
-              Text(
-                '✦ +$runCoinsEarned BONUS COINS CLAIMED',
-                style: const TextStyle(
-                  color: _gold,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ],
-          ],
+        const SizedBox(height: 6),
+        Text(
+          '${result.score}',
+          style: const TextStyle(
+            color: CosmoPalette.highlight,
+            fontSize: 40,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+          ),
         ),
+        const SizedBox(height: 2),
+        if (newRecord)
+          _NewRecordBadge()
+        else
+          Text(
+            'BEST $previousBest',
+            style: TextStyle(
+              color: CosmoPalette.hull.withValues(alpha: 0.7),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.4,
+            ),
+          ),
+        const SizedBox(height: 18),
+        // This run's payout — stacked, lives here (not the top-right) so the
+        // directives own their own full column.
+        _RewardsRow(coins: runCoinsEarned, xp: runXpEarned, vertical: true),
+        if (unlockedLevel > 0) ...[
+          const SizedBox(height: 12),
+          Text(
+            'LEVEL $unlockedLevel UNLOCKED',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _gold,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.2,
+              shadows: [
+                Shadow(color: _gold.withValues(alpha: 0.7), blurRadius: 12),
+              ],
+            ),
+          ),
+        ],
+        if (coinsDoubled) ...[
+          const SizedBox(height: 8),
+          Text(
+            '✦ +$runCoinsEarned BONUS COINS CLAIMED',
+            style: const TextStyle(
+              color: _gold,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  /// LEFT half — telemetry: the 8 run stats in a responsive 3-column grid
-  /// (columns sized to the width, so tiles never get cramped).
-  Widget _telemetry() {
+  /// COLUMN 2 — telemetry: the 8 run stats in a responsive grid ([columns]
+  /// wide; tiles sized to the width so they never get cramped).
+  Widget _telemetry({int columns = 3}) {
     return _Region(
       header: 'TELEMETRY',
       builder: (w) {
         const spacing = GameTokens.space12;
-        final tileW = (w - spacing * 2) / 3;
+        final tileW = (w - spacing * (columns - 1)) / columns;
         return Wrap(
           spacing: spacing,
           runSpacing: 14,
@@ -276,11 +262,18 @@ class GameOverOverlay extends StatelessWidget {
   Widget _directives() {
     return _Region(
       header: 'DAILY DIRECTIVES',
+      // Fill the full column width; a tall directive list scrolls rather than
+      // being uniformly scaled down (which would squash it narrower than its
+      // half and leave dead space left/right).
+      fillWidth: true,
+      // CLAIM ALL rides inline in the header to save a whole row of height.
+      headerTrailing: const ChallengeClaimAllButton(),
       builder: (w) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           ChallengePanel(
+            showClaimAll: false,
             showRunDelta: true,
             runStartProgress: challengeRunStart,
           ),
@@ -401,22 +394,53 @@ class GameOverOverlay extends StatelessWidget {
 /// on unusually small screens — it never scrolls. The [builder] gets the
 /// region width so grids can size their columns to it (responsive).
 class _Region extends StatelessWidget {
-  const _Region({required this.header, required this.builder});
+  const _Region({
+    required this.header,
+    required this.builder,
+    this.fillWidth = false,
+    this.headerTrailing,
+  });
 
   final String header;
   final Widget Function(double width) builder;
+
+  /// When true the content always occupies the FULL region width and a vertical
+  /// scroll kicks in if it can't fit the height. When false (the default) the
+  /// content is uniformly scaled down to fit — fine for short grids, but it
+  /// squashes a tall list narrower than its column, so lists pass `true`.
+  final bool fillWidth;
+
+  /// Optional action pinned to the right of the header row (e.g. CLAIM ALL).
+  final Widget? headerTrailing;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionHeader(header),
+        if (headerTrailing == null)
+          SectionHeader(header)
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SectionHeader(header),
+              const Spacer(),
+              headerTrailing!,
+            ],
+          ),
         const SizedBox(height: 10),
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
               final w = constraints.maxWidth;
+              if (fillWidth) {
+                // Natural size at full width; only scrolls when it overflows.
+                return SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: SizedBox(width: w, child: builder(w)),
+                );
+              }
               return FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.topLeft,
@@ -475,10 +499,17 @@ class _NewRecordBadgeState extends State<_NewRecordBadge>
 /// "+N COINS · +M XP" payout line; shows a tallying state until _submitRun's
 /// async write lands and the parent setStates the totals.
 class _RewardsRow extends StatelessWidget {
-  const _RewardsRow({required this.coins, required this.xp});
+  const _RewardsRow({
+    required this.coins,
+    required this.xp,
+    this.vertical = false,
+  });
 
   final int coins;
   final int xp;
+
+  /// Stack coins over XP (for a narrow column) instead of side by side.
+  final bool vertical;
 
   @override
   Widget build(BuildContext context) {
@@ -493,27 +524,46 @@ class _RewardsRow extends StatelessWidget {
         ),
       );
     }
+    final coinChip = _chip(
+      icon: Icons.monetization_on,
+      iconSize: 18,
+      color: GameOverOverlay._gold,
+      label: '+$coins COINS',
+    );
+    final xpChip = _chip(
+      icon: Icons.auto_awesome,
+      iconSize: 16,
+      color: CosmoPalette.energy,
+      label: '+$xp XP',
+    );
+    if (vertical) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [coinChip, const SizedBox(height: 8), xpChip],
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [coinChip, const SizedBox(width: 14), xpChip],
+    );
+  }
+
+  Widget _chip({
+    required IconData icon,
+    required double iconSize,
+    required Color color,
+    required String label,
+  }) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.monetization_on, size: 18, color: GameOverOverlay._gold),
+        Icon(icon, size: iconSize, color: color),
         const SizedBox(width: 5),
         Text(
-          '+$coins COINS',
-          style: const TextStyle(
-            color: GameOverOverlay._gold,
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.2,
-          ),
-        ),
-        const SizedBox(width: 14),
-        const Icon(Icons.auto_awesome, size: 16, color: CosmoPalette.energy),
-        const SizedBox(width: 5),
-        Text(
-          '+$xp XP',
-          style: const TextStyle(
-            color: CosmoPalette.energy,
+          label,
+          style: TextStyle(
+            color: color,
             fontSize: 15,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.2,
