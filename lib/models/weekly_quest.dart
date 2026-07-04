@@ -16,7 +16,7 @@ enum WeeklyQuestType {
       case WeeklyQuestType.score:
         return 'Score';
       case WeeklyQuestType.foodEaten:
-        return 'FoodEaten';
+        return 'EnemiesKilled';
       case WeeklyQuestType.gamesPlayed:
         return 'GamesPlayed';
       case WeeklyQuestType.survival:
@@ -36,6 +36,9 @@ enum WeeklyQuestType {
     switch (value.toLowerCase()) {
       case 'score':
         return WeeklyQuestType.score;
+      case 'enemieskilled':
+      case 'enemies_killed':
+      // Legacy wire/storage name from the snake era.
       case 'foodeaten':
         return WeeklyQuestType.foodEaten;
       case 'gamesplayed':

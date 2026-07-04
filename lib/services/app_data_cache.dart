@@ -13,6 +13,7 @@ import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
 import 'package:cosmo_strike_flutter_app/services/progression_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/tournament_service.dart';
+import 'package:cosmo_strike_flutter_app/services/weekly_quest_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 
 /// Centralized data cache that preloads all app data at startup.
@@ -136,6 +137,7 @@ class AppDataCache extends ChangeNotifier {
         _loadReplayKeys(),
         _loadSettingsData(),
         _loadDailyChallenges(),
+        _loadWeeklyQuests(),
         _loadPlayerProgress(),
 
         // Group 2: Network data (with timeout + fallback)
@@ -257,6 +259,16 @@ class AppDataCache extends ChangeNotifier {
       _dailyChallenges = service.challenges;
     } catch (e) {
       if (kDebugMode) print('AppDataCache: Daily challenges load warning: $e');
+    }
+  }
+
+  Future<void> _loadWeeklyQuests() async {
+    try {
+      // Warm the singleton so run-end reportProgressBatch calls have a
+      // hydrated quest list (it no-ops on an empty one).
+      await WeeklyQuestService().initialize();
+    } catch (e) {
+      if (kDebugMode) print('AppDataCache: Weekly quests load warning: $e');
     }
   }
 

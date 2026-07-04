@@ -14,6 +14,7 @@ import '../game/cosmo_strike_game.dart';
 import '../game/tutorial_director.dart';
 import '../models/daily_challenge.dart';
 import '../models/level_run_result.dart';
+import '../models/weekly_quest.dart';
 import '../models/ship_coins.dart';
 import '../presentation/bloc/coins/coins_cubit.dart';
 import '../presentation/bloc/game/game_cubit.dart';
@@ -29,6 +30,7 @@ import '../services/audio_service.dart';
 import '../services/daily_challenge_service.dart';
 import '../services/statistics_service.dart';
 import '../services/tournament_service.dart';
+import '../services/weekly_quest_service.dart';
 import '../services/haptic_service.dart';
 import '../services/walkthrough_service.dart';
 import '../ui/design.dart';
@@ -398,6 +400,34 @@ class _GameplayScreenState extends State<GameplayScreen>
       (type: ChallengeType.gamesPlayed, value: 1, gameMode: null),
       (type: ChallengeType.gameMode, value: 1, gameMode: modeName),
     ]));
+    unawaited(() async {
+      final weekly = WeeklyQuestService();
+      // Hydrate first: reportProgressBatch no-ops on an empty quest list.
+      await weekly.initialize();
+      await weekly.reportProgressBatch([
+        if (r.score > 0)
+          (type: WeeklyQuestType.score, incrementBy: r.score, gameMode: null),
+        if (r.enemiesKilled > 0)
+          (
+            type: WeeklyQuestType.foodEaten,
+            incrementBy: r.enemiesKilled,
+            gameMode: null
+          ),
+        if (r.durationSeconds > 0)
+          (
+            type: WeeklyQuestType.survival,
+            incrementBy: r.durationSeconds,
+            gameMode: null
+          ),
+        (type: WeeklyQuestType.gamesPlayed, incrementBy: 1, gameMode: null),
+        if (tournamentId != null)
+          (
+            type: WeeklyQuestType.tournamentParticipation,
+            incrementBy: 1,
+            gameMode: null
+          ),
+      ]);
+    }());
     try {
       AchievementService()
         ..checkScoreAchievements(r.score,
