@@ -285,7 +285,9 @@ class TournamentService {
             (gameStats['gameDurationSeconds'] ?? gameStats['durationSeconds'])
                     as int? ??
                 0,
-        foodsEaten: gameStats['foodsEaten'] as int? ?? 0,
+        enemiesKilled: (gameStats['enemiesKilled'] ?? gameStats['foodsEaten'])
+                as int? ??
+            0,
         // Caller-supplied stable key (per game run) so a timeout-retry
         // de-dupes server-side; fall back to a fresh key if not provided.
         idempotencyKey: idempotencyKey ?? _uuid.v4(),

@@ -1082,9 +1082,11 @@ class SyncEngine {
       'is_premium_pass': r.isPremiumPass,
       // Carry the free/premium split so the backend mirror + admin analytics
       // distinguish tracks. `claimed_rewards` (flat union) stays for backward
-      // compatibility with older server builds.
-      'claimed_free': [...free]..sort(),
-      'claimed_premium': [...premium]..sort(),
+      // compatibility with older server builds. Key names must match the
+      // server SyncBattlePassPayload wire keys (claimed_*_rewards) — the old
+      // short keys bound nothing and the split silently degraded to free.
+      'claimed_free_rewards': [...free]..sort(),
+      'claimed_premium_rewards': [...premium]..sort(),
       'claimed_rewards': _flattenClaimedRewards(r.claimedRewards),
       'season_start_date': _utcIsoNullable(r.seasonStartDate),
       'season_end_date': _utcIsoNullable(r.seasonEndDate),
@@ -1513,14 +1515,18 @@ class SyncEngine {
           if (raw is! Map<String, dynamic>) continue;
           final seasonId = raw['season_id'] as String?;
           if (seasonId == null) continue;
-          // The wire now carries the explicit free/premium split
-          // (`claimed_free` / `claimed_premium`). Fall back to the legacy flat
-          // `claimed_rewards` (treated as free) for older server builds.
+          // The wire carries the explicit free/premium split
+          // (`claimed_free_rewards` / `claimed_premium_rewards` — the server
+          // payload key names). Tolerate the old short keys this client once
+          // read, then fall back to the legacy flat `claimed_rewards`
+          // (treated as free) for older server builds.
           List<int> wireList(dynamic v) => v is List
               ? v.map((e) => (e as num).toInt()).toList()
               : const <int>[];
-          final wireFreeRaw = raw['claimed_free'];
-          final wirePremiumRaw = raw['claimed_premium'];
+          final wireFreeRaw =
+              raw['claimed_free_rewards'] ?? raw['claimed_free'];
+          final wirePremiumRaw =
+              raw['claimed_premium_rewards'] ?? raw['claimed_premium'];
           final hasSplit = wireFreeRaw is List || wirePremiumRaw is List;
           final wireFree = hasSplit
               ? wireList(wireFreeRaw)

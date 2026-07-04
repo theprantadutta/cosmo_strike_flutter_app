@@ -1172,17 +1172,11 @@ class UnifiedUserService extends ChangeNotifier {
       level: level ?? _currentUser!.level,
     );
 
-    // Update via backend API. high_score is omitted intentionally — the
-    // backend's UpdateProfileCommand DTO doesn't accept it (it's mutated
-    // server-side only via SubmitScoreCommandHandler's GREATEST clause),
-    // so sending it was a no-op that risked confusing future maintainers.
-    if (_apiService.isAuthenticated) {
-      await _apiService.updateProfile({
-        'total_games_played': _currentUser!.totalGamesPlayed,
-        'total_score': _currentUser!.totalScore,
-        'level': _currentUser!.level,
-      });
-    }
+    // No backend call here: the UpdateProfileCommand DTO accepts none of the
+    // stats fields (high_score, total_games_played, total_score, level all
+    // bound nothing — a 200-OK no-op). Real stats reach the server through
+    // /sync/statistics; scores mutate high_score via SubmitScoreCommand's
+    // GREATEST clause.
 
     notifyListeners();
   }

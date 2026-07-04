@@ -858,7 +858,7 @@ class ApiService {
     required String tournamentId,
     required int score,
     int gameDurationSeconds = 0,
-    int foodsEaten = 0,
+    int enemiesKilled = 0,
     String? idempotencyKey,
   }) async {
     try {
@@ -869,7 +869,9 @@ class ApiService {
             body: jsonEncode({
               'score': score,
               'game_duration_seconds': gameDurationSeconds,
-              'foods_eaten': foodsEaten,
+              // Server binds SubmitTournamentScoreRequest.EnemiesKilled; the
+              // old 'foods_eaten' key bound nothing (kills recorded as 0).
+              'enemies_killed': enemiesKilled,
               'idempotency_key': ?idempotencyKey,
             }),
           )

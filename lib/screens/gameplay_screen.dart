@@ -366,7 +366,7 @@ class _GameplayScreenState extends State<GameplayScreen>
         r.score,
         {
           'gameDurationSeconds': r.durationSeconds,
-          'foodsEaten': r.enemiesKilled,
+          'enemiesKilled': r.enemiesKilled,
         },
         idempotencyKey: runIdempotencyKey,
       ));
