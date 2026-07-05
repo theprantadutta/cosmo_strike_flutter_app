@@ -61,15 +61,11 @@ void main() async {
   AppLogger.lifecycle('Cosmo Strike starting up...');
 
   try {
-    // Edge-to-edge mode for Android 15+ compliance. Content draws under the
-    // (translucent) status + nav bars; SafeArea widgets on each screen handle
-    // the inset padding. SystemUiMode.manual previously used here routed
-    // through Flutter's deprecated setStatusBarColor / setNavigationBarColor
-    // path which triggers Play Console's "deprecated APIs for edge-to-edge"
-    // warning — see flutter/flutter#183372. The active game screen still
-    // goes full-immersive via immersiveSticky (handled in GameScreen).
-    // Full-screen game: hide the status/notification + nav bars app-wide from
-    // first launch (immersiveSticky — swipe from an edge reveals them briefly).
+    // Full-screen immersive app-wide from first launch: status + nav bars
+    // hidden (immersiveSticky — swiping from an edge reveals them briefly).
+    // The Immersive helper (ui/design/immersive.dart) re-applies this on
+    // lifecycle resumes. The transparent overlay style below keeps the bars
+    // unobtrusive during those brief reveals.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(

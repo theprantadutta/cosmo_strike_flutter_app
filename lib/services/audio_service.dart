@@ -14,9 +14,9 @@ class AudioService {
   final Map<String, AudioSource> _loadedSounds = {};
 
   // List of sounds to pre-load. The gameplay keys (shoot/enemy_down/…)
-  // are wired through GameAudio (lib/game/game_audio.dart); their .wav
-  // files may not exist yet — preload failures are non-fatal and
-  // playSound() no-ops silently for them (see _playSystemSound).
+  // are wired through GameAudio (lib/game/game_audio.dart); all .wav files
+  // ship in assets/audio/. Preload failures stay non-fatal regardless —
+  // playSound() no-ops silently for a missing key (see _playSystemSound).
   static const List<String> _soundsToPreload = [
     'eat',
     'level_up',
