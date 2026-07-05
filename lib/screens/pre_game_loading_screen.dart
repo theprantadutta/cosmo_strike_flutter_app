@@ -6,8 +6,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/game/game_assets.dart';
 import 'package:cosmo_strike_flutter_app/models/tournament.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_cubit.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/tournament/tournament_context_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
 import 'package:cosmo_strike_flutter_app/services/progression_service.dart';
@@ -202,10 +203,10 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
       builder: (context, themeState) {
         final theme = themeState.currentTheme;
         // Active mode = the player's settings choice unless a tournament
-        // override is staged on the cubit (set before they tapped Play).
+        // override is staged on the context (set before they tapped Play).
         final tournamentMode = context
-            .select<GameCubit, TournamentGameMode?>(
-                (c) => c.state.tournamentMode);
+            .select<TournamentContextCubit, TournamentGameMode?>(
+                (c) => c.state.mode);
         final settingsMode = context
             .select<GameSettingsCubit, GameMode>((c) => c.state.gameMode);
         final activeMode = tournamentMode?.toGameMode() ?? settingsMode;

@@ -45,12 +45,4 @@ abstract class AppRoutes {
 
   // Helper to generate replay viewer path with ID
   static String replayViewerPath(String id) => '/replays/$id';
-
-  // Multiplayer
-  static const String multiplayerLobby = '/multiplayer';
-  static const String multiplayerLobbyWithId = '/multiplayer/:gameId';
-  static const String multiplayerGame = '/multiplayer/game';
-
-  // Helper to generate multiplayer lobby path with game ID
-  static String multiplayerLobbyPath(String gameId) => '/multiplayer/$gameId';
 }

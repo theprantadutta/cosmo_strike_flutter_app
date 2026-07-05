@@ -17,11 +17,12 @@ import '../models/level_run_result.dart';
 import '../models/weekly_quest.dart';
 import '../models/ship_coins.dart';
 import '../presentation/bloc/coins/coins_cubit.dart';
-import '../presentation/bloc/game/game_cubit.dart';
+import '../presentation/bloc/game/game_settings_cubit.dart';
 import '../presentation/bloc/power_up/power_up_cubit.dart';
 import '../presentation/bloc/premium/battle_pass_cubit.dart';
 import '../presentation/bloc/premium/premium_cubit.dart';
 import '../presentation/bloc/theme/theme_cubit.dart';
+import '../presentation/bloc/tournament/tournament_context_cubit.dart';
 import '../router/routes.dart';
 import '../services/achievement_service.dart';
 import '../services/ads/ad_service.dart';
@@ -85,11 +86,11 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   bool _quitPersisted = false;
 
-  /// The tree-provided GameCubit (tournament context lives here). Captured in
-  /// initState so we read THIS run's tournament id and can clear it on dispose
-  /// — tournament mode is otherwise never reset and would leak into the next
-  /// run, mis-attributing a normal game's score to the tournament.
-  GameCubit? _gameCubit;
+  /// The tree-provided tournament context. Captured in initState so we read
+  /// THIS run's tournament id and can clear it on dispose — tournament mode
+  /// is otherwise never reset and would leak into the next run,
+  /// mis-attributing a normal game's score to the tournament.
+  TournamentContextCubit? _tournamentContext;
 
   /// Tournament this run counts toward (null for a normal game). Captured at
   /// run start; the final score is submitted to it in [_submitRun].
@@ -148,10 +149,10 @@ class _GameplayScreenState extends State<GameplayScreen>
     // detail screen before launching). Held for the screen's lifetime so the
     // game-over submit attributes the score to the right tournament.
     try {
-      _gameCubit = context.read<GameCubit>();
-      _tournamentId = _gameCubit?.state.tournamentId;
+      _tournamentContext = context.read<TournamentContextCubit>();
+      _tournamentId = _tournamentContext?.state.tournamentId;
     } catch (_) {
-      _gameCubit = null;
+      _tournamentContext = null;
       _tournamentId = null;
     }
 
@@ -257,7 +258,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     // Clear tournament mode so it can't leak into the next (possibly normal)
     // run — nothing else resets it. The next tournament run re-sets it from
     // the detail screen.
-    _gameCubit?.exitTournamentMode();
+    _tournamentContext?.exitTournament();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

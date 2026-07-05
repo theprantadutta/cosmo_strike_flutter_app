@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_cubit.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/power_up/power_up_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/providers/walkthrough_provider.dart';
@@ -98,11 +98,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // animations before the permission dialog pops over it.
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (!mounted) return;
-      NotificationService().initialize().then((_) {
-        AppLogger.success('Notification service initialized from home');
-      }).catchError((e) {
-        AppLogger.error('Notification service init failed', e);
-      });
+      NotificationService()
+          .initialize()
+          .then((_) {
+            AppLogger.success('Notification service initialized from home');
+          })
+          .catchError((e) {
+            AppLogger.error('Notification service init failed', e);
+          });
     });
   }
 
@@ -155,8 +158,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             .timeout(const Duration(seconds: 2));
         alreadyPrompted = ready.gameModeFirstLaunchPrompted;
       } catch (_) {
-        alreadyPrompted =
-            await getIt<StorageService>().hasGameModeBeenPrompted();
+        alreadyPrompted = await getIt<StorageService>()
+            .hasGameModeBeenPrompted();
       }
     }
 
@@ -169,9 +172,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       enableDrag: false,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => _GameModeFirstLaunchSheet(
-        initialMode: settingsCubit.state.gameMode,
-      ),
+      builder: (sheetContext) =>
+          _GameModeFirstLaunchSheet(initialMode: settingsCubit.state.gameMode),
     );
 
     if (!mounted) return;
@@ -314,162 +316,155 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
         return BlocBuilder<AuthCubit, AuthState>(
           builder: (context, authState) {
-            return BlocBuilder<GameCubit, GameCubitState>(
-              builder: (context, gameState) {
-                return Stack(
-                  children: [
-                    ThemeTransitionWidget(
-                      controller: ThemeTransitionController(vsync: this),
-                      currentTheme: theme,
-                      child: Scaffold(
-                        bottomNavigationBar: const ShipBannerAd(),
-                        body: AppBackground(
-                          theme: theme,
-                          child: SafeArea(
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                final screenWidth = constraints.maxWidth;
-                                final screenHeight = constraints.maxHeight;
+            return Stack(
+              children: [
+                ThemeTransitionWidget(
+                  controller: ThemeTransitionController(vsync: this),
+                  currentTheme: theme,
+                  child: Scaffold(
+                    bottomNavigationBar: const ShipBannerAd(),
+                    body: AppBackground(
+                      theme: theme,
+                      child: SafeArea(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final screenWidth = constraints.maxWidth;
+                            final screenHeight = constraints.maxHeight;
 
-                                // Enhanced screen size detection with more granular breakpoints
-                                final isVerySmallScreen =
-                                    screenHeight < 600 || screenWidth < 350;
+                            // Enhanced screen size detection with more granular breakpoints
+                            final isVerySmallScreen =
+                                screenHeight < 600 || screenWidth < 350;
 
-                                // Use a simple Column with proper constraints for better stability
-                                return Column(
-                                  children: [
-                                    // Top navigation bar - fixed height
-                                    Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: screenWidth * 0.04,
-                                        vertical: isVerySmallScreen ? 4 : 8,
-                                      ),
-                                      child: _buildTopNavigation(
-                                        context,
-                                        authState,
-                                        theme,
-                                        isVerySmallScreen,
-                                      ),
-                                    ),
-
-                                    // Landscape command deck: LEFT brand +
-                                    // nav grid + action row, RIGHT big hero
-                                    // LAUNCH bay. Reuses the existing
-                                    // sub-builders (so the walkthrough keys /
-                                    // daily-bonus / game-mode logic stay
-                                    // intact); only the composition changes.
-                                    Expanded(
-                                      child: Padding(
-                                        // Bottom gap keeps the command deck
-                                        // (esp. the PRO/STORE/COINS row) clear
-                                        // of the banner ad sitting underneath.
-                                        padding: EdgeInsets.fromLTRB(
-                                          screenWidth * 0.03,
-                                          0,
-                                          screenWidth * 0.03,
-                                          12,
-                                        ),
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            // Left — brand/telemetry header,
-                                            // nav grid, and PRO/STORE/COINS row.
-                                            Expanded(
-                                              flex: 6,
-                                              // BEST + coins now live in the top
-                                              // command bar, so the left column
-                                              // is given entirely to the icon
-                                              // rail.
-                                              child: _buildBottomNavigation(
-                                                context,
-                                                themeState,
-                                                theme,
-                                                screenHeight,
-                                                screenWidth,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 16),
-                                            // Right — big hero LAUNCH bay.
-                                            Expanded(
-                                              flex: 5,
-                                              child: Column(
-                                                children: [
-                                                  Expanded(
-                                                    child: _buildLaunchHero(
-                                                      context,
-                                                      theme,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  ConstrainedBox(
-                                                    constraints:
-                                                        const BoxConstraints(
-                                                            maxHeight: 68),
-                                                    child:
-                                                        _buildActionButtonsRow(
-                                                      context: context,
-                                                      theme: theme,
-                                                      screenWidth: screenWidth,
-                                                      isSmallScreen:
-                                                          screenHeight < 750,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                        floatingActionButton: kDebugMode
-                            ? FloatingActionButton(
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) => TalkerScreen(
-                                        talker: AppLogger.instance,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                backgroundColor: theme.accentColor.withValues(
-                                  alpha: 0.1,
+                            // Use a simple Column with proper constraints for better stability
+                            return Column(
+                              children: [
+                                // Top navigation bar - fixed height
+                                Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: screenWidth * 0.04,
+                                    vertical: isVerySmallScreen ? 4 : 8,
+                                  ),
+                                  child: _buildTopNavigation(
+                                    context,
+                                    authState,
+                                    theme,
+                                    isVerySmallScreen,
+                                  ),
                                 ),
-                                foregroundColor: theme.accentColor,
-                                mini: true,
-                                child: const Icon(Icons.bug_report),
-                              )
-                            : null,
+
+                                // Landscape command deck: LEFT brand +
+                                // nav grid + action row, RIGHT big hero
+                                // LAUNCH bay. Reuses the existing
+                                // sub-builders (so the walkthrough keys /
+                                // daily-bonus / game-mode logic stay
+                                // intact); only the composition changes.
+                                Expanded(
+                                  child: Padding(
+                                    // Bottom gap keeps the command deck
+                                    // (esp. the PRO/STORE/COINS row) clear
+                                    // of the banner ad sitting underneath.
+                                    padding: EdgeInsets.fromLTRB(
+                                      screenWidth * 0.03,
+                                      0,
+                                      screenWidth * 0.03,
+                                      12,
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        // Left — brand/telemetry header,
+                                        // nav grid, and PRO/STORE/COINS row.
+                                        Expanded(
+                                          flex: 6,
+                                          // BEST + coins now live in the top
+                                          // command bar, so the left column
+                                          // is given entirely to the icon
+                                          // rail.
+                                          child: _buildBottomNavigation(
+                                            context,
+                                            themeState,
+                                            theme,
+                                            screenHeight,
+                                            screenWidth,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        // Right — big hero LAUNCH bay.
+                                        Expanded(
+                                          flex: 5,
+                                          child: Column(
+                                            children: [
+                                              Expanded(
+                                                child: _buildLaunchHero(
+                                                  context,
+                                                  theme,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              ConstrainedBox(
+                                                constraints:
+                                                    const BoxConstraints(
+                                                      maxHeight: 68,
+                                                    ),
+                                                child: _buildActionButtonsRow(
+                                                  context: context,
+                                                  theme: theme,
+                                                  screenWidth: screenWidth,
+                                                  isSmallScreen:
+                                                      screenHeight < 750,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
                       ),
                     ),
+                    floatingActionButton: kDebugMode
+                        ? FloatingActionButton(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      TalkerScreen(talker: AppLogger.instance),
+                                ),
+                              );
+                            },
+                            backgroundColor: theme.accentColor.withValues(
+                              alpha: 0.1,
+                            ),
+                            foregroundColor: theme.accentColor,
+                            mini: true,
+                            child: const Icon(Icons.bug_report),
+                          )
+                        : null,
+                  ),
+                ),
 
-                    // Walkthrough overlay
-                    if (walkthroughState.isActive &&
-                        walkthroughState.currentStep != null)
-                      WalkthroughOverlay(
-                        step: walkthroughState.currentStep!,
-                        theme: theme,
-                        currentStepIndex: walkthroughState.currentStepIndex,
-                        totalSteps: walkthroughState.steps.length,
-                        onNext: () =>
-                            ref.read(walkthroughProvider.notifier).next(),
-                        onSkip: () =>
-                            ref.read(walkthroughProvider.notifier).skip(),
-                      ),
+                // Walkthrough overlay
+                if (walkthroughState.isActive &&
+                    walkthroughState.currentStep != null)
+                  WalkthroughOverlay(
+                    step: walkthroughState.currentStep!,
+                    theme: theme,
+                    currentStepIndex: walkthroughState.currentStepIndex,
+                    totalSteps: walkthroughState.steps.length,
+                    onNext: () => ref.read(walkthroughProvider.notifier).next(),
+                    onSkip: () => ref.read(walkthroughProvider.notifier).skip(),
+                  ),
 
-                    // Sync restore overlay is mounted globally in
-                    // CosmoStrikeApp.builder so it appears regardless
-                    // of which screen is active during the pull.
-                  ],
-                );
-              },
+                // Sync restore overlay is mounted globally in
+                // CosmoStrikeApp.builder so it appears regardless
+                // of which screen is active during the pull.
+              ],
             );
           },
         );
@@ -586,42 +581,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-              _buildTopIconButton(
-                icon: Icons.share,
-                color: theme.foodColor,
-                isSmallScreen: isSmallScreen,
-                onTap: () => ShareService().shareApp(),
-              ),
-              gap,
-              _buildTopIconButton(
-                icon: Icons.info_outline,
-                color: theme.accentColor,
-                isSmallScreen: isSmallScreen,
-                onTap: () => showCreditsDialog(context, theme),
-              ),
-              gap,
-              _buildTopIconButton(
-                icon: Icons.help_outline,
-                color: theme.foodColor,
-                isSmallScreen: isSmallScreen,
-                onTap: () => context.push(AppRoutes.instructions),
-              ),
-              gap,
-              _buildTopIconButton(
-                key: HomeWalkthrough.settingsKey,
-                icon: Icons.settings_rounded,
-                color: theme.accentColor,
-                isSmallScreen: isSmallScreen,
-                onTap: () => context.push(AppRoutes.settings),
-              ),
-              gap,
-              PlayerIdentityBadge(
-                key: HomeWalkthrough.profileKey,
-                theme: theme,
-                isSmallScreen: true,
-                photoUrl: authState.isSignedIn ? authState.photoURL : null,
-                onTap: () => context.push(AppRoutes.profile),
-              ),
+                _buildTopIconButton(
+                  icon: Icons.share,
+                  color: theme.foodColor,
+                  isSmallScreen: isSmallScreen,
+                  onTap: () => ShareService().shareApp(),
+                ),
+                gap,
+                _buildTopIconButton(
+                  icon: Icons.info_outline,
+                  color: theme.accentColor,
+                  isSmallScreen: isSmallScreen,
+                  onTap: () => showCreditsDialog(context, theme),
+                ),
+                gap,
+                _buildTopIconButton(
+                  icon: Icons.help_outline,
+                  color: theme.foodColor,
+                  isSmallScreen: isSmallScreen,
+                  onTap: () => context.push(AppRoutes.instructions),
+                ),
+                gap,
+                _buildTopIconButton(
+                  key: HomeWalkthrough.settingsKey,
+                  icon: Icons.settings_rounded,
+                  color: theme.accentColor,
+                  isSmallScreen: isSmallScreen,
+                  onTap: () => context.push(AppRoutes.settings),
+                ),
+                gap,
+                PlayerIdentityBadge(
+                  key: HomeWalkthrough.profileKey,
+                  theme: theme,
+                  isSmallScreen: true,
+                  photoUrl: authState.isSignedIn ? authState.photoURL : null,
+                  onTap: () => context.push(AppRoutes.profile),
+                ),
               ],
             ),
           ),
@@ -761,8 +756,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // to replay or jump around tap "Choose level" below to open the
         // campaign map. Routes through the themed pre-game loader (which
         // pushReplacements to /game so back from the game lands here).
-        final startLevel =
-            await getIt<AppDatabase>().stageProgressDao.getFurthestUnlocked();
+        final startLevel = await getIt<AppDatabase>().stageProgressDao
+            .getFurthestUnlocked();
         if (!context.mounted) return;
         context.push(AppRoutes.playLoading, extra: startLevel);
       },
@@ -785,8 +780,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 alignment: const Alignment(0, 0.7),
                 child: LayoutBuilder(
                   builder: (ctx, cons) {
-                    final s =
-                        (cons.biggest.shortestSide).clamp(76.0, 164.0);
+                    final s = (cons.biggest.shortestSide).clamp(76.0, 164.0);
                     return LaunchEmblem(theme: theme, size: s);
                   },
                 ),
@@ -827,10 +821,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               behavior: HitTestBehavior.opaque,
               onTap: () => context.push(AppRoutes.levelSelect),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -876,10 +867,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             // Transparent chip — keep the whole pill tappable.
             behavior: HitTestBehavior.opaque,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 8,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               // Borderless: an ARMED loadout earns a deliberate tinted
               // highlight + glow; unarmed floats fully transparent on
               // the starfield (icon + text alone carry it).
@@ -1041,9 +1029,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (!ads.canShowFreeCoinAd) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(ads.freeCoinAdsRemainingToday == 0
-              ? "You've hit today's free-coin limit — come back tomorrow!"
-              : 'No ad available right now, try again shortly'),
+          content: Text(
+            ads.freeCoinAdsRemainingToday == 0
+                ? "You've hit today's free-coin limit — come back tomorrow!"
+                : 'No ad available right now, try again shortly',
+          ),
         ),
       );
       return;
@@ -1343,7 +1333,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ).gameGridItem(index);
   }
 
-
   // void _showComingSoonDialog(
   //   BuildContext context,
   //   GameTheme theme,
@@ -1583,7 +1572,8 @@ class _ControlChoiceSheetState extends State<_ControlChoiceSheet> {
                     icon: Icons.swipe,
                     title: 'TOUCH DRAG',
                     tagline: 'Recommended',
-                    description: 'Drag anywhere on screen — your ship '
+                    description:
+                        'Drag anywhere on screen — your ship '
                         'mirrors your finger.',
                   ),
                 ),
@@ -1595,7 +1585,8 @@ class _ControlChoiceSheetState extends State<_ControlChoiceSheet> {
                     icon: Icons.gamepad,
                     title: 'D-PAD',
                     tagline: 'Classic',
-                    description: 'An on-screen directional pad, '
+                    description:
+                        'An on-screen directional pad, '
                         'old-school handheld style.',
                   ),
                 ),
@@ -1727,9 +1718,7 @@ class _ControlChoiceSheetState extends State<_ControlChoiceSheet> {
 }
 
 class _GameModeFirstLaunchSheet extends StatefulWidget {
-  const _GameModeFirstLaunchSheet({
-    required this.initialMode,
-  });
+  const _GameModeFirstLaunchSheet({required this.initialMode});
 
   final GameMode initialMode;
 
@@ -1898,8 +1887,7 @@ class _GameModeFirstLaunchSheetState extends State<_GameModeFirstLaunchSheet> {
               width: 5,
               height: 5,
               decoration: BoxDecoration(
-                color:
-                    isSelected ? theme.neonPrimary : Colors.transparent,
+                color: isSelected ? theme.neonPrimary : Colors.transparent,
                 shape: BoxShape.circle,
                 boxShadow: isSelected
                     ? [
@@ -1945,8 +1933,9 @@ class _LoadoutBottomSheet extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               color: theme.backgroundColor.withValues(alpha: 0.98),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
               border: Border.all(
                 color: theme.accentColor.withValues(alpha: 0.4),
                 width: 2,
@@ -2040,7 +2029,9 @@ class _LoadoutBottomSheet extends StatelessWidget {
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                           decoration: BoxDecoration(
                             color: isArmed
                                 ? theme.accentColor.withValues(alpha: 0.20)
@@ -2058,8 +2049,9 @@ class _LoadoutBottomSheet extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: theme.accentColor
-                                      .withValues(alpha: 0.15),
+                                  color: theme.accentColor.withValues(
+                                    alpha: 0.15,
+                                  ),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
@@ -2084,8 +2076,9 @@ class _LoadoutBottomSheet extends StatelessWidget {
                                     Text(
                                       'Owned: $count',
                                       style: TextStyle(
-                                        color: theme.accentColor
-                                            .withValues(alpha: 0.65),
+                                        color: theme.accentColor.withValues(
+                                          alpha: 0.65,
+                                        ),
                                         fontSize: 11,
                                       ),
                                     ),
@@ -2095,7 +2088,9 @@ class _LoadoutBottomSheet extends StatelessWidget {
                               if (isArmed)
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 5),
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: theme.accentColor,
                                     borderRadius: BorderRadius.circular(12),
@@ -2112,8 +2107,9 @@ class _LoadoutBottomSheet extends StatelessWidget {
                               else
                                 Icon(
                                   Icons.add_circle_outline,
-                                  color: theme.accentColor
-                                      .withValues(alpha: 0.7),
+                                  color: theme.accentColor.withValues(
+                                    alpha: 0.7,
+                                  ),
                                   size: 22,
                                 ),
                             ],

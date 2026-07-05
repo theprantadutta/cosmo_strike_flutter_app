@@ -5,8 +5,7 @@ import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/screens/achievements_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/battle_pass_screen.dart';
-import 'package:cosmo_strike_flutter_app/screens/daily_challenges_screen.dart';
-import 'package:cosmo_strike_flutter_app/screens/weekly_quests_screen.dart';
+import 'package:cosmo_strike_flutter_app/screens/challenges_hub_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/email_auth_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/first_time_auth_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/privacy_consent_screen.dart';
@@ -19,8 +18,6 @@ import 'package:cosmo_strike_flutter_app/screens/instructions_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/leaderboard_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/level_select_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/loading_screen.dart';
-import 'package:cosmo_strike_flutter_app/screens/multiplayer_game_screen.dart';
-import 'package:cosmo_strike_flutter_app/screens/multiplayer_lobby_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/pre_game_loading_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/premium_benefits_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/profile_screen.dart';
@@ -81,8 +78,9 @@ late final GoRouter appRouter;
 /// first-sign-in OverlayEntry above whatever route the user is on when
 /// sign-in fires (could be FirstTimeAuthScreen, LoadingScreen, or
 /// ProfileScreen's "Save your progress" upgrade — anywhere).
-final GlobalKey<NavigatorState> rootNavigatorKey =
-    GlobalKey<NavigatorState>(debugLabel: 'rootNavigator');
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'rootNavigator',
+);
 
 /// Creates a [GoRouter] with optional [NavigatorObserver]s for analytics.
 GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
@@ -146,13 +144,17 @@ GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
       // (per-run transient — route extra, not a cubit; null-safe for deep
       // links, defaulting to level 1).
       pageBuilder: (context, state) => _zoomPage(
-          state, PreGameLoadingScreen(startLevel: state.extra as int? ?? 1)),
+        state,
+        PreGameLoadingScreen(startLevel: state.extra as int? ?? 1),
+      ),
     ),
     GoRoute(
       path: AppRoutes.game,
       name: 'game',
       pageBuilder: (context, state) => _scalePage(
-          state, GameplayScreen(startLevel: state.extra as int? ?? 1)),
+        state,
+        GameplayScreen(startLevel: state.extra as int? ?? 1),
+      ),
     ),
     // /game-over removed: the Flame GameplayScreen shows its own game-over
     // overlay and routes home, so the ship GameOverScreen is no longer used.
@@ -161,14 +163,12 @@ GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
     GoRoute(
       path: AppRoutes.profile,
       name: 'profile',
-      pageBuilder: (context, state) =>
-          _zoomPage(state, const ProfileScreen()),
+      pageBuilder: (context, state) => _zoomPage(state, const ProfileScreen()),
     ),
     GoRoute(
       path: AppRoutes.settings,
       name: 'settings',
-      pageBuilder: (context, state) =>
-          _zoomPage(state, const SettingsScreen()),
+      pageBuilder: (context, state) => _zoomPage(state, const SettingsScreen()),
     ),
     GoRoute(
       path: AppRoutes.statistics,
@@ -199,8 +199,7 @@ GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
     GoRoute(
       path: AppRoutes.friends,
       name: 'friends',
-      pageBuilder: (context, state) =>
-          _zoomPage(state, const FriendsScreen()),
+      pageBuilder: (context, state) => _zoomPage(state, const FriendsScreen()),
     ),
     GoRoute(
       path: AppRoutes.tournaments,
@@ -260,18 +259,19 @@ GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
           _zoomPage(state, const BattlePassScreen()),
     ),
 
-    // Other features
+    // Other features — both quest routes land on the same hub, opened on
+    // the matching tab (Daily | Weekly).
     GoRoute(
       path: AppRoutes.dailyChallenges,
       name: 'dailyChallenges',
       pageBuilder: (context, state) =>
-          _zoomPage(state, const DailyChallengesScreen()),
+          _zoomPage(state, const ChallengesHubScreen(initialTab: 0)),
     ),
     GoRoute(
       path: AppRoutes.weeklyQuests,
       name: 'weeklyQuests',
       pageBuilder: (context, state) =>
-          _zoomPage(state, const WeeklyQuestsScreen()),
+          _zoomPage(state, const ChallengesHubScreen(initialTab: 1)),
     ),
     GoRoute(
       path: AppRoutes.instructions,
@@ -282,8 +282,7 @@ GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
     GoRoute(
       path: AppRoutes.replays,
       name: 'replays',
-      pageBuilder: (context, state) =>
-          _zoomPage(state, const ReplaysScreen()),
+      pageBuilder: (context, state) => _zoomPage(state, const ReplaysScreen()),
     ),
     GoRoute(
       path: AppRoutes.replayViewer,
@@ -296,34 +295,8 @@ GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
 
         return _zoomPage(
           state,
-          ReplayViewerScreen(
-            replayId: replayId,
-            replay: replay,
-          ),
+          ReplayViewerScreen(replayId: replayId, replay: replay),
         );
-      },
-    ),
-
-    // Multiplayer — order matters: /multiplayer/game MUST come before
-    // /multiplayer/:gameId, otherwise GoRouter matches "game" as a gameId.
-    GoRoute(
-      path: AppRoutes.multiplayerLobby,
-      name: 'multiplayerLobby',
-      pageBuilder: (context, state) =>
-          _zoomPage(state, const MultiplayerLobbyScreen()),
-    ),
-    GoRoute(
-      path: AppRoutes.multiplayerGame,
-      name: 'multiplayerGame',
-      pageBuilder: (context, state) =>
-          _scalePage(state, const MultiplayerGameScreen()),
-    ),
-    GoRoute(
-      path: AppRoutes.multiplayerLobbyWithId,
-      name: 'multiplayerLobbyWithId',
-      pageBuilder: (context, state) {
-        final gameId = state.pathParameters['gameId'];
-        return _zoomPage(state, MultiplayerLobbyScreen(gameId: gameId));
       },
     ),
   ],

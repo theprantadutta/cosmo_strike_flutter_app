@@ -16,8 +16,6 @@ import 'package:cosmo_strike_flutter_app/services/haptic_service.dart';
 import 'package:cosmo_strike_flutter_app/services/preferences_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/unified_user_service.dart';
-import 'package:cosmo_strike_flutter_app/services/multiplayer_service.dart';
-import 'package:cosmo_strike_flutter_app/services/enhanced_audio_service.dart';
 import 'package:cosmo_strike_flutter_app/services/achievement_service.dart';
 import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
 import 'package:cosmo_strike_flutter_app/services/progression_service.dart';
@@ -38,8 +36,8 @@ import 'package:cosmo_strike_flutter_app/data/datasources/remote/api_datasource.
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/multiplayer/multiplayer_cubit.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_cubit.dart'; // Also exports game_settings_cubit
+import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cubit.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/tournament/tournament_context_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/battle_pass_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/power_up/power_up_cubit.dart';
@@ -84,10 +82,6 @@ Future<void> configureDependencies() async {
   });
 
   getIt.registerLazySingleton<UnifiedUserService>(() => UnifiedUserService());
-  getIt.registerLazySingleton<MultiplayerService>(() => MultiplayerService());
-  getIt.registerLazySingleton<EnhancedAudioService>(
-    () => EnhancedAudioService(),
-  );
   getIt.registerLazySingleton<AchievementService>(() => AchievementService());
   getIt.registerLazySingleton<StatisticsService>(() => StatisticsService());
   getIt.registerLazySingleton<ProgressionService>(() => ProgressionService());
@@ -141,16 +135,6 @@ Future<void> configureDependencies() async {
     () => AuthCubit(getIt<UnifiedUserService>(), getIt<AnalyticsFacade>()),
   );
 
-  getIt.registerFactory<MultiplayerCubit>(
-    () => MultiplayerCubit(
-      multiplayerService: getIt<MultiplayerService>(),
-      userService: getIt<UnifiedUserService>(),
-      audioService: getIt<AudioService>(),
-      hapticService: getIt<HapticService>(),
-      analytics: getIt<AnalyticsFacade>(),
-    ),
-  );
-
   getIt.registerLazySingleton<GameSettingsCubit>(
     () => GameSettingsCubit(getIt<StorageService>()),
   );
@@ -158,19 +142,10 @@ Future<void> configureDependencies() async {
   // Register CoinsCubit as singleton so it can be shared across game sessions
   getIt.registerLazySingleton<CoinsCubit>(() => CoinsCubit());
 
-  getIt.registerFactory<GameCubit>(
-    () => GameCubit(
-      audioService: getIt<AudioService>(),
-      enhancedAudioService: getIt<EnhancedAudioService>(),
-      hapticService: getIt<HapticService>(),
-      achievementService: getIt<AchievementService>(),
-      statisticsService: getIt<StatisticsService>(),
-      storageService: getIt<StorageService>(),
-      settingsCubit: getIt<GameSettingsCubit>(),
-      coinsCubit: getIt<CoinsCubit>(),
-      battlePassCubit: getIt<BattlePassCubit>(),
-      analytics: getIt<AnalyticsFacade>(),
-    ),
+  // Cross-screen tournament context for Flame runs (set by the tournament
+  // detail screen, consumed by pre-game loading + gameplay).
+  getIt.registerLazySingleton<TournamentContextCubit>(
+    () => TournamentContextCubit(),
   );
 
   getIt.registerLazySingleton<PremiumCubit>(

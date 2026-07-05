@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/tournament/tournament_context_cubit.dart';
 import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
@@ -1396,10 +1396,11 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
 
   void _playTournament() {
     final tournament = _tournament!;
-    final gameCubit = context.read<GameCubit>();
 
-    // Set tournament mode in game cubit
-    gameCubit.setTournamentMode(tournament.id, tournament.gameMode);
+    // Arm the tournament context so the run's score is attributed to it.
+    context
+        .read<TournamentContextCubit>()
+        .enterTournament(tournament.id, tournament.gameMode);
 
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (context) => const GameplayScreen()))

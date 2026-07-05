@@ -8,7 +8,7 @@ import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_cubit.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
@@ -197,65 +197,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _syncFromSettingsCubit(settingsState),
       child: BlocBuilder<ThemeCubit, ThemeState>(
         builder: (context, themeState) {
-          return BlocBuilder<GameCubit, GameCubitState>(
-            builder: (context, gameState) {
-              return BlocBuilder<AuthCubit, AuthState>(
-                builder: (context, authState) {
-                  return BlocBuilder<PremiumCubit, PremiumState>(
-                    builder: (context, premiumState) {
-                      final theme = themeState.currentTheme;
+          return BlocBuilder<AuthCubit, AuthState>(
+            builder: (context, authState) {
+              return BlocBuilder<PremiumCubit, PremiumState>(
+                builder: (context, premiumState) {
+                  final theme = themeState.currentTheme;
 
-                      return CommandScaffold(
-                        theme: theme,
-                        title: 'Settings',
-                        bottomBar: const ShipBannerAd(),
-                        bodyPadding: EdgeInsets.zero,
-                        body: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // LEFT — vertical section rail. Deliberate
-                              // exception to the no-scroll rule: 8 sections at
-                              // a readable size don't fit the short viewport,
-                              // so the rail scrolls, with edge fades hinting
-                              // that more items are above/below. The BACK
-                              // button stays pinned outside the scroll.
-                              Expanded(
-                                flex: 3,
-                                child: _buildNavRail(theme),
-                              ),
-                              const SizedBox(width: 20),
-                              // RIGHT — the selected section's content.
-                              Expanded(
-                                flex: 7,
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 250),
-                                  child: SingleChildScrollView(
-                                    key: ValueKey(_selectedSection),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: _buildSectionPane(
-                                        _selectedSection,
-                                        themeState,
-                                        gameState,
-                                        authState,
-                                        premiumState,
-                                        theme,
-                                      ),
-                                    ),
+                  return CommandScaffold(
+                    theme: theme,
+                    title: 'Settings',
+                    bottomBar: const ShipBannerAd(),
+                    bodyPadding: EdgeInsets.zero,
+                    body: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // LEFT — vertical section rail. Deliberate
+                          // exception to the no-scroll rule: 8 sections at
+                          // a readable size don't fit the short viewport,
+                          // so the rail scrolls, with edge fades hinting
+                          // that more items are above/below. The BACK
+                          // button stays pinned outside the scroll.
+                          Expanded(flex: 3, child: _buildNavRail(theme)),
+                          const SizedBox(width: 20),
+                          // RIGHT — the selected section's content.
+                          Expanded(
+                            flex: 7,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 250),
+                              child: SingleChildScrollView(
+                                key: ValueKey(_selectedSection),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: _buildSectionPane(
+                                    _selectedSection,
+                                    themeState,
+                                    authState,
+                                    premiumState,
+                                    theme,
                                   ),
                                 ),
                               ),
-                            ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        ],
+                      ),
+                    ),
                   );
                 },
               );
@@ -387,7 +378,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<Widget> _buildSectionPane(
     int section,
     ThemeState themeState,
-    GameCubitState gameState,
     AuthState authState,
     PremiumState premiumState,
     GameTheme theme,
@@ -419,7 +409,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // D-Pad Position Selector (only show when D-Pad is enabled)
             if (_dPadEnabled) ...[
               const SizedBox(height: 16),
-              _buildDPadPositionSelector(gameState, theme),
+              _buildDPadPositionSelector(theme),
             ],
             const SizedBox(height: 16),
             _buildAudioSwitch('Haptic Feedback', _hapticsEnabled, (
@@ -457,7 +447,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       case 1:
         return [
           _buildSection('GAMEPLAY', [
-            _buildGameModeSelector(gameState, theme),
+            _buildGameModeSelector(theme),
             const SizedBox(height: 20),
             _buildAudioSwitch('Screen Shake', _screenShakeEnabled, (
               value,
@@ -678,9 +668,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildAudioSwitch('Color-Blind Friendly', isOn, (value) async {
-          await context
-              .read<ThemeCubit>()
-              .setTheme(value ? GameTheme.accessible : GameTheme.classic);
+          await context.read<ThemeCubit>().setTheme(
+            value ? GameTheme.accessible : GameTheme.classic,
+          );
           _analytics.trackSettingChanged(
             settingName: 'color_blind_mode',
             value: '$value',
@@ -846,7 +836,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildDPadPositionSelector(GameCubitState gameState, GameTheme theme) {
+  Widget _buildDPadPositionSelector(GameTheme theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -928,7 +918,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 12),
         _buildControlItem(
-            'Drag', 'Slide anywhere — your ship mirrors the movement', theme),
+          'Drag',
+          'Slide anywhere — your ship mirrors the movement',
+          theme,
+        ),
         _buildControlItem('D-Pad', 'Analog steering (when enabled)', theme),
         _buildControlItem('Double Tap', 'Fire a missile (uses ammo)', theme),
         _buildControlItem('🚀 Button', 'Fire a missile (uses ammo)', theme),
@@ -979,7 +972,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildGameModeSelector(GameCubitState gameState, GameTheme theme) {
+  Widget _buildGameModeSelector(GameTheme theme) {
     return Column(
       children: [
         Row(
@@ -1022,21 +1015,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           runSpacing: 8,
           children: GameMode.values.map((mode) {
             final isSelected = _selectedGameMode == mode;
-            final isCurrentlyPlaying = gameState.isPlaying;
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: isCurrentlyPlaying
-                  ? null
-                  : () async {
-                      setState(() => _selectedGameMode = mode);
-                      await context.read<GameSettingsCubit>().updateGameMode(
-                        mode,
-                      );
-                      _analytics.trackSettingChanged(
-                        settingName: 'game_mode',
-                        value: mode.name,
-                      );
-                    },
+              onTap: () async {
+                setState(() => _selectedGameMode = mode);
+                await context.read<GameSettingsCubit>().updateGameMode(mode);
+                _analytics.trackSettingChanged(
+                  settingName: 'game_mode',
+                  value: mode.name,
+                );
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(
@@ -1049,9 +1037,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Text(
                   '${mode.icon} ${mode.name}',
                   style: TextStyle(
-                    color: isCurrentlyPlaying
-                        ? theme.textMuted.withValues(alpha: 0.5)
-                        : (isSelected ? theme.neonPrimary : theme.textMuted),
+                    color: isSelected ? theme.neonPrimary : theme.textMuted,
                     fontSize: 11,
                     fontWeight: isSelected
                         ? FontWeight.bold
@@ -1062,18 +1048,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             );
           }).toList(),
         ),
-        if (gameState.isPlaying) ...[
-          const SizedBox(height: 12),
-          Text(
-            'Complete current game to change game mode',
-            style: TextStyle(
-              color: Colors.orange.withValues(alpha: 0.8),
-              fontSize: 11,
-              fontStyle: FontStyle.italic,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
       ],
     );
   }

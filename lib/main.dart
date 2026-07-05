@@ -17,9 +17,9 @@ import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_cubit.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/multiplayer/multiplayer_cubit.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/power_up/power_up_cubit.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/tournament/tournament_context_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/battle_pass_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
@@ -71,13 +71,15 @@ void main() async {
     // Full-screen game: hide the status/notification + nav bars app-wide from
     // first launch (immersiveSticky — swipe from an edge reveals them briefly).
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarIconBrightness: Brightness.light,
-      systemNavigationBarDividerColor: Colors.transparent,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.light,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+    );
 
     // Load environment variables
     AppLogger.info('Loading environment variables...');
@@ -94,10 +96,12 @@ void main() async {
     // Crash reporting + performance monitoring. Collection is gated to release
     // builds so local dev crashes/traces never pollute the production
     // dashboards — mirrors the analytics debug/release split in injection.dart.
-    await FirebaseCrashlytics.instance
-        .setCrashlyticsCollectionEnabled(!kDebugMode);
-    await FirebasePerformance.instance
-        .setPerformanceCollectionEnabled(!kDebugMode);
+    await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+      !kDebugMode,
+    );
+    await FirebasePerformance.instance.setPerformanceCollectionEnabled(
+      !kDebugMode,
+    );
 
     // Landscape-only: Cosmo Strike is a horizontal command-HUD experience
     // (side-scrolling shmup + wide UI). Lock both landscape orientations so
@@ -129,7 +133,9 @@ void main() async {
     await AudioService().initialize().timeout(
       const Duration(seconds: 10),
       onTimeout: () {
-        AppLogger.warning('Audio service init timed out — continuing without audio');
+        AppLogger.warning(
+          'Audio service init timed out — continuing without audio',
+        );
       },
     );
     AppLogger.success('Audio service initialized');
@@ -147,7 +153,9 @@ void main() async {
     // (synced setting; defaults to on). HapticService is an in-memory
     // singleton — without this, every launch would vibrate regardless
     // of the saved preference.
-    HapticService().setEnabled(await getIt<StorageService>().isHapticsEnabled());
+    HapticService().setEnabled(
+      await getIt<StorageService>().isHapticsEnabled(),
+    );
 
     // NotificationService.initialize() is no longer called here — it
     // requests the OS notification permission as a side effect, and
@@ -234,11 +242,7 @@ void main() async {
     // If the first screen somehow never mounts, lift it anyway after a few
     // seconds so the app can never appear permanently frozen on the splash.
     Future.delayed(const Duration(seconds: 6), FlutterNativeSplash.remove);
-    runApp(
-      const riverpod.ProviderScope(
-        child: CosmoStrikeApp(),
-      ),
-    );
+    runApp(const riverpod.ProviderScope(child: CosmoStrikeApp()));
   } else {
     // Critical init failed — remove the splash (otherwise it stays on top
     // forever, hiding this screen and making the app look frozen) and show a
@@ -378,20 +382,18 @@ class _CosmoStrikeAppState extends State<CosmoStrikeApp>
         BlocProvider<ThemeCubit>(
           create: (_) => getIt<ThemeCubit>()..initialize(),
         ),
-        // Game Settings & Game
+        // Game Settings
         BlocProvider<GameSettingsCubit>(
           create: (_) => getIt<GameSettingsCubit>()..initialize(),
-        ),
-        BlocProvider<GameCubit>(
-          create: (_) => getIt<GameCubit>()..initialize(),
         ),
         // Coins
         BlocProvider<CoinsCubit>(
           create: (_) => getIt<CoinsCubit>()..initialize(),
         ),
-        // Multiplayer
-        BlocProvider<MultiplayerCubit>(
-          create: (_) => getIt<MultiplayerCubit>(),
+        // Tournament context for Flame runs (root-provided: the tournament
+        // detail screen pushes gameplay via the root navigator)
+        BlocProvider<TournamentContextCubit>(
+          create: (_) => getIt<TournamentContextCubit>(),
         ),
         // Premium & Battle Pass
         BlocProvider<PremiumCubit>.value(
