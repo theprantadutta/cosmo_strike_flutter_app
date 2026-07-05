@@ -39,6 +39,15 @@ class PlayerShip extends PositionComponent
   double ghostTimer = 0;
   double magnetTimer = 0;
 
+  // Granted duration of each timed effect, so the HUD chip's countdown
+  // fraction is normalized against whichever grant is actually running —
+  // orb pickups (10/5/8s) and the armed loadout (15/12/60s) differ, and a
+  // fixed divisor made orb chips start part-empty.
+  double weaponTimeTotal = 10;
+  double speedTimeTotal = 15;
+  double ghostTimeTotal = 12;
+  double magnetTimeTotal = 60;
+
   /// Post-revive protection: a timed shield that keeps the ship fully
   /// invulnerable AND renders the shield bubble for its whole duration, so the
   /// player can clearly see they can't die for the next few seconds. Distinct
@@ -228,6 +237,7 @@ class PlayerShip extends PositionComponent
       WeaponMode.laser => WeaponMode.laser,
     };
     _weaponTimer = 10;
+    weaponTimeTotal = 10;
   }
 
   void applyPowerUp(PowerUpKind kind) {
@@ -238,14 +248,26 @@ class PlayerShip extends PositionComponent
       case PowerUpKind.shield:
         shielded = true;
         break;
+      // Timed orbs top up to the orb duration but never shorten a longer
+      // running grant (e.g. the 15s/60s armed-loadout versions); the total
+      // follows the timer only when the grant actually took effect.
       case PowerUpKind.speed:
-        speedTimer = math.max(speedTimer, 10);
+        if (speedTimer < 10) {
+          speedTimer = 10;
+          speedTimeTotal = 10;
+        }
         break;
       case PowerUpKind.ghost:
-        ghostTimer = math.max(ghostTimer, 5);
+        if (ghostTimer < 5) {
+          ghostTimer = 5;
+          ghostTimeTotal = 5;
+        }
         break;
       case PowerUpKind.magnet:
-        magnetTimer = math.max(magnetTimer, 8);
+        if (magnetTimer < 8) {
+          magnetTimer = 8;
+          magnetTimeTotal = 8;
+        }
         break;
       case PowerUpKind.life:
       case PowerUpKind.bomb:

@@ -14,6 +14,7 @@ abstract final class ArmedLoadout {
     switch (key) {
       case 'speed_boost':
         player.speedTimer = 15;
+        player.speedTimeTotal = 15;
         break;
       case 'invincibility':
       case 'mega_invincibility': // defensive — normally folded upstream
@@ -33,9 +34,11 @@ abstract final class ArmedLoadout {
         break;
       case 'ghost_mode':
         player.ghostTimer = 12;
+        player.ghostTimeTotal = 12;
         break;
       case 'magnetic_pickup':
         player.magnetTimer = 60;
+        player.magnetTimeTotal = 60;
         break;
       case 'score_shield':
         // One charge: a would-be-lethal hit restores health to 0.5

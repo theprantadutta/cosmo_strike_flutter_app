@@ -650,7 +650,9 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       if (player.weapon != WeaponMode.single)
         ActiveEffectHud(
             id: 'weapon',
-            remaining01: (player.weaponTimeLeft / 10).clamp(0, 1).toDouble()),
+            remaining01: (player.weaponTimeLeft / player.weaponTimeTotal)
+                .clamp(0, 1)
+                .toDouble()),
       if (scoreMultiplier > 1)
         ActiveEffectHud(
             id: 'x2',
@@ -658,7 +660,9 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       if (player.speedBoosted)
         ActiveEffectHud(
             id: 'speed',
-            remaining01: (player.speedTimeLeft / 15).clamp(0, 1).toDouble()),
+            remaining01: (player.speedTimeLeft / player.speedTimeTotal)
+                .clamp(0, 1)
+                .toDouble()),
       if (enemyTimeScale < 1)
         ActiveEffectHud(
             id: 'slowmo',
@@ -667,11 +671,15 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       if (player.magnetActive)
         ActiveEffectHud(
             id: 'magnet',
-            remaining01: (player.magnetTimeLeft / 60).clamp(0, 1).toDouble()),
+            remaining01: (player.magnetTimeLeft / player.magnetTimeTotal)
+                .clamp(0, 1)
+                .toDouble()),
       if (player.ghosted)
         ActiveEffectHud(
             id: 'ghost',
-            remaining01: (player.ghostTimeLeft / 12).clamp(0, 1).toDouble()),
+            remaining01: (player.ghostTimeLeft / player.ghostTimeTotal)
+                .clamp(0, 1)
+                .toDouble()),
     ];
     effectsNotifier.value = effects;
   }

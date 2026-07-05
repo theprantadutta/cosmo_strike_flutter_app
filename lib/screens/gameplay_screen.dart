@@ -287,7 +287,10 @@ class _GameplayScreenState extends State<GameplayScreen>
           }
         });
       } catch (_) {
-        // Monotonic merge self-heals on the game-over apply / next run.
+        // Forget the optimistic mark so the game-over apply (which skips
+        // stages in _persistedClears) retries this row — otherwise a failed
+        // write here silently lost the clear for the whole run.
+        _persistedClears.remove(result.stageId);
       }
     }());
   }

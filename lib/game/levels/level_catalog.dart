@@ -829,7 +829,10 @@ abstract final class LevelCatalog {
       ]),
       boss: BossDef(
         type: BossType.leviathan,
-        baseHp: 440,
+        // Late-boss HP tuned down ~15% (440/500/600 -> 380/430/500): with the
+        // half-rate hpScale the old values meant a 3-5 minute fight on basic
+        // weapons and an unreachable par-time star on L12.
+        baseHp: 380,
         attackInterval: 1.6,
         bulletSpeed: 260,
         sprayCount: 14,
@@ -914,7 +917,7 @@ abstract final class LevelCatalog {
       ]),
       boss: BossDef(
         type: BossType.mothership,
-        baseHp: 500,
+        baseHp: 430, // late-boss tune, see L10
         attackInterval: 1.5,
         bulletSpeed: 270,
         sprayCount: 16,
@@ -1016,7 +1019,7 @@ abstract final class LevelCatalog {
       ]),
       boss: BossDef(
         type: BossType.mothership,
-        baseHp: 600,
+        baseHp: 500, // late-boss tune, see L10
         attackInterval: 1.35,
         bulletSpeed: 280,
         sprayCount: 18,

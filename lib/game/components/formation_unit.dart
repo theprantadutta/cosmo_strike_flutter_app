@@ -203,9 +203,19 @@ class Formation extends Component with HasGameReference<CosmoStrikeGame> {
   }
 
   void _checkExit() {
+    // Rightward extent of the members past the anchor, per shape — walls
+    // stack vertically at the anchor (extent 0), dive columns trail at 0.7×
+    // spacing. Using count*spacing for a wall culled it ~500px late: a fully
+    // dodged 9-mine wall meant ~6s of empty screen before a barrier event
+    // (waitForFieldClear) released the next wave.
+    final extent = switch (spec.shape) {
+      FormationShape.wallWithGap => 0.0,
+      FormationShape.columnDive => spec.count * spec.spacing * 0.7,
+      _ => spec.count * spec.spacing,
+    };
     final exited = spec.shape == FormationShape.ambushRear
         ? _anchorX - spec.count * spec.spacing > _fieldW + 120
-        : managed && _anchorX + spec.count * spec.spacing < -140;
+        : managed && _anchorX + extent < -140;
     if (exited) {
       _anyEscaped = _members.isNotEmpty;
       for (final m in _members.toList()) {

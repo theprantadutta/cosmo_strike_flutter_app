@@ -59,8 +59,13 @@ class CampaignCatalog {
       levelNames[(level - 1).clamp(0, levelNames.length - 1)];
 
   /// Par clear time in seconds for the 2nd star's "fast clear" path.
-  /// Levels get longer as waves grow, so par scales linearly.
-  static int parTimeSeconds(int level) => 90 + 10 * (level - 1);
+  /// Levels get longer as waves grow, so par scales linearly — except the
+  /// final stretch: L10-12 bosses are multi-minute fights even after the HP
+  /// tune, so their pars are widened to keep the fast-clear star attainable.
+  static const Map<int, int> _parTimeOverrides = {10: 240, 11: 255, 12: 270};
+
+  static int parTimeSeconds(int level) =>
+      _parTimeOverrides[level] ?? (90 + 10 * (level - 1));
 
   /// Par score for the 2nd star's alternative "high score" path.
   /// Retuned for the combo era: sustained kill chains multiply kill
