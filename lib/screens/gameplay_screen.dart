@@ -36,7 +36,6 @@ import '../services/haptic_service.dart';
 import '../services/walkthrough_service.dart';
 import '../ui/design.dart';
 import '../utils/constants.dart';
-import '../widgets/ads/banner_ad_widget.dart';
 import '../widgets/game_dpad.dart';
 import '../widgets/gameplay/game_over_overlay.dart';
 import '../widgets/gameplay/level_complete_overlay.dart';
@@ -186,7 +185,8 @@ class _GameplayScreenState extends State<GameplayScreen>
     // Settings). The service is hydrated in main() so this sync read is
     // always safe.
     final walkthroughs = WalkthroughService();
-    _tutorialRun = widget.startLevel == 1 &&
+    _tutorialRun =
+        widget.startLevel == 1 &&
         walkthroughs.isInitialized &&
         !walkthroughs.isComplete(WalkthroughService.gameTutorialId);
     if (_tutorialRun) {
@@ -221,9 +221,9 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// flag flips so the beats never replay uninvited; only certification
   /// pays the reward + celebration.
   void _handleTutorialOutcome(bool completed) {
-    unawaited(WalkthroughService().markComplete(
-      WalkthroughService.gameTutorialId,
-    ));
+    unawaited(
+      WalkthroughService().markComplete(WalkthroughService.gameTutorialId),
+    );
     final analytics = GetIt.I<AnalyticsFacade>();
     if (!completed) {
       unawaited(analytics.trackGameTutorialSkipped());
@@ -231,10 +231,12 @@ class _GameplayScreenState extends State<GameplayScreen>
     }
     unawaited(analytics.trackGameTutorialCompleted());
     if (!mounted) return;
-    unawaited(context.read<CoinsCubit>().earnCoins(
-          CoinEarningSource.achievementUnlocked,
-          customAmount: _tutorialRewardCoins,
-        ));
+    unawaited(
+      context.read<CoinsCubit>().earnCoins(
+        CoinEarningSource.achievementUnlocked,
+        customAmount: _tutorialRewardCoins,
+      ),
+    );
     setState(() => _showCertified = true);
     Future.delayed(const Duration(milliseconds: 3200), () {
       if (mounted) setState(() => _showCertified = false);
@@ -345,8 +347,7 @@ class _GameplayScreenState extends State<GameplayScreen>
           .where((lr) => !lr.cleared || !_persistedClears.contains(lr.stageId))
           .toList();
       if (pending.isNotEmpty) {
-        final outcomes = await GetIt.I<AppDatabase>()
-            .stageProgressDao
+        final outcomes = await GetIt.I<AppDatabase>().stageProgressDao
             .applyRunResults(pending);
         for (final o in outcomes) {
           _outcomes[o.stageId] = o;
@@ -365,19 +366,17 @@ class _GameplayScreenState extends State<GameplayScreen>
     // max-merged, GamesPlayed is guarded by the key).
     final tournamentId = _tournamentId;
     if (tournamentId != null) {
-      unawaited(TournamentService().submitScore(
-        tournamentId,
-        r.score,
-        {
+      unawaited(
+        TournamentService().submitScore(tournamentId, r.score, {
           'gameDurationSeconds': r.durationSeconds,
           'enemiesKilled': r.enemiesKilled,
-        },
-        idempotencyKey: runIdempotencyKey,
-      ));
+        }, idempotencyKey: runIdempotencyKey),
+      );
     }
 
     try {
-      final coinsEarned = 10 +
+      final coinsEarned =
+          10 +
           r.enemiesKilled +
           r.bossesKilled * 50 +
           r.levelsCleared * 25 +
@@ -397,13 +396,19 @@ class _GameplayScreenState extends State<GameplayScreen>
     // panels watch both and update live as these land. Kills ride the
     // legacy FoodEaten wire type (the kills -> foodEaten challenge mapping).
     final modeName = settings.state.gameMode.name;
-    unawaited(DailyChallengeService().updateProgressBatch([
-      (type: ChallengeType.score, value: r.score, gameMode: null),
-      (type: ChallengeType.foodEaten, value: r.enemiesKilled, gameMode: null),
-      (type: ChallengeType.survival, value: r.durationSeconds, gameMode: null),
-      (type: ChallengeType.gamesPlayed, value: 1, gameMode: null),
-      (type: ChallengeType.gameMode, value: 1, gameMode: modeName),
-    ]));
+    unawaited(
+      DailyChallengeService().updateProgressBatch([
+        (type: ChallengeType.score, value: r.score, gameMode: null),
+        (type: ChallengeType.foodEaten, value: r.enemiesKilled, gameMode: null),
+        (
+          type: ChallengeType.survival,
+          value: r.durationSeconds,
+          gameMode: null,
+        ),
+        (type: ChallengeType.gamesPlayed, value: 1, gameMode: null),
+        (type: ChallengeType.gameMode, value: 1, gameMode: modeName),
+      ]),
+    );
     unawaited(() async {
       final weekly = WeeklyQuestService();
       // Hydrate first: reportProgressBatch no-ops on an empty quest list.
@@ -415,29 +420,35 @@ class _GameplayScreenState extends State<GameplayScreen>
           (
             type: WeeklyQuestType.foodEaten,
             incrementBy: r.enemiesKilled,
-            gameMode: null
+            gameMode: null,
           ),
         if (r.durationSeconds > 0)
           (
             type: WeeklyQuestType.survival,
             incrementBy: r.durationSeconds,
-            gameMode: null
+            gameMode: null,
           ),
         (type: WeeklyQuestType.gamesPlayed, incrementBy: 1, gameMode: null),
         if (tournamentId != null)
           (
             type: WeeklyQuestType.tournamentParticipation,
             incrementBy: 1,
-            gameMode: null
+            gameMode: null,
           ),
       ]);
     }());
     try {
       AchievementService()
-        ..checkScoreAchievements(r.score,
-            gameMode: modeName, difficulty: 'normal')
-        ..checkSurvivalAchievements(r.durationSeconds,
-            gameMode: modeName, difficulty: 'normal');
+        ..checkScoreAchievements(
+          r.score,
+          gameMode: modeName,
+          difficulty: 'normal',
+        )
+        ..checkSurvivalAchievements(
+          r.durationSeconds,
+          gameMode: modeName,
+          difficulty: 'normal',
+        );
     } catch (_) {}
 
     // Fold this run into lifetime statistics. This is the ONLY place the live
@@ -446,8 +457,9 @@ class _GameplayScreenState extends State<GameplayScreen>
     // totalGamesPlayed / score / enemies / stage / play-time accurate, and
     // StatisticsService persists to Drift + enqueues the statistics sync.
     try {
-      final noHitClears =
-          r.levelResults.where((lr) => lr.cleared && lr.noHit).length;
+      final noHitClears = r.levelResults
+          .where((lr) => lr.cleared && lr.noHit)
+          .length;
       await StatisticsService().recordGameResult(
         score: r.score,
         durationSeconds: r.durationSeconds,
@@ -530,10 +542,11 @@ class _GameplayScreenState extends State<GameplayScreen>
           .where((lr) => !lr.cleared || !_persistedClears.contains(lr.stageId))
           .toList();
       if (pending.isNotEmpty) {
-        unawaited(GetIt.I<AppDatabase>()
-            .stageProgressDao
-            .applyRunResults(pending)
-            .catchError((_) => const <StageClearOutcome>[]));
+        unawaited(
+          GetIt.I<AppDatabase>().stageProgressDao
+              .applyRunResults(pending)
+              .catchError((_) => const <StageClearOutcome>[]),
+        );
       }
       unawaited(_enqueueScore(partial, const Uuid().v4(), aborted: true));
     }
@@ -558,10 +571,9 @@ class _GameplayScreenState extends State<GameplayScreen>
   static const double _dragSensitivity = 1.3;
 
   void _steerBy(Offset delta) {
-    _game.steerBy(Vector2(
-      delta.dx * _dragSensitivity,
-      delta.dy * _dragSensitivity,
-    ));
+    _game.steerBy(
+      Vector2(delta.dx * _dragSensitivity, delta.dy * _dragSensitivity),
+    );
   }
 
   // ---- Revive ----
@@ -587,18 +599,22 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _reviveWithAd() {
-    GetIt.I<AdService>().showRewarded(onReward: () {
-      _game.revive();
-      _celebrateRevive();
-    }).then((shown) {
-      // Ad failed to show (expired between readiness check and tap):
-      // keep the offer up; the countdown continues.
-      if (!shown && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ad not ready — try coins instead')),
-        );
-      }
-    });
+    GetIt.I<AdService>()
+        .showRewarded(
+          onReward: () {
+            _game.revive();
+            _celebrateRevive();
+          },
+        )
+        .then((shown) {
+          // Ad failed to show (expired between readiness check and tap):
+          // keep the offer up; the countdown continues.
+          if (!shown && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Ad not ready — try coins instead')),
+            );
+          }
+        });
   }
 
   /// Game-over "watch ad → 2× coins": pays the run's coin earnings out a
@@ -609,12 +625,14 @@ class _GameplayScreenState extends State<GameplayScreen>
     final shown = await GetIt.I<AdService>().showRewardedCapped(
       capKey: AdService.capDoubleCoins,
       onReward: () {
-        unawaited(coins.earnCoins(
-          CoinEarningSource.watchedAd,
-          customAmount: earned,
-          itemName: 'Game over 2× coins',
-          metadata: const {'placement': 'game_over_double'},
-        ));
+        unawaited(
+          coins.earnCoins(
+            CoinEarningSource.watchedAd,
+            customAmount: earned,
+            itemName: 'Game over 2× coins',
+            metadata: const {'placement': 'game_over_double'},
+          ),
+        );
         RewardToast.show(title: 'COINS DOUBLED', amount: '+$earned COINS');
         if (mounted) setState(() => _coinsDoubled = true);
       },
@@ -637,11 +655,12 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   /// Continue past a cleared level through the (frequency-capped) level-clear
-  /// interstitial — the busiest natural break. Capped every couple of clears,
-  /// shares the 3-min gap with the game-over interstitial, never the first
-  /// session, never for Pro (all enforced in AdService). The engine is frozen
-  /// during `levelClear`, so nothing runs behind the ad; the next level always
-  /// loads afterwards whether an ad showed or not.
+  /// interstitial — the busiest natural break. Cadence is remote-tunable
+  /// (AdTuning; default every 3rd clear), shares the min gap with the
+  /// game-over interstitial, never the first session, never for Pro (all
+  /// enforced in AdService). The engine is frozen during `levelClear`, so
+  /// nothing runs behind the ad; the next level always loads afterwards
+  /// whether an ad showed or not.
   void _advanceWithInterstitial() {
     GetIt.I<AdService>().maybeShowInterstitialOnLevelClear().whenComplete(() {
       if (mounted) _game.advanceToNextLevel();
@@ -678,274 +697,288 @@ class _GameplayScreenState extends State<GameplayScreen>
       _game.revive();
       _celebrateRevive();
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not enough coins')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Not enough coins')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final dPadOnRight = _dPadEnabled && _dPadPosition == DPadPosition.bottomRight;
+    final dPadOnRight =
+        _dPadEnabled && _dPadPosition == DPadPosition.bottomRight;
 
     return Scaffold(
       backgroundColor: CosmoPalette.bgDeep,
-      // Single in-play banner pinned to the TOP edge (the bottom is taken by
-      // the d-pad / missile button / boss bar). Reserves its height up front
-      // so the playfield never jumps; takes zero space for Pro / non-mobile.
-      // The GameWidget + HUD + overlays live below it in the Expanded, so the
-      // one banner also persists above the pause / level-clear / game-over
-      // overlays — no duplicate banners.
+      // NO banner during active play: the steering pan gesture covers the
+      // whole screen, so an in-play banner is an accidental-click (invalid
+      // traffic) risk and eats vertical dodge space. Banners float INSIDE the
+      // pause / level-clear / game-over overlays instead — and because the
+      // playfield always gets the full height, the Flame world (which uses
+      // the raw widget size for coordinates) never resizes mid-run.
       body: Column(
         children: [
-          const ShipBannerAd(top: true),
           Expanded(
             child: Stack(
               children: [
                 GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            // Relative drag: touching down does NOT teleport the steer
-            // target to the finger — only movement steers.
-            onPanUpdate: (d) => _steerBy(d.delta),
-            onTapDown: (_) {
-              if (!_game.autoFire) _game.firePrimary();
-            },
-            onDoubleTap: _game.fireMissile,
-            child: GameWidget(game: _game),
-          ),
+                  behavior: HitTestBehavior.opaque,
+                  // Relative drag: touching down does NOT teleport the steer
+                  // target to the finger — only movement steers.
+                  onPanUpdate: (d) => _steerBy(d.delta),
+                  onTapDown: (_) {
+                    if (!_game.autoFire) _game.firePrimary();
+                  },
+                  onDoubleTap: _game.fireMissile,
+                  child: GameWidget(game: _game),
+                ),
 
-          // Red edge vignette pulse on every landed hit — shake-setting
-          // independent, so a hit ALWAYS reads on screen.
-          ValueListenableBuilder<int>(
-            valueListenable: _game.hitPulseNotifier,
-            builder: (_, pulse, _) {
-              if (pulse == 0) return const SizedBox.shrink();
-              return IgnorePointer(
-                child: TweenAnimationBuilder<double>(
-                  key: ValueKey(pulse),
-                  tween: Tween(begin: 1, end: 0),
-                  duration: const Duration(milliseconds: 450),
-                  curve: Curves.easeOut,
-                  builder: (_, t, _) {
-                    if (t <= 0.01) return const SizedBox.shrink();
-                    return Container(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          radius: 1.15,
-                          colors: [
-                            const Color(0x00000000),
-                            CosmoPalette.hostile.withValues(alpha: 0.30 * t),
-                          ],
-                          stops: const [0.55, 1.0],
+                // Red edge vignette pulse on every landed hit — shake-setting
+                // independent, so a hit ALWAYS reads on screen.
+                ValueListenableBuilder<int>(
+                  valueListenable: _game.hitPulseNotifier,
+                  builder: (_, pulse, _) {
+                    if (pulse == 0) return const SizedBox.shrink();
+                    return IgnorePointer(
+                      child: TweenAnimationBuilder<double>(
+                        key: ValueKey(pulse),
+                        tween: Tween(begin: 1, end: 0),
+                        duration: const Duration(milliseconds: 450),
+                        curve: Curves.easeOut,
+                        builder: (_, t, _) {
+                          if (t <= 0.01) return const SizedBox.shrink();
+                          return Container(
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(
+                                radius: 1.15,
+                                colors: [
+                                  const Color(0x00000000),
+                                  CosmoPalette.hostile.withValues(
+                                    alpha: 0.30 * t,
+                                  ),
+                                ],
+                                stops: const [0.55, 1.0],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+                SafeArea(child: _Hud(game: _game)),
+
+                // Optional on-screen d-pad (settings-driven, snapshotted).
+                if (_dPadEnabled)
+                  SafeArea(
+                    child: Align(
+                      alignment: switch (_dPadPosition) {
+                        DPadPosition.bottomLeft => Alignment.bottomLeft,
+                        DPadPosition.bottomCenter => Alignment.bottomCenter,
+                        DPadPosition.bottomRight => Alignment.bottomRight,
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: GameDPad(
+                          onDirection: (dir) =>
+                              _game.setMoveDirection(Vector2(dir.dx, dir.dy)),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Missile fire button (docks away from the d-pad).
+                SafeArea(
+                  child: Align(
+                    alignment: dPadOnRight
+                        ? Alignment.bottomLeft
+                        : Alignment.bottomRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: _MissileButton(game: _game),
+                    ),
+                  ),
+                ),
+
+                // Level intro banner (non-blocking).
+                ValueListenableBuilder<GamePhase>(
+                  valueListenable: _game.phaseNotifier,
+                  builder: (context, phase, _) {
+                    if (phase != GamePhase.levelIntro) {
+                      return const SizedBox.shrink();
+                    }
+                    return _LevelIntroBanner(game: _game);
+                  },
+                ),
+
+                // Set-piece callout ("CANYON RUN") — small pulsing banner that
+                // never blocks input.
+                ValueListenableBuilder<String?>(
+                  valueListenable: _game.calloutNotifier,
+                  builder: (context, callout, _) {
+                    if (callout == null) return const SizedBox.shrink();
+                    return IgnorePointer(
+                      child: SafeArea(
+                        child: Align(
+                          alignment: const Alignment(0, -0.55),
+                          child: TweenAnimationBuilder<double>(
+                            key: ValueKey(callout),
+                            tween: Tween(begin: 0, end: 1),
+                            duration: const Duration(milliseconds: 320),
+                            curve: Curves.easeOutBack,
+                            builder: (_, t, child) => Opacity(
+                              opacity: t.clamp(0, 1),
+                              child: Transform.scale(
+                                scale: 0.8 + 0.2 * t,
+                                child: child,
+                              ),
+                            ),
+                            child: Text(
+                              callout,
+                              style: TextStyle(
+                                color: CosmoPalette.highlight,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 5,
+                                shadows: [
+                                  Shadow(
+                                    color: CosmoPalette.hostile.withValues(
+                                      alpha: 0.9,
+                                    ),
+                                    blurRadius: 16,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     );
                   },
                 ),
-              );
-            },
-          ),
-          SafeArea(child: _Hud(game: _game)),
 
-          // Optional on-screen d-pad (settings-driven, snapshotted).
-          if (_dPadEnabled)
-            SafeArea(
-              child: Align(
-                alignment: switch (_dPadPosition) {
-                  DPadPosition.bottomLeft => Alignment.bottomLeft,
-                  DPadPosition.bottomCenter => Alignment.bottomCenter,
-                  DPadPosition.bottomRight => Alignment.bottomRight,
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: GameDPad(
-                    onDirection: (dir) =>
-                        _game.setMoveDirection(Vector2(dir.dx, dir.dy)),
-                  ),
-                ),
-              ),
-            ),
-
-          // Missile fire button (docks away from the d-pad).
-          SafeArea(
-            child: Align(
-              alignment:
-                  dPadOnRight ? Alignment.bottomLeft : Alignment.bottomRight,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: _MissileButton(game: _game),
-              ),
-            ),
-          ),
-
-          // Level intro banner (non-blocking).
-          ValueListenableBuilder<GamePhase>(
-            valueListenable: _game.phaseNotifier,
-            builder: (context, phase, _) {
-              if (phase != GamePhase.levelIntro) return const SizedBox.shrink();
-              return _LevelIntroBanner(game: _game);
-            },
-          ),
-
-          // Set-piece callout ("CANYON RUN") — small pulsing banner that
-          // never blocks input.
-          ValueListenableBuilder<String?>(
-            valueListenable: _game.calloutNotifier,
-            builder: (context, callout, _) {
-              if (callout == null) return const SizedBox.shrink();
-              return IgnorePointer(
-                child: SafeArea(
-                  child: Align(
-                    alignment: const Alignment(0, -0.55),
-                    child: TweenAnimationBuilder<double>(
-                      key: ValueKey(callout),
-                      tween: Tween(begin: 0, end: 1),
-                      duration: const Duration(milliseconds: 320),
-                      curve: Curves.easeOutBack,
-                      builder: (_, t, child) => Opacity(
-                        opacity: t.clamp(0, 1),
-                        child: Transform.scale(scale: 0.8 + 0.2 * t, child: child),
+                // First-run tutorial prompt — a floating instruction banner at
+                // the top of the playfield. Input passes straight through to
+                // the game except for the Skip pill.
+                ValueListenableBuilder<TutorialPrompt?>(
+                  valueListenable: _game.tutorialNotifier,
+                  builder: (context, prompt, _) {
+                    if (prompt == null) return const SizedBox.shrink();
+                    return SafeArea(
+                      child: _TutorialBanner(
+                        prompt: prompt,
+                        onSkip: _game.skipTutorial,
                       ),
-                      child: Text(
-                        callout,
-                        style: TextStyle(
-                          color: CosmoPalette.highlight,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 5,
-                          shadows: [
-                            Shadow(
-                              color: CosmoPalette.hostile.withValues(alpha: 0.9),
-                              blurRadius: 16,
+                    );
+                  },
+                ),
+
+                // PILOT CERTIFIED celebration (tutorial completed) — pure
+                // flourish, never blocks input, auto-dismisses.
+                if (_showCertified)
+                  IgnorePointer(
+                    child: _CertifiedCelebration(coins: _tutorialRewardCoins),
+                  ),
+
+                // REVIVED flourish after a paid continue — pure celebration,
+                // never blocks input, auto-dismisses.
+                if (_showRevived) const IgnorePointer(child: _ReviveFlourish()),
+
+                ValueListenableBuilder<GamePhase>(
+                  valueListenable: _game.phaseNotifier,
+                  builder: (context, phase, _) {
+                    switch (phase) {
+                      case GamePhase.paused:
+                        return PauseOverlay(
+                          game: _game,
+                          outcomes: _outcomes,
+                          onResume: _game.resumeGame,
+                          onRestart: _restartFromPause,
+                          onQuit: _quitToHome,
+                          // Opt-in rewarded "+1 life" perk — shown only when an ad
+                          // is loaded and the daily power-up cap isn't hit.
+                          lifeAdReady: GetIt.I<AdService>().canShowCapped(
+                            AdService.capFreePowerUp,
+                          ),
+                          onWatchAdForLife: _watchAdForLife,
+                        );
+                      case GamePhase.levelClear:
+                        return LevelCompleteOverlay(
+                          game: _game,
+                          outcome: _outcomes[_game.levelIndex],
+                          priorBest: _priorBest[_game.levelIndex],
+                          onContinue: _advanceWithInterstitial,
+                          onQuit: _quitToHome,
+                        );
+                      case GamePhase.reviveOffer:
+                        final isPremium =
+                            GetIt.I.isRegistered<PremiumCubit>() &&
+                            GetIt.I<PremiumCubit>().state.hasPremium;
+                        final coinsEnough =
+                            context.read<CoinsCubit>().state.balance.total >=
+                            200;
+                        return _ReviveOverlay(
+                          isPremium: isPremium,
+                          adReady: GetIt.I<AdService>().isRewardedReady,
+                          level: _game.levelIndex,
+                          score: _game.scoreNotifier.value,
+                          wave: _game.wave,
+                          onWatchAd: _reviveWithAd,
+                          onFreeRevive: _reviveFree,
+                          onSpendCoins: _reviveWithCoins,
+                          coinsEnough: coinsEnough,
+                          onGiveUp: _game.declineRevive,
+                        );
+                      case GamePhase.gameOver:
+                        final r = _lastResult;
+                        if (r == null) return const SizedBox.shrink();
+                        final victory = r.cleared;
+                        final unlocked = _outcomes.values
+                            .where((o) => o.unlockedNextStage)
+                            .map((o) => o.stageId + 1)
+                            .fold<int>(0, (max, s) => s > max ? s : max);
+                        return GameOverOverlay(
+                          result: r,
+                          victory: victory,
+                          previousBest: _prevBestScore,
+                          unlockedLevel: unlocked,
+                          runCoinsEarned: _runCoinsEarned,
+                          runXpEarned: _runXpEarned,
+                          coinsDoubled: _coinsDoubled,
+                          // "Watch ad → 2× coins": offered whenever coins were
+                          // earned, ads are on (not Pro/offline) and the daily cap
+                          // isn't hit. Deliberately NOT gated on the ad being loaded
+                          // *this instant* — that snapshot isn't reactive, so the
+                          // button could otherwise never appear if the ad finished
+                          // loading a beat later. The tap handles a not-yet-ready ad
+                          // (retry snackbar). Swaps to a confirmation once claimed.
+                          canDoubleCoins:
+                              _runCoinsEarned > 0 &&
+                              GetIt.I<AdService>().adsEnabled &&
+                              GetIt.I<AdService>().dailyRemaining(
+                                    AdService.capDoubleCoins,
+                                  ) >
+                                  0,
+                          onDoubleCoins: _doubleRunCoins,
+                          onRetry: () => _exitWithInterstitial(
+                            () => context.pushReplacement(
+                              AppRoutes.game,
+                              extra: widget.startLevel,
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-
-          // First-run tutorial prompt — a floating instruction banner at
-          // the top of the playfield. Input passes straight through to
-          // the game except for the Skip pill.
-          ValueListenableBuilder<TutorialPrompt?>(
-            valueListenable: _game.tutorialNotifier,
-            builder: (context, prompt, _) {
-              if (prompt == null) return const SizedBox.shrink();
-              return SafeArea(
-                child: _TutorialBanner(
-                  prompt: prompt,
-                  onSkip: _game.skipTutorial,
-                ),
-              );
-            },
-          ),
-
-          // PILOT CERTIFIED celebration (tutorial completed) — pure
-          // flourish, never blocks input, auto-dismisses.
-          if (_showCertified)
-            IgnorePointer(
-              child: _CertifiedCelebration(coins: _tutorialRewardCoins),
-            ),
-
-          // REVIVED flourish after a paid continue — pure celebration,
-          // never blocks input, auto-dismisses.
-          if (_showRevived)
-            const IgnorePointer(child: _ReviveFlourish()),
-
-          ValueListenableBuilder<GamePhase>(
-            valueListenable: _game.phaseNotifier,
-            builder: (context, phase, _) {
-              switch (phase) {
-                case GamePhase.paused:
-                  return PauseOverlay(
-                    game: _game,
-                    outcomes: _outcomes,
-                    onResume: _game.resumeGame,
-                    onRestart: _restartFromPause,
-                    onQuit: _quitToHome,
-                    // Opt-in rewarded "+1 life" perk — shown only when an ad
-                    // is loaded and the daily power-up cap isn't hit.
-                    lifeAdReady:
-                        GetIt.I<AdService>().canShowCapped(AdService.capFreePowerUp),
-                    onWatchAdForLife: _watchAdForLife,
-                  );
-                case GamePhase.levelClear:
-                  return LevelCompleteOverlay(
-                    game: _game,
-                    outcome: _outcomes[_game.levelIndex],
-                    priorBest: _priorBest[_game.levelIndex],
-                    onContinue: _advanceWithInterstitial,
-                    onQuit: _quitToHome,
-                  );
-                case GamePhase.reviveOffer:
-                  final isPremium = GetIt.I.isRegistered<PremiumCubit>() &&
-                      GetIt.I<PremiumCubit>().state.hasPremium;
-                  final coinsEnough =
-                      context.read<CoinsCubit>().state.balance.total >= 200;
-                  return _ReviveOverlay(
-                    isPremium: isPremium,
-                    adReady: GetIt.I<AdService>().isRewardedReady,
-                    level: _game.levelIndex,
-                    score: _game.scoreNotifier.value,
-                    wave: _game.wave,
-                    onWatchAd: _reviveWithAd,
-                    onFreeRevive: _reviveFree,
-                    onSpendCoins: _reviveWithCoins,
-                    coinsEnough: coinsEnough,
-                    onGiveUp: _game.declineRevive,
-                  );
-                case GamePhase.gameOver:
-                  final r = _lastResult;
-                  if (r == null) return const SizedBox.shrink();
-                  final victory = r.cleared;
-                  final unlocked = _outcomes.values
-                      .where((o) => o.unlockedNextStage)
-                      .map((o) => o.stageId + 1)
-                      .fold<int>(0, (max, s) => s > max ? s : max);
-                  return GameOverOverlay(
-                    result: r,
-                    victory: victory,
-                    previousBest: _prevBestScore,
-                    unlockedLevel: unlocked,
-                    runCoinsEarned: _runCoinsEarned,
-                    runXpEarned: _runXpEarned,
-                    coinsDoubled: _coinsDoubled,
-                    // "Watch ad → 2× coins": offered whenever coins were
-                    // earned, ads are on (not Pro/offline) and the daily cap
-                    // isn't hit. Deliberately NOT gated on the ad being loaded
-                    // *this instant* — that snapshot isn't reactive, so the
-                    // button could otherwise never appear if the ad finished
-                    // loading a beat later. The tap handles a not-yet-ready ad
-                    // (retry snackbar). Swaps to a confirmation once claimed.
-                    canDoubleCoins: _runCoinsEarned > 0 &&
-                        GetIt.I<AdService>().adsEnabled &&
-                        GetIt.I<AdService>()
-                                .dailyRemaining(AdService.capDoubleCoins) >
-                            0,
-                    onDoubleCoins: _doubleRunCoins,
-                    onRetry: () => _exitWithInterstitial(
-                      () => context.pushReplacement(
-                        AppRoutes.game,
-                        extra: widget.startLevel,
-                      ),
-                    ),
-                    onExit: () => _exitWithInterstitial(
-                      () => victory
-                          ? context.go(AppRoutes.levelSelect)
-                          : context.go(AppRoutes.home),
-                    ),
-                    challengeRunStart: _challengeRunStart,
-                  );
-                case GamePhase.ready:
-                case GamePhase.levelIntro:
-                case GamePhase.playing:
-                  return const SizedBox.shrink();
-              }
-            },
+                          ),
+                          onExit: () => _exitWithInterstitial(
+                            () => victory
+                                ? context.go(AppRoutes.levelSelect)
+                                : context.go(AppRoutes.home),
+                          ),
+                          challengeRunStart: _challengeRunStart,
+                        );
+                      case GamePhase.ready:
+                      case GamePhase.levelIntro:
+                      case GamePhase.playing:
+                        return const SizedBox.shrink();
+                    }
+                  },
                 ),
               ],
             ),
@@ -978,7 +1011,10 @@ class _Hud extends StatelessWidget {
               GlassPanel(
                 theme: _hudSkin,
                 radius: GameTokens.radiusMd,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 // One horizontal strip — the HUD stays out of the ship's
                 // vertical flight lane (the playfield is short in landscape).
                 child: Row(
@@ -1021,8 +1057,11 @@ class _Hud extends StatelessWidget {
                       builder: (_, kills, _) => Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.gps_fixed,
-                              size: 11, color: CosmoPalette.hullLight),
+                          const Icon(
+                            Icons.gps_fixed,
+                            size: 11,
+                            color: CosmoPalette.hullLight,
+                          ),
                           const SizedBox(width: 3),
                           Text(
                             '$kills',
@@ -1046,31 +1085,33 @@ class _Hud extends StatelessWidget {
                           valueListenable: game.combo.multiplierNotifier,
                           builder: (_, mult, _) =>
                               TweenAnimationBuilder<double>(
-                            key: ValueKey(mult),
-                            tween: Tween(
-                                begin: mult > 1 ? 1.35 : 1.0, end: 1.0),
-                            duration: const Duration(milliseconds: 220),
-                            curve: Curves.easeOutBack,
-                            builder: (_, s, child) => Transform.scale(
-                              scale: s,
-                              alignment: Alignment.centerLeft,
-                              child: child,
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 12),
-                              child: Text(
-                                '×$mult · $chain CHAIN',
-                                style: TextStyle(
-                                  color: mult >= 2
-                                      ? CosmoPalette.hostile
-                                      : CosmoPalette.hullLight,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.1,
+                                key: ValueKey(mult),
+                                tween: Tween(
+                                  begin: mult > 1 ? 1.35 : 1.0,
+                                  end: 1.0,
+                                ),
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeOutBack,
+                                builder: (_, s, child) => Transform.scale(
+                                  scale: s,
+                                  alignment: Alignment.centerLeft,
+                                  child: child,
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 12),
+                                  child: Text(
+                                    '×$mult · $chain CHAIN',
+                                    style: TextStyle(
+                                      color: mult >= 2
+                                          ? CosmoPalette.hostile
+                                          : CosmoPalette.hullLight,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.1,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
                         );
                       },
                     ),
@@ -1091,7 +1132,9 @@ class _Hud extends StatelessWidget {
                       theme: _hudSkin,
                       radius: GameTokens.radiusMd,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -1128,8 +1171,10 @@ class _Hud extends StatelessWidget {
                   GlassPanel(
                     theme: _hudSkin,
                     radius: GameTokens.radiusMd,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1137,8 +1182,11 @@ class _Hud extends StatelessWidget {
                         const SizedBox(width: 8),
                         GestureDetector(
                           onTap: game.pauseGame,
-                          child: const Icon(Icons.pause_circle_outline,
-                              color: CosmoPalette.hull, size: 26),
+                          child: const Icon(
+                            Icons.pause_circle_outline,
+                            color: CosmoPalette.hull,
+                            size: 26,
+                          ),
                         ),
                       ],
                     ),
@@ -1161,8 +1209,9 @@ class _Hud extends StatelessWidget {
                     value: hp,
                     minHeight: 6,
                     backgroundColor: CosmoPalette.bgHigh,
-                    valueColor:
-                        const AlwaysStoppedAnimation(CosmoPalette.energy),
+                    valueColor: const AlwaysStoppedAnimation(
+                      CosmoPalette.energy,
+                    ),
                   ),
                 ),
               ),
@@ -1178,9 +1227,7 @@ class _Hud extends StatelessWidget {
                 if (effects.isEmpty) return const SizedBox.shrink();
                 return Wrap(
                   spacing: 6,
-                  children: [
-                    for (final e in effects) _EffectChip(effect: e),
-                  ],
+                  children: [for (final e in effects) _EffectChip(effect: e)],
                 );
               },
             ),
@@ -1197,8 +1244,9 @@ class _Hud extends StatelessWidget {
                   value: boss,
                   minHeight: 9,
                   backgroundColor: CosmoPalette.bgHigh,
-                  valueColor:
-                      const AlwaysStoppedAnimation(CosmoPalette.hostile),
+                  valueColor: const AlwaysStoppedAnimation(
+                    CosmoPalette.hostile,
+                  ),
                 ),
               );
             },
@@ -1278,10 +1326,15 @@ class _LivesPanelState extends State<_LivesPanel> {
                       scale: 1 + t * 1.1,
                       child: Padding(
                         padding: const EdgeInsets.only(right: 3),
-                        child: Icon(Icons.flight,
-                            size: 16,
-                            color: Color.lerp(CosmoPalette.hostile,
-                                const Color(0xFFFFE3B3), t)),
+                        child: Icon(
+                          Icons.flight,
+                          size: 16,
+                          color: Color.lerp(
+                            CosmoPalette.hostile,
+                            const Color(0xFFFFE3B3),
+                            t,
+                          ),
+                        ),
                       ),
                     ),
                   );
@@ -1317,8 +1370,7 @@ class _LivesPanelState extends State<_LivesPanel> {
                         letterSpacing: 1.6,
                         shadows: [
                           Shadow(
-                            color:
-                                CosmoPalette.hostile.withValues(alpha: 0.8),
+                            color: CosmoPalette.hostile.withValues(alpha: 0.8),
                             blurRadius: 8,
                           ),
                         ],
@@ -1359,8 +1411,11 @@ class _EffectChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(_icons[effect.id] ?? Icons.star,
-              size: 13, color: CosmoPalette.hull),
+          Icon(
+            _icons[effect.id] ?? Icons.star,
+            size: 13,
+            color: CosmoPalette.hull,
+          ),
           const SizedBox(width: 4),
           SizedBox(
             width: 26,
@@ -1414,7 +1469,8 @@ class _MissileButton extends StatelessWidget {
                         strokeWidth: 3,
                         backgroundColor: Colors.transparent,
                         valueColor: const AlwaysStoppedAnimation(
-                            Color(0xFFFFD37B)),
+                          Color(0xFFFFD37B),
+                        ),
                       ),
                     );
                   },
@@ -1424,13 +1480,13 @@ class _MissileButton extends StatelessWidget {
                   height: 64,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: CosmoPalette.bgHigh
-                        .withValues(alpha: enabled ? 0.55 : 0.3),
+                    color: CosmoPalette.bgHigh.withValues(
+                      alpha: enabled ? 0.55 : 0.3,
+                    ),
                     boxShadow: enabled
                         ? [
                             BoxShadow(
-                              color:
-                                  CosmoPalette.energy.withValues(alpha: 0.4),
+                              color: CosmoPalette.energy.withValues(alpha: 0.4),
                               blurRadius: 16,
                             ),
                           ]
@@ -1448,8 +1504,10 @@ class _MissileButton extends StatelessWidget {
                   top: 0,
                   right: 0,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: enabled
@@ -1580,17 +1638,18 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
   @override
   void initState() {
     super.initState();
-    _countdown = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: _seconds),
-    )
-      ..addStatusListener((status) {
-        if (status == AnimationStatus.completed && !_resolved) {
-          _resolved = true;
-          widget.onGiveUp();
-        }
-      })
-      ..forward();
+    _countdown =
+        AnimationController(
+            vsync: this,
+            duration: const Duration(seconds: _seconds),
+          )
+          ..addStatusListener((status) {
+            if (status == AnimationStatus.completed && !_resolved) {
+              _resolved = true;
+              widget.onGiveUp();
+            }
+          })
+          ..forward();
   }
 
   @override
@@ -1660,8 +1719,9 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
                             letterSpacing: 3,
                             shadows: [
                               Shadow(
-                                color: CosmoPalette.hostile
-                                    .withValues(alpha: 0.6),
+                                color: CosmoPalette.hostile.withValues(
+                                  alpha: 0.6,
+                                ),
                                 blurRadius: 16,
                               ),
                             ],
@@ -1825,8 +1885,9 @@ class _TutorialBanner extends StatelessWidget {
                           color: CosmoPalette.highlight,
                           shadows: [
                             Shadow(
-                              color: CosmoPalette.highlight
-                                  .withValues(alpha: 0.8),
+                              color: CosmoPalette.highlight.withValues(
+                                alpha: 0.8,
+                              ),
                               blurRadius: 12,
                             ),
                           ],
@@ -1841,8 +1902,9 @@ class _TutorialBanner extends StatelessWidget {
                             letterSpacing: 3,
                             shadows: [
                               Shadow(
-                                color: CosmoPalette.highlight
-                                    .withValues(alpha: 0.7),
+                                color: CosmoPalette.highlight.withValues(
+                                  alpha: 0.7,
+                                ),
                                 blurRadius: 14,
                               ),
                             ],
@@ -1874,7 +1936,9 @@ class _TutorialBanner extends StatelessWidget {
                   onTap: onSkip,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 6),
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
                     child: Text(
                       'SKIP TUTORIAL',
                       style: TextStyle(
@@ -1922,9 +1986,7 @@ class _CertifiedCelebration extends StatelessWidget {
               Icons.military_tech,
               size: 44,
               color: Color(0xFFFFD37B),
-              shadows: [
-                Shadow(color: Color(0xAAFFD37B), blurRadius: 22),
-              ],
+              shadows: [Shadow(color: Color(0xAAFFD37B), blurRadius: 22)],
             ),
             const SizedBox(height: 6),
             const Text(
@@ -1934,9 +1996,7 @@ class _CertifiedCelebration extends StatelessWidget {
                 fontSize: 26,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 5,
-                shadows: [
-                  Shadow(color: Color(0xAAFFD37B), blurRadius: 18),
-                ],
+                shadows: [Shadow(color: Color(0xAAFFD37B), blurRadius: 18)],
               ),
             ),
             const SizedBox(height: 4),
@@ -1947,9 +2007,7 @@ class _CertifiedCelebration extends StatelessWidget {
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 2.5,
-                shadows: [
-                  Shadow(color: Color(0xCC05060F), blurRadius: 8),
-                ],
+                shadows: [Shadow(color: Color(0xCC05060F), blurRadius: 8)],
               ),
             ),
           ],
@@ -1984,9 +2042,7 @@ class _ReviveFlourish extends StatelessWidget {
               Icons.rocket_launch,
               size: 40,
               color: Color(0xFFFFD37B),
-              shadows: [
-                Shadow(color: Color(0xAAFFD37B), blurRadius: 22),
-              ],
+              shadows: [Shadow(color: Color(0xAAFFD37B), blurRadius: 22)],
             ),
             SizedBox(height: 6),
             Text(
@@ -1996,9 +2052,7 @@ class _ReviveFlourish extends StatelessWidget {
                 fontSize: 26,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 5,
-                shadows: [
-                  Shadow(color: Color(0xAAFFD37B), blurRadius: 18),
-                ],
+                shadows: [Shadow(color: Color(0xAAFFD37B), blurRadius: 18)],
               ),
             ),
             SizedBox(height: 4),
@@ -2009,9 +2063,7 @@ class _ReviveFlourish extends StatelessWidget {
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 2.5,
-                shadows: [
-                  Shadow(color: Color(0xCC05060F), blurRadius: 8),
-                ],
+                shadows: [Shadow(color: Color(0xCC05060F), blurRadius: 8)],
               ),
             ),
           ],
@@ -2042,8 +2094,9 @@ class _OverlayButton extends StatelessWidget {
           label: label,
           onPressed: onTap,
           theme: _hudSkin,
-          variant:
-              secondary ? NeonButtonVariant.outline : NeonButtonVariant.solid,
+          variant: secondary
+              ? NeonButtonVariant.outline
+              : NeonButtonVariant.solid,
         ),
       ),
     );

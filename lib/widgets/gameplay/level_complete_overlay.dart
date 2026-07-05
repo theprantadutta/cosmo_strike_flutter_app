@@ -5,9 +5,11 @@ import '../../data/database/app_database.dart';
 import '../../game/cosmo_palette.dart';
 import '../../game/cosmo_strike_game.dart';
 import '../../models/level_run_result.dart';
+import '../../services/ads/ad_tuning.dart';
 import '../../ui/design.dart';
 import '../../utils/campaign_catalog.dart';
 import '../../utils/game_animations.dart';
+import '../ads/banner_ad_widget.dart';
 import 'run_stat_tiles.dart';
 
 /// The per-level debrief shown when a campaign level is cleared (mid-run).
@@ -63,7 +65,8 @@ class LevelCompleteOverlay extends StatelessWidget {
       ),
     );
 
-    final stars = outcome?.starsAfter ??
+    final stars =
+        outcome?.starsAfter ??
         CampaignCatalog.starsFor(
           stageId: level,
           cleared: true,
@@ -81,15 +84,16 @@ class LevelCompleteOverlay extends StatelessWidget {
 
     final parTime = CampaignCatalog.parTimeSeconds(level);
     final parScore = CampaignCatalog.parScore(level);
-    final beatPar = (lvl.timeSeconds > 0 && lvl.timeSeconds <= parTime) ||
+    final beatPar =
+        (lvl.timeSeconds > 0 && lvl.timeSeconds <= parTime) ||
         lvl.score >= parScore;
 
     final bestScore = lvl.score > priorScore ? lvl.score : priorScore;
     final bestTime = priorTime == 0
         ? lvl.timeSeconds
         : (lvl.timeSeconds > 0 && lvl.timeSeconds < priorTime
-            ? lvl.timeSeconds
-            : priorTime);
+              ? lvl.timeSeconds
+              : priorTime);
 
     final hasNext = level < CampaignCatalog.totalLevels;
 
@@ -104,115 +108,126 @@ class LevelCompleteOverlay extends StatelessWidget {
             ),
           ),
         ),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: GameTokens.space24,
-              vertical: GameTokens.space16,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // LEFT — hero result + run telemetry. Scales down, never scrolls.
-                Expanded(
-                  flex: 11,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        // Banner strip at the top; debrief content adapts below it (see
+        // PauseOverlay for the full rationale + remote kill switch).
+        Column(
+          children: [
+            if (AdTuning.overlayBannersEnabled) const ShipBannerAd(top: true),
+            Expanded(
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: GameTokens.space24,
+                    vertical: GameTokens.space16,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // LEFT — hero result + run telemetry. Scales down, never scrolls.
                       Expanded(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: SizedBox(
-                            width: 430,
-                            child: _heroColumn(
-                              level: level,
-                              lvl: lvl,
-                              run: run,
-                              stars: stars,
-                              gainedStars: gainedStars,
-                              newBestScore: newBestScore,
-                              firstNoHit: firstNoHit,
+                        flex: 11,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: SizedBox(
+                                  width: 430,
+                                  child: _heroColumn(
+                                    level: level,
+                                    lvl: lvl,
+                                    run: run,
+                                    stars: stars,
+                                    gainedStars: gainedStars,
+                                    newBestScore: newBestScore,
+                                    firstNoHit: firstNoHit,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: GameTokens.space12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OverlayActionButton(
+                                    label: hasNext
+                                        ? 'CONTINUE TO LEVEL ${level + 1}'
+                                        : 'CONTINUE',
+                                    onTap: onContinue,
+                                  ),
+                                ),
+                                const SizedBox(width: GameTokens.space8),
+                                Expanded(
+                                  child: OverlayActionButton(
+                                    label: 'QUIT',
+                                    onTap: onQuit,
+                                    variant: NeonButtonVariant.outline,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: GameTokens.space12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OverlayActionButton(
-                              label: hasNext
-                                  ? 'CONTINUE TO LEVEL ${level + 1}'
-                                  : 'CONTINUE',
-                              onTap: onContinue,
+                      const SizedBox(width: GameTokens.space24),
+                      // RIGHT — objectives + bests + next teaser.
+                      Expanded(
+                        flex: 9,
+                        child: ListView(
+                          children: [
+                            const SectionHeader('STAR OBJECTIVES'),
+                            const SizedBox(height: GameTokens.space12),
+                            _objective(true, 'Clear the level'),
+                            _objective(
+                              beatPar,
+                              'Beat par — under ${_time(parTime)} or $parScore pts',
                             ),
-                          ),
-                          const SizedBox(width: GameTokens.space8),
-                          Expanded(
-                            child: OverlayActionButton(
-                              label: 'QUIT',
-                              onTap: onQuit,
-                              variant: NeonButtonVariant.outline,
+                            _objective(lvl.noHit, 'Flawless — take no hits'),
+                            const SizedBox(height: GameTokens.space20),
+                            const SectionHeader('THIS LEVEL'),
+                            const SizedBox(height: GameTokens.space12),
+                            _bestLine('BEST SCORE', '$bestScore'),
+                            _bestLine(
+                              'BEST TIME',
+                              bestTime > 0 ? _time(bestTime) : '—',
                             ),
-                          ),
-                        ],
+                            if (hasNext) ...[
+                              const SizedBox(height: GameTokens.space20),
+                              const SectionHeader('NEXT'),
+                              const SizedBox(height: GameTokens.space12),
+                              Text(
+                                'LEVEL ${level + 1}',
+                                style: const TextStyle(
+                                  color: CosmoPalette.highlight,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                CampaignCatalog.levelNameFor(level + 1),
+                                style: TextStyle(
+                                  color: CosmoPalette.hull.withValues(
+                                    alpha: 0.7,
+                                  ),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.4,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ).gameEntrance(delay: 220.ms),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: GameTokens.space24),
-                // RIGHT — objectives + bests + next teaser.
-                Expanded(
-                  flex: 9,
-                  child: ListView(
-                    children: [
-                      const SectionHeader('STAR OBJECTIVES'),
-                      const SizedBox(height: GameTokens.space12),
-                      _objective(true, 'Clear the level'),
-                      _objective(
-                        beatPar,
-                        'Beat par — under ${_time(parTime)} or $parScore pts',
-                      ),
-                      _objective(lvl.noHit, 'Flawless — take no hits'),
-                      const SizedBox(height: GameTokens.space20),
-                      const SectionHeader('THIS LEVEL'),
-                      const SizedBox(height: GameTokens.space12),
-                      _bestLine('BEST SCORE', '$bestScore'),
-                      _bestLine(
-                        'BEST TIME',
-                        bestTime > 0 ? _time(bestTime) : '—',
-                      ),
-                      if (hasNext) ...[
-                        const SizedBox(height: GameTokens.space20),
-                        const SectionHeader('NEXT'),
-                        const SizedBox(height: GameTokens.space12),
-                        Text(
-                          'LEVEL ${level + 1}',
-                          style: const TextStyle(
-                            color: CosmoPalette.highlight,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          CampaignCatalog.levelNameFor(level + 1),
-                          style: TextStyle(
-                            color: CosmoPalette.hull.withValues(alpha: 0.7),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.4,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ).gameEntrance(delay: 220.ms),
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ],
     );
@@ -261,15 +276,18 @@ class LevelCompleteOverlay extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(right: 6),
                 child: Icon(
-                  i < stars
-                      ? Icons.star_rounded
-                      : Icons.star_outline_rounded,
+                  i < stars ? Icons.star_rounded : Icons.star_outline_rounded,
                   size: 42,
                   color: i < stars
                       ? _gold
                       : CosmoPalette.hull.withValues(alpha: 0.3),
                   shadows: i < stars
-                      ? [Shadow(color: _gold.withValues(alpha: 0.7), blurRadius: 14)]
+                      ? [
+                          Shadow(
+                            color: _gold.withValues(alpha: 0.7),
+                            blurRadius: 14,
+                          ),
+                        ]
                       : null,
                 ).gamePop(delay: Duration(milliseconds: 180 + i * 130)),
               ),
@@ -405,9 +423,7 @@ class LevelCompleteOverlay extends StatelessWidget {
             child: Icon(
               earned ? Icons.check_rounded : Icons.circle_outlined,
               size: 15,
-              color: earned
-                  ? color
-                  : CosmoPalette.hull.withValues(alpha: 0.4),
+              color: earned ? color : CosmoPalette.hull.withValues(alpha: 0.4),
             ),
           ),
           const SizedBox(width: 10),

@@ -6,6 +6,7 @@ import 'package:get_it/get_it.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_config.dart';
+import 'package:cosmo_strike_flutter_app/services/ads/ad_tuning.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,12 +19,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// code (placement-specific), not here — see the rewarded placements.
 class AdService {
   // ---- tunables ----
-  static const int _interstitialEveryNGames = 3;
-  // Level-clear → continue is the busiest natural break; show one every couple
-  // of clears. The shared min-gap below still throttles the effective rate, so
-  // this never stacks back-to-back with the game-over interstitial.
-  static const int _interstitialEveryNLevels = 2;
-  static const Duration _interstitialMinGap = Duration(minutes: 3);
+  // Live values come from AdTuning (Firebase Remote Config with in-code
+  // defaults: every 3 games / every 3 clears / 3-min shared gap), so cadence
+  // can be tuned post-launch without a release.
 
   // SharedPreferences keys (device-only, never synced).
   static const _kGamesSinceInterstitial = 'ads_games_since_interstitial';
@@ -94,7 +92,9 @@ class AdService {
         );
       }
       _sdkReady = true;
-      AppLogger.success('AdService initialized (ads ${adsEnabled ? 'on' : 'off'})');
+      AppLogger.success(
+        'AdService initialized (ads ${adsEnabled ? 'on' : 'off'})',
+      );
       if (adsEnabled) {
         _loadInterstitial();
         _loadRewarded();
@@ -147,7 +147,9 @@ class AdService {
           await AppTrackingTransparency.requestTrackingAuthorization();
         }
       }
-    } catch (_) {/* ATT optional — ignore */}
+    } catch (_) {
+      /* ATT optional — ignore */
+    }
   }
 
   /// Whether a "Privacy & ad choices" entry point should be shown. False when
@@ -198,18 +200,18 @@ class AdService {
   /// Show an interstitial if the frequency cap allows. Call this on game-over.
   /// Returns true if an ad was shown. Counts the game regardless.
   Future<bool> maybeShowInterstitialOnGameOver() => _maybeShowInterstitial(
-        counterKey: _kGamesSinceInterstitial,
-        everyN: _interstitialEveryNGames,
-      );
+    counterKey: _kGamesSinceInterstitial,
+    everyN: AdTuning.interstitialEveryNGames,
+  );
 
   /// Show an interstitial when the player continues past a cleared level — the
   /// busiest natural break. Returns true if an ad was shown; counts the clear
   /// regardless. Shares the min-gap + first-session skip with the game-over
   /// interstitial, so the two never fire back-to-back.
   Future<bool> maybeShowInterstitialOnLevelClear() => _maybeShowInterstitial(
-        counterKey: _kLevelsSinceInterstitial,
-        everyN: _interstitialEveryNLevels,
-      );
+    counterKey: _kLevelsSinceInterstitial,
+    everyN: AdTuning.interstitialEveryNLevels,
+  );
 
   /// Shared interstitial gate. Counts [counterKey] each call; shows once it
   /// reaches [everyN] AND the shared min-gap has elapsed AND an ad is loaded.
@@ -232,8 +234,9 @@ class AdService {
 
     final count = (prefs.getInt(counterKey) ?? 0) + 1;
     final lastMs = prefs.getInt(_kLastInterstitialMs) ?? 0;
-    final gapOk = DateTime.now().millisecondsSinceEpoch - lastMs >=
-        _interstitialMinGap.inMilliseconds;
+    final gapOk =
+        DateTime.now().millisecondsSinceEpoch - lastMs >=
+        AdTuning.interstitialMinGap.inMilliseconds;
 
     if (count < everyN || !gapOk || _interstitial == null) {
       await prefs.setInt(counterKey, count);
@@ -260,7 +263,9 @@ class AdService {
     await ad.show();
     await prefs.setInt(counterKey, 0);
     await prefs.setInt(
-        _kLastInterstitialMs, DateTime.now().millisecondsSinceEpoch);
+      _kLastInterstitialMs,
+      DateTime.now().millisecondsSinceEpoch,
+    );
     return shown.future;
   }
 
@@ -320,9 +325,7 @@ class AdService {
         _loadRewarded();
       },
     );
-    await ad.show(
-      onUserEarnedReward: (_, _) => earned = true,
-    );
+    await ad.show(onUserEarnedReward: (_, _) => earned = true);
     return earned;
   }
 
@@ -339,11 +342,16 @@ class AdService {
 
   /// Game-over "double your run's coins" offer.
   static const String capDoubleCoins = 'double_coins';
+
+  /// Free bronze tournament entry. Capped so the $0.99 bronze entry IAP
+  /// keeps a reason to exist — uncapped, the free ad path fully replaced it.
+  static const String capTournamentEntry = 'tournament_entry';
   static const Map<String, int> dailyCaps = {
     capFreeCoins: 5,
     capFreePowerUp: 3,
     capBattlePassXp: 3,
     capDoubleCoins: 5,
+    capTournamentEntry: 2,
   };
 
   /// Coins granted per "watch for coins" ad.
@@ -387,20 +395,21 @@ class AdService {
     required VoidCallback onReward,
   }) async {
     if (!canShowCapped(capKey)) return false;
-    return showRewarded(onReward: () {
-      onReward();
-      _recordDaily(capKey);
-    });
+    return showRewarded(
+      onReward: () {
+        onReward();
+        _recordDaily(capKey);
+      },
+    );
   }
 
   /// Convenience wrapper for the free-coins placement.
   Future<bool> showRewardedForCoins({
     required void Function(int coins) onCoins,
-  }) =>
-      showRewardedCapped(
-        capKey: capFreeCoins,
-        onReward: () => onCoins(freeCoinsPerAd),
-      );
+  }) => showRewardedCapped(
+    capKey: capFreeCoins,
+    onReward: () => onCoins(freeCoinsPerAd),
+  );
 
   // Back-compat getters used by RewardedCoinsButton.
   int get freeCoinAdsRemainingToday => dailyRemaining(capFreeCoins);

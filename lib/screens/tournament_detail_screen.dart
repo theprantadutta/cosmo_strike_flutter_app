@@ -128,14 +128,13 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
       // Detect "real failure" vs "actually empty": if the tournament
       // says it has participants but we got an empty list back, the
       // fetch must have failed silently in the service layer.
-      final isLegitimatelyEmpty = result.entries.isEmpty &&
-          _tournament!.currentParticipants == 0;
+      final isLegitimatelyEmpty =
+          result.entries.isEmpty && _tournament!.currentParticipants == 0;
       setState(() {
         _leaderboard = result.entries;
         _serverUserRank = result.userRank;
         _isLoading = false;
-        _leaderboardLoadFailed =
-            result.entries.isEmpty && !isLegitimatelyEmpty;
+        _leaderboardLoadFailed = result.entries.isEmpty && !isLegitimatelyEmpty;
       });
     } catch (e) {
       setState(() {
@@ -167,9 +166,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
   Future<void> _maybeClaimPrize() async {
     if (_prizeClaimAttempted) return;
     final t = _tournament;
-    if (t == null ||
-        t.status != TournamentStatus.ended ||
-        !t.isJoinedServer) {
+    if (t == null || t.status != TournamentStatus.ended || !t.isJoinedServer) {
       return;
     }
     _prizeClaimAttempted = true;
@@ -230,10 +227,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
             const SizedBox(height: 16),
             Text(
               _loadError ?? 'Tournament not found',
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontSize: 16,
-              ),
+              style: TextStyle(color: theme.textPrimary, fontSize: 16),
             ),
             const SizedBox(height: 24),
             NeonButton(
@@ -258,10 +252,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
             child: Center(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
-                child: SizedBox(
-                  width: 250,
-                  child: _buildLeftPanel(theme),
-                ),
+                child: SizedBox(width: 250, child: _buildLeftPanel(theme)),
               ),
             ),
           ),
@@ -314,10 +305,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: _getTournamentStatusColor(
                   tournament.status,
@@ -335,10 +323,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
             ),
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: Colors.blue.withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(12),
@@ -366,11 +351,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         ),
         const SizedBox(height: 12),
         // Key facts — compact muted rows.
-        _buildFactRow(
-          theme,
-          Icons.schedule,
-          tournament.timeRemainingFormatted,
-        ),
+        _buildFactRow(theme, Icons.schedule, tournament.timeRemainingFormatted),
         const SizedBox(height: 6),
         _buildFactRow(
           theme,
@@ -447,8 +428,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
             );
           },
         ),
-        if (tournament.status.canJoin ||
-            tournament.status.canSubmitScore) ...[
+        if (tournament.status.canJoin || tournament.status.canSubmitScore) ...[
           const SizedBox(height: 12),
           _buildActionButtons(theme),
         ],
@@ -573,10 +553,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
               Text(
                 'Check your connection and try again.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: theme.textMuted,
-                ),
+                style: TextStyle(fontSize: 13, color: theme.textMuted),
               ),
               const SizedBox(height: 20),
               NeonButton(
@@ -613,10 +590,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
             const SizedBox(height: 8),
             Text(
               'Be the first to join!',
-              style: TextStyle(
-                fontSize: 14,
-                color: theme.textMuted,
-              ),
+              style: TextStyle(fontSize: 14, color: theme.textMuted),
             ),
           ],
         ),
@@ -670,27 +644,16 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         const SizedBox(height: 12),
         Text(
           tournament.description,
-          style: TextStyle(
-            fontSize: 14,
-            color: theme.textPrimary,
-            height: 1.5,
-          ),
+          style: TextStyle(fontSize: 14, color: theme.textPrimary, height: 1.5),
         ),
         const SizedBox(height: 12),
         Row(
           children: [
-            Icon(
-              Icons.calendar_today,
-              size: 14,
-              color: theme.textMuted,
-            ),
+            Icon(Icons.calendar_today, size: 14, color: theme.textMuted),
             const SizedBox(width: 8),
             Text(
               tournament.formattedDateRange,
-              style: TextStyle(
-                fontSize: 13,
-                color: theme.textMuted,
-              ),
+              style: TextStyle(fontSize: 13, color: theme.textMuted),
             ),
           ],
         ),
@@ -808,11 +771,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         const SizedBox(height: 8),
         Text(
           tournament.gameMode.description,
-          style: TextStyle(
-            fontSize: 14,
-            color: theme.textMuted,
-            height: 1.4,
-          ),
+          style: TextStyle(fontSize: 14, color: theme.textMuted, height: 1.4),
         ),
       ],
     );
@@ -868,7 +827,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
             backgroundImage: participant.photoUrl != null
                 ? NetworkImage(participant.photoUrl!)
                 : null,
-            onBackgroundImageError: participant.photoUrl != null ? (e, s) {} : null,
+            onBackgroundImageError: participant.photoUrl != null
+                ? (e, s) {}
+                : null,
             child: participant.photoUrl == null
                 ? Text(
                     participant.displayName.isNotEmpty
@@ -897,10 +858,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
                 ),
                 Text(
                   '${participant.attempts} attempts',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: theme.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 12, color: theme.textMuted),
                 ),
               ],
             ),
@@ -981,11 +939,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         const SizedBox(height: 12),
         Text(
           'Your highest score during the tournament period will count towards the final ranking. You can play multiple times to improve your score.',
-          style: TextStyle(
-            fontSize: 14,
-            color: theme.textPrimary,
-            height: 1.4,
-          ),
+          style: TextStyle(fontSize: 14, color: theme.textPrimary, height: 1.4),
         ),
       ],
     );
@@ -1184,8 +1138,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
 
       // Premium users bypass entry requirement
       if (!premiumCubit.state.hasPremium) {
-        final availableEntries =
-            premiumCubit.state.getTournamentEntryCount(tier);
+        final availableEntries = premiumCubit.state.getTournamentEntryCount(
+          tier,
+        );
         if (availableEntries < ticketsRequired) {
           _showNoEntryDialog(tier);
           return;
@@ -1329,19 +1284,23 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
               onPressed: () => Navigator.of(context).pop(),
               child: Text(
                 'Cancel',
-                style: TextStyle(color: theme.accentColor.withValues(alpha: 0.6)),
+                style: TextStyle(
+                  color: theme.accentColor.withValues(alpha: 0.6),
+                ),
               ),
             ),
             // Free Bronze entry via rewarded ad (free users only, bronze tier
-            // only — never devalue the paid Silver/Gold entries).
+            // only — never devalue the paid Silver/Gold entries). Daily-capped
+            // (2/day) so the paid bronze entry keeps a reason to exist.
             if (tier == 'bronze' &&
                 getIt.isRegistered<AdService>() &&
                 getIt<AdService>().adsEnabled &&
-                getIt<AdService>().isRewardedReady)
+                getIt<AdService>().canShowCapped(AdService.capTournamentEntry))
               TextButton.icon(
                 onPressed: () {
                   Navigator.of(context).pop();
-                  getIt<AdService>().showRewarded(
+                  getIt<AdService>().showRewardedCapped(
+                    capKey: AdService.capTournamentEntry,
                     onReward: () {
                       premiumCubit.addTournamentEntry('bronze');
                       RewardToast.show(
@@ -1352,10 +1311,16 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
                     },
                   );
                 },
-                icon: const Icon(Icons.play_circle_fill,
-                    color: Colors.amber, size: 18),
-                label: Text('Free entry (ad)',
-                    style: TextStyle(color: theme.accentColor)),
+                icon: const Icon(
+                  Icons.play_circle_fill,
+                  color: Colors.amber,
+                  size: 18,
+                ),
+                label: Text(
+                  'Free entry (ad) — '
+                  '${getIt<AdService>().dailyRemaining(AdService.capTournamentEntry)} left today',
+                  style: TextStyle(color: theme.accentColor),
+                ),
               ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -1373,7 +1338,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
                   purchaseService.buyProduct(product);
                 }
               },
-              child: Text('Buy $tierName Entry - ${PurchaseService().getStorePrice(productId) ?? _getDefaultPrice(tier)}'),
+              child: Text(
+                'Buy $tierName Entry - ${PurchaseService().getStorePrice(productId) ?? _getDefaultPrice(tier)}',
+              ),
             ),
           ],
         );
@@ -1398,9 +1365,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
     final tournament = _tournament!;
 
     // Arm the tournament context so the run's score is attributed to it.
-    context
-        .read<TournamentContextCubit>()
-        .enterTournament(tournament.id, tournament.gameMode);
+    context.read<TournamentContextCubit>().enterTournament(
+      tournament.id,
+      tournament.gameMode,
+    );
 
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (context) => const GameplayScreen()))

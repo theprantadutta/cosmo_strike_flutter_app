@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../game/cosmo_palette.dart';
 import '../../game/cosmo_strike_game.dart';
 import '../../services/achievement_service.dart';
+import '../../services/ads/ad_tuning.dart';
 import '../../ui/design.dart';
 import '../../utils/constants.dart';
+import '../ads/banner_ad_widget.dart';
 import 'challenge_panel.dart';
 import 'run_stat_tiles.dart';
 
@@ -90,35 +92,44 @@ class GameOverOverlay extends StatelessWidget {
             ),
           ),
         ),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: GameTokens.space20,
-              vertical: 10,
-            ),
-            child: Column(
-              children: [
-                // Three FULL-HEIGHT columns across the wide landscape so the
-                // width is actually used: run verdict + payout · telemetry grid
-                // · today's directives. Directives get extra width (flex 5) for
-                // their wide title·bar·claim rows.
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        // Banner strip at the top; debrief content adapts below it (see
+        // PauseOverlay for the full rationale + remote kill switch).
+        Column(
+          children: [
+            if (AdTuning.overlayBannersEnabled) const ShipBannerAd(top: true),
+            Expanded(
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: GameTokens.space20,
+                    vertical: 10,
+                  ),
+                  child: Column(
                     children: [
-                      Expanded(flex: 3, child: _verdictColumn(newRecord)),
-                      const SizedBox(width: GameTokens.space20),
-                      Expanded(flex: 5, child: _telemetry(columns: 2)),
-                      const SizedBox(width: GameTokens.space20),
-                      Expanded(flex: 6, child: _directives()),
+                      // Three FULL-HEIGHT columns across the wide landscape so the
+                      // width is actually used: run verdict + payout · telemetry grid
+                      // · today's directives. Directives get extra width (flex 5) for
+                      // their wide title·bar·claim rows.
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 3, child: _verdictColumn(newRecord)),
+                            const SizedBox(width: GameTokens.space20),
+                            Expanded(flex: 5, child: _telemetry(columns: 2)),
+                            const SizedBox(width: GameTokens.space20),
+                            Expanded(flex: 6, child: _directives()),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _footer(),
                     ],
                   ),
                 ),
-                const SizedBox(height: 10),
-                _footer(),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ],
     );
@@ -216,42 +227,53 @@ class GameOverOverlay extends StatelessWidget {
           runSpacing: 14,
           children: [
             RunStatTile(
-                width: tileW,
-                icon: Icons.flag,
-                value: 'L${result.stageReached}·W${result.waveReached}',
-                label: 'STAGE'),
+              width: tileW,
+              icon: Icons.flag,
+              value: 'L${result.stageReached}·W${result.waveReached}',
+              label: 'STAGE',
+            ),
             RunStatTile(
-                width: tileW,
-                icon: Icons.gps_fixed,
-                value: '${result.enemiesKilled}',
-                label: 'KILLS'),
+              width: tileW,
+              icon: Icons.gps_fixed,
+              value: '${result.enemiesKilled}',
+              label: 'KILLS',
+            ),
             RunStatTile(
-                width: tileW,
-                icon: Icons.adjust,
-                value: '${result.bossesKilled}',
-                label: 'BOSSES'),
+              width: tileW,
+              icon: Icons.adjust,
+              value: '${result.bossesKilled}',
+              label: 'BOSSES',
+            ),
             RunStatTile(
-                width: tileW,
-                icon: Icons.bolt,
-                value: '×${result.maxCombo}',
-                label: 'COMBO'),
+              width: tileW,
+              icon: Icons.bolt,
+              value: '×${result.maxCombo}',
+              label: 'COMBO',
+            ),
             RunStatTile(
-                width: tileW,
-                icon: Icons.shield_moon,
-                value: '${result.grazeCount}',
-                label: 'GRAZES'),
+              width: tileW,
+              icon: Icons.shield_moon,
+              value: '${result.grazeCount}',
+              label: 'GRAZES',
+            ),
             RunStatTile(
-                width: tileW,
-                icon: Icons.rocket,
-                value: '${result.missilesFired}',
-                label: 'MISSILES'),
+              width: tileW,
+              icon: Icons.rocket,
+              value: '${result.missilesFired}',
+              label: 'MISSILES',
+            ),
             RunStatTile(
-                width: tileW, icon: Icons.timer, value: _time, label: 'TIME'),
+              width: tileW,
+              icon: Icons.timer,
+              value: _time,
+              label: 'TIME',
+            ),
             RunStatTile(
-                width: tileW,
-                icon: Icons.military_tech,
-                value: '${result.levelsCleared}',
-                label: 'CLEARED'),
+              width: tileW,
+              icon: Icons.military_tech,
+              value: '${result.levelsCleared}',
+              label: 'CLEARED',
+            ),
           ],
         );
       },
@@ -291,8 +313,9 @@ class GameOverOverlay extends StatelessWidget {
                   const SizedBox(height: GameTokens.space12),
                   for (final a in unlocks)
                     Padding(
-                      padding:
-                          const EdgeInsets.only(bottom: GameTokens.space12),
+                      padding: const EdgeInsets.only(
+                        bottom: GameTokens.space12,
+                      ),
                       child: Row(
                         children: [
                           Container(
@@ -301,11 +324,12 @@ class GameOverOverlay extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: a.rarityColor.withValues(alpha: 0.14),
-                              boxShadow:
-                                  softGlow(a.rarityColor, intensity: 0.6),
+                              boxShadow: softGlow(
+                                a.rarityColor,
+                                intensity: 0.6,
+                              ),
                             ),
-                            child:
-                                Icon(a.icon, size: 17, color: a.rarityColor),
+                            child: Icon(a.icon, size: 17, color: a.rarityColor),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -355,8 +379,10 @@ class GameOverOverlay extends StatelessWidget {
         if (showDouble) ...[
           Expanded(
             flex: 4,
-            child:
-                _DoubleCoinsButton(amount: runCoinsEarned, onTap: onDoubleCoins),
+            child: _DoubleCoinsButton(
+              amount: runCoinsEarned,
+              onTap: onDoubleCoins,
+            ),
           ),
           const SizedBox(width: GameTokens.space12),
         ],
@@ -423,11 +449,7 @@ class _Region extends StatelessWidget {
         else
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              SectionHeader(header),
-              const Spacer(),
-              headerTrailing!,
-            ],
+            children: [SectionHeader(header), const Spacer(), headerTrailing!],
           ),
         const SizedBox(height: 10),
         Expanded(
@@ -477,9 +499,10 @@ class _NewRecordBadgeState extends State<_NewRecordBadge>
   Widget build(BuildContext context) {
     const gold = GameOverOverlay._gold;
     return FadeTransition(
-      opacity: Tween(begin: 0.7, end: 1.0).animate(
-        CurvedAnimation(parent: _c, curve: Curves.easeInOut),
-      ),
+      opacity: Tween(
+        begin: 0.7,
+        end: 1.0,
+      ).animate(CurvedAnimation(parent: _c, curve: Curves.easeInOut)),
       child: Text(
         '★ NEW RECORD',
         style: TextStyle(
@@ -487,9 +510,7 @@ class _NewRecordBadgeState extends State<_NewRecordBadge>
           fontSize: 13,
           fontWeight: FontWeight.w900,
           letterSpacing: 1.8,
-          shadows: [
-            Shadow(color: gold.withValues(alpha: 0.8), blurRadius: 12),
-          ],
+          shadows: [Shadow(color: gold.withValues(alpha: 0.8), blurRadius: 12)],
         ),
       ),
     );

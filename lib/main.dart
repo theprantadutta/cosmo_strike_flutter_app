@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' as riverpod;
 import 'package:provider/provider.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
+import 'package:cosmo_strike_flutter_app/services/ads/ad_tuning.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
@@ -88,6 +89,10 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     AppLogger.success('Firebase initialized successfully');
+
+    // Remote-tunable ad cadence — non-blocking; ads run on in-code defaults
+    // until (and unless) the fetch lands.
+    unawaited(AdTuning.init());
 
     // Crash reporting + performance monitoring. Collection is gated to release
     // builds so local dev crashes/traces never pollute the production

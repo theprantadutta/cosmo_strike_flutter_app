@@ -78,6 +78,9 @@ Restore).
 > app + backend but **no screen sells them yet** (only bronze/silver/gold have
 > buy buttons). Safe to skip for now — querying a missing product is harmless —
 > or create them Inactive until a UI exists.
+>
+> Bronze entries can also be earned via a rewarded ad, **capped at 2/day**
+> (`AdService.capTournamentEntry`), so the paid bronze entry retains value.
 
 ### 2c. Premium themes (permanent unlock)
 

@@ -64,6 +64,9 @@ dependencies:
   # Crash reporting + performance monitoring
   firebase_crashlytics: ^5.2.4
   firebase_performance: ^0.11.4+3
+  # Remote-tunable ad cadence (AdTuning) — defaults live in code, so ads
+  # work offline / before the first fetch.
+  firebase_remote_config: ^6.0.0
 
   # Connectivity for offline/online detection
   connectivity_plus: ^7.0.0
