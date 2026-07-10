@@ -43,11 +43,13 @@ class AuthCubit extends Cubit<AuthState> {
       // This must happen before any network calls to prevent race conditions
       final isFirstTime = await _isFirstTimeUser();
 
-      emit(state.copyWith(
-        status: AuthStatus.loading,
-        isLoading: true,
-        isFirstTimeUser: isFirstTime, // Set from local storage IMMEDIATELY
-      ));
+      emit(
+        state.copyWith(
+          status: AuthStatus.loading,
+          isLoading: true,
+          isFirstTimeUser: isFirstTime, // Set from local storage IMMEDIATELY
+        ),
+      );
 
       // Signal that local init is complete - LoadingScreen can proceed
       if (!_localInitCompleter.isCompleted) {
@@ -375,12 +377,14 @@ class AuthCubit extends Cubit<AuthState> {
   /// (typically the profile screen via a BlocListener watching for the
   /// transition to AuthStatus.unauthenticated).
   Future<void> signOut() async {
-    emit(state.copyWith(
-      status: AuthStatus.loading,
-      isLoading: true,
-      clearUser: true,
-      clearError: true,
-    ));
+    emit(
+      state.copyWith(
+        status: AuthStatus.loading,
+        isLoading: true,
+        clearUser: true,
+        clearError: true,
+      ),
+    );
 
     try {
       await _userService.signOut();
@@ -409,12 +413,63 @@ class AuthCubit extends Cubit<AuthState> {
     } catch (e) {
       // Even on error, finalise as unauthenticated so the UI can navigate
       // away — a half-signed-out state is worse than an explicit sign-out.
-      emit(state.copyWith(
-        status: AuthStatus.unauthenticated,
-        clearUser: true,
-        isLoading: false,
-        errorMessage: e.toString(),
-      ));
+      emit(
+        state.copyWith(
+          status: AuthStatus.unauthenticated,
+          clearUser: true,
+          isLoading: false,
+          errorMessage: e.toString(),
+        ),
+      );
+    }
+  }
+
+  /// Permanently delete the account (server data + Firebase identity +
+  /// full local wipe). Returns true on success; on failure NOTHING is
+  /// deleted (server call is the gate) and the session stays intact so
+  /// the user can retry. Navigation on success is the initiating screen's
+  /// job, same convention as [signOut].
+  Future<bool> deleteAccount() async {
+    emit(state.copyWith(isLoading: true, clearError: true));
+    try {
+      final deleted = await _userService.deleteAccount();
+      if (!deleted) {
+        emit(
+          state.copyWith(
+            isLoading: false,
+            errorMessage:
+                'Could not delete your account. Check your connection and try again.',
+          ),
+        );
+        return false;
+      }
+
+      _analytics.setUserId(null);
+      NotificationService().resetBackendIntegration();
+
+      // Route the next launch through FirstTimeAuthScreen — the account is
+      // gone; the user must pick Guest vs Google fresh.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('first_time_setup_complete', false);
+      } catch (_) {}
+      emit(
+        state.copyWith(
+          status: AuthStatus.unauthenticated,
+          clearUser: true,
+          isLoading: false,
+          isFirstTimeUser: true,
+        ),
+      );
+      return true;
+    } catch (e) {
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: 'Could not delete your account: $e',
+        ),
+      );
+      return false;
     }
   }
 

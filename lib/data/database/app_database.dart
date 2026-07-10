@@ -78,8 +78,7 @@ class GameSettings extends Table {
   // round-trip to the backend. Distinct from `lastUpdated` (which is
   // older and inconsistently maintained) so we don't have to retrofit
   // every existing write site.
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 // =====================================================
@@ -99,8 +98,7 @@ class Statistics extends Table {
   // Ship length stats
   IntColumn get maxShipLength => integer().withDefault(const Constant(0))();
   IntColumn get totalShipLength => integer().withDefault(const Constant(0))();
-  RealColumn get averageShipLength =>
-      real().withDefault(const Constant(0.0))();
+  RealColumn get averageShipLength => real().withDefault(const Constant(0.0))();
 
   // Death stats
   IntColumn get deathsByWall => integer().withDefault(const Constant(0))();
@@ -125,8 +123,7 @@ class Statistics extends Table {
   IntColumn get longestPlayStreak => integer().withDefault(const Constant(0))();
 
   // Per-mode stats (stored as JSON)
-  TextColumn get classicModeStats =>
-      text().withDefault(const Constant('{}'))();
+  TextColumn get classicModeStats => text().withDefault(const Constant('{}'))();
   TextColumn get zenModeStats => text().withDefault(const Constant('{}'))();
   TextColumn get speedModeStats => text().withDefault(const Constant('{}'))();
   TextColumn get survivalModeStats =>
@@ -166,9 +163,9 @@ class Statistics extends Table {
   DateTimeColumn get lastPlayedAt => dateTime().nullable()();
   DateTimeColumn get lastUpdated =>
       dateTime().withDefault(currentDateAndTime)();
+
   /// Sync-engine timestamp — see [GameSettings.updatedAt].
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   // Full GameStatistics model serialized as JSON.
   //
@@ -204,14 +201,15 @@ class Achievements extends Table {
   BoolColumn get isUnlocked => boolean().withDefault(const Constant(false))();
   DateTimeColumn get unlockedAt => dateTime().nullable()();
   IntColumn get rewardCoins => integer().withDefault(const Constant(0))();
-  BoolColumn get rewardClaimed => boolean().withDefault(const Constant(false))();
+  BoolColumn get rewardClaimed =>
+      boolean().withDefault(const Constant(false))();
   TextColumn get iconName => text().nullable()();
   BoolColumn get isSecret => boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastUpdated =>
       dateTime().withDefault(currentDateAndTime)();
+
   /// Sync-engine timestamp — see [GameSettings.updatedAt].
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -227,9 +225,9 @@ class Coins extends Table {
   IntColumn get totalSpent => integer().withDefault(const Constant(0))();
   DateTimeColumn get lastUpdated =>
       dateTime().withDefault(currentDateAndTime)();
+
   /// Sync-engine timestamp — see [GameSettings.updatedAt].
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 class CoinTransactions extends Table {
@@ -241,11 +239,11 @@ class CoinTransactions extends Table {
       text()(); // 'game', 'achievement', 'daily_bonus', 'purchase', etc.
   TextColumn get description => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
   /// Sync-engine timestamp — see [GameSettings.updatedAt]. For an
   /// append-only log this matches `createdAt` on insert, but kept for
   /// schema symmetry with the other synced tables.
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 // =====================================================
@@ -281,9 +279,9 @@ class PremiumStatus extends Table {
       text().nullable()(); // For purchase validation
   DateTimeColumn get lastUpdated =>
       dateTime().withDefault(currentDateAndTime)();
+
   /// Sync-engine timestamp — see [GameSettings.updatedAt].
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 // =====================================================
@@ -295,11 +293,11 @@ class UnlockedItems extends Table {
   TextColumn get itemType =>
       text()(); // 'theme', 'skin', 'trail', 'powerup', 'board_size', 'game_mode', 'bundle'
   DateTimeColumn get unlockedAt => dateTime().withDefault(currentDateAndTime)();
-  TextColumn get unlockedBy =>
-      text().withDefault(const Constant('purchase'))(); // 'purchase', 'achievement', 'battle_pass', 'gift'
+  TextColumn get unlockedBy => text().withDefault(
+    const Constant('purchase'),
+  )(); // 'purchase', 'achievement', 'battle_pass', 'gift'
   /// Sync-engine timestamp — see [GameSettings.updatedAt].
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 // =====================================================
@@ -319,9 +317,9 @@ class BattlePasses extends Table {
   DateTimeColumn get seasonEndDate => dateTime().nullable()();
   DateTimeColumn get lastUpdated =>
       dateTime().withDefault(currentDateAndTime)();
+
   /// Sync-engine timestamp — see [GameSettings.updatedAt].
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 // =====================================================
@@ -337,14 +335,18 @@ class DailyChallenges extends Table {
   IntColumn get currentProgress => integer().withDefault(const Constant(0))();
   IntColumn get targetProgress => integer()();
   IntColumn get rewardCoins => integer().withDefault(const Constant(0))();
+
   /// Battle-pass XP reward (display/fidelity). Persisted so an offline
   /// hydration from Drift can reconstruct the full challenge.
   IntColumn get rewardXp => integer().withDefault(const Constant(0))();
   BoolColumn get isCompleted => boolean().withDefault(const Constant(false))();
-  BoolColumn get rewardClaimed => boolean().withDefault(const Constant(false))();
+  BoolColumn get rewardClaimed =>
+      boolean().withDefault(const Constant(false))();
+
   /// Difficulty label ('easy'/'medium'/'hard'); nullable for legacy rows and
   /// the synthetic all-complete bonus row.
   TextColumn get difficulty => text().nullable()();
+
   /// Required game mode for GameMode-type challenges (e.g. 'classic', 'zen').
   /// MUST be persisted: without it an offline-hydrated GameMode challenge would
   /// match any mode and over-count progress.
@@ -352,9 +354,9 @@ class DailyChallenges extends Table {
   DateTimeColumn get challengeDate => dateTime()();
   DateTimeColumn get expiresAt => dateTime()();
   DateTimeColumn get completedAt => dateTime().nullable()();
+
   /// Sync-engine timestamp — see [GameSettings.updatedAt].
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 // =====================================================
@@ -372,12 +374,13 @@ class WeeklyQuests extends Table {
   IntColumn get battlePassXpReward =>
       integer().withDefault(const Constant(0))();
   BoolColumn get isCompleted => boolean().withDefault(const Constant(false))();
-  BoolColumn get claimedReward => boolean().withDefault(const Constant(false))();
+  BoolColumn get claimedReward =>
+      boolean().withDefault(const Constant(false))();
   DateTimeColumn get weekStartDate => dateTime()();
   DateTimeColumn get completedAt => dateTime().nullable()();
+
   /// Sync-engine timestamp — see [GameSettings.updatedAt].
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 // =====================================================
@@ -406,11 +409,10 @@ class DailyBonusState extends Table {
   // days of the current 7-day cycle have been claimed. Resets on a
   // streak break or cycle wrap (newStreak < oldStreak or newStreak %
   // 7 == 1).
-  TextColumn get weeklyClaimsJson =>
-      text().withDefault(const Constant('{}'))();
+  TextColumn get weeklyClaimsJson => text().withDefault(const Constant('{}'))();
+
   /// Sync-engine timestamp — see [GameSettings.updatedAt].
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 // =====================================================
@@ -441,10 +443,12 @@ class SyncQueue extends Table {
   TextColumn get dataType =>
       text()(); // 'score', 'profile', 'preferences', 'achievement', etc.
   TextColumn get data => text()(); // JSON encoded data
-  IntColumn get priority =>
-      integer().withDefault(const Constant(2))(); // 0=critical, 1=high, 2=normal, 3=low
-  IntColumn get status =>
-      integer().withDefault(const Constant(0))(); // 0=pending, 1=syncing, 2=failed, 3=completed
+  IntColumn get priority => integer().withDefault(
+    const Constant(2),
+  )(); // 0=critical, 1=high, 2=normal, 3=low
+  IntColumn get status => integer().withDefault(
+    const Constant(0),
+  )(); // 0=pending, 1=syncing, 2=failed, 3=completed
   IntColumn get retryCount => integer().withDefault(const Constant(0))();
   TextColumn get lastError => text().nullable()();
   DateTimeColumn get queuedAt => dateTime().withDefault(currentDateAndTime)();
@@ -586,8 +590,9 @@ class FriendsCache extends Table {
   TextColumn get username => text().nullable()();
   TextColumn get displayName => text().nullable()();
   TextColumn get photoUrl => text().nullable()();
-  TextColumn get status =>
-      text().withDefault(const Constant('offline'))(); // online | offline | playing
+  TextColumn get status => text().withDefault(
+    const Constant('offline'),
+  )(); // online | offline | playing
   IntColumn get highScore => integer().withDefault(const Constant(0))();
   IntColumn get level => integer().withDefault(const Constant(1))();
   DateTimeColumn get friendsSince =>
@@ -658,7 +663,8 @@ class PurchaseHistory extends Table {
   TextColumn get status =>
       text()(); // 'pending', 'completed', 'failed', 'refunded'
   TextColumn get receiptData => text().nullable()();
-  DateTimeColumn get purchasedAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get purchasedAt =>
+      dateTime().withDefault(currentDateAndTime)();
 }
 
 // =====================================================
@@ -674,9 +680,9 @@ class PlayerProgressTable extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get totalXp => integer().withDefault(const Constant(0))();
   IntColumn get level => integer().withDefault(const Constant(1))();
+
   /// Sync-engine timestamp — see [GameSettings.updatedAt].
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 // =====================================================
@@ -706,8 +712,7 @@ class StageProgressTable extends Table {
   DateTimeColumn get firstClearedAt => dateTime().nullable()();
 
   /// Sync-engine timestamp — see [GameSettings.updatedAt].
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {stageId};
@@ -909,10 +914,7 @@ class AppDatabase extends _$AppDatabase {
       SyncQueueCompanion.insert(
         id: id,
         dataType: dataType,
-        data: jsonEncode({
-          'entityKey': entityKey,
-          'payload': ?payload,
-        }),
+        data: jsonEncode({'entityKey': entityKey, 'payload': ?payload}),
         priority: Value(priority),
       ),
       mode: InsertMode.insertOrIgnore,
@@ -983,6 +985,14 @@ class AppDatabase extends _$AppDatabase {
       await delete(friendsMeta).go();
       // Campaign progress is per-user — re-seeded by initializeDefaults.
       await delete(stageProgressTable).go();
+      // Per-user rows that were previously missed by the wipe (found by
+      // the account-deletion audit): weekly quests, daily bonus streak,
+      // XP/level progression, and the power-up inventory all leaked
+      // across an account switch / survived account deletion.
+      await delete(weeklyQuests).go();
+      await delete(dailyBonusState).go();
+      await delete(playerProgressTable).go();
+      await delete(powerUpInventory).go();
     });
 
     // Reinitialize defaults

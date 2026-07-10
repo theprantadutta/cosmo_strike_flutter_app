@@ -211,7 +211,8 @@ class UnifiedUserService extends ChangeNotifier {
   /// and signInWithGoogle reports success before the cloud restore has
   /// even started — so router navigates to home BEFORE the overlay shows.
   Future<void>? _loadingFuture;
-  bool _isInitializing = false; // Prevents auth listener from duplicating work during initialize()
+  bool _isInitializing =
+      false; // Prevents auth listener from duplicating work during initialize()
 
   /// True if the most recent `_loadOrCreateUser` call corresponded to a
   /// brand-new backend account (backend's AuthResponse.IsNewUser=true).
@@ -300,7 +301,9 @@ class UnifiedUserService extends ChangeNotifier {
           _isInitialized = true; // Mark initialized with cached user
           notifyListeners();
         } else {
-          AppLogger.user('No cache found, creating offline guest user immediately');
+          AppLogger.user(
+            'No cache found, creating offline guest user immediately',
+          );
           _currentUser = await _createOfflineGuestUser();
           await _cacheUserSession(_currentUser!);
           _isInitialized = true; // Mark initialized with offline guest
@@ -453,12 +456,10 @@ class UnifiedUserService extends ChangeNotifier {
               try {
                 final result = await GetIt.I<SyncEngine>()
                     .maybeRunFirstSignInPull(
-                  userId: backendUserId,
-                  isNewUser: _justLoadedNewUser,
-                );
-                AppLogger.network(
-                  'First-sign-in pull result: ${result.name}',
-                );
+                      userId: backendUserId,
+                      isNewUser: _justLoadedNewUser,
+                    );
+                AppLogger.network('First-sign-in pull result: ${result.name}');
                 // If we just restored from cloud, re-load the user
                 // profile so the in-memory _currentUser reflects
                 // any restored fields (high score, coins, …).
@@ -503,8 +504,10 @@ class UnifiedUserService extends ChangeNotifier {
             // token verify but not for the profile fetch (transient).
             // Prefer the cached user over a fresh-from-Firebase rebuild
             // so we don't lose offline-accurate fields (highScore, etc).
-            await _restoreFromCacheOrCreate(firebaseUser,
-                reason: '/auth/me unreachable');
+            await _restoreFromCacheOrCreate(
+              firebaseUser,
+              reason: '/auth/me unreachable',
+            );
           }
         } else {
           // Backend auth failed entirely. This is the common offline path
@@ -515,8 +518,10 @@ class UnifiedUserService extends ChangeNotifier {
           // 0 or stale) and CACHES that — wiping a previously-correct
           // cached UnifiedUser. The user then sees their high score drop
           // to 0/stale offline. Restore from cache when possible instead.
-          await _restoreFromCacheOrCreate(firebaseUser,
-              reason: 'backend auth failed (likely offline)');
+          await _restoreFromCacheOrCreate(
+            firebaseUser,
+            reason: 'backend auth failed (likely offline)',
+          );
         }
       } else {
         // Offline path - try to load cached session
@@ -1035,7 +1040,9 @@ class UnifiedUserService extends ChangeNotifier {
         AppLogger.user('Failed to obtain Google ID token');
         return false;
       }
-      final credential = GoogleAuthProvider.credential(idToken: googleAuth.idToken);
+      final credential = GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+      );
       final result = await user.linkWithCredential(credential);
       AppLogger.success('Linked anon → Google: ${result.user?.uid}');
       if (result.user != null) {
@@ -1119,14 +1126,22 @@ class UnifiedUserService extends ChangeNotifier {
       // max guard, refreshFromBackend would clobber the fresh local high
       // score with the older server value until the next score-submit
       // brought them back in sync.
-      final serverHighScore = (fresh['high_score'] ?? fresh['highScore'] ?? 0) as int;
-      final serverGames = (fresh['total_games_played'] ?? fresh['totalGamesPlayed'] ?? 0) as int;
-      final serverTotal = (fresh['total_score'] ?? fresh['totalScore'] ?? 0) as int;
+      final serverHighScore =
+          (fresh['high_score'] ?? fresh['highScore'] ?? 0) as int;
+      final serverGames =
+          (fresh['total_games_played'] ?? fresh['totalGamesPlayed'] ?? 0)
+              as int;
+      final serverTotal =
+          (fresh['total_score'] ?? fresh['totalScore'] ?? 0) as int;
 
       _currentUser = _currentUser!.copyWith(
         username: fresh['username'] ?? _currentUser!.username,
-        displayName: fresh['display_name'] ?? fresh['displayName'] ?? _currentUser!.displayName,
-        photoURL: fresh['photo_url'] ?? fresh['photoURL'] ?? _currentUser!.photoURL,
+        displayName:
+            fresh['display_name'] ??
+            fresh['displayName'] ??
+            _currentUser!.displayName,
+        photoURL:
+            fresh['photo_url'] ?? fresh['photoURL'] ?? _currentUser!.photoURL,
         email: fresh['email'] ?? _currentUser!.email,
         highScore: max(serverHighScore, _currentUser!.highScore),
         totalGamesPlayed: max(serverGames, _currentUser!.totalGamesPlayed),
@@ -1248,6 +1263,41 @@ class UnifiedUserService extends ChangeNotifier {
       _currentUser = null;
       notifyListeners();
     }
+  }
+
+  /// Permanently delete the user's account: server-side data deletion
+  /// (DELETE /users/me — also removes the Firebase Auth user), then the
+  /// full local teardown. Returns false ONLY when the server call fails
+  /// (nothing local is touched in that case, so the user can retry).
+  Future<bool> deleteAccount() async {
+    final deleted = await _apiService.deleteAccount();
+    if (!deleted) {
+      AppLogger.user('Account deletion failed server-side — aborting');
+      return false;
+    }
+
+    // Server data is gone. Tear down everything local, mirroring signOut
+    // (each step best-effort so one failure can't strand the flow).
+    await _apiService.clearToken();
+    try {
+      await _wipeLocalSyncState();
+    } catch (e) {
+      AppLogger.user('Local wipe failed during account deletion', e);
+    }
+    try {
+      // The Firebase user was deleted server-side; local signOut clears
+      // the now-dead session (currentUser.delete() would just error).
+      await _googleSignIn.signOut();
+      await _auth.signOut();
+    } catch (e) {
+      AppLogger.user('Firebase sign-out failed during account deletion', e);
+    }
+    _currentUser = null;
+    await _clearCachedUserSession();
+    await _clearLocalGuestData();
+    notifyListeners();
+    AppLogger.user('Account deleted and local state cleared');
+    return true;
   }
 
   /// Reset every device-local store that's scoped to the authenticated

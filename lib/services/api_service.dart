@@ -87,8 +87,7 @@ class ApiService {
   /// True when a usable JWT is in memory. Strict: also requires the
   /// JWT to not be expired/expiring, so callers don't fire requests
   /// that are about to eat a 401.
-  bool get isAuthenticated =>
-      _accessToken != null && !isTokenExpiredOrExpiring;
+  bool get isAuthenticated => _accessToken != null && !isTokenExpiredOrExpiring;
 
   String? get currentUserId => _userId;
 
@@ -235,6 +234,21 @@ class ApiService {
     } catch (e) {
       AppLogger.error('Error getting current user', e);
       return null;
+    }
+  }
+
+  /// Permanently delete the authenticated account server-side (also removes
+  /// the Firebase Auth user). Returns true only on a confirmed 2xx — callers
+  /// must NOT tear down local state on failure, so the user can retry.
+  Future<bool> deleteAccount() async {
+    try {
+      final response = await http
+          .delete(Uri.parse('$baseUrl/users/me'), headers: _authHeaders)
+          .timeout(_timeout);
+      return _handleResponse(response) != null;
+    } catch (e) {
+      AppLogger.error('Error DELETE /users/me', e);
+      return false;
     }
   }
 
@@ -472,9 +486,7 @@ class ApiService {
   Future<SyncOutcome> syncAchievements(List<Map<String, dynamic>> items) =>
       _postSync('achievements', {'items': items});
 
-  Future<SyncOutcome> syncCoinTransactions(
-    List<Map<String, dynamic>> items,
-  ) =>
+  Future<SyncOutcome> syncCoinTransactions(List<Map<String, dynamic>> items) =>
       _postSync('coins/transactions', {'items': items});
 
   Future<SyncOutcome> syncUnlockedItems(List<Map<String, dynamic>> items) =>
@@ -505,15 +517,12 @@ class ApiService {
 
   Future<SyncOutcome> syncDailyChallengeClaims(
     List<Map<String, dynamic>> items,
-  ) =>
-      _postSync('daily-challenge-claims', {'items': items});
+  ) => _postSync('daily-challenge-claims', {'items': items});
 
   Future<SyncOutcome> syncStageProgress(List<Map<String, dynamic>> items) =>
       _postSync('stage-progress', {'items': items});
 
-  Future<SyncOutcome> syncWeeklyQuestClaims(
-    List<Map<String, dynamic>> items,
-  ) =>
+  Future<SyncOutcome> syncWeeklyQuestClaims(List<Map<String, dynamic>> items) =>
       _postSync('weekly-quests', {'items': items});
 
   /// Push the per-user daily-bonus snapshot to the backend's absorbing-
@@ -571,7 +580,9 @@ class ApiService {
   /// battlePassXp, balance? }` on 200. Server is the authority on the
   /// reward grant; the client UI optimistically credits the local
   /// CoinsCubit before this returns and reconciles afterwards.
-  Future<Map<String, dynamic>?> claimWeeklyQuestRewardRemote(String questId) async {
+  Future<Map<String, dynamic>?> claimWeeklyQuestRewardRemote(
+    String questId,
+  ) async {
     try {
       final response = await http
           .post(
@@ -595,10 +606,7 @@ class ApiService {
   Future<Map<String, dynamic>?> getTodaysChallengesRemote() async {
     try {
       final response = await http
-          .get(
-            Uri.parse('$baseUrl/daily-challenges'),
-            headers: _authHeaders,
-          )
+          .get(Uri.parse('$baseUrl/daily-challenges'), headers: _authHeaders)
           .timeout(_timeout);
       return _handleResponse(response);
     } catch (e) {
@@ -617,10 +625,7 @@ class ApiService {
   Future<Map<String, dynamic>?> getFriendsList() async {
     try {
       final response = await http
-          .get(
-            Uri.parse('$baseUrl/social/friends'),
-            headers: _authHeaders,
-          )
+          .get(Uri.parse('$baseUrl/social/friends'), headers: _authHeaders)
           .timeout(_timeout);
       return _handleResponse(response);
     } catch (e) {
@@ -632,10 +637,7 @@ class ApiService {
   Future<Map<String, dynamic>?> getFriendRequestsList() async {
     try {
       final response = await http
-          .get(
-            Uri.parse('$baseUrl/social/requests'),
-            headers: _authHeaders,
-          )
+          .get(Uri.parse('$baseUrl/social/requests'), headers: _authHeaders)
           .timeout(_timeout);
       return _handleResponse(response);
     } catch (e) {
@@ -726,14 +728,12 @@ class ApiService {
     int limit = 20,
   }) async {
     try {
-      final uri = Uri.parse('$baseUrl/users/search').replace(
-        queryParameters: {
-          'query': query,
-          'limit': '$limit',
-        },
-      );
-      final response =
-          await http.get(uri, headers: _authHeaders).timeout(_timeout);
+      final uri = Uri.parse(
+        '$baseUrl/users/search',
+      ).replace(queryParameters: {'query': query, 'limit': '$limit'});
+      final response = await http
+          .get(uri, headers: _authHeaders)
+          .timeout(_timeout);
       return _handleResponse(response);
     } catch (e) {
       AppLogger.error('Error GET /users/search', e);
@@ -751,10 +751,7 @@ class ApiService {
   Future<Map<String, dynamic>?> getActiveTournaments() async {
     try {
       final response = await http
-          .get(
-            Uri.parse('$baseUrl/tournaments/active'),
-            headers: _authHeaders,
-          )
+          .get(Uri.parse('$baseUrl/tournaments/active'), headers: _authHeaders)
           .timeout(_timeout);
       return _handleResponse(response);
     } catch (e) {
@@ -774,10 +771,12 @@ class ApiService {
         'status': ?status,
         'type': ?type,
       };
-      final uri = Uri.parse('$baseUrl/tournaments')
-          .replace(queryParameters: query);
-      final response =
-          await http.get(uri, headers: _authHeaders).timeout(_timeout);
+      final uri = Uri.parse(
+        '$baseUrl/tournaments',
+      ).replace(queryParameters: query);
+      final response = await http
+          .get(uri, headers: _authHeaders)
+          .timeout(_timeout);
       return _handleResponse(response);
     } catch (e) {
       AppLogger.error('Error GET /tournaments', e);
@@ -788,10 +787,7 @@ class ApiService {
   Future<Map<String, dynamic>?> getTournament(String id) async {
     try {
       final response = await http
-          .get(
-            Uri.parse('$baseUrl/tournaments/$id'),
-            headers: _authHeaders,
-          )
+          .get(Uri.parse('$baseUrl/tournaments/$id'), headers: _authHeaders)
           .timeout(_timeout);
       return _handleResponse(response);
     } catch (e) {
@@ -805,10 +801,12 @@ class ApiService {
     int limit = 100,
   }) async {
     try {
-      final uri = Uri.parse('$baseUrl/tournaments/$id/leaderboard')
-          .replace(queryParameters: {'limit': '$limit'});
-      final response =
-          await http.get(uri, headers: _authHeaders).timeout(_timeout);
+      final uri = Uri.parse(
+        '$baseUrl/tournaments/$id/leaderboard',
+      ).replace(queryParameters: {'limit': '$limit'});
+      final response = await http
+          .get(uri, headers: _authHeaders)
+          .timeout(_timeout);
       return _handleResponse(response);
     } catch (e) {
       AppLogger.error('Error GET /tournaments/$id/leaderboard', e);
@@ -878,10 +876,7 @@ class ApiService {
           .timeout(_timeout);
       return _handleResponse(response);
     } catch (e) {
-      AppLogger.error(
-        'Error POST /tournaments/$tournamentId/score',
-        e,
-      );
+      AppLogger.error('Error POST /tournaments/$tournamentId/score', e);
       return null;
     }
   }
@@ -904,36 +899,39 @@ class ApiService {
     int pageSize = 100,
     String? gameMode,
     String? difficulty,
-  }) =>
-      _getLeaderboard('global',
-          page: page,
-          pageSize: pageSize,
-          gameMode: gameMode,
-          difficulty: difficulty);
+  }) => _getLeaderboard(
+    'global',
+    page: page,
+    pageSize: pageSize,
+    gameMode: gameMode,
+    difficulty: difficulty,
+  );
 
   Future<Map<String, dynamic>?> getWeeklyLeaderboardPage({
     int page = 1,
     int pageSize = 100,
     String? gameMode,
     String? difficulty,
-  }) =>
-      _getLeaderboard('weekly',
-          page: page,
-          pageSize: pageSize,
-          gameMode: gameMode,
-          difficulty: difficulty);
+  }) => _getLeaderboard(
+    'weekly',
+    page: page,
+    pageSize: pageSize,
+    gameMode: gameMode,
+    difficulty: difficulty,
+  );
 
   Future<Map<String, dynamic>?> getDailyLeaderboardPage({
     int page = 1,
     int pageSize = 100,
     String? gameMode,
     String? difficulty,
-  }) =>
-      _getLeaderboard('daily',
-          page: page,
-          pageSize: pageSize,
-          gameMode: gameMode,
-          difficulty: difficulty);
+  }) => _getLeaderboard(
+    'daily',
+    page: page,
+    pageSize: pageSize,
+    gameMode: gameMode,
+    difficulty: difficulty,
+  );
 
   /// Friends leaderboard is gated on auth (the others allow anonymous),
   /// so callers should only invoke it when [isAuthenticated] is true.
@@ -942,12 +940,13 @@ class ApiService {
     int pageSize = 50,
     String? gameMode,
     String? difficulty,
-  }) =>
-      _getLeaderboard('friends',
-          page: page,
-          pageSize: pageSize,
-          gameMode: gameMode,
-          difficulty: difficulty);
+  }) => _getLeaderboard(
+    'friends',
+    page: page,
+    pageSize: pageSize,
+    gameMode: gameMode,
+    difficulty: difficulty,
+  );
 
   Future<Map<String, dynamic>?> _getLeaderboard(
     String boardPath, {
@@ -963,10 +962,12 @@ class ApiService {
         'game_mode': ?gameMode,
         'difficulty': ?difficulty,
       };
-      final uri =
-          Uri.parse('$baseUrl/leaderboard/$boardPath').replace(queryParameters: query);
-      final response =
-          await http.get(uri, headers: _authHeaders).timeout(_timeout);
+      final uri = Uri.parse(
+        '$baseUrl/leaderboard/$boardPath',
+      ).replace(queryParameters: query);
+      final response = await http
+          .get(uri, headers: _authHeaders)
+          .timeout(_timeout);
       return _handleResponse(response);
     } catch (e) {
       AppLogger.error('Error GET /leaderboard/$boardPath', e);
@@ -994,7 +995,7 @@ class ApiService {
       if (kDebugMode) {
         final preview = response.body.length > 200
             ? '${response.body.substring(0, 200)}… [truncated, '
-                '${response.body.length} bytes total]'
+                  '${response.body.length} bytes total]'
             : response.body;
         AppLogger.network('  body: $preview');
       }
@@ -1023,10 +1024,7 @@ class ApiService {
   ///     row failed — without this split, a permanent 400 (schema
   ///     mismatch, missing validator, payload too large) would wedge
   ///     the queue forever.
-  Future<SyncOutcome> _postSync(
-    String path,
-    Map<String, dynamic> body,
-  ) =>
+  Future<SyncOutcome> _postSync(String path, Map<String, dynamic> body) =>
       _postOutcome('$baseUrl/sync/$path', body, '/sync/$path');
 
   /// Offline score batch drain target. The SyncEngine pushes queued game runs
@@ -1042,10 +1040,10 @@ class ApiService {
   /// state, otherwise the next /sync/statistics MAX-merge would resurrect the
   /// pre-reset totals.
   Future<SyncOutcome> resetStatisticsRemote() => _postOutcome(
-        '$baseUrl/users/me/reset-statistics',
-        const {},
-        '/users/me/reset-statistics',
-      );
+    '$baseUrl/users/me/reset-statistics',
+    const {},
+    '/users/me/reset-statistics',
+  );
 
   /// POST [body] to [url] and map the HTTP result to a [SyncOutcome] with the
   /// same transient/permanent rules the SyncEngine drain relies on. Shared by
@@ -1058,11 +1056,7 @@ class ApiService {
     http.Response response;
     try {
       response = await http
-          .post(
-            Uri.parse(url),
-            headers: _authHeaders,
-            body: jsonEncode(body),
-          )
+          .post(Uri.parse(url), headers: _authHeaders, body: jsonEncode(body))
           .timeout(_timeout);
     } catch (e) {
       AppLogger.error('Error POST $label', e);
@@ -1083,13 +1077,12 @@ class ApiService {
         if (response.body.isEmpty) return SyncOutcome.success({});
         final decoded = jsonDecode(response.body);
         return SyncOutcome.success(
-          decoded is Map ? Map<String, dynamic>.from(decoded) : {'data': decoded},
+          decoded is Map
+              ? Map<String, dynamic>.from(decoded)
+              : {'data': decoded},
         );
       } catch (e) {
-        AppLogger.error(
-          'POST $label returned 2xx with undecodable body',
-          e,
-        );
+        AppLogger.error('POST $label returned 2xx with undecodable body', e);
         // Body is malformed but status was 2xx — treat as a permanent
         // failure rather than retrying forever against a server that
         // thinks it succeeded.
@@ -1098,7 +1091,10 @@ class ApiService {
     }
 
     if (code >= 500) {
-      AppLogger.error('POST $label failed with $code (transient)', response.body);
+      AppLogger.error(
+        'POST $label failed with $code (transient)',
+        response.body,
+      );
       return SyncOutcome.transient(statusCode: code);
     }
 
@@ -1158,10 +1154,7 @@ class ApiService {
           .post(
             Uri.parse('$baseUrl/test/send-to-me'),
             headers: _authHeaders,
-            body: jsonEncode({
-              'title': ?title,
-              'body': ?body,
-            }),
+            body: jsonEncode({'title': ?title, 'body': ?body}),
           )
           .timeout(_timeout);
       return response.statusCode == 200;

@@ -14,7 +14,7 @@ class PrivacyPolicy {
   PrivacyPolicy._();
 
   /// Current policy version. Bump on every material change to PRIVACY.md.
-  static const String currentPrivacyPolicyVersion = '2.0';
+  static const String currentPrivacyPolicyVersion = '2.1';
 
   /// New key: stores the policy version the user last accepted.
   static const String _versionKey = 'privacy_policy_accepted_version';

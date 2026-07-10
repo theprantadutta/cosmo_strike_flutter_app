@@ -1188,8 +1188,144 @@ class _SettingsScreenState extends State<SettingsScreen> {
             textAlign: TextAlign.center,
           ),
         ],
+
+        // Danger zone — permanent account deletion (Play policy requires an
+        // in-app path). Shown for every account type: guests have server
+        // rows too once they've synced.
+        const SizedBox(height: 24),
+        NeonButton(
+          onPressed: () => _showDeleteAccountDialog(theme),
+          label: 'DELETE ACCOUNT',
+          theme: theme,
+          variant: NeonButtonVariant.outline,
+          icon: Icons.delete_forever,
+          expand: true,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Permanently deletes your account and all game data. '
+          'This cannot be undone.',
+          style: TextStyle(
+            color: Colors.red.withValues(alpha: 0.8),
+            fontSize: 11,
+            fontStyle: FontStyle.italic,
+          ),
+          textAlign: TextAlign.center,
+        ),
       ],
     );
+  }
+
+  /// Two-step destructive confirm: an explicit list of what gets deleted,
+  /// then a type-DELETE gate before the button arms. On success every local
+  /// store is already wiped (AuthCubit → UnifiedUserService.deleteAccount),
+  /// so we route straight back to first-time auth.
+  void _showDeleteAccountDialog(GameTheme theme) {
+    final confirmController = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final armed = confirmController.text.trim().toUpperCase() == 'DELETE';
+          return AlertDialog(
+            backgroundColor: theme.backgroundColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Delete Account?',
+              style: TextStyle(color: Colors.red),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'This permanently deletes:',
+                  style: TextStyle(color: theme.textPrimary, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '• Your account and sign-in identity\n'
+                  '• All progress, scores and statistics\n'
+                  '• Coins, cosmetics and unlocked content\n'
+                  '• Friends, achievements and quest history',
+                  style: TextStyle(color: theme.textMuted, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'This cannot be undone.',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: confirmController,
+                  onChanged: (_) => setDialogState(() {}),
+                  style: TextStyle(color: theme.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: "Type DELETE to confirm",
+                    labelStyle: TextStyle(color: theme.textMuted),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text('Cancel', style: TextStyle(color: theme.textMuted)),
+              ),
+              TextButton(
+                onPressed: armed
+                    ? () {
+                        Navigator.of(dialogContext).pop();
+                        _performAccountDeletion();
+                      }
+                    : null,
+                child: Text(
+                  'Delete forever',
+                  style: TextStyle(
+                    color: armed ? Colors.red : theme.textMuted,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    ).then((_) => confirmController.dispose());
+  }
+
+  Future<void> _performAccountDeletion() async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Deleting your account...'),
+        backgroundColor: Colors.red,
+      ),
+    );
+
+    final ok = await context.read<AuthCubit>().deleteAccount();
+    if (!mounted) return;
+
+    if (ok) {
+      // Local state is fully wiped — land on the fresh-install auth screen.
+      context.go(AppRoutes.firstTimeAuth);
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            context.read<AuthCubit>().state.errorMessage ??
+                'Could not delete your account. Please try again.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   /// Three-button diagnostic surface for the notification pipeline. Each

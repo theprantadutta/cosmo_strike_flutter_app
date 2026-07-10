@@ -1,6 +1,6 @@
 # Privacy Policy for Cosmo Strike
 
-**Policy Version: 2.0**  
+**Policy Version: 2.1**  
 **Effective Date: May 29, 2026**  
 **Last Updated: May 29, 2026**
 
@@ -235,14 +235,21 @@ We show ads to support the free version of the app using **Google AdMob**. Pro s
 - **Active Accounts:** Data retained while your account is active
 - **Inactive Accounts:** Data may be deleted after 24 months of inactivity
 - **Legal Requirements:** Some data retained longer if required by law
-- **User Deletion:** Account deletion removes personal data within 30 days
+- **User Deletion:** Account deletion removes your personal data immediately.
+  Purchase and subscription transaction records may be retained in
+  anonymized form (with all personal identifiers removed) where required
+  for refund handling, tax, and legal compliance
 
 ## Your Privacy Rights
 
 ### 1. Access and Control
 - **Profile Settings:** Update your username, display name, and visibility preferences
-- **Data Download:** Request a copy of your personal data through in-app settings
 - **Account Deletion:** Permanently delete your account and associated data
+  directly in the app — Settings → Profile → Delete Account — or request
+  deletion through our account deletion request form (linked on the app's
+  store listing)
+- **Data Access:** Request a copy of your personal data by contacting us
+  (see Contact section below)
 - **Communication Preferences:** Manage push notification categories and preferences
 
 ### 2. Regional Rights (GDPR, CCPA, etc.)
@@ -345,10 +352,15 @@ Privacy-related disputes are subject to the dispute resolution procedures outlin
 
 *This Privacy Policy is designed to comply with Google Play Store policies and international privacy regulations including GDPR, CCPA, and other applicable laws.*
 
-**Document Version:** 2.0  
+**Document Version:** 2.1  
 **Compliance:** Google Play Store, GDPR, CCPA, COPPA  
 **Language:** English (additional translations available in-app)
 
 ### Version History
+- **2.1 — July 10, 2026:** Added in-app account deletion (Settings → Profile →
+  Delete Account) and the account deletion request form; clarified that
+  anonymized purchase records may be retained for legal compliance; replaced
+  the in-app "Data Download" option with data access requests via our contact
+  channel; removed references to the discontinued free trial.
 - **2.0 — May 29, 2026:** Disclosed in-app advertising via Google AdMob (banner, interstitial, and opt-in rewarded ads), UMP/GDPR consent and iOS App Tracking Transparency, and the ad-free Pro experience. Aligned the "Cookies and Tracking → Advertising" section with the new ad integration. Introduced policy versioning so material changes prompt renewed acceptance.
 - **1.0 — January 17, 2025:** Initial privacy policy.

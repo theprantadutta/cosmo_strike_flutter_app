@@ -159,14 +159,26 @@ Restore).
    fallbacks) → purchase sheet opens → after purchase `/purchases/verify`
    grants premium → Restore purchases works after reinstall.
 
-## 5. Data-safety form — SDK inventory
+## 5. Account deletion (Play policy requirement)
+
+- **In-app**: Settings → Profile → **Delete Account** (type-DELETE confirm) →
+  `DELETE /api/v1/users/me`. Gameplay/personal data is hard-deleted; the user
+  row is anonymized only when purchase/subscription records must be retained
+  for legal compliance; the Firebase Auth identity is removed too.
+- **Web URL for the store listing** ("provide a link where users can request
+  account deletion"): use the **Google Form** you maintain for deletion
+  requests — paste its URL into Play Console → App content → Data safety →
+  Account deletion. Requests arriving there are fulfilled manually (admin
+  deletes the account server-side).
+
+## 6. Data-safety form — SDK inventory
 
 Declare data collected by: Firebase (Auth, Analytics, Crashlytics, Performance,
 Messaging), Google Sign-In, AdMob (+ UMP consent, already implemented),
 Google Play Billing, connectivity. Privacy policy ships in-app (`PRIVACY.md`
 v2.0) — host the same text at a public URL for the store listing.
 
-## 6. iOS / App Store (later)
+## 7. iOS / App Store (later)
 
 The same catalog applies 1:1 on the App Store (same bare IDs under the
 `com.pranta.cosmostrike.` prefix; App Store Connect auto-renewables for the two
