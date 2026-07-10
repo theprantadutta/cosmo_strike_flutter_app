@@ -326,9 +326,7 @@ class PurchaseService {
         productType: _productTypeFor(productDetails.id),
       );
 
-      final PurchaseParam purchaseParam = PurchaseParam(
-        productDetails: productDetails,
-      );
+      final PurchaseParam purchaseParam = _buildPurchaseParam(productDetails);
 
       bool success;
       if (ProductIds.consumableIds.contains(productDetails.id)) {
@@ -363,6 +361,43 @@ class PurchaseService {
       );
       return false;
     }
+  }
+
+  /// Build the platform purchase param. For the two Pro subscriptions on
+  /// Android this checks whether the user already holds the OTHER Pro SKU
+  /// (from this session's purchase/restore stream) and, if so, buys via
+  /// Google's subscription-replacement flow with time proration — the old
+  /// sub is upgraded/downgraded instead of a SECOND concurrent subscription
+  /// being created (Google only blocks re-buying the SAME product, so a
+  /// plain param here double-bills). Plan cards are hidden for subscribers,
+  /// but stale local state (fresh reinstall pre-sync) can expose them.
+  PurchaseParam _buildPurchaseParam(ProductDetails productDetails) {
+    if (Platform.isAndroid &&
+        ProductIds.subscriptionIds.contains(productDetails.id)) {
+      final otherProId = productDetails.id == ProductIds.proMonthly
+          ? ProductIds.proYearly
+          : ProductIds.proMonthly;
+      GooglePlayPurchaseDetails? oldSub;
+      for (final p in _purchases) {
+        if (p.productID == otherProId && p is GooglePlayPurchaseDetails) {
+          oldSub = p;
+        }
+      }
+      if (oldSub != null) {
+        AppLogger.info(
+          'Buying ${productDetails.id} as a REPLACEMENT of $otherProId '
+          '(time-prorated) instead of a second concurrent subscription',
+        );
+        return GooglePlayPurchaseParam(
+          productDetails: productDetails,
+          changeSubscriptionParam: ChangeSubscriptionParam(
+            oldPurchaseDetails: oldSub,
+            replacementMode: ReplacementMode.withTimeProration,
+          ),
+        );
+      }
+    }
+    return PurchaseParam(productDetails: productDetails);
   }
 
   Future<void> _listenToPurchaseUpdated(
