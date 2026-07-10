@@ -105,7 +105,7 @@ dependencies:
   share_plus: ^13.1.0
 
   # In-app updates from Play Store
-  in_app_update: ^4.2.3
+  in_app_update: ^5.0.0
 
   # Declarative routing
   go_router: ^17.1.0
