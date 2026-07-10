@@ -24,10 +24,10 @@ time. (44 store products total: 2 subscriptions + 42 in-app products.)
 
 ## 1. Subscriptions (Monetize → Products → Subscriptions)
 
-| Product ID | Name | Base plan | Free trial offer | Price |
-|---|---|---|---|---|
-| `com.pranta.cosmostrike.pro_monthly` | Cosmo Strike Pro — Monthly | `P1M` auto-renewing | **NONE** | **$4.99 / month** |
-| `com.pranta.cosmostrike.pro_yearly` | Cosmo Strike Pro — Yearly | `P1Y` auto-renewing | **NONE** | **$39.99 / year** (Save 33%) |
+| Product ID | Name | Base plan | Grace | Free trial offer | Price |
+|---|---|---|---|---|---|
+| `com.pranta.cosmostrike.pro_monthly` | Cosmo Strike Pro — Monthly | `pro-monthly`, `P1M` auto-renewing | 3 days | **NONE** | **$4.99 / month** |
+| `com.pranta.cosmostrike.pro_yearly` | Cosmo Strike Pro — Yearly | `pro-yearly`, `P1Y` auto-renewing | 7 days | **NONE** | **$39.99 / year** (Save 33%) |
 
 - ⚠️ **NO free-trial offers** — all trial logic (in-app AND store-facing copy)
   was removed from the app + backend in July 2026. Adding a trial offer in the

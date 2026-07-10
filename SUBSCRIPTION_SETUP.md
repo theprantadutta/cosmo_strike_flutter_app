@@ -26,9 +26,13 @@ Defined in `lib/services/purchase_service.dart` (`ProductIds`):
      and one with `com.pranta.cosmostrike.pro_yearly` — the FULL prefixed string,
      exactly as the app queries it (same convention as the 40 in-app products).
 2. **Add a base plan** to each (NO trial offers):
-   - Monthly: billing period **P1M** (auto-renewing), $4.99.
-   - Yearly: billing period **P1Y** (auto-renewing), $39.99.
+   - Monthly: base plan id `pro-monthly`, billing period **P1M**
+     (auto-renewing), $4.99, grace period **3 days**.
+   - Yearly: base plan id `pro-yearly`, billing period **P1Y**
+     (auto-renewing), $39.99, grace period **7 days**.
    - Set the USD price and let Google auto-convert the regions.
+   - Grace periods are mirrored server-side via `GRACE_PERIOD_DAYS_MONTHLY` /
+     `GRACE_PERIOD_DAYS_YEARLY` in the backend `.env` — keep them in sync.
 3. **Activate** each subscription and base plan (status must be **Active**, not Draft).
 4. **License testing:** Play Console → Setup → License testing → add the tester
    Google accounts so they can purchase without being charged.
