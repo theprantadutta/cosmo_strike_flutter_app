@@ -350,9 +350,9 @@ class _StoreScreenState extends State<StoreScreen>
                     theme: theme,
                     title: 'Yearly',
                     productId: ProductIds.proYearly,
-                    fallbackPrice: 49.99,
+                    fallbackPrice: 39.99,
                     cadence: '/year',
-                    savingsLabel: 'Save 17%',
+                    savingsLabel: 'Save 33%',
                     highlight: true,
                   ),
                 ),
@@ -390,7 +390,6 @@ class _StoreScreenState extends State<StoreScreen>
                   cadence: '/month',
                   savingsLabel: null,
                   highlight: false,
-                  trialLabel: '3-day free trial',
                 ),
               ),
               const SizedBox(width: 12),
@@ -399,11 +398,10 @@ class _StoreScreenState extends State<StoreScreen>
                   theme: theme,
                   title: 'Yearly',
                   productId: ProductIds.proYearly,
-                  fallbackPrice: 49.99,
+                  fallbackPrice: 39.99,
                   cadence: '/year',
-                  savingsLabel: 'Save 17%',
+                  savingsLabel: 'Save 33%',
                   highlight: true,
-                  trialLabel: '7-day free trial',
                 ),
               ),
             ],
@@ -477,7 +475,6 @@ class _StoreScreenState extends State<StoreScreen>
     required String cadence,
     required String? savingsLabel,
     required bool highlight,
-    String? trialLabel,
   }) {
     final price =
         PurchaseService().getStorePriceOrDefault(productId, fallbackPrice);
@@ -549,27 +546,6 @@ class _StoreScreenState extends State<StoreScreen>
                 fontSize: 12,
               ),
             ),
-            if (trialLabel != null) ...[
-              const SizedBox(height: 4),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.card_giftcard,
-                      size: 12, color: Colors.green.shade400),
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(
-                      trialLabel,
-                      style: TextStyle(
-                        color: Colors.green.shade400,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
             const SizedBox(height: 12),
             // Gradient subscribe pill — purely visual; the whole card is the
             // tap target (outer GestureDetector). Featured plan = amber,

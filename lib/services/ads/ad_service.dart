@@ -12,7 +12,7 @@ import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Central AdMob wrapper: owns the SDK init + consent, preloads interstitial /
-/// rewarded ads, enforces the **Pro gate** (Pro/trial users never see ads),
+/// rewarded ads, enforces the **Pro gate** (Pro users never see ads),
 /// the **connectivity gate**, and an interstitial **frequency cap**.
 ///
 /// Mobile-only: no-ops on web/desktop. Reward grants happen in the calling

@@ -271,9 +271,6 @@ class PremiumStatus extends Table {
   BoolColumn get isPremiumActive =>
       boolean().withDefault(const Constant(false))();
   DateTimeColumn get premiumExpirationDate => dateTime().nullable()();
-  BoolColumn get isOnTrial => boolean().withDefault(const Constant(false))();
-  DateTimeColumn get trialStartDate => dateTime().nullable()();
-  DateTimeColumn get trialEndDate => dateTime().nullable()();
   IntColumn get bronzeTournamentEntries =>
       integer().withDefault(const Constant(0))();
   IntColumn get silverTournamentEntries =>

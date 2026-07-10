@@ -1038,9 +1038,6 @@ class SyncEngine {
   Map<String, dynamic> _premiumToPayload(PremiumStatusData r) => {
         'is_premium_active': r.isPremiumActive,
         'premium_expiration_date': _utcIsoNullable(r.premiumExpirationDate),
-        'is_on_trial': r.isOnTrial,
-        'trial_start_date': _utcIsoNullable(r.trialStartDate),
-        'trial_end_date': _utcIsoNullable(r.trialEndDate),
         'bronze_tournament_entries': r.bronzeTournamentEntries,
         'silver_tournament_entries': r.silverTournamentEntries,
         'gold_tournament_entries': r.goldTournamentEntries,
@@ -1591,9 +1588,6 @@ class SyncEngine {
             isPremiumActive: Value(premium['is_premium_active'] as bool? ?? false),
             premiumExpirationDate:
                 Value(_parseDate(premium['premium_expiration_date'])),
-            isOnTrial: Value(premium['is_on_trial'] as bool? ?? false),
-            trialStartDate: Value(_parseDate(premium['trial_start_date'])),
-            trialEndDate: Value(_parseDate(premium['trial_end_date'])),
             bronzeTournamentEntries:
                 Value(premium['bronze_tournament_entries'] as int? ?? 0),
             silverTournamentEntries:

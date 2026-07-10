@@ -227,10 +227,6 @@ class AnalyticsFacade implements AnalyticsClient {
       _fire((c) => c.trackPremiumSubscriptionStarted());
 
   @override
-  Future<void> trackPremiumTrialStarted() async =>
-      _fire((c) => c.trackPremiumTrialStarted());
-
-  @override
   Future<void> trackCosmeticEquipped({
     required String cosmeticType,
     required String cosmeticId,

@@ -202,11 +202,6 @@ class LoggerAnalyticsClient implements AnalyticsClient {
   }
 
   @override
-  Future<void> trackPremiumTrialStarted() async {
-    AppLogger.info('$_tag premium_trial_started');
-  }
-
-  @override
   Future<void> trackCosmeticEquipped({
     required String cosmeticType,
     required String cosmeticId,

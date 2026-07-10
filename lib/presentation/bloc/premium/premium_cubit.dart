@@ -69,22 +69,11 @@ class PremiumCubit extends Cubit<PremiumState> {
       final ownedTrails = await _storageService.getUnlockedTrails();
       final ownedPowerUps = await _storageService.getUnlockedPowerUps();
       final ownedBundles = await _storageService.getUnlockedBundles();
-      final trialData = await _storageService.getTrialData();
       final tournamentEntries = await _storageService.getTournamentEntries();
 
       DateTime? expiryDate;
       if (expiryDateStr != null) {
         expiryDate = DateTime.tryParse(expiryDateStr);
-      }
-
-      // Parse trial dates
-      DateTime? trialStartDate;
-      DateTime? trialEndDate;
-      if (trialData['trialStartDate'] != null) {
-        trialStartDate = DateTime.tryParse(trialData['trialStartDate']);
-      }
-      if (trialData['trialEndDate'] != null) {
-        trialEndDate = DateTime.tryParse(trialData['trialEndDate']);
       }
 
       // Migrate bare trail IDs to prefixed form (trail_particle, etc.)
@@ -103,9 +92,6 @@ class PremiumCubit extends Cubit<PremiumState> {
           ownedTrails: migratedTrails,
           ownedPowerUps: ownedPowerUps.toSet(),
           ownedBundles: ownedBundles.toSet(),
-          isOnTrial: trialData['isOnTrial'] ?? false,
-          trialStartDate: trialStartDate,
-          trialEndDate: trialEndDate,
           bronzeTournamentEntries: tournamentEntries['bronze'] ?? 0,
           silverTournamentEntries: tournamentEntries['silver'] ?? 0,
           goldTournamentEntries: tournamentEntries['gold'] ?? 0,
@@ -504,45 +490,6 @@ class PremiumCubit extends Cubit<PremiumState> {
     AppLogger.info('Bundle unlocked: $bundleId');
   }
 
-  /// Start free trial
-  static const Duration trialDuration = Duration(days: 3);
-
-  Future<void> startFreeTrial() async {
-    if (state.hasUsedTrial) {
-      emit(state.copyWith(errorMessage: 'Trial already used'));
-      return;
-    }
-
-    final now = DateTime.now();
-    final trialEnd = now.add(trialDuration);
-
-    emit(
-      state.copyWith(
-        isOnTrial: true,
-        trialStartDate: now,
-        trialEndDate: trialEnd,
-      ),
-    );
-
-    await _storageService.setTrialData(
-      isOnTrial: true,
-      trialStartDate: now,
-      trialEndDate: trialEnd,
-    );
-
-    _coinsCubit?.updatePremiumMultiplier(true, state.hasBattlePass);
-    _analytics.trackPremiumTrialStarted();
-    AppLogger.info('Free trial started, ends: ${trialEnd.toIso8601String()}');
-  }
-
-  /// End trial
-  Future<void> endTrial() async {
-    emit(state.copyWith(isOnTrial: false));
-    await _storageService.setTrialData(isOnTrial: false);
-    _coinsCubit?.updatePremiumMultiplier(state.hasPremium, state.hasBattlePass);
-    AppLogger.info('Trial ended');
-  }
-
   /// Add tournament entry
   Future<void> addTournamentEntry(
     String tournamentType, {
@@ -799,7 +746,7 @@ class PremiumCubit extends Cubit<PremiumState> {
     }
 
     // ---- Promo state (read first so the tier block can layer on top) ----
-    // is_promo true => the user is on a free server-granted Pro trial.
+    // is_promo true => the user is on a server-granted Pro promo giveaway.
     // The backend already merges promo + paid into a single is_premium /
     // subscription_expiry pair, so the tier-handling below works the same
     // for both — promo just adds the TRIAL badge + revocation timing.
@@ -1015,28 +962,16 @@ class PremiumCubit extends Cubit<PremiumState> {
   Future<void> _reloadEntitlementFromDrift() async {
     final isPremiumActive = await _storageService.isPremiumActive();
     final expiryDateStr = await _storageService.getPremiumExpirationDate();
-    final trialData = await _storageService.getTrialData();
     final tournamentEntries = await _storageService.getTournamentEntries();
 
     DateTime? expiryDate;
     if (expiryDateStr != null) {
       expiryDate = DateTime.tryParse(expiryDateStr);
     }
-    DateTime? trialStartDate;
-    DateTime? trialEndDate;
-    if (trialData['trialStartDate'] != null) {
-      trialStartDate = DateTime.tryParse(trialData['trialStartDate']);
-    }
-    if (trialData['trialEndDate'] != null) {
-      trialEndDate = DateTime.tryParse(trialData['trialEndDate']);
-    }
 
     final newTier = isPremiumActive ? PremiumTier.pro : PremiumTier.free;
-    final entitlementChanged = state.tier != newTier ||
-        state.subscriptionExpiry != expiryDate ||
-        state.isOnTrial != (trialData['isOnTrial'] ?? false) ||
-        state.trialStartDate != trialStartDate ||
-        state.trialEndDate != trialEndDate;
+    final entitlementChanged =
+        state.tier != newTier || state.subscriptionExpiry != expiryDate;
 
     if (!entitlementChanged &&
         state.bronzeTournamentEntries == (tournamentEntries['bronze'] ?? 0) &&
@@ -1050,9 +985,6 @@ class PremiumCubit extends Cubit<PremiumState> {
     emit(state.copyWith(
       tier: newTier,
       subscriptionExpiry: expiryDate,
-      isOnTrial: trialData['isOnTrial'] ?? false,
-      trialStartDate: trialStartDate,
-      trialEndDate: trialEndDate,
       bronzeTournamentEntries: tournamentEntries['bronze'] ?? 0,
       silverTournamentEntries: tournamentEntries['silver'] ?? 0,
       goldTournamentEntries: tournamentEntries['gold'] ?? 0,

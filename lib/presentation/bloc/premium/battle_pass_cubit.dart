@@ -115,7 +115,7 @@ class BattlePassCubit extends Cubit<BattlePassState> {
     _lastSeenHasPremium = realPremium;
     // Reconcile isActive to the REAL Pro entitlement in BOTH directions. The
     // old code only flipped it false→true, so a NON-Pro user whose isActive had
-    // been left true (stale Drift row, a past trial, or a snapshot) stayed
+    // been left true (stale Drift row, a past promo, or a snapshot) stayed
     // "active" forever. That let a free user SEE premium reward chips and claim
     // them locally — the claim then reverts (the server / a reload correctly
     // rejects a premium claim from a non-premium account), producing the

@@ -14,17 +14,7 @@ class PremiumBenefitsScreen extends StatefulWidget {
 }
 
 class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
-  // Trial lengths mirror the Play Console base-plan offers (monthly: 3-day,
-  // yearly: 7-day). Used to render trial copy in the price readout and the
-  // Subscribe-button subtitle. Update here AND in Play Console together if
-  // the offer ever changes.
-  static const int _monthlyTrialDays = 3;
-  static const int _yearlyTrialDays = 7;
-
   bool _isYearly = true;
-
-  int get _selectedTrialDays =>
-      _isYearly ? _yearlyTrialDays : _monthlyTrialDays;
 
   @override
   Widget build(BuildContext context) {
@@ -136,11 +126,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
       _isYearly ? 39.99 : 4.99,
     );
     final period = _isYearly ? '/year' : '/month';
-    final badge = _isYearly
-        ? 'Save 33% • $_yearlyTrialDays-day free trial'
-        : '$_monthlyTrialDays-day free trial';
-    final canStartInAppTrial =
-        !premiumState.hasUsedTrial && !premiumState.isOnTrial;
+    final String? badge = _isYearly ? 'Save 33%' : null;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -222,17 +208,19 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 4),
-        Center(
-          child: Text(
-            badge,
-            style: TextStyle(
-              color: Colors.green.shade400,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+        if (badge != null) ...[
+          const SizedBox(height: 4),
+          Center(
+            child: Text(
+              badge,
+              style: TextStyle(
+                color: Colors.green.shade400,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-        ),
+        ],
         const SizedBox(height: 14),
 
         // Primary CTA — same gradient subscribe pill as the store: amber for
@@ -270,30 +258,6 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 6),
-        Center(
-          child: Text(
-            '$_selectedTrialDays-day free trial via Google Play',
-            style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w500,
-              color: theme.textMuted,
-            ),
-          ),
-        ),
-
-        // Secondary CTA — in-app trial, no payment. Hidden once trial used.
-        if (canStartInAppTrial) ...[
-          const SizedBox(height: 8),
-          NeonButton(
-            onPressed: _startInAppTrial,
-            label: 'Try 3 days free',
-            theme: theme,
-            variant: NeonButtonVariant.ghost,
-            expand: true,
-            height: 42,
-          ),
-        ],
         const SizedBox(height: 8),
         Center(
           child: Text(
@@ -473,9 +437,8 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
   ///
   /// When the product can't be purchased we no longer show a single opaque
   /// "not available" toast. We distinguish the actual cause so the user knows
-  /// what to do, offer a Retry when the store query simply hasn't completed,
-  /// and point them at the in-app free trial (rendered below) as a fallback so
-  /// premium is never a dead end.
+  /// what to do, and offer a Retry when the store query simply hasn't
+  /// completed.
   Future<void> _subscribe() async {
     final purchaseService = PurchaseService();
     final productId = _isYearly
@@ -491,8 +454,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     // Device has no billing support at all (no Play services, emulator, etc.).
     if (!purchaseService.isAvailable) {
       _showSubscribeIssue(
-        "In-app purchases aren't available on this device. "
-        'You can still start the free trial below.',
+        "In-app purchases aren't available on this device.",
       );
       return;
     }
@@ -513,10 +475,9 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     }
 
     // Billing works and products loaded, but this specific subscription isn't
-    // configured/active on the store yet. Steer the user to the free trial.
+    // configured/active on the store yet.
     _showSubscribeIssue(
-      "Pro subscriptions aren't available right now. "
-      'Try the free trial below while we sort it out.',
+      "Pro subscriptions aren't available right now. Please try again later.",
     );
   }
 
@@ -543,18 +504,6 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     );
   }
 
-  /// In-app 3-day trial — no payment, no Google Play sheet. One-shot per user
-  /// (PremiumCubit.startFreeTrial enforces single-use via state.hasUsedTrial).
-  void _startInAppTrial() {
-    final messenger = ScaffoldMessenger.of(context);
-    context.read<PremiumCubit>().startFreeTrial();
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text('3-day free trial started — enjoy premium!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
 }
 
 class _FeatureItem {

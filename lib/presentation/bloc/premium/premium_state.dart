@@ -29,9 +29,6 @@ class PremiumState extends Equatable {
   final PremiumStatus status;
   final PremiumTier tier;
   final DateTime? subscriptionExpiry;
-  final bool isOnTrial;
-  final DateTime? trialEndDate;
-  final DateTime? trialStartDate;
   final Set<GameTheme> ownedThemes;
   final Set<String> ownedSkins;
   final Set<String> ownedTrails;
@@ -50,11 +47,10 @@ class PremiumState extends Equatable {
   final bool hasBattlePass;
   final int battlePassTier;
 
-  // Server-side promo (welcome bonus / app-wide giveaway). Distinct from
-  // the local `isOnTrial` field (which represents the legacy in-app
-  // 3-day trial). When `isOnPromo` is true the user has Pro for free
-  // until `promoExpiresAt`; revocation is handled server-side by the
-  // ExpirePromosJob.
+  // Server-side promo (welcome bonus / app-wide giveaway). When `isOnPromo`
+  // is true the user has Pro for free until `promoExpiresAt`; revocation is
+  // handled server-side by the ExpirePromosJob. (This is the only free-Pro
+  // mechanism — the old in-app free trial was removed.)
   final bool isOnPromo;
   final DateTime? promoExpiresAt;
   final String? promoSource;
@@ -63,9 +59,6 @@ class PremiumState extends Equatable {
     this.status = PremiumStatus.initial,
     this.tier = PremiumTier.free,
     this.subscriptionExpiry,
-    this.isOnTrial = false,
-    this.trialEndDate,
-    this.trialStartDate,
     this.ownedThemes = const {},
     this.ownedSkins = const {},
     this.ownedTrails = const {},
@@ -92,9 +85,6 @@ class PremiumState extends Equatable {
     PremiumStatus? status,
     PremiumTier? tier,
     DateTime? subscriptionExpiry,
-    bool? isOnTrial,
-    DateTime? trialEndDate,
-    DateTime? trialStartDate,
     Set<GameTheme>? ownedThemes,
     Set<String>? ownedSkins,
     Set<String>? ownedTrails,
@@ -118,9 +108,6 @@ class PremiumState extends Equatable {
       status: status ?? this.status,
       tier: tier ?? this.tier,
       subscriptionExpiry: subscriptionExpiry ?? this.subscriptionExpiry,
-      isOnTrial: isOnTrial ?? this.isOnTrial,
-      trialEndDate: trialEndDate ?? this.trialEndDate,
-      trialStartDate: trialStartDate ?? this.trialStartDate,
       ownedThemes: ownedThemes ?? this.ownedThemes,
       ownedSkins: ownedSkins ?? this.ownedSkins,
       ownedTrails: ownedTrails ?? this.ownedTrails,
@@ -148,22 +135,12 @@ class PremiumState extends Equatable {
   bool get isInitialized => status == PremiumStatus.ready;
 
   /// Whether user has active premium
-  bool get hasPremium {
-    if (tier == PremiumTier.pro && !isSubscriptionExpired) return true;
-    if (isOnTrial && !isTrialExpired) return true;
-    return false;
-  }
+  bool get hasPremium => tier == PremiumTier.pro && !isSubscriptionExpired;
 
   /// Whether subscription is expired
   bool get isSubscriptionExpired {
     if (subscriptionExpiry == null) return true;
     return DateTime.now().isAfter(subscriptionExpiry!);
-  }
-
-  /// Whether trial is expired
-  bool get isTrialExpired {
-    if (trialEndDate == null) return true;
-    return DateTime.now().isAfter(trialEndDate!);
   }
 
   /// Check if a theme is owned
@@ -199,16 +176,6 @@ class PremiumState extends Equatable {
   /// Check if a bundle is owned
   bool isBundleOwned(String bundleId) => ownedBundles.contains(bundleId);
 
-  /// Whether user has used trial before
-  bool get hasUsedTrial => trialStartDate != null;
-
-  /// Time remaining on trial
-  Duration? get trialTimeRemaining {
-    if (!isOnTrial || trialEndDate == null) return null;
-    final remaining = trialEndDate!.difference(DateTime.now());
-    return remaining.isNegative ? Duration.zero : remaining;
-  }
-
   /// Check if user has tournament entry
   bool hasTournamentEntry(String tournamentType) {
     switch (tournamentType.toLowerCase()) {
@@ -242,9 +209,6 @@ class PremiumState extends Equatable {
     status,
     tier,
     subscriptionExpiry,
-    isOnTrial,
-    trialEndDate,
-    trialStartDate,
     ownedThemes,
     ownedSkins,
     ownedTrails,

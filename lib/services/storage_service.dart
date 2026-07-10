@@ -604,28 +604,6 @@ class StorageService {
     await _syncDao?.clearSyncQueue();
   }
 
-  // ==================== Trial Data ====================
-
-  Future<Map<String, dynamic>> getTrialData() async {
-    return await _storeDao?.getTrialData() ?? {
-      'isOnTrial': false,
-      'trialStartDate': null,
-      'trialEndDate': null,
-    };
-  }
-
-  Future<void> setTrialData({
-    required bool isOnTrial,
-    DateTime? trialStartDate,
-    DateTime? trialEndDate,
-  }) async {
-    await _storeDao?.setTrialData(
-      isOnTrial: isOnTrial,
-      trialStartDate: trialStartDate,
-      trialEndDate: trialEndDate,
-    );
-  }
-
   // ==================== Tournament Entries ====================
 
   Future<Map<String, int>> getTournamentEntries() async {

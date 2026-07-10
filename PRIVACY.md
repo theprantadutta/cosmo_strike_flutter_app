@@ -7,9 +7,8 @@
 > **What changed in version 2.0 (May 29, 2026):** Cosmo Strike now shows
 > advertising in the free version of the app (banner, interstitial, and opt-in
 > rewarded ads) through Google AdMob. This update explains what that means for
-> your data and your choices. Pro subscribers and users in an active trial see
-> no ads. Because this is a material change, you'll be asked to review and
-> accept this updated policy.
+> your data and your choices. Pro subscribers see no ads. Because this is a
+> material change, you'll be asked to review and accept this updated policy.
 
 ## Introduction
 
@@ -211,7 +210,7 @@ We may disclose your information if required by law, regulation, legal process, 
 In the event of a merger, acquisition, or sale of assets, your information may be transferred to the new entity, subject to the same privacy protections.
 
 ### 5. Advertising (Google AdMob)
-We show ads to support the free version of the app using **Google AdMob**. Pro subscribers (and users in an active trial) see **no ads at all**.
+We show ads to support the free version of the app using **Google AdMob**. Pro subscribers see **no ads at all**.
 
 - **Ad partners:** Google AdMob and its mediation partners may collect device identifiers, approximate usage data, and an advertising ID to serve and measure ads (including banner, full-screen interstitial, and opt-in rewarded ads).
 - **Consent:** In regions where it's required (e.g. the EEA/UK), we present Google's UMP consent form before serving personalized ads. On iOS we also request **App Tracking Transparency** permission. If you decline, you'll see **non-personalized** ads (or no ads) instead.
@@ -297,7 +296,7 @@ Your information may be transferred to and processed in countries other than you
 - Cosmo Strike displays third-party advertising in the free version of the app through **Google AdMob** (see *Information Sharing and Disclosure → Advertising (Google AdMob)* for full details)
 - Ads may use an advertising ID and device identifiers to serve and measure ads; in the EEA/UK we request consent first, and on iOS we request App Tracking Transparency permission
 - **Rewarded ads are entirely optional** — they only appear when you choose to watch them in exchange for in-game rewards
-- A **Pro subscription (or an active trial) removes all ads**
+- A **Pro subscription removes all ads**
 
 ## Changes to This Privacy Policy
 
@@ -351,5 +350,5 @@ Privacy-related disputes are subject to the dispute resolution procedures outlin
 **Language:** English (additional translations available in-app)
 
 ### Version History
-- **2.0 — May 29, 2026:** Disclosed in-app advertising via Google AdMob (banner, interstitial, and opt-in rewarded ads), UMP/GDPR consent and iOS App Tracking Transparency, and the ad-free Pro/trial experience. Aligned the "Cookies and Tracking → Advertising" section with the new ad integration. Introduced policy versioning so material changes prompt renewed acceptance.
+- **2.0 — May 29, 2026:** Disclosed in-app advertising via Google AdMob (banner, interstitial, and opt-in rewarded ads), UMP/GDPR consent and iOS App Tracking Transparency, and the ad-free Pro experience. Aligned the "Cookies and Tracking → Advertising" section with the new ad integration. Introduced policy versioning so material changes prompt renewed acceptance.
 - **1.0 — January 17, 2025:** Initial privacy policy.

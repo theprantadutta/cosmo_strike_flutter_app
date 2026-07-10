@@ -26,16 +26,12 @@ time. (44 store products total: 2 subscriptions + 42 in-app products.)
 
 | Product ID | Name | Base plan | Free trial offer | Price |
 |---|---|---|---|---|
-| `com.pranta.cosmostrike.pro_monthly` | Cosmo Strike Pro — Monthly | `P1M` auto-renewing | **3 days** | **$4.99 / month** |
-| `com.pranta.cosmostrike.pro_yearly` | Cosmo Strike Pro — Yearly | `P1Y` auto-renewing | **7 days** | **$39.99 / year** (Save 33%) |
+| `com.pranta.cosmostrike.pro_monthly` | Cosmo Strike Pro — Monthly | `P1M` auto-renewing | **NONE** | **$4.99 / month** |
+| `com.pranta.cosmostrike.pro_yearly` | Cosmo Strike Pro — Yearly | `P1Y` auto-renewing | **NONE** | **$39.99 / year** (Save 33%) |
 
-- Trial lengths must match the app copy (`premium_benefits_screen.dart`
-  `_monthlyTrialDays = 3` / `_yearlyTrialDays = 7`).
-- ⚠️ Known cosmetic bug: `store_screen.dart` shows a `$49.99 / Save 17%`
-  *fallback* for yearly while `premium_benefits_screen.dart` shows `$39.99 /
-  Save 33%`. The real Play price overrides both once live — but set **$39.99**
-  (the intended price per `SUBSCRIPTION_SETUP.md`) and fix the store_screen
-  fallback when convenient.
+- ⚠️ **NO free-trial offers** — all trial logic (in-app AND store-facing copy)
+  was removed from the app + backend in July 2026. Adding a trial offer in the
+  Console would give away time the app never advertises.
 - Both plans grant the same **Pro** entitlement: all premium themes, all 11
   skins, all 11 trails, coin-earn multiplier, tournament entry bypass,
   **Battle Pass premium track**, per-period power-up grant, no ads.

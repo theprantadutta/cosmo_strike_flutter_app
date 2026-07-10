@@ -262,11 +262,6 @@ class FirebaseAnalyticsClient implements AnalyticsClient {
   }
 
   @override
-  Future<void> trackPremiumTrialStarted() {
-    return _analytics.logEvent(name: 'premium_trial_started');
-  }
-
-  @override
   Future<void> trackCosmeticEquipped({
     required String cosmeticType,
     required String cosmeticId,

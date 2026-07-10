@@ -94,7 +94,7 @@ dependencies:
   in_app_purchase: ^3.2.3
   in_app_purchase_android: ^0.5.1
 
-  # Ads (AdMob). Bundles the UMP consent SDK. Pro/trial users never see ads.
+  # Ads (AdMob). Bundles the UMP consent SDK. Pro users never see ads.
   google_mobile_ads: ^9.0.0
   app_tracking_transparency: ^2.0.7
 

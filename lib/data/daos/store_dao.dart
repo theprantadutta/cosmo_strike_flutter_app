@@ -416,28 +416,6 @@ class StoreDao extends DatabaseAccessor<AppDatabase> with _$StoreDaoMixin {
     return status?.premiumExpirationDate?.toIso8601String();
   }
 
-  /// Set trial data
-  Future<void> setTrialData({
-    required bool isOnTrial,
-    DateTime? trialStartDate,
-    DateTime? trialEndDate,
-  }) =>
-      _writePremiumStatus(PremiumStatusCompanion(
-        isOnTrial: Value(isOnTrial),
-        trialStartDate: Value(trialStartDate),
-        trialEndDate: Value(trialEndDate),
-      ));
-
-  /// Get trial data
-  Future<Map<String, dynamic>> getTrialData() async {
-    final status = await getPremiumStatus();
-    return {
-      'isOnTrial': status?.isOnTrial ?? false,
-      'trialStartDate': status?.trialStartDate?.toIso8601String(),
-      'trialEndDate': status?.trialEndDate?.toIso8601String(),
-    };
-  }
-
   /// Set tournament entries
   Future<void> setTournamentEntries({
     required int bronze,
