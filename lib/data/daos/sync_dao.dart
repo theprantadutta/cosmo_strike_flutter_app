@@ -14,8 +14,9 @@ class SyncDao extends DatabaseAccessor<AppDatabase> with _$SyncDaoMixin {
   /// Watch pending sync items
   Stream<List<SyncQueueData>> watchPendingSyncItems() =>
       (select(syncQueue)
-            ..where((t) =>
-                t.status.equals(0) | t.status.equals(2)) // pending or failed
+            ..where(
+              (t) => t.status.equals(0) | t.status.equals(2),
+            ) // pending or failed
             ..orderBy([(t) => OrderingTerm.asc(t.priority)]))
           .watch();
 
@@ -54,7 +55,11 @@ class SyncDao extends DatabaseAccessor<AppDatabase> with _$SyncDaoMixin {
   }
 
   /// Update sync item status
-  Future<void> updateSyncItemStatus(String id, int status, {String? error}) async {
+  Future<void> updateSyncItemStatus(
+    String id,
+    int status, {
+    String? error,
+  }) async {
     await (update(syncQueue)..where((t) => t.id.equals(id))).write(
       SyncQueueCompanion(
         status: Value(status),
@@ -66,8 +71,9 @@ class SyncDao extends DatabaseAccessor<AppDatabase> with _$SyncDaoMixin {
 
   /// Increment retry count
   Future<void> incrementRetryCount(String id) async {
-    final item = await (select(syncQueue)..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    final item = await (select(
+      syncQueue,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
     if (item == null) return;
 
     await (update(syncQueue)..where((t) => t.id.equals(id))).write(
@@ -105,17 +111,19 @@ class SyncDao extends DatabaseAccessor<AppDatabase> with _$SyncDaoMixin {
   /// regardless of the [getPendingSyncItems] page-limit cap.
   Future<int> getPendingSyncCount() async {
     final countExp = syncQueue.id.count();
-    final row = await (selectOnly(syncQueue)
-          ..addColumns([countExp])
-          ..where(syncQueue.status.equals(0) | syncQueue.status.equals(2)))
-        .getSingle();
+    final row =
+        await (selectOnly(syncQueue)
+              ..addColumns([countExp])
+              ..where(syncQueue.status.equals(0) | syncQueue.status.equals(2)))
+            .getSingle();
     return row.read(countExp) ?? 0;
   }
 
   /// Get failed sync count
   Future<int> getFailedSyncCount() async {
-    final items =
-        await (select(syncQueue)..where((t) => t.status.equals(2))).get();
+    final items = await (select(
+      syncQueue,
+    )..where((t) => t.status.equals(2))).get();
     return items.length;
   }
 
@@ -123,34 +131,55 @@ class SyncDao extends DatabaseAccessor<AppDatabase> with _$SyncDaoMixin {
   Future<List<Map<String, dynamic>>> getSyncQueueAsMaps() async {
     final items = await getAllSyncQueueItems();
     return items
-        .map((item) => {
-              'id': item.id,
-              'dataType': item.dataType,
-              'data': json.decode(item.data),
-              'priority': item.priority,
-              'status': item.status,
-              'retryCount': item.retryCount,
-              'lastError': item.lastError,
-              'queuedAt': item.queuedAt.toIso8601String(),
-              'lastAttemptAt': item.lastAttemptAt?.toIso8601String(),
-            })
+        .map(
+          (item) => {
+            'id': item.id,
+            'dataType': item.dataType,
+            'data': json.decode(item.data),
+            'priority': item.priority,
+            'status': item.status,
+            'retryCount': item.retryCount,
+            'lastError': item.lastError,
+            'queuedAt': item.queuedAt.toIso8601String(),
+            'lastAttemptAt': item.lastAttemptAt?.toIso8601String(),
+          },
+        )
         .toList();
   }
 
-  /// Save sync queue from maps (for compatibility)
-  Future<void> saveSyncQueueFromMaps(List<Map<String, dynamic>> queue) async {
+  /// Save sync queue from maps (for compatibility).
+  ///
+  /// [preserveDataTypes] rows are NEVER touched — the SyncQueue table is
+  /// SHARED between the legacy DataSyncService (profile/preferences/fcm
+  /// rows) and the SyncEngine outbox (game scores, stage progress, coins,
+  /// …). The old unscoped `delete(syncQueue)` wiped the ENTIRE table and
+  /// re-inserted only the caller's in-memory snapshot, silently destroying
+  /// every outbox row queued since boot (e.g. a whole offline session's
+  /// progress, lost by toggling a notification preference).
+  Future<void> saveSyncQueueFromMaps(
+    List<Map<String, dynamic>> queue, {
+    List<String> preserveDataTypes = const [],
+  }) async {
     await transaction(() async {
-      await delete(syncQueue).go();
+      if (preserveDataTypes.isEmpty) {
+        await delete(syncQueue).go();
+      } else {
+        await (delete(
+          syncQueue,
+        )..where((t) => t.dataType.isNotIn(preserveDataTypes))).go();
+      }
       for (final item in queue) {
-        await into(syncQueue).insert(SyncQueueCompanion.insert(
-          id: item['id'],
-          dataType: item['dataType'],
-          data: json.encode(item['data']),
-          priority: Value(item['priority'] ?? 2),
-          status: Value(item['status'] ?? 0),
-          retryCount: Value(item['retryCount'] ?? 0),
-          lastError: Value(item['lastError']),
-        ));
+        await into(syncQueue).insert(
+          SyncQueueCompanion.insert(
+            id: item['id'],
+            dataType: item['dataType'],
+            data: json.encode(item['data']),
+            priority: Value(item['priority'] ?? 2),
+            status: Value(item['status'] ?? 0),
+            retryCount: Value(item['retryCount'] ?? 0),
+            lastError: Value(item['lastError']),
+          ),
+        );
       }
     });
   }
@@ -159,8 +188,9 @@ class SyncDao extends DatabaseAccessor<AppDatabase> with _$SyncDaoMixin {
 
   /// Get cached data by key
   Future<T?> getCached<T>(String key, T Function(Object) decoder) async {
-    final entry = await (select(cacheStore)..where((t) => t.key.equals(key)))
-        .getSingleOrNull();
+    final entry = await (select(
+      cacheStore,
+    )..where((t) => t.key.equals(key))).getSingleOrNull();
 
     if (entry == null) return null;
 
@@ -178,9 +208,13 @@ class SyncDao extends DatabaseAccessor<AppDatabase> with _$SyncDaoMixin {
   }
 
   /// Get cached data even if expired (fallback)
-  Future<T?> getCachedFallback<T>(String key, T Function(Object) decoder) async {
-    final entry = await (select(cacheStore)..where((t) => t.key.equals(key)))
-        .getSingleOrNull();
+  Future<T?> getCachedFallback<T>(
+    String key,
+    T Function(Object) decoder,
+  ) async {
+    final entry = await (select(
+      cacheStore,
+    )..where((t) => t.key.equals(key))).getSingleOrNull();
 
     if (entry == null) return null;
 
@@ -215,8 +249,9 @@ class SyncDao extends DatabaseAccessor<AppDatabase> with _$SyncDaoMixin {
 
   /// Check if cache is fresh
   Future<bool> isCacheFresh(String key) async {
-    final entry = await (select(cacheStore)..where((t) => t.key.equals(key)))
-        .getSingleOrNull();
+    final entry = await (select(
+      cacheStore,
+    )..where((t) => t.key.equals(key))).getSingleOrNull();
 
     if (entry == null) return false;
     return DateTime.now().isBefore(entry.expiresAt);
@@ -224,15 +259,17 @@ class SyncDao extends DatabaseAccessor<AppDatabase> with _$SyncDaoMixin {
 
   /// Check if cached data exists
   Future<bool> hasCachedData(String key) async {
-    final entry = await (select(cacheStore)..where((t) => t.key.equals(key)))
-        .getSingleOrNull();
+    final entry = await (select(
+      cacheStore,
+    )..where((t) => t.key.equals(key))).getSingleOrNull();
     return entry != null;
   }
 
   /// Get cache info
   Future<Map<String, dynamic>?> getCacheInfo(String key) async {
-    final entry = await (select(cacheStore)..where((t) => t.key.equals(key)))
-        .getSingleOrNull();
+    final entry = await (select(
+      cacheStore,
+    )..where((t) => t.key.equals(key))).getSingleOrNull();
 
     if (entry == null) return null;
 
@@ -244,8 +281,9 @@ class SyncDao extends DatabaseAccessor<AppDatabase> with _$SyncDaoMixin {
       'ttl': Duration(milliseconds: entry.ttlMillis),
       'expiresAt': entry.expiresAt,
       'isExpired': isExpired,
-      'remainingSeconds':
-          isExpired ? 0 : entry.expiresAt.difference(now).inSeconds,
+      'remainingSeconds': isExpired
+          ? 0
+          : entry.expiresAt.difference(now).inSeconds,
     };
   }
 
@@ -270,9 +308,9 @@ class SyncDao extends DatabaseAccessor<AppDatabase> with _$SyncDaoMixin {
     // Add grace period of 24 hours for stale data that might be useful as fallback
     final gracePeriod = now.subtract(const Duration(hours: 24));
 
-    return (delete(cacheStore)
-          ..where((t) => t.expiresAt.isSmallerThanValue(gracePeriod)))
-        .go();
+    return (delete(
+      cacheStore,
+    )..where((t) => t.expiresAt.isSmallerThanValue(gracePeriod))).go();
   }
 
   /// Get cache statistics

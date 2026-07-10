@@ -145,7 +145,8 @@ class StorageService {
 
   Future<Duration> getCrashFeedbackDuration() async {
     final settings = await _settingsDao?.getSettings();
-    final durationSeconds = settings?.crashFeedbackDurationSeconds ??
+    final durationSeconds =
+        settings?.crashFeedbackDurationSeconds ??
         GameConstants.defaultCrashFeedbackDuration.inSeconds;
     return Duration(seconds: durationSeconds);
   }
@@ -246,30 +247,35 @@ class StorageService {
   /// never enqueues a sync_outbox row — which is why a freshly-installed
   /// user's achievements never reached the dashboard.
   Future<void> seedAchievementCatalog(
-    List<({
-      String id,
-      String title,
-      String description,
-      String category,
-      int targetValue,
-      int coinReward,
-      int iconCodePoint,
-    })> defaults,
+    List<
+      ({
+        String id,
+        String title,
+        String description,
+        String category,
+        int targetValue,
+        int coinReward,
+        int iconCodePoint,
+      })
+    >
+    defaults,
   ) async {
     if (_gameDao == null) return;
-    final companions = defaults.map((d) => AchievementsCompanion(
-          id: Value(d.id),
-          name: Value(d.title),
-          description: Value(d.description),
-          category: Value(d.category),
-          currentProgress: const Value(0),
-          targetProgress: Value(d.targetValue),
-          isUnlocked: const Value(false),
-          rewardCoins: Value(d.coinReward),
-          rewardClaimed: const Value(false),
-          iconName: Value(d.iconCodePoint.toString()),
-          isSecret: const Value(false),
-        ));
+    final companions = defaults.map(
+      (d) => AchievementsCompanion(
+        id: Value(d.id),
+        name: Value(d.title),
+        description: Value(d.description),
+        category: Value(d.category),
+        currentProgress: const Value(0),
+        targetProgress: Value(d.targetValue),
+        isUnlocked: const Value(false),
+        rewardCoins: Value(d.coinReward),
+        rewardClaimed: const Value(false),
+        iconName: Value(d.iconCodePoint.toString()),
+        isSecret: const Value(false),
+      ),
+    );
     await _gameDao!.seedDefaultAchievementsIfMissing(companions);
   }
 
@@ -277,17 +283,19 @@ class StorageService {
 
   Future<void> saveReplay(String replayId, String replayJson) async {
     final data = json.decode(replayJson) as Map<String, dynamic>;
-    await _gameDao?.saveReplay(ReplaysCompanion(
-      id: Value(replayId),
-      name: Value(data['name']),
-      score: Value(data['score'] ?? 0),
-      shipLength: Value(data['shipLength'] ?? 0),
-      gameDurationSeconds: Value(data['gameDurationSeconds'] ?? 0),
-      gameMode: Value(data['gameMode'] ?? 'classic'),
-      boardSize: Value(data['boardSize'] ?? '20x20'),
-      replayData: Value(json.encode(data['replayData'] ?? [])),
-      isFavorite: Value(data['isFavorite'] ?? false),
-    ));
+    await _gameDao?.saveReplay(
+      ReplaysCompanion(
+        id: Value(replayId),
+        name: Value(data['name']),
+        score: Value(data['score'] ?? 0),
+        shipLength: Value(data['shipLength'] ?? 0),
+        gameDurationSeconds: Value(data['gameDurationSeconds'] ?? 0),
+        gameMode: Value(data['gameMode'] ?? 'classic'),
+        boardSize: Value(data['boardSize'] ?? '20x20'),
+        replayData: Value(json.encode(data['replayData'] ?? [])),
+        isFavorite: Value(data['isFavorite'] ?? false),
+      ),
+    );
   }
 
   Future<String?> getReplay(String replayId) async {
@@ -528,8 +536,10 @@ class StorageService {
     }
 
     final settings = await _settingsDao?.getSettings();
-    final idx =
-        (settings?.gameModeIndex ?? 0).clamp(0, GameMode.values.length - 1);
+    final idx = (settings?.gameModeIndex ?? 0).clamp(
+      0,
+      GameMode.values.length - 1,
+    );
     return GameMode.values[idx];
   }
 
@@ -577,23 +587,16 @@ class StorageService {
   }
 
   // ==================== Sync Queue ====================
-
-  Future<List<Map<String, dynamic>>> getSyncQueue() async {
-    return await _syncDao?.getSyncQueueAsMaps() ?? [];
-  }
-
-  Future<void> saveSyncQueue(List<Map<String, dynamic>> queue) async {
-    await _syncDao?.saveSyncQueueFromMaps(queue);
-  }
+  // getSyncQueue/saveSyncQueue shims removed: zero callers, and the save
+  // path full-wiped the SHARED SyncQueue table (see SyncDao
+  // .saveSyncQueueFromMaps) — DataSyncService persists its own rows with
+  // the outbox types preserved instead.
 
   Future<Map<String, dynamic>?> getSyncQueueMeta() async {
     // Sync metadata is now part of the sync queue items
     final pending = await _syncDao?.getPendingSyncCount() ?? 0;
     final failed = await _syncDao?.getFailedSyncCount() ?? 0;
-    return {
-      'pendingCount': pending,
-      'failedCount': failed,
-    };
+    return {'pendingCount': pending, 'failedCount': failed};
   }
 
   Future<void> saveSyncQueueMeta(Map<String, dynamic> meta) async {
@@ -607,11 +610,8 @@ class StorageService {
   // ==================== Tournament Entries ====================
 
   Future<Map<String, int>> getTournamentEntries() async {
-    return await _storeDao?.getTournamentEntries() ?? {
-      'bronze': 0,
-      'silver': 0,
-      'gold': 0,
-    };
+    return await _storeDao?.getTournamentEntries() ??
+        {'bronze': 0, 'silver': 0, 'gold': 0};
   }
 
   Future<void> setTournamentEntries({

@@ -38,38 +38,40 @@ class SyncQueueItem {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'dataType': dataType,
-        'data': data,
-        'priority': priority.index,
-        'queuedAt': queuedAt.toIso8601String(),
-        'retryCount': retryCount,
-        'lastError': lastError,
-        'status': status.index,
-      };
+    'id': id,
+    'dataType': dataType,
+    'data': data,
+    'priority': priority.index,
+    'queuedAt': queuedAt.toIso8601String(),
+    'retryCount': retryCount,
+    'lastError': lastError,
+    'status': status.index,
+  };
 
   factory SyncQueueItem.fromJson(Map<String, dynamic> json) => SyncQueueItem(
-        id: json['id'],
-        dataType: json['dataType'],
-        data: Map<String, dynamic>.from(json['data']),
-        priority: SyncPriority.values[json['priority'] ?? 2],
-        queuedAt: DateTime.parse(json['queuedAt']),
-        retryCount: json['retryCount'] ?? 0,
-        lastError: json['lastError'],
-        status: SyncItemStatus.values[json['status'] ?? 0],
-      );
+    id: json['id'],
+    dataType: json['dataType'],
+    data: Map<String, dynamic>.from(json['data']),
+    priority: SyncPriority.values[json['priority'] ?? 2],
+    queuedAt: DateTime.parse(json['queuedAt']),
+    retryCount: json['retryCount'] ?? 0,
+    lastError: json['lastError'],
+    status: SyncItemStatus.values[json['status'] ?? 0],
+  );
 
-  factory SyncQueueItem.fromDriftData(SyncQueueData data, Map<String, dynamic> parsedData) =>
-      SyncQueueItem(
-        id: data.id,
-        dataType: data.dataType,
-        data: parsedData,
-        priority: SyncPriority.values[data.priority.clamp(0, 3)],
-        queuedAt: data.queuedAt,
-        retryCount: data.retryCount,
-        lastError: data.lastError,
-        status: SyncItemStatus.values[data.status.clamp(0, 3)],
-      );
+  factory SyncQueueItem.fromDriftData(
+    SyncQueueData data,
+    Map<String, dynamic> parsedData,
+  ) => SyncQueueItem(
+    id: data.id,
+    dataType: data.dataType,
+    data: parsedData,
+    priority: SyncPriority.values[data.priority.clamp(0, 3)],
+    queuedAt: data.queuedAt,
+    retryCount: data.retryCount,
+    lastError: data.lastError,
+    status: SyncItemStatus.values[data.status.clamp(0, 3)],
+  );
 }
 
 enum SyncItemStatus { pending, syncing, failed, completed }
@@ -118,6 +120,31 @@ class DataSyncService extends ChangeNotifier {
 
   final List<SyncQueueItem> _syncQueue = [];
   static const int _maxRetries = 5;
+
+  /// Outbox-owned dataTypes (settings/statistics/achievement/coin_balance/…)
+  /// are drained by SyncEngine in batches. The SyncQueue Drift table is
+  /// SHARED between the two engines, so DataSyncService must never load,
+  /// process, or REWRITE these rows — its whole-queue persist used to wipe
+  /// them (destroying queued offline progress). Must list EVERY
+  /// SyncEngine-owned type: _syncItem's default branch returns true (marks
+  /// done) for unknown types, so any SyncEngine type missing here would be
+  /// silently swallowed without ever being sent.
+  static const Set<String> _outboxOwnedTypes = <String>{
+    SyncDataType.settings,
+    SyncDataType.statistics,
+    SyncDataType.achievement,
+    SyncDataType.coinBalance,
+    SyncDataType.coinTransaction,
+    SyncDataType.premiumStatus,
+    SyncDataType.unlockedItem,
+    SyncDataType.battlePass,
+    SyncDataType.dailyChallengeClaim,
+    SyncDataType.weeklyQuestClaim,
+    SyncDataType.dailyBonusClaim,
+    SyncDataType.playerProgress,
+    SyncDataType.stageProgress,
+    SyncDataType.gameScore,
+  };
   static const Duration _syncInterval = Duration(minutes: 2);
 
   // Cached user profile to avoid redundant GET /auth/me calls
@@ -146,23 +173,28 @@ class DataSyncService extends ChangeNotifier {
       _syncQueue.where((item) => item.status == SyncItemStatus.failed).length;
 
   SyncState get currentSyncState => SyncState(
-        pendingCount: pendingCount,
-        failedCount: failedCount,
-        isSyncing: _isSyncing,
-        lastSyncTime: _lastSyncTime,
-        lastSuccessTime: _lastSuccessTime,
-        pendingItems: List.unmodifiable(_syncQueue),
-      );
+    pendingCount: pendingCount,
+    failedCount: failedCount,
+    isSyncing: _isSyncing,
+    lastSyncTime: _lastSyncTime,
+    lastSuccessTime: _lastSuccessTime,
+    pendingItems: List.unmodifiable(_syncQueue),
+  );
 
   /// Initialize with database
-  Future<void> initializeWithDatabase(AppDatabase database, String userId) async {
+  Future<void> initializeWithDatabase(
+    AppDatabase database,
+    String userId,
+  ) async {
     _syncDao = database.syncDao;
     await initialize(userId);
   }
 
   Future<void> initialize(String userId) async {
-    final isPlaceholder = userId.startsWith('local_') || userId.startsWith('offline_');
-    final wasPlaceholder = _currentUserId?.startsWith('local_') == true ||
+    final isPlaceholder =
+        userId.startsWith('local_') || userId.startsWith('offline_');
+    final wasPlaceholder =
+        _currentUserId?.startsWith('local_') == true ||
         _currentUserId?.startsWith('offline_') == true;
 
     // Allow re-initialization if upgrading from placeholder to real user
@@ -176,7 +208,9 @@ class DataSyncService extends ChangeNotifier {
     // If upgrading from placeholder to real user, trigger sync
     if (_isInitialized && wasPlaceholder && !isPlaceholder) {
       if (kDebugMode) {
-        print('DataSyncService: Upgrading from placeholder to real user: $userId');
+        print(
+          'DataSyncService: Upgrading from placeholder to real user: $userId',
+        );
       }
       _currentUserId = userId;
       // Trigger sync now that we have real user
@@ -219,7 +253,9 @@ class DataSyncService extends ChangeNotifier {
     _isInitialized = true;
 
     if (kDebugMode) {
-      print('DataSyncService initialized for user: $userId${isPlaceholder ? ' (placeholder)' : ''}');
+      print(
+        'DataSyncService initialized for user: $userId${isPlaceholder ? ' (placeholder)' : ''}',
+      );
       print('Pending sync items: ${_syncQueue.length}');
     }
   }
@@ -230,12 +266,15 @@ class DataSyncService extends ChangeNotifier {
       return; // Still a placeholder, ignore
     }
 
-    final wasPlaceholder = _currentUserId?.startsWith('local_') == true ||
+    final wasPlaceholder =
+        _currentUserId?.startsWith('local_') == true ||
         _currentUserId?.startsWith('offline_') == true;
 
     if (wasPlaceholder) {
       if (kDebugMode) {
-        print('DataSyncService: Upgrading user from $_currentUserId to $realUserId');
+        print(
+          'DataSyncService: Upgrading user from $_currentUserId to $realUserId',
+        );
       }
       _currentUserId = realUserId;
 
@@ -398,34 +437,10 @@ class DataSyncService extends ChangeNotifier {
     if (!_apiService.isAuthenticated) return;
     if (_isSyncing) return; // Prevent concurrent syncs
 
-    // Outbox-owned dataTypes (settings/statistics/achievement/coin_balance/...)
-    // are drained by SyncEngine in batches; skip them here so the two
-    // engines don't fight over the same rows. DataSyncService still
-    // handles its own legacy types (profile, preferences, fcm_token_register).
-    // Must list EVERY SyncEngine-owned type: _syncItem's default branch
-    // returns true (marks done) for unknown types, so any SyncEngine type
-    // missing here would be silently swallowed without ever being sent.
-    const outboxOwned = <String>{
-      SyncDataType.settings,
-      SyncDataType.statistics,
-      SyncDataType.achievement,
-      SyncDataType.coinBalance,
-      SyncDataType.coinTransaction,
-      SyncDataType.premiumStatus,
-      SyncDataType.unlockedItem,
-      SyncDataType.battlePass,
-      SyncDataType.dailyChallengeClaim,
-      SyncDataType.weeklyQuestClaim,
-      SyncDataType.dailyBonusClaim,
-      SyncDataType.playerProgress,
-      SyncDataType.stageProgress,
-      SyncDataType.gameScore,
-    };
-
     final pendingItems = _syncQueue
         .where(
           (item) =>
-              !outboxOwned.contains(item.dataType) &&
+              !_outboxOwnedTypes.contains(item.dataType) &&
               (item.status == SyncItemStatus.pending ||
                   (item.status == SyncItemStatus.failed &&
                       item.retryCount < _maxRetries)),
@@ -594,7 +609,10 @@ class DataSyncService extends ChangeNotifier {
     }
   }
 
-  /// Load sync queue from Drift database
+  /// Load sync queue from Drift database. Only rows this service OWNS
+  /// (non-SyncEngine types) are loaded — the in-memory queue must never
+  /// hold outbox rows, or the whole-queue persist below would rewrite a
+  /// stale boot-time snapshot of them.
   Future<void> _loadSyncQueue() async {
     if (_syncDao == null) return;
 
@@ -603,6 +621,7 @@ class DataSyncService extends ChangeNotifier {
       _syncQueue.clear();
 
       for (final item in items) {
+        if (_outboxOwnedTypes.contains(item['dataType'])) continue;
         _syncQueue.add(SyncQueueItem.fromJson(item));
       }
 
@@ -619,13 +638,20 @@ class DataSyncService extends ChangeNotifier {
     }
   }
 
-  /// Save sync queue to Drift database
+  /// Save sync queue to Drift database. SyncEngine's outbox rows are
+  /// preserved — this rewrite only replaces this service's own legacy rows
+  /// (profile / preferences / fcm). The previous unscoped save wiped the
+  /// shared table, silently destroying every score/progress/coin row an
+  /// offline session had queued.
   Future<void> _saveSyncQueue() async {
     if (_syncDao == null) return;
 
     try {
       final queueMaps = _syncQueue.map((item) => item.toJson()).toList();
-      await _syncDao!.saveSyncQueueFromMaps(queueMaps);
+      await _syncDao!.saveSyncQueueFromMaps(
+        queueMaps,
+        preserveDataTypes: _outboxOwnedTypes.toList(),
+      );
     } catch (e) {
       if (kDebugMode) {
         print('Error saving sync queue: $e');
