@@ -22,9 +22,9 @@ Trial lengths are mirrored in `lib/screens/premium_benefits_screen.dart`
 
 ## Steps
 1. **Play Console → Monetize → Products → Subscriptions → Create subscription.**
-   - Create one subscription with product ID `pro_monthly` and one with `pro_yearly`
-     (these become `com.pranta.cosmostrike.pro_monthly` / `.pro_yearly` at runtime —
-     the app applies the `com.pranta.cosmostrike.` prefix).
+   - Create one subscription with product ID `com.pranta.cosmostrike.pro_monthly`
+     and one with `com.pranta.cosmostrike.pro_yearly` — the FULL prefixed string,
+     exactly as the app queries it (same convention as the 40 in-app products).
 2. **Add a base plan** to each:
    - Monthly: billing period **P1M** (auto-renewing), with a **3-day free trial** offer.
    - Yearly: billing period **P1Y** (auto-renewing), with a **7-day free trial** offer.
