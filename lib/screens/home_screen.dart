@@ -2008,126 +2008,145 @@ class _LoadoutBottomSheet extends StatelessWidget {
                     );
                   },
                 ),
-                if (entries.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Center(
-                      child: Text(
-                        'You have no power-ups.\nVisit the store to buy some!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: theme.accentColor.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  ...entries.map((e) {
-                    final key = e.key;
-                    final count = e.value;
-                    final isArmed = state.armed == key;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          if (isArmed) {
-                            context.read<PowerUpCubit>().unarm();
-                          } else {
-                            context.read<PowerUpCubit>().arm(key);
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isArmed
-                                ? theme.accentColor.withValues(alpha: 0.20)
-                                : Colors.white.withValues(alpha: 0.04),
-                            border: Border.all(
-                              color: isArmed
-                                  ? theme.accentColor
-                                  : Colors.white.withValues(alpha: 0.10),
-                              width: isArmed ? 2 : 1,
+                const SizedBox(height: 12),
+                // The inventory list is the only part that grows with owned
+                // types — it flexes to the remaining sheet height and
+                // scrolls, so the short landscape sheet (~320px) never
+                // overflows. Header + DONE stay pinned.
+                Flexible(
+                  child: entries.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          child: Center(
+                            child: Text(
+                              'You have no power-ups.\nVisit the store to buy some!',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: theme.accentColor.withValues(alpha: 0.6),
+                              ),
                             ),
-                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: theme.accentColor.withValues(
-                                    alpha: 0.15,
-                                  ),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  iconFor(key),
-                                  color: theme.accentColor,
-                                  size: 18,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      labelFor(key),
-                                      style: TextStyle(
-                                        color: theme.accentColor,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                        )
+                      : SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: entries.map((e) {
+                              final key = e.key;
+                              final count = e.value;
+                              final isArmed = state.armed == key;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () {
+                                    if (isArmed) {
+                                      context.read<PowerUpCubit>().unarm();
+                                    } else {
+                                      context.read<PowerUpCubit>().arm(key);
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
                                     ),
-                                    Text(
-                                      'Owned: $count',
-                                      style: TextStyle(
-                                        color: theme.accentColor.withValues(
-                                          alpha: 0.65,
+                                    decoration: BoxDecoration(
+                                      color: isArmed
+                                          ? theme.accentColor.withValues(
+                                              alpha: 0.20,
+                                            )
+                                          : Colors.white.withValues(
+                                              alpha: 0.04,
+                                            ),
+                                      border: Border.all(
+                                        color: isArmed
+                                            ? theme.accentColor
+                                            : Colors.white.withValues(
+                                                alpha: 0.10,
+                                              ),
+                                        width: isArmed ? 2 : 1,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: theme.accentColor.withValues(
+                                              alpha: 0.15,
+                                            ),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            iconFor(key),
+                                            color: theme.accentColor,
+                                            size: 18,
+                                          ),
                                         ),
-                                        fontSize: 11,
-                                      ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                labelFor(key),
+                                                style: TextStyle(
+                                                  color: theme.accentColor,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              Text(
+                                                'Owned: $count',
+                                                style: TextStyle(
+                                                  color: theme.accentColor
+                                                      .withValues(alpha: 0.65),
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (isArmed)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 5,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: theme.accentColor,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              'ARMED',
+                                              style: TextStyle(
+                                                color: theme.backgroundColor,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          )
+                                        else
+                                          Icon(
+                                            Icons.add_circle_outline,
+                                            color: theme.accentColor.withValues(
+                                              alpha: 0.7,
+                                            ),
+                                            size: 22,
+                                          ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                              if (isArmed)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: theme.accentColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    'ARMED',
-                                    style: TextStyle(
-                                      color: theme.backgroundColor,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                )
-                              else
-                                Icon(
-                                  Icons.add_circle_outline,
-                                  color: theme.accentColor.withValues(
-                                    alpha: 0.7,
-                                  ),
-                                  size: 22,
-                                ),
-                            ],
+                              );
+                            }).toList(),
                           ),
                         ),
-                      ),
-                    );
-                  }),
+                ),
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
