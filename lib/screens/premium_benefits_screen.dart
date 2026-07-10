@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
@@ -17,6 +19,71 @@ class PremiumBenefitsScreen extends StatefulWidget {
 
 class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
   bool _isYearly = true;
+
+  /// True from the Subscribe tap until the flow resolves: the Play sheet +
+  /// backend verification take a few seconds during which nothing used to
+  /// change on screen. Drives the spinner CTA and disables the plan toggle.
+  bool _subscribing = false;
+
+  /// Set when the purchase stream reports success — keeps the "ACTIVATING
+  /// PRO…" state up through the last verification moments (until hasPremium
+  /// flips and the whole body swaps to Premium Active).
+  bool _sawPurchaseSuccess = false;
+
+  StreamSubscription<String>? _statusSub;
+  StreamSubscription<bool>? _pendingSub;
+  Timer? _safetyTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    final purchases = PurchaseService();
+    _statusSub = purchases.purchaseStatusStream.listen((status) {
+      if (!mounted) return;
+      if (status.startsWith('purchase_completed:') ||
+          status == 'Purchase successful!') {
+        setState(() => _sawPurchaseSuccess = true);
+      } else if (status == 'Purchase failed' ||
+          status.startsWith('Purchase failed:') ||
+          status == 'Failed to initiate purchase' ||
+          status.startsWith('Purchase could not be verified')) {
+        _resetSubscribing();
+      }
+    });
+    // pending=false with no success event = the user closed/cancelled the
+    // Play sheet — put the button back.
+    _pendingSub = purchases.purchasePendingStream.listen((pending) {
+      if (!mounted || pending) return;
+      if (!_sawPurchaseSuccess) _resetSubscribing();
+    });
+  }
+
+  @override
+  void dispose() {
+    _statusSub?.cancel();
+    _pendingSub?.cancel();
+    _safetyTimer?.cancel();
+    super.dispose();
+  }
+
+  void _resetSubscribing() {
+    _safetyTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _subscribing = false;
+      _sawPurchaseSuccess = false;
+    });
+  }
+
+  void _beginSubscribing() {
+    setState(() {
+      _subscribing = true;
+      _sawPurchaseSuccess = false;
+    });
+    // Safety net: never leave the button stuck if an event is lost.
+    _safetyTimer?.cancel();
+    _safetyTimer = Timer(const Duration(seconds: 45), _resetSubscribing);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -227,37 +294,72 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
 
         // Primary CTA — same gradient subscribe pill as the store: amber for
         // the featured yearly plan, the neon ramp for monthly. Glow only.
+        // While the Play sheet / backend verification is in flight it turns
+        // into a spinner + progress label so the 2-3s gap never looks dead.
         GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: _subscribe,
+          onTap: _subscribing ? null : _subscribe,
           child: Container(
             height: 46,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: _isYearly
+                colors: _subscribing
+                    ? [
+                        theme.surfaceGlass.withValues(alpha: 0.9),
+                        theme.surfaceGlass.withValues(alpha: 0.9),
+                      ]
+                    : _isYearly
                     ? [Colors.amber, Colors.orange.shade400]
                     : [theme.neonPrimary, theme.neonSecondary],
               ),
               borderRadius: BorderRadius.circular(23),
-              boxShadow: [
-                BoxShadow(
-                  color: (_isYearly ? Colors.amber : theme.neonPrimary)
-                      .withValues(alpha: 0.35),
-                  blurRadius: 14,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+              boxShadow: _subscribing
+                  ? const []
+                  : [
+                      BoxShadow(
+                        color: (_isYearly ? Colors.amber : theme.neonPrimary)
+                            .withValues(alpha: 0.35),
+                        blurRadius: 14,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
             ),
-            child: const Text(
-              'SUBSCRIBE',
-              style: TextStyle(
-                color: Color(0xFF03040A),
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.5,
-              ),
-            ),
+            child: _subscribing
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(theme.neonPrimary),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        _sawPurchaseSuccess
+                            ? 'ACTIVATING PRO…'
+                            : 'CONNECTING TO GOOGLE PLAY…',
+                        style: TextStyle(
+                          color: theme.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ],
+                  )
+                : const Text(
+                    'SUBSCRIBE',
+                    style: TextStyle(
+                      color: Color(0xFF03040A),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
           ),
         ),
         const SizedBox(height: 8),
@@ -277,7 +379,9 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() => _isYearly = isYearly),
+      // Locked while a purchase is in flight — switching plans mid-flow
+      // would desync the pending state from what Google is charging.
+      onTap: _subscribing ? null : () => setState(() => _isYearly = isYearly),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Column(
@@ -457,7 +561,12 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     final product = purchaseService.getProduct(productId);
 
     if (product != null) {
-      await purchaseService.buyProduct(product);
+      _beginSubscribing();
+      final started = await purchaseService.buyProduct(product);
+      // Immediate launch failure — the stream listeners won't fire, so put
+      // the button back here. Successful launches resolve via the purchase
+      // stream (success/cancel/failure) or the 45s safety timer.
+      if (!started) _resetSubscribing();
       return;
     }
 

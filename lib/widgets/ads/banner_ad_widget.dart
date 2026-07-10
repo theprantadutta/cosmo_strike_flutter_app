@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_config.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 
@@ -46,6 +47,40 @@ class _ShipBannerAdState extends State<ShipBannerAd> {
   Timer? _retryTimer;
   int _retryAttempt = 0;
   static const _maxRetryDelay = Duration(seconds: 60);
+
+  /// Premium flips must take effect on ALREADY-MOUNTED banners immediately.
+  /// This widget reads premium state via GetIt (not the widget tree), so
+  /// without a listener a loaded banner kept showing until its screen was
+  /// rebuilt — subscribers saw ads for a while after buying Pro.
+  StreamSubscription<PremiumState>? _premiumSub;
+  bool _wasPremium = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (GetIt.I.isRegistered<PremiumCubit>()) {
+      final premium = GetIt.I<PremiumCubit>();
+      _wasPremium = premium.state.hasPremium;
+      _premiumSub = premium.stream.listen((s) {
+        if (!mounted || s.hasPremium == _wasPremium) return;
+        _wasPremium = s.hasPremium;
+        setState(() {
+          if (s.hasPremium) {
+            // Pro just activated: drop the ad + stop retries NOW. The build
+            // below collapses to zero space via shouldReserveBannerSpace.
+            _retryTimer?.cancel();
+            _ad?.dispose();
+            _ad = null;
+            _loaded = false;
+          } else if (_ad == null) {
+            // Pro lapsed while this banner is mounted — start loading again.
+            _retryAttempt = 0;
+            _load();
+          }
+        });
+      });
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -124,6 +159,7 @@ class _ShipBannerAdState extends State<ShipBannerAd> {
 
   @override
   void dispose() {
+    _premiumSub?.cancel();
     _retryTimer?.cancel();
     _ad?.dispose();
     super.dispose();
