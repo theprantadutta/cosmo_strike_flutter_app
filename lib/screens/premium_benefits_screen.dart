@@ -204,19 +204,25 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
             ],
           ),
         ),
-        if (badge != null) ...[
-          const SizedBox(height: 4),
-          Center(
-            child: Text(
-              badge,
-              style: TextStyle(
-                color: Colors.green.shade400,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
+        const SizedBox(height: 4),
+        // The badge line's height is ALWAYS reserved — Monthly has no badge,
+        // and conditionally omitting the row made the whole column jump when
+        // toggling plans.
+        SizedBox(
+          height: 16,
+          child: badge != null
+              ? Center(
+                  child: Text(
+                    badge,
+                    style: TextStyle(
+                      color: Colors.green.shade400,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              : null,
+        ),
         const SizedBox(height: 14),
 
         // Primary CTA — same gradient subscribe pill as the store: amber for
