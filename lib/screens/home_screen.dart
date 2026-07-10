@@ -770,81 +770,91 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // Walkthrough targets the whole launch bay now.
         key: HomeWalkthrough.playButtonKey,
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
-              // Push the emblem toward the bottom of its slot so it sits close
-              // to the LAUNCH text instead of floating with a big gap below.
-              child: Align(
-                alignment: const Alignment(0, 0.7),
-                child: LayoutBuilder(
-                  builder: (ctx, cons) {
-                    final s = (cons.biggest.shortestSide).clamp(76.0, 164.0);
-                    return LaunchEmblem(theme: theme, size: s);
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            ShaderMask(
-              shaderCallback: (b) => LinearGradient(
-                colors: [theme.neonPrimary, theme.neonSecondary],
-              ).createShader(b),
-              child: const Text(
-                'LAUNCH',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  letterSpacing: 4,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Continue campaign',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 13,
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Loadout chip self-hides when the user owns no power-ups.
-            _buildPowerUpLoadoutChip(theme),
-            const SizedBox(height: 10),
-            // Secondary action: open the campaign map to replay / jump to a
-            // specific level. Nested GestureDetector wins the tap over the
-            // parent launch-bay handler, so this never triggers a launch.
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => context.push(AppRoutes.levelSelect),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
+        // Natural-size content inside FittedBox(scaleDown), per the design
+        // system's no-overflow rule: the previous Expanded+fixed-children
+        // Column overflowed by ~12px on short viewports once the loadout
+        // chip appeared. Now the whole bay shrinks uniformly when tight and
+        // renders at natural size everywhere else.
+        child: LayoutBuilder(
+          builder: (ctx, cons) {
+            final emblemSize = (cons.maxHeight * 0.55)
+                .clamp(76.0, 164.0)
+                .clamp(0.0, cons.maxWidth);
+            return Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.grid_view_rounded,
-                      size: 14,
-                      color: theme.neonSecondary.withValues(alpha: 0.9),
+                    LaunchEmblem(theme: theme, size: emblemSize),
+                    const SizedBox(height: 4),
+                    ShaderMask(
+                      shaderCallback: (b) => LinearGradient(
+                        colors: [theme.neonPrimary, theme.neonSecondary],
+                      ).createShader(b),
+                      child: const Text(
+                        'LAUNCH',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 4,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(height: 4),
                     Text(
-                      'CHOOSE LEVEL',
+                      'Continue campaign',
                       style: TextStyle(
-                        color: theme.neonSecondary.withValues(alpha: 0.9),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.4,
+                        color: theme.textMuted,
+                        fontSize: 13,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Loadout chip self-hides when the user owns no power-ups.
+                    _buildPowerUpLoadoutChip(theme),
+                    const SizedBox(height: 10),
+                    // Secondary action: open the campaign map to replay / jump to a
+                    // specific level. Nested GestureDetector wins the tap over the
+                    // parent launch-bay handler, so this never triggers a launch.
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => context.push(AppRoutes.levelSelect),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.grid_view_rounded,
+                              size: 14,
+                              color: theme.neonSecondary.withValues(alpha: 0.9),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'CHOOSE LEVEL',
+                              style: TextStyle(
+                                color: theme.neonSecondary.withValues(
+                                  alpha: 0.9,
+                                ),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
