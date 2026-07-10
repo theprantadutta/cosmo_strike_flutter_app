@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
 
 class PremiumBenefitsScreen extends StatefulWidget {
   const PremiumBenefitsScreen({super.key});
@@ -60,10 +62,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
                             ),
                           ),
                           const SizedBox(width: 20),
-                          Expanded(
-                            flex: 6,
-                            child: _buildFeaturesList(theme),
-                          ),
+                          Expanded(flex: 6, child: _buildFeaturesList(theme)),
                         ],
                       ),
                     ),
@@ -82,9 +81,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Colors.green, Colors.teal],
-            ),
+            gradient: const LinearGradient(colors: [Colors.green, Colors.teal]),
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
@@ -119,8 +116,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
   /// purchase CTAs — fully borderless; only the diamond disc and the
   /// subscribe pill carry color.
   Widget _buildPurchasePanel(GameTheme theme, PremiumState premiumState) {
-    final productId =
-        _isYearly ? ProductIds.proYearly : ProductIds.proMonthly;
+    final productId = _isYearly ? ProductIds.proYearly : ProductIds.proMonthly;
     final price = PurchaseService().getStorePriceOrDefault(
       productId,
       _isYearly ? 39.99 : 4.99,
@@ -296,8 +292,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
               width: 28,
               height: 2.5,
               decoration: BoxDecoration(
-                color:
-                    isSelected ? theme.neonPrimary : Colors.transparent,
+                color: isSelected ? theme.neonPrimary : Colors.transparent,
                 borderRadius: BorderRadius.circular(2),
                 boxShadow: isSelected
                     ? [
@@ -440,10 +435,19 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
   /// what to do, and offer a Retry when the store query simply hasn't
   /// completed.
   Future<void> _subscribe() async {
+    // Anonymous (guest) users can't purchase — the backend rejects the
+    // verify (ANONYMOUS_ACCOUNT_PURCHASE_BLOCKED), which would leave a paid
+    // Google sub with no server-side entitlement. Same gate the store
+    // screen's paid paths use.
+    final user = context.read<AuthCubit>().state.user;
+    if (user == null || user.isAnonymous) {
+      await showAccountUpgradeSheet(context);
+      return;
+    }
+    if (!mounted) return;
+
     final purchaseService = PurchaseService();
-    final productId = _isYearly
-        ? ProductIds.proYearly
-        : ProductIds.proMonthly;
+    final productId = _isYearly ? ProductIds.proYearly : ProductIds.proMonthly;
     final product = purchaseService.getProduct(productId);
 
     if (product != null) {
@@ -453,9 +457,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
 
     // Device has no billing support at all (no Play services, emulator, etc.).
     if (!purchaseService.isAvailable) {
-      _showSubscribeIssue(
-        "In-app purchases aren't available on this device.",
-      );
+      _showSubscribeIssue("In-app purchases aren't available on this device.");
       return;
     }
 
@@ -495,15 +497,11 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
         content: Text(message),
         duration: const Duration(seconds: 5),
         action: (actionLabel != null && onAction != null)
-            ? SnackBarAction(
-                label: actionLabel,
-                onPressed: () => onAction(),
-              )
+            ? SnackBarAction(label: actionLabel, onPressed: () => onAction())
             : null,
       ),
     );
   }
-
 }
 
 class _FeatureItem {

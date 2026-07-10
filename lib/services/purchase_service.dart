@@ -126,10 +126,7 @@ class ProductIds {
     championshipEntry, tournamentVipEntry,
   ];
 
-  static List<String> get subscriptionIds => [
-    proMonthly,
-    proYearly,
-  ];
+  static List<String> get subscriptionIds => [proMonthly, proYearly];
 }
 
 class PurchaseService {
@@ -148,7 +145,8 @@ class PurchaseService {
   String? _queryProductError;
 
   /// SharedPreferences key for persisted pending verifications.
-  static const String _pendingVerificationsKey = 'pending_purchase_verifications';
+  static const String _pendingVerificationsKey =
+      'pending_purchase_verifications';
 
   /// SharedPreferences key for delivered purchase IDs (deduplication).
   /// Prevents double-delivery if the app crashes between coin delivery
@@ -260,7 +258,9 @@ class PurchaseService {
       await loadProducts().timeout(
         const Duration(seconds: 10),
         onTimeout: () {
-          AppLogger.warning('loadProducts timed out — continuing without product data');
+          AppLogger.warning(
+            'loadProducts timed out — continuing without product data',
+          );
         },
       );
       // restorePurchases() intentionally NOT called here. Calling it at
@@ -272,7 +272,9 @@ class PurchaseService {
       // triggered by AuthCubit once it transitions to authenticated
       // (see PurchaseService.runPostAuthRestore below).
 
-      AppLogger.info('Purchase Service initialized successfully (post-auth restore pending)');
+      AppLogger.info(
+        'Purchase Service initialized successfully (post-auth restore pending)',
+      );
     } catch (e) {
       AppLogger.error('Error initializing Purchase Service', e);
     }
@@ -397,43 +399,62 @@ class PurchaseService {
               '(${purchaseDetails.productID})',
             );
           } else {
-            // Verify purchase with backend (via ApiService with JWT auth)
-            bool valid = await _verifyWithBackend(purchaseDetails);
-            if (valid) {
-              _purchases.add(purchaseDetails);
-              // Broadcast for PremiumCubit to handle content delivery
-              _purchaseStatusController.add(
-                'purchase_completed:${purchaseDetails.productID}',
+            // Verify purchase with backend (via ApiService with JWT auth).
+            // Three outcomes — "couldn't reach the server" and "the server
+            // definitively said NO" must not be conflated:
+            //  * valid      → deliver.
+            //  * transient  → deliver optimistically + queue an offline
+            //                 retry (the purchase is real per Google's own
+            //                 client-side flow; only our backend is unsure).
+            //  * rejected   → do NOT deliver and do NOT queue. Google's
+            //                 server API says this purchase isn't valid.
+            //                 Not marked delivered either, so a later
+            //                 restore re-verifies in case the state heals.
+            final outcome = await _verifyWithBackend(purchaseDetails);
+            if (outcome == _VerifyOutcome.rejected) {
+              AppLogger.warning(
+                'Purchase definitively rejected by backend: '
+                '${purchaseDetails.productID} — not delivering',
               );
-              _purchaseStatusController.add('Purchase successful!');
+              _purchaseStatusController.add(
+                'Purchase could not be verified — contact support if you were charged',
+              );
             } else {
-              // Backend verification failed — queue for offline retry
-              await _queuePendingVerification(purchaseDetails);
-              // Still deliver locally so the user isn't stuck
-              _purchases.add(purchaseDetails);
-              _purchaseStatusController.add(
-                'purchase_completed:${purchaseDetails.productID}',
-              );
-              _purchaseStatusController.add(
-                'Purchase delivered (backend sync pending)',
+              if (outcome == _VerifyOutcome.valid) {
+                _purchases.add(purchaseDetails);
+                // Broadcast for PremiumCubit to handle content delivery
+                _purchaseStatusController.add(
+                  'purchase_completed:${purchaseDetails.productID}',
+                );
+                _purchaseStatusController.add('Purchase successful!');
+              } else {
+                // Transient — queue for offline retry
+                await _queuePendingVerification(purchaseDetails);
+                // Still deliver locally so the user isn't stuck
+                _purchases.add(purchaseDetails);
+                _purchaseStatusController.add(
+                  'purchase_completed:${purchaseDetails.productID}',
+                );
+                _purchaseStatusController.add(
+                  'Purchase delivered (backend sync pending)',
+                );
+              }
+
+              // Mark as delivered AFTER broadcasting so PremiumCubit
+              // processes it
+              if (purchaseId != null) {
+                await _markAsDelivered(purchaseId);
+              }
+
+              // Funnel terminal event — fires once per fulfilled purchase
+              // (restored re-emissions are skipped above).
+              final productDetails = getProduct(purchaseDetails.productID);
+              _analytics?.trackItemPurchased(
+                itemId: purchaseDetails.productID,
+                itemType: _productTypeFor(purchaseDetails.productID),
+                price: productDetails?.price ?? 'unknown',
               );
             }
-
-            // Mark as delivered AFTER broadcasting so PremiumCubit processes it
-            if (purchaseId != null) {
-              await _markAsDelivered(purchaseId);
-            }
-
-            // Funnel terminal event — fires once per fulfilled purchase
-            // (restored re-emissions are skipped above).
-            // Restore events also fire here on the first delivery; subsequent
-            // restores hit the dedup branch and don't double-log.
-            final productDetails = getProduct(purchaseDetails.productID);
-            _analytics?.trackItemPurchased(
-              itemId: purchaseDetails.productID,
-              itemType: _productTypeFor(purchaseDetails.productID),
-              price: productDetails?.price ?? 'unknown',
-            );
           }
         }
 
@@ -449,7 +470,9 @@ class PurchaseService {
 
   // ==================== Backend Verification (via ApiService) ====================
 
-  Future<bool> _verifyWithBackend(PurchaseDetails purchaseDetails) async {
+  Future<_VerifyOutcome> _verifyWithBackend(
+    PurchaseDetails purchaseDetails,
+  ) async {
     try {
       final apiService = ApiService();
 
@@ -464,9 +487,9 @@ class PurchaseService {
       } else if (purchaseDetails.verificationData.source == 'google_play') {
         platform = 'android';
         receiptData = purchaseDetails.verificationData.serverVerificationData;
-        if (Platform.isAndroid && purchaseDetails is GooglePlayPurchaseDetails) {
-          purchaseToken =
-              purchaseDetails.billingClientPurchase.purchaseToken;
+        if (Platform.isAndroid &&
+            purchaseDetails is GooglePlayPurchaseDetails) {
+          purchaseToken = purchaseDetails.billingClientPurchase.purchaseToken;
         } else {
           purchaseToken = purchaseDetails.purchaseID;
         }
@@ -483,16 +506,25 @@ class PurchaseService {
 
       if (result != null && result['is_valid'] == true) {
         AppLogger.info('Purchase verified via ApiService (JWT-authenticated)');
-        return true;
+        return _VerifyOutcome.valid;
       }
 
-      AppLogger.error(
-        'Backend verification failed: ${result?['message'] ?? 'null response'}',
-      );
-      return false;
+      if (result != null) {
+        // HTTP 200 with is_valid=false — the server reached Google and
+        // Google says this purchase is not valid. Definitive.
+        AppLogger.error(
+          'Backend definitively rejected purchase: ${result['message']}',
+        );
+        return _VerifyOutcome.rejected;
+      }
+
+      // null = non-2xx or empty: network failure, 401 (pre-auth), 5xx, or
+      // the server's retryable PURCHASE_VERIFICATION_UNAVAILABLE 400.
+      AppLogger.error('Backend verification unavailable (null response)');
+      return _VerifyOutcome.transient;
     } catch (e) {
       AppLogger.error('Error verifying purchase with backend', e);
-      return false;
+      return _VerifyOutcome.transient;
     }
   }
 
@@ -574,13 +606,60 @@ class PurchaseService {
   static bool _isCoinPack(Object? productId) =>
       productId is String && productId.contains('coin_pack');
 
+  /// Batch-verify items surface transient server states as `is_valid=false`
+  /// with a recognizable message prefix (the single-verify endpoint returns
+  /// non-2xx for the same states). These must stay in the retry queue;
+  /// anything else with `is_valid=false` is a definitive Google rejection.
+  /// The anonymous block is retryable too — it heals once the user signs in.
+  static bool _isTransientVerifyMessage(Object? message) =>
+      message is String &&
+      (message.startsWith('PURCHASE_VERIFICATION_UNAVAILABLE') ||
+          message.startsWith('ANONYMOUS_ACCOUNT_PURCHASE_BLOCKED'));
+
+  /// Entries older than this are dropped from the retry queue — by then the
+  /// user has either re-triggered the purchase via restore (fresh verify) or
+  /// the purchase was refunded by Google's 3-day unacknowledged window. The
+  /// cap guarantees a poisoned entry can never block coin-balance adoption
+  /// (see [hasPendingVerifications]) forever.
+  static const Duration _pendingVerificationMaxAge = Duration(days: 14);
+
   Future<void> retryPendingVerifications() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final pending = prefs.getStringList(_pendingVerificationsKey) ?? [];
+      var pending = prefs.getStringList(_pendingVerificationsKey) ?? [];
       if (pending.isEmpty) return;
 
-      AppLogger.info('Retrying ${pending.length} pending purchase verifications');
+      // Age cap: silently drop expired entries before retrying.
+      final fresh = <String>[];
+      for (final entryJson in pending) {
+        try {
+          final entry = jsonDecode(entryJson) as Map<String, dynamic>;
+          final queuedAt = DateTime.tryParse(
+            entry['queued_at'] as String? ?? '',
+          );
+          if (queuedAt != null &&
+              DateTime.now().difference(queuedAt) >
+                  _pendingVerificationMaxAge) {
+            AppLogger.warning(
+              'Dropping expired pending verification: ${entry['product_id']} '
+              '(queued ${queuedAt.toIso8601String()})',
+            );
+            continue;
+          }
+          fresh.add(entryJson);
+        } catch (_) {
+          // Unparseable entry — drop it rather than retry forever.
+        }
+      }
+      if (fresh.length != pending.length) {
+        await prefs.setStringList(_pendingVerificationsKey, fresh);
+        pending = fresh;
+      }
+      if (pending.isEmpty) return;
+
+      AppLogger.info(
+        'Retrying ${pending.length} pending purchase verifications',
+      );
       final apiService = ApiService();
       if (!apiService.isAuthenticated) return;
 
@@ -597,15 +676,17 @@ class PurchaseService {
       // Use batch endpoint if multiple pending, individual for single
       if (entries.length >= 2) {
         final batchPayload = entries
-            .map((entry) => <String, dynamic>{
-                  'purchase_data': {
-                    'product_id': entry['product_id'],
-                    'transaction_id': entry['transaction_id'],
-                    'receipt_data': entry['receipt_data'],
-                    'purchase_token': entry['purchase_token'],
-                  },
-                  'platform': entry['platform'],
-                })
+            .map(
+              (entry) => <String, dynamic>{
+                'purchase_data': {
+                  'product_id': entry['product_id'],
+                  'transaction_id': entry['transaction_id'],
+                  'receipt_data': entry['receipt_data'],
+                  'purchase_token': entry['purchase_token'],
+                },
+                'platform': entry['platform'],
+              },
+            )
             .toList();
 
         final result = await apiService.batchVerifyPurchases(batchPayload);
@@ -625,8 +706,17 @@ class PurchaseService {
                 if (_isCoinPack(entries[i]['product_id'])) {
                   coinPackVerified = true;
                 }
-              } else {
+              } else if (_isTransientVerifyMessage(r['message'])) {
+                // Server couldn't reach Google / payment pending — keep
+                // retrying.
                 remaining.add(pending[i]);
+              } else {
+                // Definitive rejection — drop the poisoned entry so it can't
+                // block coin-balance adoption forever.
+                AppLogger.warning(
+                  'Pending verification definitively rejected, dropping: '
+                  '${entries[i]['product_id']} (${r['message']})',
+                );
               }
             } else {
               remaining.add(pending[i]);
@@ -638,7 +728,9 @@ class PurchaseService {
           if (remaining.isEmpty) {
             AppLogger.info('All pending verifications completed (batch)');
           } else {
-            AppLogger.warning('${remaining.length} verifications still pending');
+            AppLogger.warning(
+              '${remaining.length} verifications still pending',
+            );
           }
           return;
         }
@@ -663,6 +755,14 @@ class PurchaseService {
               'Pending verification succeeded: ${entry['product_id']}',
             );
             if (_isCoinPack(entry['product_id'])) coinPackVerified = true;
+          } else if (result != null) {
+            // HTTP 200 with is_valid=false — Google definitively rejected
+            // this purchase. Drop it instead of retrying forever. (Transient
+            // server states come back as non-2xx → null → kept below.)
+            AppLogger.warning(
+              'Pending verification definitively rejected, dropping: '
+              '${entry['product_id']} (${result['message']})',
+            );
           } else {
             remaining.add(pending[i]);
           }
@@ -807,7 +907,8 @@ class PurchaseService {
 
   /// Get the store-formatted price for a product (e.g. "$1.99").
   /// Returns null if the product hasn't been loaded from the store.
-  String? getStorePrice(String productId) => _displayPrice(getProduct(productId));
+  String? getStorePrice(String productId) =>
+      _displayPrice(getProduct(productId));
 
   /// Get the store price, falling back to a formatted default.
   String getStorePriceOrDefault(String productId, double fallbackPrice) {
@@ -847,3 +948,9 @@ class PurchaseService {
     _purchaseStatusController.close();
   }
 }
+
+/// Outcome of a backend purchase verification. [transient] means the answer
+/// is unknown (network / server unreachable / payment pending / not signed
+/// in) — deliver optimistically and retry. [rejected] means the server
+/// reached Google and Google says the purchase is invalid — never deliver.
+enum _VerifyOutcome { valid, rejected, transient }

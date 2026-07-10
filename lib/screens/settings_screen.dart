@@ -10,6 +10,7 @@ import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dar
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
+import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
@@ -2139,6 +2140,16 @@ extension _SettingsPremium on _SettingsScreenState {
   // upsell.
 
   void _restorePurchases() async {
+    // Guests can't restore: the backend rejects anonymous verifies, which
+    // used to leave an unverified local-only grant + a stuck retry queue.
+    // Restored purchases need the signed-in account they belong to.
+    final user = context.read<AuthCubit>().state.user;
+    if (user == null || user.isAnonymous) {
+      await showAccountUpgradeSheet(context);
+      return;
+    }
+    if (!mounted) return;
+
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -2151,9 +2162,13 @@ extension _SettingsPremium on _SettingsScreenState {
       await purchaseService.restorePurchases();
 
       if (mounted) {
+        // Results arrive asynchronously on the purchase stream — this only
+        // confirms the restore REQUEST went through, not that items landed.
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Purchases restored successfully!'),
+            content: Text(
+              'Restore requested — any purchases will appear in a moment.',
+            ),
             backgroundColor: Colors.green,
           ),
         );
