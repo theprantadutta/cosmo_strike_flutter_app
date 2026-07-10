@@ -72,17 +72,12 @@ class FirebaseAnalyticsClient implements AnalyticsClient {
 
   @override
   Future<void> trackGameStarted({
-    required int boardWidth,
-    required int boardHeight,
     required String gameMode,
+    required int startLevel,
   }) {
     return _analytics.logEvent(
       name: 'game_started',
-      parameters: {
-        'board_width': boardWidth,
-        'board_height': boardHeight,
-        'game_mode': gameMode,
-      },
+      parameters: {'game_mode': gameMode, 'start_level': startLevel},
     );
   }
 
@@ -99,25 +94,25 @@ class FirebaseAnalyticsClient implements AnalyticsClient {
   @override
   Future<void> trackGameOver({
     required int score,
-    required int level,
     required int durationSeconds,
-    required String cause,
-    required int foodEaten,
-    required int powerUpsCollected,
+    required int stageReached,
+    required int levelsCleared,
+    required int enemiesKilled,
     required int maxCombo,
-    required bool isNewHighScore,
+    required bool victory,
+    required String gameMode,
   }) {
     return _analytics.logEvent(
       name: 'game_over',
       parameters: {
         'score': score,
-        'level': level,
         'duration_seconds': durationSeconds,
-        'cause': cause,
-        'food_eaten': foodEaten,
-        'power_ups_collected': powerUpsCollected,
+        'stage_reached': stageReached,
+        'levels_cleared': levelsCleared,
+        'enemies_killed': enemiesKilled,
         'max_combo': maxCombo,
-        'is_new_high_score': isNewHighScore ? 1 : 0,
+        'victory': victory ? 1 : 0,
+        'game_mode': gameMode,
       },
     );
   }
@@ -212,11 +207,7 @@ class FirebaseAnalyticsClient implements AnalyticsClient {
   }) {
     return _analytics.logEvent(
       name: 'item_purchased',
-      parameters: {
-        'item_id': itemId,
-        'item_type': itemType,
-        'price': price,
-      },
+      parameters: {'item_id': itemId, 'item_type': itemType, 'price': price},
     );
   }
 
@@ -227,10 +218,7 @@ class FirebaseAnalyticsClient implements AnalyticsClient {
   }) {
     return _analytics.logEvent(
       name: 'purchase_initiated',
-      parameters: {
-        'product_id': productId,
-        'product_type': productType,
-      },
+      parameters: {'product_id': productId, 'product_type': productType},
     );
   }
 
@@ -249,10 +237,7 @@ class FirebaseAnalyticsClient implements AnalyticsClient {
   }) {
     return _analytics.logEvent(
       name: 'purchase_failed',
-      parameters: {
-        'product_id': productId,
-        'error_code': ?errorCode,
-      },
+      parameters: {'product_id': productId, 'error_code': ?errorCode},
     );
   }
 
@@ -268,10 +253,7 @@ class FirebaseAnalyticsClient implements AnalyticsClient {
   }) {
     return _analytics.logEvent(
       name: 'cosmetic_equipped',
-      parameters: {
-        'cosmetic_type': cosmeticType,
-        'cosmetic_id': cosmeticId,
-      },
+      parameters: {'cosmetic_type': cosmeticType, 'cosmetic_id': cosmeticId},
     );
   }
 

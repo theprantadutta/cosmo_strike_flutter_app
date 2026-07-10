@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -50,9 +51,41 @@ import 'firebase_options.dart';
 /// Whether critical init succeeded. If false, show an error screen.
 bool _initSucceeded = false;
 
+/// Whether Firebase.initializeApp completed — the gate for touching any
+/// Firebase.instance from the global error handlers / init-failure path.
+bool _firebaseReady = false;
+
 /// Captured init failure (shown on the error screen so a startup failure is
 /// visible instead of an infinite splash).
 String? _initError;
+
+/// Global error handlers — installed immediately after Firebase init (and
+/// again from the init catch as a fallback) so startup-window errors reach
+/// Crashlytics too. Idempotent: assigning the same closures twice is
+/// harmless. In release builds (with Firebase up) fatal errors are forwarded
+/// to Crashlytics; in debug they're surfaced locally only.
+void _installGlobalErrorHandlers() {
+  FlutterError.onError = (details) {
+    AppLogger.error('Flutter Error', details.exception, details.stack);
+    if (kDebugMode) {
+      FlutterError.presentError(details);
+    } else if (_firebaseReady) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+    }
+  };
+
+  // Uncaught async errors outside the Flutter framework (e.g. in Futures /
+  // event handlers). Returning true marks them handled. This + FlutterError
+  // .onError above is the current FlutterFire-recommended pattern (replaces
+  // the older runZonedGuarded approach).
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppLogger.error('Uncaught async error', error, stack);
+    if (!kDebugMode && _firebaseReady) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    }
+    return true;
+  };
+}
 
 void main() async {
   // Ensure Flutter is initialized and preserve splash screen
@@ -94,15 +127,26 @@ void main() async {
     // until (and unless) the fetch lands.
     unawaited(AdTuning.init());
 
-    // Crash reporting + performance monitoring. Collection is gated to release
-    // builds so local dev crashes/traces never pollute the production
-    // dashboards — mirrors the analytics debug/release split in injection.dart.
+    // Crash reporting + performance + analytics collection. All gated to
+    // release builds so local dev crashes/traces/auto-events never pollute
+    // the production dashboards. (The Dart-side analytics client split in
+    // injection.dart only covers explicit events — without this toggle,
+    // debug builds still emitted native auto-events like first_open /
+    // session_start into the prod property.)
+    _firebaseReady = true;
     await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
       !kDebugMode,
     );
     await FirebasePerformance.instance.setPerformanceCollectionEnabled(
       !kDebugMode,
     );
+    await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(!kDebugMode);
+
+    // Install the global error handlers NOW — before any other init step or
+    // fire-and-forget future can throw. Previously they were installed after
+    // the whole init sequence, so a crash during startup (or an early
+    // unawaited-future rejection) never reached Crashlytics.
+    _installGlobalErrorHandlers();
 
     // Landscape-only: Cosmo Strike is a horizontal command-HUD experience
     // (side-scrolling shmup + wide UI). Lock both landscape orientations so
@@ -210,33 +254,23 @@ void main() async {
   } catch (error, stackTrace) {
     _initError = '$error';
     AppLogger.error('Failed to initialize Cosmo Strike', error, stackTrace);
+    // Startup failures used to be invisible remotely: users saw the error
+    // screen but Crashlytics showed nothing. Record when Firebase is up.
+    if (!kDebugMode && _firebaseReady) {
+      try {
+        await FirebaseCrashlytics.instance.recordError(
+          error,
+          stackTrace,
+          reason: 'App initialization failed',
+          fatal: true,
+        );
+      } catch (_) {}
+    }
+    // Ensure the handlers exist even when init failed before reaching the
+    // in-try installation (e.g. dotenv/Firebase itself threw) — the
+    // _firebaseReady guard keeps them log-only in that case.
+    _installGlobalErrorHandlers();
   }
-
-  // Setup global error handling — always, not just in debug mode. In release
-  // builds (with Firebase initialized) fatal errors are forwarded to
-  // Crashlytics; in debug they're surfaced locally only. The _initSucceeded
-  // guard prevents touching FirebaseCrashlytics.instance when Firebase failed
-  // to initialize.
-  FlutterError.onError = (details) {
-    AppLogger.error('Flutter Error', details.exception, details.stack);
-    if (kDebugMode) {
-      FlutterError.presentError(details);
-    } else if (_initSucceeded) {
-      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
-    }
-  };
-
-  // Uncaught async errors outside the Flutter framework (e.g. in Futures /
-  // event handlers). Returning true marks them handled. This + FlutterError
-  // .onError above is the current FlutterFire-recommended pattern (replaces
-  // the older runZonedGuarded approach).
-  PlatformDispatcher.instance.onError = (error, stack) {
-    AppLogger.error('Uncaught async error', error, stack);
-    if (!kDebugMode && _initSucceeded) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    }
-    return true;
-  };
 
   if (_initSucceeded) {
     // Safety net: the splash is normally lifted by LoadingScreen.initState.

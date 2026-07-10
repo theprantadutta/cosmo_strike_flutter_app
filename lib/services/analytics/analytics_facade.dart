@@ -24,15 +24,10 @@ class AnalyticsFacade implements AnalyticsClient {
       _fire((c) => c.setUserId(userId));
 
   @override
-  Future<void> setUserProperties({
-    String? authMethod,
-    bool? isPremium,
-  }) async =>
+  Future<void> setUserProperties({String? authMethod, bool? isPremium}) async =>
       _fire(
-        (c) => c.setUserProperties(
-          authMethod: authMethod,
-          isPremium: isPremium,
-        ),
+        (c) =>
+            c.setUserProperties(authMethod: authMethod, isPremium: isPremium),
       );
 
   @override
@@ -47,70 +42,59 @@ class AnalyticsFacade implements AnalyticsClient {
   // ==================== Auth ====================
 
   @override
-  Future<void> trackSignInGoogle() async =>
-      _fire((c) => c.trackSignInGoogle());
+  Future<void> trackSignInGoogle() async => _fire((c) => c.trackSignInGoogle());
 
   @override
   Future<void> trackSignInAnonymous() async =>
       _fire((c) => c.trackSignInAnonymous());
 
   @override
-  Future<void> trackSignInEmail() async =>
-      _fire((c) => c.trackSignInEmail());
+  Future<void> trackSignInEmail() async => _fire((c) => c.trackSignInEmail());
 
   @override
   Future<void> trackSignOut() async => _fire((c) => c.trackSignOut());
 
   @override
-  Future<void> trackUsernameSet() async =>
-      _fire((c) => c.trackUsernameSet());
+  Future<void> trackUsernameSet() async => _fire((c) => c.trackUsernameSet());
 
   // ==================== Core Gameplay ====================
 
   @override
   Future<void> trackGameStarted({
-    required int boardWidth,
-    required int boardHeight,
     required String gameMode,
-  }) async =>
-      _fire(
-        (c) => c.trackGameStarted(
-          boardWidth: boardWidth,
-          boardHeight: boardHeight,
-          gameMode: gameMode,
-        ),
-      );
+    required int startLevel,
+  }) async => _fire(
+    (c) => c.trackGameStarted(gameMode: gameMode, startLevel: startLevel),
+  );
 
   @override
   Future<void> trackGamePaused() async => _fire((c) => c.trackGamePaused());
 
   @override
-  Future<void> trackGameResumed() async =>
-      _fire((c) => c.trackGameResumed());
+  Future<void> trackGameResumed() async => _fire((c) => c.trackGameResumed());
 
   @override
   Future<void> trackGameOver({
     required int score,
-    required int level,
     required int durationSeconds,
-    required String cause,
-    required int foodEaten,
-    required int powerUpsCollected,
+    required int stageReached,
+    required int levelsCleared,
+    required int enemiesKilled,
     required int maxCombo,
-    required bool isNewHighScore,
-  }) async =>
-      _fire(
-        (c) => c.trackGameOver(
-          score: score,
-          level: level,
-          durationSeconds: durationSeconds,
-          cause: cause,
-          foodEaten: foodEaten,
-          powerUpsCollected: powerUpsCollected,
-          maxCombo: maxCombo,
-          isNewHighScore: isNewHighScore,
-        ),
-      );
+    required bool victory,
+    required String gameMode,
+  }) async => _fire(
+    (c) => c.trackGameOver(
+      score: score,
+      durationSeconds: durationSeconds,
+      stageReached: stageReached,
+      levelsCleared: levelsCleared,
+      enemiesKilled: enemiesKilled,
+      maxCombo: maxCombo,
+      victory: victory,
+      gameMode: gameMode,
+    ),
+  );
 
   @override
   Future<void> trackLevelUp(int level) async =>
@@ -135,9 +119,7 @@ class AnalyticsFacade implements AnalyticsClient {
     required int score,
     required String result,
   }) async =>
-      _fire(
-        (c) => c.trackMultiplayerGameEnded(score: score, result: result),
-      );
+      _fire((c) => c.trackMultiplayerGameEnded(score: score, result: result));
 
   // ==================== Progression ====================
 
@@ -145,13 +127,12 @@ class AnalyticsFacade implements AnalyticsClient {
   Future<void> trackAchievementUnlocked({
     required String achievementId,
     required String achievementName,
-  }) async =>
-      _fire(
-        (c) => c.trackAchievementUnlocked(
-          achievementId: achievementId,
-          achievementName: achievementName,
-        ),
-      );
+  }) async => _fire(
+    (c) => c.trackAchievementUnlocked(
+      achievementId: achievementId,
+      achievementName: achievementName,
+    ),
+  );
 
   @override
   Future<void> trackDailyChallengeCompleted(String challengeId) async =>
@@ -169,13 +150,9 @@ class AnalyticsFacade implements AnalyticsClient {
   Future<void> trackBattlePassRewardClaimed({
     required int tier,
     required String rewardType,
-  }) async =>
-      _fire(
-        (c) => c.trackBattlePassRewardClaimed(
-          tier: tier,
-          rewardType: rewardType,
-        ),
-      );
+  }) async => _fire(
+    (c) => c.trackBattlePassRewardClaimed(tier: tier, rewardType: rewardType),
+  );
 
   // ==================== Monetization ====================
 
@@ -188,26 +165,21 @@ class AnalyticsFacade implements AnalyticsClient {
     required String itemId,
     required String itemType,
     required String price,
-  }) async =>
-      _fire(
-        (c) => c.trackItemPurchased(
-          itemId: itemId,
-          itemType: itemType,
-          price: price,
-        ),
-      );
+  }) async => _fire(
+    (c) =>
+        c.trackItemPurchased(itemId: itemId, itemType: itemType, price: price),
+  );
 
   @override
   Future<void> trackPurchaseInitiated({
     required String productId,
     required String productType,
-  }) async =>
-      _fire(
-        (c) => c.trackPurchaseInitiated(
-          productId: productId,
-          productType: productType,
-        ),
-      );
+  }) async => _fire(
+    (c) => c.trackPurchaseInitiated(
+      productId: productId,
+      productType: productType,
+    ),
+  );
 
   @override
   Future<void> trackPurchaseCancelled({required String productId}) async =>
@@ -217,10 +189,9 @@ class AnalyticsFacade implements AnalyticsClient {
   Future<void> trackPurchaseFailed({
     required String productId,
     String? errorCode,
-  }) async =>
-      _fire(
-        (c) => c.trackPurchaseFailed(productId: productId, errorCode: errorCode),
-      );
+  }) async => _fire(
+    (c) => c.trackPurchaseFailed(productId: productId, errorCode: errorCode),
+  );
 
   @override
   Future<void> trackPremiumSubscriptionStarted() async =>
@@ -230,13 +201,12 @@ class AnalyticsFacade implements AnalyticsClient {
   Future<void> trackCosmeticEquipped({
     required String cosmeticType,
     required String cosmeticId,
-  }) async =>
-      _fire(
-        (c) => c.trackCosmeticEquipped(
-          cosmeticType: cosmeticType,
-          cosmeticId: cosmeticId,
-        ),
-      );
+  }) async => _fire(
+    (c) => c.trackCosmeticEquipped(
+      cosmeticType: cosmeticType,
+      cosmeticId: cosmeticId,
+    ),
+  );
 
   @override
   Future<void> trackThemeSelected(String themeName) async =>
@@ -248,10 +218,9 @@ class AnalyticsFacade implements AnalyticsClient {
   Future<void> trackSettingChanged({
     required String settingName,
     required String value,
-  }) async =>
-      _fire(
-        (c) => c.trackSettingChanged(settingName: settingName, value: value),
-      );
+  }) async => _fire(
+    (c) => c.trackSettingChanged(settingName: settingName, value: value),
+  );
 
   // ==================== Social ====================
 
@@ -260,8 +229,7 @@ class AnalyticsFacade implements AnalyticsClient {
       _fire((c) => c.trackLeaderboardViewed(type));
 
   @override
-  Future<void> trackFriendAdded() async =>
-      _fire((c) => c.trackFriendAdded());
+  Future<void> trackFriendAdded() async => _fire((c) => c.trackFriendAdded());
 
   @override
   Future<void> trackFriendRemoved() async =>
@@ -271,21 +239,15 @@ class AnalyticsFacade implements AnalyticsClient {
   Future<void> trackTournamentEntered({
     required String tournamentId,
     required String tier,
-  }) async =>
-      _fire(
-        (c) => c.trackTournamentEntered(
-          tournamentId: tournamentId,
-          tier: tier,
-        ),
-      );
+  }) async => _fire(
+    (c) => c.trackTournamentEntered(tournamentId: tournamentId, tier: tier),
+  );
 
   @override
-  Future<void> trackReplayViewed() async =>
-      _fire((c) => c.trackReplayViewed());
+  Future<void> trackReplayViewed() async => _fire((c) => c.trackReplayViewed());
 
   @override
-  Future<void> trackReplayShared() async =>
-      _fire((c) => c.trackReplayShared());
+  Future<void> trackReplayShared() async => _fire((c) => c.trackReplayShared());
 
   // ==================== Engagement ====================
 

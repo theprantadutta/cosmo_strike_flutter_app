@@ -55,12 +55,11 @@ class LoggerAnalyticsClient implements AnalyticsClient {
 
   @override
   Future<void> trackGameStarted({
-    required int boardWidth,
-    required int boardHeight,
     required String gameMode,
+    required int startLevel,
   }) async {
     AppLogger.info(
-      '$_tag game_started: board=${boardWidth}x$boardHeight, mode=$gameMode',
+      '$_tag game_started: mode=$gameMode, startLevel=$startLevel',
     );
   }
 
@@ -77,18 +76,18 @@ class LoggerAnalyticsClient implements AnalyticsClient {
   @override
   Future<void> trackGameOver({
     required int score,
-    required int level,
     required int durationSeconds,
-    required String cause,
-    required int foodEaten,
-    required int powerUpsCollected,
+    required int stageReached,
+    required int levelsCleared,
+    required int enemiesKilled,
     required int maxCombo,
-    required bool isNewHighScore,
+    required bool victory,
+    required String gameMode,
   }) async {
     AppLogger.info(
-      '$_tag game_over: score=$score, level=$level, duration=${durationSeconds}s, '
-      'cause=$cause, food=$foodEaten, powerUps=$powerUpsCollected, '
-      'maxCombo=$maxCombo, newHighScore=$isNewHighScore',
+      '$_tag game_over: score=$score, duration=${durationSeconds}s, '
+      'stage=$stageReached, cleared=$levelsCleared, kills=$enemiesKilled, '
+      'maxCombo=$maxCombo, victory=$victory, mode=$gameMode',
     );
   }
 
@@ -117,7 +116,9 @@ class LoggerAnalyticsClient implements AnalyticsClient {
     required int score,
     required String result,
   }) async {
-    AppLogger.info('$_tag multiplayer_game_ended: score=$score, result=$result');
+    AppLogger.info(
+      '$_tag multiplayer_game_ended: score=$score, result=$result',
+    );
   }
 
   @override
@@ -244,9 +245,7 @@ class LoggerAnalyticsClient implements AnalyticsClient {
     required String tournamentId,
     required String tier,
   }) async {
-    AppLogger.info(
-      '$_tag tournament_entered: id=$tournamentId, tier=$tier',
-    );
+    AppLogger.info('$_tag tournament_entered: id=$tournamentId, tier=$tier');
   }
 
   @override

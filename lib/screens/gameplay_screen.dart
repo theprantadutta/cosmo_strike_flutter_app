@@ -193,6 +193,15 @@ class _GameplayScreenState extends State<GameplayScreen>
       unawaited(GetIt.I<AnalyticsFacade>().trackGameTutorialStarted());
     }
 
+    // Engagement funnel: one game_started per run (game_over fires from
+    // _submitRun with the run's results).
+    unawaited(
+      GetIt.I<AnalyticsFacade>().trackGameStarted(
+        gameMode: _gameModeName,
+        startLevel: widget.startLevel,
+      ),
+    );
+
     // Equipped cosmetics (skin tint + trail stream) — snapshot at run
     // start, same as the control settings.
     final premium = context.read<PremiumCubit>().state;
@@ -450,6 +459,21 @@ class _GameplayScreenState extends State<GameplayScreen>
           difficulty: 'normal',
         );
     } catch (_) {}
+
+    // Engagement funnel: the run's terminal analytics event (pairs with the
+    // game_started fired in initState).
+    unawaited(
+      GetIt.I<AnalyticsFacade>().trackGameOver(
+        score: r.score,
+        durationSeconds: r.durationSeconds,
+        stageReached: r.stageReached,
+        levelsCleared: r.levelsCleared,
+        enemiesKilled: r.enemiesKilled,
+        maxCombo: r.maxCombo,
+        victory: r.cleared,
+        gameMode: modeName,
+      ),
+    );
 
     // Fold this run into lifetime statistics. This is the ONLY place the live
     // single-player shmup records stats — the run lives in Flame, so the

@@ -25,21 +25,20 @@ abstract class AnalyticsClient {
   // ==================== Core Gameplay ====================
 
   Future<void> trackGameStarted({
-    required int boardWidth,
-    required int boardHeight,
     required String gameMode,
+    required int startLevel,
   });
   Future<void> trackGamePaused();
   Future<void> trackGameResumed();
   Future<void> trackGameOver({
     required int score,
-    required int level,
     required int durationSeconds,
-    required String cause,
-    required int foodEaten,
-    required int powerUpsCollected,
+    required int stageReached,
+    required int levelsCleared,
+    required int enemiesKilled,
     required int maxCombo,
-    required bool isNewHighScore,
+    required bool victory,
+    required String gameMode,
   });
   Future<void> trackLevelUp(int level);
   Future<void> trackPowerUpUsed(String powerUpType);
