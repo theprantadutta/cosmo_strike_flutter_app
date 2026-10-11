@@ -301,19 +301,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
-          floatingActionButton: kDebugMode
-              ? CsIconButton(
-                  icon: Symbols.bug_report_rounded,
-                  size: 34,
-                  color: CsColors.ink45,
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => TalkerScreen(talker: AppLogger.instance),
-                    ),
-                  ),
-                )
-              : null,
-          floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         ),
 
         // Walkthrough overlay
@@ -411,6 +398,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     onShare: () => ShareService().shareApp(),
                     onAbout: () => showCreditsDialog(context, context.read<ThemeCubit>().state.currentTheme),
                     onHelp: () => context.push(AppRoutes.instructions),
+                    onDebugLogs: kDebugMode
+                        ? () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => TalkerScreen(talker: AppLogger.instance),
+                              ),
+                            )
+                        : null,
                   ),
                   CsIconButton(
                     key: HomeWalkthrough.settingsKey,
@@ -836,10 +830,13 @@ class _OrbitPainter extends CustomPainter {
 
 /// Overflow for the secondary tools that used to crowd the top bar.
 class _HomeMoreMenu extends StatelessWidget {
-  const _HomeMoreMenu({required this.onShare, required this.onAbout, required this.onHelp});
+  const _HomeMoreMenu({required this.onShare, required this.onAbout, required this.onHelp, this.onDebugLogs});
   final VoidCallback onShare;
   final VoidCallback onAbout;
   final VoidCallback onHelp;
+
+  /// Debug builds only: opens the Talker log viewer.
+  final VoidCallback? onDebugLogs;
 
   @override
   Widget build(BuildContext context) {
@@ -850,6 +847,7 @@ class _HomeMoreMenu extends StatelessWidget {
       onSelected: (v) => switch (v) {
         0 => onHelp(),
         1 => onShare(),
+        3 => onDebugLogs?.call(),
         _ => onAbout(),
       },
       itemBuilder: (context) {
@@ -865,6 +863,7 @@ class _HomeMoreMenu extends StatelessWidget {
           row(0, Symbols.help_rounded, 'How to play'),
           row(1, Symbols.share_rounded, 'Share Cosmo Strike'),
           row(2, Symbols.info_rounded, 'About'),
+          if (onDebugLogs != null) row(3, Symbols.bug_report_rounded, 'Debug logs'),
         ];
       },
       child: SizedBox(

@@ -330,11 +330,16 @@ class ChallengeSummary extends StatelessWidget {
             ),
             SizedBox(width: cs(22)),
             Expanded(
-              child: Text(
-                headline,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: t.display(42, em: -0.04, height: 0.95),
+              // Break at the first space ("All / done.") and scale down rather
+              // than wrapping mid-word in a narrow column.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  headline.replaceFirst(' ', '\n'),
+                  maxLines: 2,
+                  style: t.display(36, em: -0.04, height: 0.95),
+                ),
               ),
             ),
           ],
