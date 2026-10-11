@@ -129,16 +129,17 @@ class CsTopBar extends StatelessWidget {
             CsBackButton(onPressed: onBack),
             SizedBox(width: cs(4)),
           ],
-          if (title != null)
-            Flexible(
-              child: Text(
-                title!.toUpperCase(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: t.mono(11, color: CsColors.ink, weight: FontWeight.w600),
-              ),
-            ),
-          const Spacer(),
+          // Expanded (not Flexible + Spacer) so trailing meta sits flush right.
+          Expanded(
+            child: title == null
+                ? const SizedBox.shrink()
+                : Text(
+                    title!.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.mono(11, color: CsColors.ink, weight: FontWeight.w600),
+                  ),
+          ),
           for (var i = 0; i < trailing.length; i++) ...[
             if (i > 0) SizedBox(width: cs(18)),
             trailing[i],

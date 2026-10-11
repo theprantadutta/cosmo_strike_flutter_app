@@ -1,25 +1,25 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_inapp_purchase/flutter_inapp_purchase.dart' as iap;
+import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_cosmetics.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_power_up.dart';
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/rewarded_coins_button.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/power_up/power_up_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
-import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
+import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
 
 class StoreScreen extends StatefulWidget {
   final int initialTab;
@@ -35,17 +35,19 @@ class _StoreScreenState extends State<StoreScreen>
   late TabController _tabController;
 
   // Tracks productIds whose purchase was just initiated but whose ownership
-  // hasn't reflected back from the backend yet. The card switches from
-  // "BUY" to a "Verifying..." spinner during this window (typically 2-15s
+  // hasn't reflected back from the backend yet. The tile switches from
+  // "BUY" to a "Verifying" spinner during this window (typically 2-15s
   // for Play Store → webhook → entitlement → cubit). Auto-cleared once
   // the PremiumCubit reports the item as owned, or after a safety timeout
   // so the spinner never spins forever if a webhook is genuinely lost.
   final Set<String> _pendingProductIds = {};
 
+  /// True while a "Restore purchases" request is in flight.
+  bool _restoring = false;
+
   // Tab order: Pro / Coins / Themes / Skins / Trails / Power-Ups.
   // Keeps Coins at index 1 so existing `?tab=1` deep links still land on
-  // coins. Themes replaces the old Boards tab (boards aren't products).
-  // Modes tab removed entirely — modes are uniformly free now.
+  // coins. These names are the analytics tab ids — keep them stable.
   static const _tabNames = [
     'Pro',
     'Coins',
@@ -53,6 +55,24 @@ class _StoreScreenState extends State<StoreScreen>
     'Skins',
     'Trails',
     'Power-Ups',
+  ];
+
+  static const _tabLabels = [
+    'Pro',
+    'Coins',
+    'Themes',
+    'Skins',
+    'Trails',
+    'Power-ups',
+  ];
+
+  static const _tabIcons = [
+    Symbols.diamond_rounded,
+    Symbols.paid_rounded,
+    Symbols.palette_rounded,
+    Symbols.rocket_rounded,
+    Symbols.auto_awesome_rounded,
+    Symbols.bolt_rounded,
   ];
 
   @override
@@ -87,49 +107,55 @@ class _StoreScreenState extends State<StoreScreen>
             return BlocBuilder<CoinsCubit, CoinsState>(
               builder: (context, coinsState) {
                 final theme = themeState.currentTheme;
-                return CommandScaffold(
-                  theme: theme,
-                  title: 'Cosmo Store',
-                  bottomBar: const ShipBannerAd(),
-                  bodyPadding: EdgeInsets.zero,
-                  body: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // LEFT — balance telemetry + section rail. Never
-                        // scrolls: rendered at natural size and scaled down
-                        // to fit the short landscape viewport.
-                        Expanded(
-                          flex: 3,
-                          child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: SizedBox(
-                                width: 220,
-                                child: _buildLeftPanel(theme, coinsState),
-                              ),
+                final cs = context.cs;
+                return ColoredBox(
+                  color: CsColors.bg,
+                  child: Stack(
+                    children: [
+                      const Positioned.fill(child: _PrismGlow()),
+                      CsScaffold(
+                        backgroundColor: Colors.transparent,
+                        // Back + title passed as the (non-flex) leading so the
+                        // coin balance sits flush right like the mock.
+                        topBarLeading: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CsBackButton(),
+                            SizedBox(width: cs(4)),
+                            Text(
+                              'STORE',
+                              maxLines: 1,
+                              style: cs.type.mono(11, color: CsColors.ink, weight: FontWeight.w600),
                             ),
-                          ),
+                          ],
                         ),
-                        const SizedBox(width: 20),
-                        // RIGHT — the selected section's content (swipeable).
-                        Expanded(
-                          flex: 7,
-                          child: TabBarView(
+                        trailing: [
+                          if (coinsState.hasPremiumBonus)
+                            CsChip(
+                              '${coinsState.earningMultiplier}x bonus',
+                              kind: CsChipKind.gold,
+                            ),
+                          CsCoins(coinsState.balance.total, size: 12),
+                        ],
+                        bottomBar: const ShipBannerAd(),
+                        body: CsSplit(
+                          leftWidth: 200,
+                          gap: cs(38),
+                          left: _buildCategoryRail(),
+                          right: TabBarView(
                             controller: _tabController,
                             children: [
-                              _buildProTab(theme, premiumState),
-                              _buildCoinsTab(theme, coinsState),
+                              _buildProTab(premiumState),
+                              _buildCoinsTab(coinsState),
                               _buildThemesTab(theme, premiumState),
                               _buildSkinsTab(theme, premiumState),
                               _buildTrailsTab(theme, premiumState),
-                              _buildPowerUpsTab(theme, premiumState, coinsState),
+                              _buildPowerUpsTab(coinsState),
                             ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -141,145 +167,302 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   // ===========================================================================
-  // Left panel — balance telemetry + borderless section rail
+  // Left category rail
   // ===========================================================================
 
-  /// Vertical left region: the Star Coins balance readout up top and a
-  /// borderless nav rail below it. Driven by the existing [_tabController]
-  /// so rail taps and TabBarView swipes stay in sync.
-  Widget _buildLeftPanel(GameTheme theme, CoinsState coinsState) {
-    const items = [
-      (Icons.diamond, 'Pro'),
-      (Icons.monetization_on, 'Coins'),
-      (Icons.color_lens, 'Themes'),
-      (Icons.rocket_launch, 'Skins'),
-      (Icons.auto_awesome, 'Trails'),
-      (Icons.flash_on, 'Power-Ups'),
-    ];
-
+  /// Never scrolls — renders at natural size and scales down on short
+  /// phones. Driven by [_tabController] so rail taps and swipes stay in sync.
+  Widget _buildCategoryRail() {
     return AnimatedBuilder(
       animation: _tabController,
       builder: (context, _) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
+        final cs = context.cs;
+        return CsFitColumn(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Balance telemetry — floats straight on the starfield.
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'BALANCE',
-                    style: TextStyle(
-                      color: theme.accentColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.8,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.monetization_on,
-                        color: Colors.amber,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${coinsState.balance.total}',
-                        style: TextStyle(
-                          color: theme.textPrimary,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      if (coinsState.hasPremiumBonus) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.purple.shade400,
-                                Colors.indigo.shade400,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${coinsState.earningMultiplier}x BONUS',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            for (var i = 0; i < items.length; i++)
-              _buildNavItem(theme, i, items[i].$1, items[i].$2),
+            for (var i = 0; i < _tabLabels.length; i++) ...[
+              if (i > 0) SizedBox(height: cs(2)),
+              _buildRailItem(i),
+            ],
           ],
         );
       },
     );
   }
 
-  Widget _buildNavItem(GameTheme theme, int i, IconData icon, String label) {
-    final selected = _tabController.index == i;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+  Widget _buildRailItem(int i) {
+    final cs = context.cs;
+    final t = cs.type;
+    final on = _tabController.index == i;
+    return CsPressable(
       onTap: () => _tabController.animateTo(i),
-      // No background at all — selection reads purely through the neon icon,
-      // brighter text, and a small glowing indicator dot.
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      semanticLabel: _tabLabels[i],
+      child: AnimatedContainer(
+        duration: CsMotion.base,
+        curve: CsMotion.standard,
+        constraints: const BoxConstraints(minHeight: 44),
+        padding: EdgeInsets.symmetric(horizontal: cs(14), vertical: cs(11)),
+        decoration: BoxDecoration(
+          color: on ? CsColors.fill07 : Colors.transparent,
+          borderRadius: BorderRadius.circular(CsRadius.tile),
+        ),
         child: Row(
           children: [
             Icon(
-              icon,
-              size: 18,
-              color: selected ? theme.neonPrimary : theme.textMuted,
+              _tabIcons[i],
+              size: cs(20),
+              color: on ? CsColors.gold : CsColors.ink45,
             ),
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? theme.textPrimary : theme.textMuted,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const Spacer(),
-            if (selected)
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: theme.neonPrimary,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.neonPrimary.withValues(alpha: 0.7),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ],
+            SizedBox(width: cs(12)),
+            Flexible(
+              child: Text(
+                _tabLabels[i],
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: t.display(
+                  15,
+                  weight: on ? FontWeight.w700 : FontWeight.w600,
+                  em: 0,
+                  height: 1.1,
+                  color: on ? CsColors.ink : CsColors.ink60,
                 ),
               ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // Shared tab building blocks
+  // ===========================================================================
+
+  /// Big Syne headline + optional mono sub-line at the top of each tab.
+  Widget _tabHeader(String title, {String? subtitle}) {
+    final cs = context.cs;
+    final t = cs.type;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: t.display(34, em: -0.03, height: 1),
+        ),
+        if (subtitle != null) ...[
+          SizedBox(height: cs(8)),
+          Text(
+            subtitle,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: t.mono(11, em: 0.04, color: CsColors.ink55, height: 1.45),
+          ),
+        ],
+        SizedBox(height: cs(18)),
+      ],
+    );
+  }
+
+  /// Mono section label with an optional quiet note under it.
+  Widget _sectionLabel(String label, {String? note, bool first = false}) {
+    final cs = context.cs;
+    final t = cs.type;
+    return Padding(
+      padding: EdgeInsets.only(top: first ? 0 : cs(24), bottom: cs(10)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CsLabel(label),
+          if (note != null) ...[
+            SizedBox(height: cs(4)),
+            Text(note, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.body),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _box(Widget child) => SliverToBoxAdapter(child: child);
+
+  /// Scrollable tab body. A little bottom room so the last row never sits
+  /// flush against the banner ad.
+  Widget _tabScroll(List<Widget> slivers) {
+    return CustomScrollView(
+      slivers: [
+        ...slivers,
+        SliverToBoxAdapter(child: SizedBox(height: context.cs(20))),
+      ],
+    );
+  }
+
+  /// Responsive tile grid: more columns as the pane gets wider (tablets get
+  /// a smaller minimum tile so they show more at once). Fixed row height so
+  /// tiles never overflow — previews flex to whatever room is left.
+  Widget _tileGrid({
+    required int count,
+    required IndexedWidgetBuilder itemBuilder,
+    double minTile = 170,
+    double extent = 236,
+    int maxColumns = 5,
+    int minColumns = 2,
+    int? maxColumnsTablet,
+  }) {
+    return SliverLayoutBuilder(
+      builder: (context, constraints) {
+        final cs = context.cs;
+        final gap = cs(12);
+        final min = cs(cs.isTablet ? minTile * 0.86 : minTile);
+        final cols = ((constraints.crossAxisExtent + gap) / (min + gap))
+            .floor()
+            .clamp(minColumns, cs.isTablet ? (maxColumnsTablet ?? maxColumns + 1) : maxColumns);
+        return SliverGrid(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: cols,
+            mainAxisSpacing: gap,
+            crossAxisSpacing: gap,
+            mainAxisExtent: cs(extent),
+          ),
+          delegate: SliverChildBuilderDelegate(itemBuilder, childCount: count),
+        );
+      },
+    );
+  }
+
+  /// Banner row atop the cosmetic tabs (themes / skins / trails) telling the
+  /// user a Pro subscription unlocks everything in that tab. Tapping it (when
+  /// not already Pro) jumps to the Pro tab. Power-Ups are intentionally
+  /// excluded — Pro doesn't unlock the power-up catalog.
+  Widget _buildProIncludedRow(PremiumState premiumState, String itemNoun) {
+    final cs = context.cs;
+    final isPro = premiumState.hasPremium;
+    return Padding(
+      padding: EdgeInsets.only(bottom: cs(18)),
+      child: CsListRow(
+        dividerTop: true,
+        onTap: isPro ? null : () => _tabController.animateTo(0),
+        leading: CsIconDisc(
+          isPro ? Symbols.check_circle_rounded : Symbols.diamond_rounded,
+          size: 34,
+          color: isPro ? CsColors.mint : CsColors.gold,
+        ),
+        title: isPro ? 'Unlocked with Pro' : 'Included with Cosmo Strike Pro',
+        subtitle: isPro
+            ? 'Every $itemNoun here is yours with your subscription.'
+            : 'Subscribe to Pro to unlock every $itemNoun here — no separate purchase needed.',
+        trailing: isPro
+            ? null
+            : Icon(Symbols.chevron_right_rounded, size: cs(22), color: CsColors.ink45),
+      ),
+    );
+  }
+
+  /// One grid tile for a cosmetic (theme / skin / trail): preview on top,
+  /// Syne name + one-line blurb, then a status/action footer.
+  ///
+  /// equipped → prism ring (current) · owned → done + mint label + EQUIP ·
+  /// buyable → future + gold price + BUY · verifying → spinner.
+  Widget _cosmeticTile({
+    required Widget preview,
+    required String name,
+    required String description,
+    required bool isEquipped,
+    required bool isOwned,
+    required bool isPending,
+    required bool showProBadge,
+    required String priceLabel,
+    required VoidCallback onEquip,
+    required VoidCallback onBuy,
+    String equippedLabel = 'Equipped',
+    String ownedLabel = 'Owned',
+    String equipLabel = 'Equip',
+  }) {
+    final cs = context.cs;
+    final t = cs.type;
+    final state = isEquipped
+        ? CsTileState.current
+        : isOwned
+            ? CsTileState.done
+            : CsTileState.future;
+    final VoidCallback? onTap =
+        isPending ? null : (isEquipped ? null : (isOwned ? onEquip : onBuy));
+
+    final Widget footer;
+    if (isPending) {
+      footer = _footerRow(
+        CsLabel('Verifying', color: CsColors.ink45, size: 10),
+        SizedBox.square(
+          dimension: cs(14),
+          child: const CircularProgressIndicator(strokeWidth: 2, color: CsColors.ink60),
+        ),
+      );
+    } else if (isEquipped) {
+      footer = _footerRow(
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Symbols.check_circle_rounded, size: cs(14), color: CsColors.ink),
+          SizedBox(width: cs(6)),
+          Flexible(child: CsLabel(equippedLabel, color: CsColors.ink, size: 10)),
+        ]),
+        null,
+      );
+    } else if (isOwned) {
+      footer = _footerRow(
+        CsLabel(ownedLabel, color: CsColors.mint, size: 10),
+        CsButton.secondary(label: equipLabel, size: CsButtonSize.small, onPressed: onEquip),
+      );
+    } else {
+      footer = _footerRow(
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(priceLabel, maxLines: 1, style: t.mono(12, color: CsColors.gold, em: 0.04)),
+        ),
+        CsButton.secondary(label: 'Buy', size: CsButtonSize.small, onPressed: onBuy),
+      );
+    }
+
+    return _ItemTile(
+      state: state,
+      onTap: onTap,
+      preview: preview,
+      badge: showProBadge
+          ? const CsChip('Pro', kind: CsChipKind.gold, icon: Symbols.lock_rounded)
+          : null,
+      name: name,
+      description: description,
+      footer: footer,
+    );
+  }
+
+  Widget _footerRow(Widget left, Widget? right) {
+    final cs = context.cs;
+    return Row(
+      children: [
+        Expanded(child: Align(alignment: Alignment.centerLeft, child: left)),
+        if (right != null) ...[SizedBox(width: cs(6)), right],
+      ],
+    );
+  }
+
+  /// Dark base + soft palette wash behind a painted cosmetic preview.
+  Widget _palettePreview(List<Color> palette, CustomPainter painter) {
+    return ColoredBox(
+      color: CsColors.raised,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              palette.first.withValues(alpha: 0.38),
+              palette.last.withValues(alpha: 0.08),
+            ],
+          ),
+        ),
+        child: SizedBox.expand(child: CustomPaint(painter: painter)),
       ),
     );
   }
@@ -288,178 +471,85 @@ class _StoreScreenState extends State<StoreScreen>
   // PRO TAB
   // ===========================================================================
 
-  Widget _buildProTab(GameTheme theme, PremiumState premiumState) {
+  static const _proBenefitsLine =
+      'No ads · All themes, skins & trails · 2× coins · Pass premium track';
+
+  Widget _buildProTab(PremiumState premiumState) {
     // Drops any Pro SKU from the pending set once PremiumCubit reports
     // hasPremium=true — the spinner on the plan cards stops the moment the
     // backend's VerifyPurchase response lands.
     _reconcilePendingPurchases(premiumState);
+    final cs = context.cs;
+    final t = cs.type;
 
-    // Paid Pro user — banner + feature grid only, no need to show plans.
-    if (premiumState.hasPremium && !premiumState.isOnPromo) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _buildProActiveBanner(theme, premiumState),
-            const SizedBox(height: 16),
-            _buildProFeatureGrid(theme),
-          ],
-        ),
-      );
-    }
-
-    // Trial user — banner with TRIAL badge + feature grid + plan picker
-    // below so they can convert without leaving the tab. Banner's
-    // "Keep Pro" CTA defaults to monthly; this section lets them choose.
-    if (premiumState.hasPremium && premiumState.isOnPromo) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildProActiveBanner(theme, premiumState),
-            const SizedBox(height: 20),
-            _buildProFeatureGrid(theme),
-            const SizedBox(height: 24),
-            Text(
-              'SUBSCRIBE BEFORE THE TRIAL ENDS',
-              style: TextStyle(
-                color: theme.accentColor,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.8,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildProPlanCard(
-                    theme: theme,
-                    title: 'Monthly',
-                    productId: ProductIds.proMonthly,
-                    fallbackPrice: 4.99,
-                    cadence: '/month',
-                    savingsLabel: null,
-                    highlight: false,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildProPlanCard(
-                    theme: theme,
-                    title: 'Yearly',
-                    productId: ProductIds.proYearly,
-                    fallbackPrice: 39.99,
-                    cadence: '/year',
-                    savingsLabel: 'Save 33%',
-                    highlight: true,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
+    // Paid Pro → status + benefits only (no plans). Trial → status with a
+    // convert CTA + the plan picker. Free → plan picker.
+    final isPaidPro = premiumState.hasPremium && !premiumState.isOnPromo;
+    final isTrial = premiumState.hasPremium && premiumState.isOnPromo;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.only(bottom: cs(20)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Plans lead the tab — price first, pitch after.
+          CsHeadline(
+            const ['Cosmo ', 'Pro'],
+            prismIndex: 1,
+            maxLines: 1,
+            style: t.display(34, em: -0.03, height: 1.05),
+          ),
+          SizedBox(height: cs(8)),
           Text(
-            'CHOOSE YOUR PLAN',
-            style: TextStyle(
-              color: theme.accentColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.8,
-            ),
+            _proBenefitsLine,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: t.mono(11, em: 0.06, color: CsColors.ink55, height: 1.4),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildProPlanCard(
-                  theme: theme,
-                  title: 'Monthly',
-                  productId: ProductIds.proMonthly,
-                  fallbackPrice: 4.99,
-                  cadence: '/month',
-                  savingsLabel: null,
-                  highlight: false,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildProPlanCard(
-                  theme: theme,
-                  title: 'Yearly',
-                  productId: ProductIds.proYearly,
-                  fallbackPrice: 39.99,
-                  cadence: '/year',
-                  savingsLabel: 'Save 33%',
-                  highlight: true,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildProHero(theme),
-          const SizedBox(height: 20),
-          Text(
-            'WHAT YOU GET',
-            style: TextStyle(
-              color: theme.accentColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.8,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildProFeatureGrid(theme),
+          SizedBox(height: cs(18)),
+          if (isPaidPro || isTrial) ...[
+            _buildProStatus(premiumState),
+            SizedBox(height: cs(18)),
+          ],
+          if (!isPaidPro) ...[
+            if (isTrial) _sectionLabel('Subscribe before the trial ends', first: true),
+            _buildPlanCards(),
+            SizedBox(height: cs(10)),
+          ],
+          _buildProFooter(),
+          _sectionLabel('What you get'),
+          _buildProFeatureGrid(),
         ],
       ),
     );
   }
 
-  Widget _buildProHero(GameTheme theme) {
-    // Fully transparent per the clean design — the gradient diamond disc and
-    // typography carry the hero; no boxed background.
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      child: Column(
+  Widget _buildPlanCards() {
+    final cs = context.cs;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.purple.shade400, Colors.indigo.shade400],
-              ),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.diamond, color: Colors.white, size: 32),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Cosmo Strike Pro',
-            style: TextStyle(
-              color: theme.textPrimary,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+          Expanded(
+            child: _buildProPlanCard(
+              title: 'Monthly',
+              productId: ProductIds.proMonthly,
+              fallbackPrice: 4.99,
+              cadence: '/mo',
+              billedLabel: 'Billed monthly',
+              savingsLabel: null,
+              featured: false,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'All premium themes, skins & trails · 2× coins · '
-            'premium power-ups · tournament entries · Battle Pass Premium',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 13,
+          SizedBox(width: cs(14)),
+          Expanded(
+            child: _buildProPlanCard(
+              title: 'Yearly',
+              productId: ProductIds.proYearly,
+              fallbackPrice: 39.99,
+              cadence: '/yr',
+              billedLabel: 'Billed yearly',
+              savingsLabel: 'Save 33%',
+              featured: true,
             ),
           ),
         ],
@@ -468,293 +558,204 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   Widget _buildProPlanCard({
-    required GameTheme theme,
     required String title,
     required String productId,
     required double fallbackPrice,
     required String cadence,
+    required String billedLabel,
     required String? savingsLabel,
-    required bool highlight,
+    required bool featured,
   }) {
+    final cs = context.cs;
+    final t = cs.type;
     final price =
         PurchaseService().getStorePriceOrDefault(productId, fallbackPrice);
+    final trial = _freeTrialLabel(productId);
     final isPending = _pendingProductIds.contains(productId);
     // While a sibling plan card is mid-verify we disable BOTH plan cards so
     // the user can't kick off a second purchase before the first one's
     // VerifyPurchase response lands — that would double-charge and bug out
     // the PremiumCubit's mid-flight state.
-    final anyProPending = _pendingProductIds
-            .contains(ProductIds.proMonthly) ||
+    final anyProPending = _pendingProductIds.contains(ProductIds.proMonthly) ||
         _pendingProductIds.contains(ProductIds.proYearly);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: anyProPending
-          ? null
-          : () => _purchaseSubscription(productId, '$title plan'),
-      // Fully transparent card per the clean design — the price typography,
-      // savings chip, and the gradient subscribe pill carry the plan.
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+    final VoidCallback? onBuy = anyProPending
+        ? null
+        : () => _purchaseSubscription(productId, '$title plan');
+
+    final label = isPending ? 'Verifying…' : 'Subscribe';
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
           children: [
-            Row(
+            Expanded(child: CsLabel(title)),
+            if (savingsLabel != null)
+              CsChip(savingsLabel, kind: CsChipKind.gold, size: 10),
+          ],
+        ),
+        SizedBox(height: cs(10)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(price, maxLines: 1, style: t.display(34, em: -0.02, height: 1.1)),
+              Text(' $cadence', style: t.mono(12, em: 0, color: CsColors.ink45)),
+            ],
+          ),
+        ),
+        SizedBox(height: cs(8)),
+        Text(
+          trial ?? billedLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: t.mono(11, em: 0.02, color: trial != null ? CsColors.mint : CsColors.ink45),
+        ),
+        SizedBox(height: cs(14)),
+        const Spacer(),
+        featured
+            ? CsButton.primary(label: label, expand: true, loading: isPending, onPressed: onBuy)
+            : CsButton.secondary(label: label, expand: true, loading: isPending, onPressed: onBuy),
+      ],
+    );
+
+    final Widget card = featured
+        ? CsPrismRing(
+            radius: CsRadius.card,
+            fill: CsColors.raised,
+            padding: EdgeInsets.all(cs(18.5)),
+            child: content,
+          )
+        : Container(
+            padding: EdgeInsets.all(cs(20)),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(CsRadius.card),
+              border: Border.all(color: CsColors.lineSubtle),
+            ),
+            child: content,
+          );
+    return CsPressable(onTap: onBuy, scale: 0.99, semanticLabel: '$title plan', child: card);
+  }
+
+  /// "N-day free trial" when the store product carries a free-trial offer
+  /// the user is eligible for; null otherwise (we never promise a trial the
+  /// store didn't return).
+  String? _freeTrialLabel(String productId) {
+    final product = PurchaseService().getProduct(productId);
+    if (product is! iap.ProductSubscription) return null;
+    final offers = switch (product) {
+      iap.ProductSubscriptionAndroid(:final subscriptionOffers) => subscriptionOffers,
+      iap.ProductSubscriptionIOS(:final subscriptionOffers) =>
+        subscriptionOffers ?? const <iap.SubscriptionOffer>[],
+    };
+    for (final offer in offers) {
+      final period = offer.period;
+      if (offer.paymentMode == iap.PaymentMode.FreeTrial && period != null) {
+        final unit = switch (period.unit) {
+          iap.SubscriptionPeriodUnit.Day => 'day',
+          iap.SubscriptionPeriodUnit.Week => 'week',
+          iap.SubscriptionPeriodUnit.Month => 'month',
+          iap.SubscriptionPeriodUnit.Year => 'year',
+          iap.SubscriptionPeriodUnit.Unknown => null,
+        };
+        final n = period.value * (offer.periodCount ?? 1);
+        return unit == null ? 'Free trial included' : '$n-$unit free trial';
+      }
+      // Play: a zero-priced, non-recurring pricing phase is the trial.
+      for (final phase in offer.pricingPhasesAndroid?.pricingPhaseList ??
+          const <iap.PricingPhaseAndroid>[]) {
+        if ((int.tryParse(phase.priceAmountMicros) ?? -1) != 0 ||
+            phase.recurrenceMode == 1) {
+          continue;
+        }
+        final m = RegExp(r'^P(\d+)([DWMY])$').firstMatch(phase.billingPeriod);
+        if (m == null) return 'Free trial included';
+        final cycles = phase.billingCycleCount > 0 ? phase.billingCycleCount : 1;
+        final n = int.parse(m.group(1)!) * cycles;
+        const units = {'D': 'day', 'W': 'week', 'M': 'month', 'Y': 'year'};
+        return '$n-${units[m.group(2)]} free trial';
+      }
+    }
+    return null;
+  }
+
+  Widget _buildProStatus(PremiumState premiumState) {
+    // Promo trials (welcome bonus / app-wide giveaway) get a gold TRIAL chip
+    // + countdown + a convert CTA so the user knows this is a limited window.
+    // Paid Pro keeps the mint "verified" treatment.
+    final isPromo = premiumState.isOnPromo;
+    final expiry =
+        isPromo ? premiumState.promoExpiresAt : premiumState.subscriptionExpiry;
+    final expiryLabel = isPromo
+        ? (expiry != null ? _formatPromoCountdown(expiry) : 'Free 3-day trial')
+        : (expiry != null ? 'Renews ${_formatDate(expiry)}' : null);
+    final anyProPending = _pendingProductIds.contains(ProductIds.proMonthly) ||
+        _pendingProductIds.contains(ProductIds.proYearly);
+    return CsListRow(
+      dividerTop: true,
+      leading: CsIconDisc(
+        isPromo ? Symbols.redeem_rounded : Symbols.verified_rounded,
+        color: isPromo ? CsColors.gold : CsColors.mint,
+      ),
+      title: isPromo ? "You're on a free Pro trial!" : "You're Pro!",
+      titleTrailing: isPromo ? const CsChip('Trial', kind: CsChipKind.gold) : null,
+      subtitle: expiryLabel,
+      // Convert CTA — fires the monthly purchase, same path as the plan
+      // card's Subscribe button.
+      trailing: isPromo
+          ? CsButton.premium(
+              label: 'Keep Pro — Subscribe',
+              size: CsButtonSize.small,
+              icon: Symbols.workspace_premium_rounded,
+              loading: _pendingProductIds.contains(ProductIds.proMonthly),
+              onPressed: anyProPending
+                  ? null
+                  : () => _purchaseSubscription(ProductIds.proMonthly, 'Pro Monthly'),
+            )
+          : null,
+    );
+  }
+
+  /// "Cancel anytime · Restore purchases" — the restore half is live.
+  Widget _buildProFooter() {
+    final cs = context.cs;
+    final t = cs.type;
+    final quiet = t.mono(10, em: 0.04, color: CsColors.ink45);
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text('Cancel anytime  ·  ', style: quiet),
+        CsPressable(
+          onTap: _restoring ? null : _restorePurchases,
+          semanticLabel: 'Restore purchases',
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  title,
-                  style: TextStyle(
-                    color: theme.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                  'Restore purchases',
+                  style: quiet.copyWith(
+                    color: CsColors.ink70,
+                    decoration: TextDecoration.underline,
+                    decorationColor: CsColors.ink30,
                   ),
                 ),
-                if (savingsLabel != null) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.amber,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      savingsLabel,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                if (_restoring) ...[
+                  SizedBox(width: cs(8)),
+                  SizedBox.square(
+                    dimension: cs(10),
+                    child: const CircularProgressIndicator(strokeWidth: 1.5, color: CsColors.ink60),
                   ),
                 ],
               ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              price,
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            Text(
-              cadence,
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Gradient subscribe pill — purely visual; the whole card is the
-            // tap target (outer GestureDetector). Featured plan = amber,
-            // sibling = the neon cyan→magenta ramp. No borders, glow only.
-            Container(
-              height: 42,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                gradient: isPending
-                    ? null
-                    : LinearGradient(
-                        colors: highlight
-                            ? [Colors.amber, Colors.orange.shade400]
-                            : [theme.neonPrimary, theme.neonSecondary],
-                      ),
-                color:
-                    isPending ? Colors.white.withValues(alpha: 0.08) : null,
-                borderRadius: BorderRadius.circular(21),
-                boxShadow: isPending
-                    ? null
-                    : [
-                        BoxShadow(
-                          color:
-                              (highlight ? Colors.amber : theme.neonPrimary)
-                                  .withValues(alpha: 0.35),
-                          blurRadius: 14,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-              ),
-              child: isPending
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation(theme.textMuted),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Verifying…',
-                          style: TextStyle(
-                            color: theme.textMuted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    )
-                  : const Text(
-                      'SUBSCRIBE',
-                      style: TextStyle(
-                        color: Color(0xFF03040A),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProActiveBanner(GameTheme theme, PremiumState premiumState) {
-    // Promo trials (welcome bonus / app-wide giveaway) get amber-orange
-    // theming + a TRIAL chip + a convert CTA so the user knows this is a
-    // limited window and there's an action they can take. Paid Pro keeps
-    // the original green/teal "verified" treatment.
-    final isPromo = premiumState.isOnPromo;
-    final expiry = isPromo
-        ? premiumState.promoExpiresAt
-        : premiumState.subscriptionExpiry;
-    final gradientColors = isPromo
-        ? [
-            Colors.amber.withValues(alpha: 0.22),
-            Colors.orange.withValues(alpha: 0.12),
-          ]
-        : [
-            Colors.green.withValues(alpha: 0.18),
-            Colors.teal.withValues(alpha: 0.10),
-          ];
-    final iconGradient = isPromo
-        ? const LinearGradient(colors: [Colors.amber, Colors.orange])
-        : const LinearGradient(colors: [Colors.green, Colors.teal]);
-    final icon = isPromo ? Icons.card_giftcard : Icons.verified;
-    final title = isPromo ? "You're on a free Pro trial!" : "You're Pro!";
-    final expiryLabel = isPromo
-        ? (expiry != null ? _formatPromoCountdown(expiry) : 'Free 3-day trial')
-        : (expiry != null ? 'Renews ${_formatDate(expiry)}' : null);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: gradientColors),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  gradient: iconGradient,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: Colors.white, size: 24),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            style: TextStyle(
-                              color: theme.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isPromo) ...[
-                          const SizedBox(width: 8),
-                          _buildTrialBadge(),
-                        ],
-                      ],
-                    ),
-                    if (expiryLabel != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        expiryLabel,
-                        style: TextStyle(
-                          color: theme.textMuted,
-                          fontSize: 12,
-                          fontWeight: isPromo ? FontWeight.w600 : FontWeight.normal,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
           ),
-          if (isPromo) ...[
-            const SizedBox(height: 14),
-            // Convert CTA — single tap straight into the plan picker. The
-            // tab swap happens in-screen so the user doesn't lose context.
-            NeonButton(
-              expand: true,
-              theme: theme,
-              icon: Icons.workspace_premium,
-              label: 'Keep Pro — Subscribe',
-              onPressed: () {
-                // Tap inside the Pro tab — toggle the "free trial active"
-                // state away so the plan cards become visible (the Pro
-                // tab's active-banner branch hides the plan cards).
-                // Simplest: scroll the user's attention by showing a
-                // dialog explaining their conversion options, OR just
-                // route through the existing Pro plan purchase via the
-                // monthly default. We'll fire the monthly purchase to
-                // keep the path consistent with the Subscribe button.
-                _purchaseSubscription(
-                  ProductIds.proMonthly,
-                  'Pro Monthly',
-                );
-              },
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTrialBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Colors.amber, Colors.orange],
         ),
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.amber.withValues(alpha: 0.6),
-            blurRadius: 6,
-          ),
-        ],
-      ),
-      child: const Text(
-        'TRIAL',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.0,
-        ),
-      ),
+      ],
     );
   }
 
@@ -774,57 +775,71 @@ class _StoreScreenState extends State<StoreScreen>
     return 'Ends in ${minutes}m';
   }
 
-  Widget _buildProFeatureGrid(GameTheme theme) {
+  Widget _buildProFeatureGrid() {
     // Honest list — every line maps to an entitlement that's actually
-    // granted. 'No ads' is now real: AdService is Pro-gated so Pro/trial
-    // users never see banners, interstitials, or rewarded offers. (The old
-    // 'Exclusive Game Modes' / vague 'Power-up perks' promises were removed
-    // as unimplemented.)
-    final features = const [
-      (Icons.block, 'No ads — play completely ad-free'),
-      (Icons.color_lens, 'All 6 premium themes'),
-      (Icons.rocket_launch, 'All 11 premium ship skins'),
-      (Icons.gradient, 'All 11 premium trail effects'),
-      (Icons.monetization_on, '2× coin earnings'),
-      (Icons.flash_on, '5× premium power-ups every cycle'),
-      (Icons.emoji_events, 'Bronze + Silver + Gold tournament entries each cycle'),
-      (Icons.workspace_premium, 'Battle Pass Premium track every season'),
+    // granted. 'No ads' is real: AdService is Pro-gated so Pro/trial users
+    // never see banners, interstitials, or rewarded offers.
+    const features = [
+      (Symbols.block_rounded, 'No ads — play completely ad-free'),
+      (Symbols.palette_rounded, 'All 6 premium themes'),
+      (Symbols.rocket_rounded, 'All 11 premium ship skins'),
+      (Symbols.auto_awesome_rounded, 'All 11 premium trail effects'),
+      (Symbols.paid_rounded, '2× coin earnings'),
+      (Symbols.bolt_rounded, '5× premium power-ups every cycle'),
+      (Symbols.emoji_events_rounded, 'Bronze + Silver + Gold tournament entries each cycle'),
+      (Symbols.workspace_premium_rounded, 'Battle Pass Premium track every season'),
     ];
-    return Column(
-      children: features
-          .map(
-            (f) => Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: theme.accentColor.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
+    return LayoutBuilder(
+      builder: (context, c) {
+        final cs = context.cs;
+        final t = cs.type;
+        final twoCols = c.maxWidth >= cs(520);
+        Widget row((IconData, String) f) => Container(
+              constraints: const BoxConstraints(minHeight: 44),
+              padding: EdgeInsets.symmetric(vertical: cs(10)),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: CsColors.hairline)),
               ),
               child: Row(
                 children: [
-                  Icon(f.$1, color: theme.accentColor, size: 18),
-                  const SizedBox(width: 10),
+                  Icon(f.$1, size: cs(18), color: CsColors.ink45),
+                  SizedBox(width: cs(12)),
                   Expanded(
                     child: Text(
                       f.$2,
-                      style: TextStyle(
-                        color: theme.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.body.copyWith(color: CsColors.ink),
                     ),
                   ),
-                  Icon(
-                    Icons.check_circle,
-                    color: Colors.green.withValues(alpha: 0.8),
-                    size: 18,
-                  ),
+                  SizedBox(width: cs(8)),
+                  Icon(Symbols.check_circle_rounded, size: cs(16), color: CsColors.mint),
                 ],
               ),
-            ),
-          )
-          .toList(),
+            );
+        if (!twoCols) {
+          return Column(children: [for (final f in features) row(f)]);
+        }
+        return Column(
+          children: [
+            for (var i = 0; i < features.length; i += 2)
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: row(features[i])),
+                    SizedBox(width: cs(24)),
+                    Expanded(
+                      child: i + 1 < features.length
+                          ? row(features[i + 1])
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -833,7 +848,7 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   /// Anonymous (guest) users can't make purchases — every paid path on this
-  /// screen funnels through this check. On block we show the upgrade sheet;
+  /// screen funnels through this check. On block we show the upgrade dialog;
   /// the caller bails so the user can re-tap Buy after they link an account.
   Future<bool> _ensurePurchasable() async {
     final user = context.read<AuthCubit>().state.user;
@@ -842,10 +857,43 @@ class _StoreScreenState extends State<StoreScreen>
     return false;
   }
 
+  /// Restore purchases. Guests can't restore: the backend rejects anonymous
+  /// verifies, so restored purchases need the signed-in account they belong
+  /// to. Results arrive asynchronously on the purchase stream.
+  Future<void> _restorePurchases() async {
+    final user = context.read<AuthCubit>().state.user;
+    if (user == null || user.isAnonymous) {
+      await showAccountUpgradeSheet(context);
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _restoring = true);
+    showCsToast(context, 'Restoring purchases…', icon: Symbols.restore_rounded);
+    try {
+      await PurchaseService().restorePurchases();
+      if (mounted) {
+        showCsToast(
+          context,
+          'Restore requested — any purchases will appear in a moment.',
+          kind: CsToastKind.success,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showCsToast(
+          context,
+          'Failed to restore purchases. Please try again.',
+          kind: CsToastKind.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _restoring = false);
+    }
+  }
+
   Future<void> _purchaseSubscription(String productId, String displayName) async {
     if (!await _ensurePurchasable()) return;
     if (!mounted) return;
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     // Mark pending up-front so the plan cards swap to a "Verifying…" state
     // covering the ~2–15s window between Play Store confirmation and the
     // backend's VerifyPurchase response landing in PremiumCubit. Auto-cleared
@@ -855,24 +903,17 @@ class _StoreScreenState extends State<StoreScreen>
     try {
       await PurchaseService().purchaseProduct(productId);
       if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text('Initiating $displayName purchase...'),
-            backgroundColor: Colors.blue,
-          ),
-        );
+        showCsToast(context, 'Initiating $displayName purchase...');
       }
     } catch (e) {
       // Failure path — drop the pending state immediately so the user can
       // retry without waiting for the 45s safety timeout.
       if (mounted) {
         setState(() => _pendingProductIds.remove(productId));
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content:
-                Text('Subscription not available. Please try again later.'),
-            backgroundColor: Colors.red,
-          ),
+        showCsToast(
+          context,
+          'Subscription not available. Please try again later.',
+          kind: CsToastKind.error,
         );
       }
     }
@@ -882,262 +923,131 @@ class _StoreScreenState extends State<StoreScreen>
   // COINS TAB
   // ===========================================================================
 
-  Widget _buildCoinsTab(GameTheme theme, CoinsState coinsState) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'BUY STAR COINS',
-            style: TextStyle(
-              color: theme.accentColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.8,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ...CoinPurchaseOption.availableOptions.map(
-            (option) => _buildCoinPackCard(option, theme),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'EARN FREE COINS',
-            style: TextStyle(
-              color: theme.accentColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.8,
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Rewarded ad — self-hides for Pro / when no ad is available.
-          RewardedCoinsButton(theme: theme),
-          _buildEarnMethodCard(
-            'Play Games',
-            '5 coins per game',
-            Icons.games,
-            theme,
-          ),
-          _buildEarnMethodCard(
-            'Daily Login',
-            '10-50 coins daily',
-            Icons.calendar_today,
-            theme,
-          ),
-          _buildEarnMethodCard(
-            'Achievements',
-            '25-100 coins',
-            Icons.emoji_events,
-            theme,
-          ),
-          _buildEarnMethodCard(
-            'Tournaments',
-            '100+ coins',
-            Icons.leaderboard,
-            theme,
-          ),
-        ],
+  Widget _buildCoinsTab(CoinsState coinsState) {
+    const options = CoinPurchaseOption.availableOptions;
+    return _tabScroll([
+      _box(_tabHeader('Star Coins', subtitle: 'Buy a coin pack, or earn coins free below.')),
+      _box(_sectionLabel('Buy Star Coins', first: true)),
+      _tileGrid(
+        count: options.length,
+        minTile: 140,
+        extent: 214,
+        maxColumns: 4,
+        maxColumnsTablet: 4,
+        itemBuilder: (context, i) => _buildCoinPackTile(options[i]),
       ),
-    );
+      _box(_sectionLabel('Earn free coins')),
+      // Rewarded ad — self-hides for Pro / when no ad is available.
+      const SliverToBoxAdapter(child: _RewardedCoinsRow()),
+      _box(_buildEarnMethodRow('Play Games', '5 coins per game', Symbols.sports_esports_rounded)),
+      _box(_buildEarnMethodRow('Daily Login', '10-50 coins daily', Symbols.calendar_today_rounded)),
+      _box(_buildEarnMethodRow('Achievements', '25-100 coins', Symbols.emoji_events_rounded)),
+      _box(_buildEarnMethodRow('Tournaments', '100+ coins', Symbols.leaderboard_rounded)),
+    ]);
   }
 
-  Future<void> _purchaseCoinPack(
-      CoinPurchaseOption option, GameTheme theme) async {
+  Future<void> _purchaseCoinPack(CoinPurchaseOption option) async {
     if (!await _ensurePurchasable()) return;
     if (!mounted) return;
     final price = PurchaseService().getStorePriceOrDefault(
         ProductIds.withPrefix(option.id), option.price);
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Buy ${option.name}'),
-        content: Text('Purchase ${option.displayCoins} for $price?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final navigator = Navigator.of(dialogContext);
-              final scaffoldMessenger = ScaffoldMessenger.of(context);
-              navigator.pop();
-              try {
-                await PurchaseService()
-                    .purchaseProduct(ProductIds.withPrefix(option.id));
-                if (mounted) {
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content:
-                          Text('Initiating purchase for ${option.name}...'),
-                      backgroundColor: theme.accentColor,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  scaffoldMessenger.showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          'Product not available. Please try again later.'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            child: Text('Buy - $price'),
-          ),
-        ],
-      ),
+    final confirmed = await showCsConfirm(
+      context,
+      eyebrow: 'Star Coins',
+      title: 'Buy ${option.name}',
+      message: 'Purchase ${option.displayCoins} for $price?',
+      confirmLabel: 'Buy · $price',
     );
+    if (!confirmed || !mounted) return;
+    try {
+      await PurchaseService().purchaseProduct(ProductIds.withPrefix(option.id));
+      if (mounted) {
+        showCsToast(context, 'Initiating purchase for ${option.name}...');
+      }
+    } catch (e) {
+      if (mounted) {
+        showCsToast(
+          context,
+          'Product not available. Please try again later.',
+          kind: CsToastKind.error,
+        );
+      }
+    }
   }
 
-  Widget _buildCoinPackCard(CoinPurchaseOption option, GameTheme theme) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _purchaseCoinPack(option, theme),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.amber.withValues(alpha: 0.15),
-              Colors.orange.withValues(alpha: 0.08),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.amber, Colors.orange],
-                ),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.monetization_on,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        option.name,
-                        style: TextStyle(
-                          color: theme.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (option.isPopular) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'POPULAR',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    option.displayCoins,
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              PurchaseService().getStorePriceOrDefault(
-                  ProductIds.withPrefix(option.id), option.price),
-              style: const TextStyle(
-                color: Colors.amber,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEarnMethodCard(
-    String title,
-    String reward,
-    IconData icon,
-    GameTheme theme,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: theme.accentColor.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
+  Widget _buildCoinPackTile(CoinPurchaseOption option) {
+    final cs = context.cs;
+    final t = cs.type;
+    final price = PurchaseService().getStorePriceOrDefault(
+        ProductIds.withPrefix(option.id), option.price);
+    void onTap() => _purchaseCoinPack(option);
+    return CsTile(
+      state: CsTileState.future,
+      onTap: onTap,
+      padding: EdgeInsets.all(cs(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+          SizedBox(
+            height: cs(20),
+            child: Row(
+              children: [
+                if (option.isBestValue || option.isPopular)
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: option.isBestValue
+                          ? const CsChip('Best value', kind: CsChipKind.gold)
+                          : const CsChip('Popular'),
+                    ),
+                  ),
+              ],
             ),
-            child: Icon(icon, color: theme.accentColor, size: 20),
           ),
-          const SizedBox(width: 16),
-          Expanded(
+          const Spacer(),
+          Image.asset('assets/images/ui/coin.png', width: cs(28), height: cs(28)),
+          SizedBox(height: cs(8)),
+          Text(
+            option.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: t.display(14, weight: FontWeight.w700, em: 0, height: 1.2),
+          ),
+          SizedBox(height: cs(2)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
             child: Text(
-              title,
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
+              '${option.totalCoins}',
+              maxLines: 1,
+              style: t.display(26, em: -0.02, height: 1.1, color: CsColors.gold),
             ),
           ),
           Text(
-            reward,
-            style: const TextStyle(
-              color: Colors.amber,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
+            option.displayCoins,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: t.mono(10, em: 0.04, color: CsColors.ink45),
           ),
+          SizedBox(height: cs(10)),
+          option.isBestValue
+              ? CsButton.premium(label: price, size: CsButtonSize.small, expand: true, onPressed: onTap)
+              : CsButton.secondary(label: price, size: CsButtonSize.small, expand: true, onPressed: onTap),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEarnMethodRow(String title, String reward, IconData icon) {
+    final cs = context.cs;
+    return CsListRow(
+      leading: CsIconDisc(icon, size: 34, color: CsColors.ink70),
+      title: title,
+      trailing: Text(
+        reward,
+        maxLines: 1,
+        style: cs.type.mono(11, color: CsColors.gold, em: 0.06),
       ),
     );
   }
@@ -1145,74 +1055,6 @@ class _StoreScreenState extends State<StoreScreen>
   // ===========================================================================
   // THEMES TAB
   // ===========================================================================
-
-  /// Banner atop the cosmetic tabs (themes / skins / trails) telling the user
-  /// a Pro subscription unlocks everything in that tab. Tapping it (when not
-  /// already Pro) jumps to the Pro tab. Power-Ups are intentionally excluded —
-  /// Pro doesn't unlock the power-up catalog.
-  Widget _buildProIncludedBanner(
-    GameTheme theme,
-    PremiumState premiumState,
-    String itemNoun,
-  ) {
-    final isPro = premiumState.hasPremium;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: isPro ? null : () => _tabController.animateTo(0),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.purple.shade400.withValues(alpha: 0.22),
-              Colors.indigo.shade400.withValues(alpha: 0.14),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Icon(isPro ? Icons.check_circle : Icons.diamond,
-                color: Colors.purple.shade200, size: 22),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    isPro
-                        ? 'Unlocked with Pro'
-                        : 'Included with Cosmo Strike Pro',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    isPro
-                        ? 'Every $itemNoun here is yours with your subscription.'
-                        : 'Subscribe to Pro to unlock every $itemNoun here — no separate purchase needed.',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 12,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (!isPro)
-              Icon(Icons.chevron_right,
-                  color: Colors.white.withValues(alpha: 0.7), size: 20),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildThemesTab(GameTheme theme, PremiumState premiumState) {
     // Premium themes — listed as products in the Play Store catalog.
@@ -1226,8 +1068,7 @@ class _StoreScreenState extends State<StoreScreen>
     ];
     // Free themes — included with every install. Surfaced here so the
     // user has an obvious way to switch back to their previous theme
-    // after trying a premium one. The home/settings theme selector
-    // still works, but this tab is the canonical store + switcher.
+    // after trying a premium one.
     const freeThemes = [
       GameTheme.classic,
       GameTheme.modern,
@@ -1239,61 +1080,25 @@ class _StoreScreenState extends State<StoreScreen>
     // set on the next frame so we don't trigger a build-during-build.
     _reconcilePendingPurchases(premiumState);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildProIncludedBanner(theme, premiumState, 'theme'),
-          const SizedBox(height: 16),
-          _buildThemesBundleCard(theme, premiumState),
-          const SizedBox(height: 20),
-          Text(
-            'PREMIUM THEMES',
-            style: TextStyle(
-              color: theme.accentColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.8,
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Horizontal-row list layout — replaces the grid that was
-          // leaving dead space below each card. One row per theme is
-          // more readable and packs more info per pixel of vertical
-          // space.
-          for (final t in premiumThemes)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _buildThemeRow(t, theme, premiumState),
-            ),
-          const SizedBox(height: 18),
-          Text(
-            'FREE THEMES',
-            style: TextStyle(
-              color: theme.accentColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.8,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'Always available — switch back any time.',
-            style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 10),
-          for (final t in freeThemes)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _buildThemeRow(t, theme, premiumState),
-            ),
-        ],
+    return _tabScroll([
+      _box(_tabHeader(
+        'Themes',
+        subtitle: "Themes change the in-game look — they recolor your ship's trail, "
+            'shots and the battlefield glow.',
+      )),
+      _box(_buildProIncludedRow(premiumState, 'theme')),
+      _box(_buildThemesBundleTile(premiumState)),
+      _box(_sectionLabel('Premium themes')),
+      _tileGrid(
+        count: premiumThemes.length,
+        itemBuilder: (context, i) => _buildThemeTile(premiumThemes[i], theme, premiumState),
       ),
-    );
+      _box(_sectionLabel('Free themes', note: 'Always available — switch back any time.')),
+      _tileGrid(
+        count: freeThemes.length,
+        itemBuilder: (context, i) => _buildThemeTile(freeThemes[i], theme, premiumState),
+      ),
+    ]);
   }
 
   /// Drop any pendingProductIds that the backend now reports as owned.
@@ -1317,7 +1122,7 @@ class _StoreScreenState extends State<StoreScreen>
   /// bundles so the pending spinner clears regardless of the cosmetic type.
   bool _isProductOwned(String productId, PremiumState premiumState) {
     // Pro subscription SKUs — once PremiumCubit flips to hasPremium=true the
-    // Pro tab swaps to the "you are Pro" banner, but we also clear pending
+    // Pro tab swaps to the "you are Pro" status, but we also clear pending
     // so any leftover spinner state doesn't survive a tab switch.
     if (productId == ProductIds.proMonthly ||
         productId == ProductIds.proYearly) {
@@ -1349,135 +1154,68 @@ class _StoreScreenState extends State<StoreScreen>
     return premiumState.isBundleOwned(stripped);
   }
 
-  Widget _buildThemesBundleCard(GameTheme theme, PremiumState premiumState) {
+  Widget _buildThemesBundleTile(PremiumState premiumState) {
+    final cs = context.cs;
+    final t = cs.type;
     final bundleOwned = premiumState.isBundleOwned('premium_themes_bundle');
     final isPending = _pendingProductIds.contains(ProductIds.themesBundle);
     final price = PurchaseService().getStorePriceOrDefault(
       ProductIds.themesBundle,
       7.99,
     );
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: (bundleOwned || isPending)
-          ? null
-          : () => _purchaseThemeProduct(
-                ProductIds.themesBundle,
-                'All Themes Bundle',
-              ),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.purple.shade400.withValues(alpha: 0.18),
-              Colors.indigo.shade400.withValues(alpha: 0.10),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.purple.shade400, Colors.indigo.shade400],
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child:
-                  const Icon(Icons.card_giftcard, color: Colors.white, size: 24),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'All Themes Bundle',
-                    style: TextStyle(
-                      color: theme.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'All 6 premium themes · save 33%',
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            _buildBundleStatusPill(
-              isOwned: bundleOwned,
-              isPending: isPending,
-              priceLabel: price,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBundleStatusPill({
-    required bool isOwned,
-    required bool isPending,
-    required String priceLabel,
-  }) {
+    void buy() => _purchaseThemeProduct(
+          ProductIds.themesBundle,
+          'All Themes Bundle',
+          fallbackPrice: 7.99,
+        );
+    final Widget action;
     if (isPending) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.blueGrey,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-            SizedBox(width: 6),
-            Text(
-              'VERIFYING',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
+      action = const CsButton.secondary(
+        label: 'Verifying',
+        size: CsButtonSize.small,
+        loading: true,
+      );
+    } else if (bundleOwned) {
+      action = const CsChip('Owned', kind: CsChipKind.mint, size: 10);
+    } else {
+      action = CsButton.premium(
+        label: 'Buy · $price',
+        size: CsButtonSize.small,
+        onPressed: buy,
       );
     }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: isOwned ? Colors.green : Colors.amber,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        isOwned ? 'OWNED' : priceLabel,
-        style: TextStyle(
-          color: isOwned ? Colors.white : Colors.black,
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
-        ),
+    return CsTile(
+      state: bundleOwned ? CsTileState.done : CsTileState.future,
+      onTap: (bundleOwned || isPending) ? null : buy,
+      padding: EdgeInsets.symmetric(horizontal: cs(14), vertical: cs(12)),
+      child: Row(
+        children: [
+          CsIconDisc(Symbols.redeem_rounded, size: 38, color: CsColors.gold),
+          SizedBox(width: cs(14)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('All Themes Bundle', maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
+                SizedBox(height: cs(3)),
+                Text(
+                  'All 6 premium themes · save 33%',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.mono(10, em: 0.06, color: CsColors.ink55),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: cs(12)),
+          action,
+        ],
       ),
     );
   }
 
-  Widget _buildThemeRow(
+  Widget _buildThemeTile(
     GameTheme target,
     GameTheme currentTheme,
     PremiumState premiumState,
@@ -1490,87 +1228,22 @@ class _StoreScreenState extends State<StoreScreen>
     final price = productId == null
         ? 'FREE'
         : PurchaseService().getStorePriceOrDefault(productId, 1.99);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: isPending
-          ? null
-          : () {
-              if (isOwned) {
-                context.read<ThemeCubit>().setTheme(target);
-              } else if (productId != null) {
-                _purchaseThemeProduct(productId, target.name);
-              }
-            },
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: currentTheme.accentColor.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(14),
-          // Active theme reads through a soft accent glow (plus the
-          // ACTIVE pill) instead of an outline.
-          boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: currentTheme.accentColor.withValues(alpha: 0.25),
-                    blurRadius: 14,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          children: [
-            // Preview swatch — fixed height row makes this a small
-            // landscape rectangle, plenty of pixels for the painter
-            // without a tall card.
-            SizedBox(
-              width: 84,
-              height: 56,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: _ThemePreview(theme: target),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    target.name,
-                    style: TextStyle(
-                      color: currentTheme.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _shortThemeDescription(target),
-                    style: TextStyle(
-                      color: currentTheme.textMuted,
-                      fontSize: 11,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            _buildStatusPill(
-              currentTheme: currentTheme,
-              isActive: isActive,
-              isOwned: isOwned,
-              isPending: isPending,
-              fallbackPriceLabel: price,
-            ),
-          ],
-        ),
-      ),
+    return _cosmeticTile(
+      preview: _ThemePreview(theme: target),
+      name: target.name,
+      description: _shortThemeDescription(target),
+      isEquipped: isActive,
+      isOwned: isOwned,
+      isPending: isPending,
+      showProBadge: !isOwned && productId != null,
+      priceLabel: price,
+      equippedLabel: 'Active',
+      ownedLabel: productId == null ? 'Free' : 'Owned',
+      equipLabel: 'Apply',
+      onEquip: () => context.read<ThemeCubit>().setTheme(target),
+      onBuy: () {
+        if (productId != null) _purchaseThemeProduct(productId, target.name);
+      },
     );
   }
 
@@ -1601,89 +1274,6 @@ class _StoreScreenState extends State<StoreScreen>
     }
   }
 
-  /// The bottom-of-card pill that toggles between ACTIVE / APPLY / price /
-  /// VERIFYING (with spinner). Centralized so the bundle card and theme
-  /// cards stay visually consistent.
-  Widget _buildStatusPill({
-    required GameTheme currentTheme,
-    required bool isActive,
-    required bool isOwned,
-    required bool isPending,
-    required String fallbackPriceLabel,
-  }) {
-    final Color background;
-    final Color foreground;
-    Widget child;
-    if (isPending) {
-      background = Colors.blueGrey;
-      foreground = Colors.white;
-      child = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 10,
-            height: 10,
-            child: CircularProgressIndicator(
-              strokeWidth: 1.5,
-              valueColor: AlwaysStoppedAnimation<Color>(foreground),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            'VERIFYING',
-            style: TextStyle(
-              color: foreground,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      );
-    } else if (isActive) {
-      background = currentTheme.accentColor;
-      foreground = currentTheme.backgroundColor;
-      child = Text(
-        'ACTIVE',
-        style: TextStyle(
-          color: foreground,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      );
-    } else if (isOwned) {
-      background = Colors.green;
-      foreground = Colors.white;
-      child = Text(
-        'APPLY',
-        style: TextStyle(
-          color: foreground,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      );
-    } else {
-      background = Colors.amber;
-      foreground = Colors.black;
-      child = Text(
-        fallbackPriceLabel,
-        style: TextStyle(
-          color: foreground,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      );
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      alignment: Alignment.center,
-      child: child,
-    );
-  }
-
   String? _productIdForTheme(GameTheme target) {
     switch (target) {
       case GameTheme.crystal:
@@ -1703,68 +1293,42 @@ class _StoreScreenState extends State<StoreScreen>
     }
   }
 
-  Future<void> _purchaseThemeProduct(String productId, String displayName) async {
+  Future<void> _purchaseThemeProduct(
+    String productId,
+    String displayName, {
+    double fallbackPrice = 1.99,
+  }) async {
     if (!await _ensurePurchasable()) return;
     if (!mounted) return;
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final theme = context.read<ThemeCubit>().state.currentTheme;
-    final price = PurchaseService().getStorePriceOrDefault(productId, 1.99);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: theme.backgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Row(
-          children: [
-            Icon(Icons.color_lens, color: theme.accentColor),
-            const SizedBox(width: 8),
-            Text(displayName, style: TextStyle(color: theme.accentColor)),
-          ],
-        ),
-        content: Text(
-          'Unlock $displayName for $price?',
-          style: TextStyle(color: theme.accentColor.withValues(alpha: 0.8)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text('Buy - $price'),
-          ),
-        ],
-      ),
+    final price = PurchaseService().getStorePriceOrDefault(productId, fallbackPrice);
+    final confirmed = await showCsConfirm(
+      context,
+      eyebrow: 'Theme',
+      title: displayName,
+      message: "Unlock $displayName for $price? Themes recolor your ship's trail, "
+          'shots and the battlefield glow in-game.',
+      confirmLabel: 'Buy · $price',
     );
 
-    if (confirmed != true) return;
+    if (!confirmed || !mounted) return;
 
     try {
       await PurchaseService().purchaseProduct(productId);
       if (!mounted) return;
       _markPending(productId);
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text('Verifying $displayName purchase…'),
-          backgroundColor: Colors.blue,
-        ),
-      );
+      showCsToast(context, 'Verifying $displayName purchase…');
     } catch (e) {
       if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Theme not available. Please try again later.'),
-            backgroundColor: Colors.red,
-          ),
+        showCsToast(
+          context,
+          'Theme not available. Please try again later.',
+          kind: CsToastKind.error,
         );
       }
     }
   }
 
-  /// Mark a productId as "purchase pending" so its card shows the
+  /// Mark a productId as "purchase pending" so its tile shows the
   /// verifying spinner. Auto-cleared once ownership reflects in
   /// PremiumState (see _reconcilePendingPurchases), or after 45s as a
   /// safety net so a dropped Play Store callback doesn't leave the UI
@@ -1784,223 +1348,51 @@ class _StoreScreenState extends State<StoreScreen>
 
   Widget _buildSkinsTab(GameTheme theme, PremiumState premiumState) {
     _reconcilePendingPurchases(premiumState);
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: _buildProIncludedBanner(theme, premiumState, 'skin'),
-        ),
-        Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              // Match the Trails tab aspect ratio so the painted preview
-              // band has room to render the ship silhouette + signature.
-              childAspectRatio: 0.78,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+    const skins = ShipSkinType.values;
+    return _tabScroll([
+      _box(_tabHeader('Ship skins')),
+      _box(_buildProIncludedRow(premiumState, 'skin')),
+      _tileGrid(
+        count: skins.length,
+        itemBuilder: (context, index) {
+          final skin = skins[index];
+          // Pro subscription unlocks all premium skins (mirrors theme bundling).
+          final isUnlocked = premiumState.isSkinUnlocked(skin);
+          final isSelected = premiumState.selectedSkinId == skin.id;
+          final productId = ProductIds.skinStoreId(skin.id);
+          // Each tile paints a ship-silhouette preview using the skin's own
+          // colors and per-skin signature so users see the in-game look.
+          final palette = skin.colors.isNotEmpty
+              ? skin.colors
+              : [theme.shipColor, theme.shipColor.withValues(alpha: 0.6)];
+          return _cosmeticTile(
+            preview: _palettePreview(
+              palette,
+              _SkinPreviewPainter(skin: skin, accentColor: theme.accentColor),
             ),
-            itemCount: ShipSkinType.values.length,
-      itemBuilder: (context, index) {
-        final skin = ShipSkinType.values[index];
-        // Pro subscription unlocks all premium skins (mirrors theme bundling).
-        final isUnlocked = premiumState.isSkinUnlocked(skin);
-        final isSelected = premiumState.selectedSkinId == skin.id;
-        final productId = ProductIds.skinStoreId(skin.id);
-        return _buildSkinCard(
-          skin: skin,
-          isUnlocked: isUnlocked,
-          isSelected: isSelected,
-          isPending: _pendingProductIds.contains(productId),
-          price: skin.isPremium
-              ? PurchaseService()
-                  .getStorePriceOrDefault(productId, skin.price)
-              : 'FREE',
-          theme: theme,
-          onTap: () {
-            if (isUnlocked) {
+            name: skin.displayName,
+            description: skin.description,
+            isEquipped: isSelected,
+            isOwned: isUnlocked,
+            isPending: _pendingProductIds.contains(productId),
+            showProBadge: !isUnlocked && skin.isPremium,
+            priceLabel: skin.isPremium
+                ? PurchaseService().getStorePriceOrDefault(productId, skin.price)
+                : 'FREE',
+            onEquip: () {
               context.read<PremiumCubit>().selectSkin(skin.id);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${skin.displayName} equipped'),
-                  backgroundColor: Colors.green,
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            } else {
-              _purchaseCosmetic(
-                productId: productId,
-                displayName: skin.displayName,
-                fallbackPrice: skin.price,
-              );
-            }
-          },
-        );
-      },
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Modernized skin card — mirrors the Trails tab redesign. Each card
-  /// paints a small ship-silhouette preview using the skin's actual
-  /// colors and its per-skin signature (golden shimmer, fire embers,
-  /// galaxy stars, etc.) so users see what the skin will look like
-  /// in-game without leaving the store.
-  Widget _buildSkinCard({
-    required ShipSkinType skin,
-    required bool isUnlocked,
-    required bool isSelected,
-    required bool isPending,
-    required String price,
-    required GameTheme theme,
-    required VoidCallback onTap,
-  }) {
-    final palette = skin.colors.isNotEmpty
-        ? skin.colors
-        : [
-            theme.shipColor,
-            theme.shipColor.withValues(alpha: 0.6),
-          ];
-    final headerStart = palette.first.withValues(alpha: 0.85);
-    final headerEnd = palette.last.withValues(alpha: 0.35);
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: isPending ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        decoration: BoxDecoration(
-          color: theme.backgroundColor.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(16),
-          // Selected skin reads through the accent glow alone — no outline.
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: theme.accentColor.withValues(alpha: 0.30),
-                    blurRadius: 14,
-                    spreadRadius: 1,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Preview band — painted ship silhouette with the skin's
-            // own colors + a stylized signature so each skin reads
-            // instantly distinct from its grid neighbors.
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [headerStart, headerEnd],
-                  ),
-                ),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: const Alignment(-0.6, -0.6),
-                          radius: 1.0,
-                          colors: [
-                            Colors.white.withValues(alpha: 0.18),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                    CustomPaint(
-                      painter: _SkinPreviewPainter(
-                        skin: skin,
-                        accentColor: theme.accentColor,
-                      ),
-                    ),
-                    if (!isUnlocked && skin.isPremium)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.45),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.lock,
-                                  color: Colors.white, size: 11),
-                              SizedBox(width: 4),
-                              Text(
-                                'PRO',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+              showCsToast(context, '${skin.displayName} equipped',
+                  kind: CsToastKind.success, duration: const Duration(seconds: 1));
+            },
+            onBuy: () => _purchaseCosmetic(
+              productId: productId,
+              displayName: skin.displayName,
+              fallbackPrice: skin.price,
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    skin.displayName,
-                    style: TextStyle(
-                      color: theme.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    skin.description,
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 10,
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  _buildCosmeticStatusPill(
-                    theme: theme,
-                    isSelected: isSelected,
-                    isUnlocked: isUnlocked,
-                    isPending: isPending,
-                    priceLabel: price,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
-    );
+    ]);
   }
 
   // ===========================================================================
@@ -2009,300 +1401,55 @@ class _StoreScreenState extends State<StoreScreen>
 
   Widget _buildTrailsTab(GameTheme theme, PremiumState premiumState) {
     _reconcilePendingPurchases(premiumState);
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: _buildProIncludedBanner(theme, premiumState, 'trail'),
-        ),
-        Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              // Slightly more vertical room than the skins tab so the painted
-              // trail preview has space to breathe.
-              childAspectRatio: 0.78,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+    const trails = TrailEffectType.values;
+    return _tabScroll([
+      _box(_tabHeader('Trails')),
+      _box(_buildProIncludedRow(premiumState, 'trail')),
+      _tileGrid(
+        count: trails.length,
+        itemBuilder: (context, index) {
+          final trail = trails[index];
+          // Pro subscription unlocks all premium trails (mirrors theme bundling).
+          final isUnlocked = premiumState.isTrailUnlocked(trail);
+          final isSelected = premiumState.selectedTrailId == trail.id;
+          final productId = ProductIds.withPrefix(trail.id);
+          // Painted preview with the trail's own colors + a type-specific
+          // signature (sparkles, lightning, flames…). "No Trail" falls back
+          // to the current theme's accent.
+          final palette = trail.colors.isNotEmpty
+              ? trail.colors
+              : [
+                  theme.accentColor.withValues(alpha: 0.35),
+                  theme.backgroundColor.withValues(alpha: 0.6),
+                ];
+          return _cosmeticTile(
+            preview: _palettePreview(
+              palette,
+              _TrailPreviewPainter(trail: trail, accentColor: theme.accentColor),
             ),
-            itemCount: TrailEffectType.values.length,
-      itemBuilder: (context, index) {
-        final trail = TrailEffectType.values[index];
-        // Pro subscription unlocks all premium trails (mirrors theme bundling).
-        final isUnlocked = premiumState.isTrailUnlocked(trail);
-        final isSelected = premiumState.selectedTrailId == trail.id;
-        final productId = ProductIds.withPrefix(trail.id);
-        return _buildTrailCard(
-          trail: trail,
-          isUnlocked: isUnlocked,
-          isSelected: isSelected,
-          isPending: _pendingProductIds.contains(productId),
-          price: trail.isPremium
-              ? PurchaseService()
-                  .getStorePriceOrDefault(productId, trail.price)
-              : 'FREE',
-          theme: theme,
-          onTap: () {
-            if (isUnlocked) {
+            name: trail.displayName,
+            description: trail.description,
+            isEquipped: isSelected,
+            isOwned: isUnlocked,
+            isPending: _pendingProductIds.contains(productId),
+            showProBadge: !isUnlocked && trail.isPremium,
+            priceLabel: trail.isPremium
+                ? PurchaseService().getStorePriceOrDefault(productId, trail.price)
+                : 'FREE',
+            onEquip: () {
               context.read<PremiumCubit>().selectTrail(trail.id);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${trail.displayName} equipped'),
-                  backgroundColor: Colors.green,
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            } else {
-              _purchaseCosmetic(
-                productId: productId,
-                displayName: trail.displayName,
-                fallbackPrice: trail.price,
-              );
-            }
-          },
-        );
-      },
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Modernized trail card — replaces the generic emoji-in-circle layout
-  /// for the Trails tab. Each card paints a custom preview that uses the
-  /// trail's actual colors and a type-specific signature (sparkles for
-  /// particle, lightning for electric, flames for fire, etc.) so the
-  /// twelve trails read as visually distinct at a glance rather than
-  /// twelve near-identical chip variations.
-  Widget _buildTrailCard({
-    required TrailEffectType trail,
-    required bool isUnlocked,
-    required bool isSelected,
-    required bool isPending,
-    required String price,
-    required GameTheme theme,
-    required VoidCallback onTap,
-  }) {
-    // Header palette for the gradient backdrop. Use the trail's own
-    // colors when it has them; fall back to theme accent for the
-    // "No Trail" entry.
-    final palette = trail.colors.isNotEmpty
-        ? trail.colors
-        : [
-            theme.accentColor.withValues(alpha: 0.35),
-            theme.backgroundColor.withValues(alpha: 0.6),
-          ];
-    final headerStart = palette.first.withValues(alpha: 0.85);
-    final headerEnd = palette.last.withValues(alpha: 0.35);
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: isPending ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        decoration: BoxDecoration(
-          color: theme.backgroundColor.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(16),
-          // Soft outer glow for the active trail so the selection state
-          // pops without an outline or flooding the surrounding grid.
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: theme.accentColor.withValues(alpha: 0.30),
-                    blurRadius: 14,
-                    spreadRadius: 1,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Preview band — custom-painted trail signature on a
-            // gradient backdrop pulled from the trail's color palette.
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [headerStart, headerEnd],
-                  ),
-                ),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Faint radial highlight that gives every card a
-                    // shared "lit from upper-left" feel and prevents
-                    // dark palettes (shadow) from looking flat.
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: const Alignment(-0.6, -0.6),
-                          radius: 1.0,
-                          colors: [
-                            Colors.white.withValues(alpha: 0.18),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                    CustomPaint(
-                      painter: _TrailPreviewPainter(
-                        trail: trail,
-                        accentColor: theme.accentColor,
-                      ),
-                    ),
-                    if (!isUnlocked && trail.isPremium)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.45),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.lock,
-                                  color: Colors.white, size: 11),
-                              SizedBox(width: 4),
-                              Text(
-                                'PRO',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+              showCsToast(context, '${trail.displayName} equipped',
+                  kind: CsToastKind.success, duration: const Duration(seconds: 1));
+            },
+            onBuy: () => _purchaseCosmetic(
+              productId: productId,
+              displayName: trail.displayName,
+              fallbackPrice: trail.price,
             ),
-            // Info plate underneath — name, one-line description, status pill.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    trail.displayName,
-                    style: TextStyle(
-                      color: theme.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    trail.description,
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 10,
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  _buildCosmeticStatusPill(
-                    theme: theme,
-                    isSelected: isSelected,
-                    isUnlocked: isUnlocked,
-                    isPending: isPending,
-                    priceLabel: price,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
-    );
-  }
-
-  Widget _buildCosmeticStatusPill({
-    required GameTheme theme,
-    required bool isSelected,
-    required bool isUnlocked,
-    required bool isPending,
-    required String priceLabel,
-  }) {
-    if (isPending) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: Colors.blueGrey,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 9,
-              height: 9,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.3,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-            SizedBox(width: 4),
-            Text(
-              'VERIFYING',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? theme.accentColor
-            : isUnlocked
-                ? Colors.green
-                : Colors.amber,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        isSelected
-            ? 'EQUIPPED'
-            : isUnlocked
-                ? 'EQUIP'
-                : priceLabel,
-        style: TextStyle(
-          color: isSelected
-              ? theme.backgroundColor
-              : isUnlocked
-                  ? Colors.white
-                  : Colors.black,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
+    ]);
   }
 
   Future<void> _purchaseCosmetic({
@@ -2312,60 +1459,29 @@ class _StoreScreenState extends State<StoreScreen>
   }) async {
     if (!await _ensurePurchasable()) return;
     if (!mounted) return;
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final theme = context.read<ThemeCubit>().state.currentTheme;
     final price =
         PurchaseService().getStorePriceOrDefault(productId, fallbackPrice);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: theme.backgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Row(
-          children: [
-            Icon(Icons.shopping_cart, color: theme.accentColor),
-            const SizedBox(width: 8),
-            Text(displayName, style: TextStyle(color: theme.accentColor)),
-          ],
-        ),
-        content: Text(
-          'Unlock $displayName for $price?',
-          style: TextStyle(color: theme.accentColor.withValues(alpha: 0.8)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text('Buy - $price'),
-          ),
-        ],
-      ),
+    final confirmed = await showCsConfirm(
+      context,
+      eyebrow: 'Unlock',
+      title: displayName,
+      message: 'Unlock $displayName for $price?',
+      confirmLabel: 'Buy · $price',
     );
 
-    if (confirmed != true) return;
+    if (!confirmed || !mounted) return;
 
     try {
       await PurchaseService().purchaseProduct(productId);
       if (!mounted) return;
       _markPending(productId);
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text('Verifying $displayName purchase…'),
-          backgroundColor: Colors.blue,
-        ),
-      );
+      showCsToast(context, 'Verifying $displayName purchase…');
     } catch (e) {
       if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Item not available. Please try again later.'),
-            backgroundColor: Colors.red,
-          ),
+        showCsToast(
+          context,
+          'Item not available. Please try again later.',
+          kind: CsToastKind.error,
         );
       }
     }
@@ -2374,546 +1490,283 @@ class _StoreScreenState extends State<StoreScreen>
   // ===========================================================================
   // POWER-UPS TAB
   // ===========================================================================
-  // Power-ups now have a real coin-purchased inventory backed by the
-  // /api/v1/PowerUps/{inventory,purchase,consume} endpoints. The 4 types
-  // here match the PowerUpType enum used by the gameplay engine, so each
-  // purchase produces a usable stockpile entry (activation UI lands in a
-  // follow-up — for now the inventory accrues server-side and the user
-  // can see their count).
+  // Power-ups have a real coin-purchased inventory. The types here match the
+  // inventory keys used by the gameplay engine, so each purchase produces a
+  // usable stockpile entry armed from the home loadout chip.
 
-  /// Rewarded-ad card granting one free Speed Boost. Self-hides for Pro /
+  /// Rewarded-ad row granting one free Speed Boost. Self-hides for Pro /
   /// web / when the SDK isn't ready; disables when no ad is loaded.
-  Widget _buildFreePowerUpAdCard(BuildContext context, GameTheme theme) {
+  Widget _buildFreePowerUpAdRow() {
     final ads = getIt.isRegistered<AdService>() ? getIt<AdService>() : null;
     if (ads == null || !ads.adsEnabled) return const SizedBox.shrink();
     final ready = ads.isRewardedReady;
-    return Opacity(
-      opacity: ready ? 1 : 0.5,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: ready
-            ? () {
-                final powerUps = context.read<PowerUpCubit>();
-                // Capped like the identical home placement (3/day).
-                ads.showRewardedCapped(
-                  capKey: AdService.capFreePowerUp,
-                  onReward: () {
-                    powerUps.grantFreePowerUp();
-                    RewardToast.show(
-                      icon: Icons.bolt,
-                      amount: '+1 SPEED BOOST',
-                    );
-                  },
-                );
-              }
-            : null,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [
-              theme.accentColor.withValues(alpha: 0.14),
-              theme.foodColor.withValues(alpha: 0.08),
-            ]),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.play_circle_fill, color: theme.accentColor, size: 28),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Watch an ad — free Speed Boost',
-                      style: TextStyle(
-                        color: theme.textPrimary,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      ready
-                          ? 'Adds 1 Speed Boost to your loadout'
-                          : 'No ad available right now',
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.bolt,
-                  color: theme.accentColor.withValues(alpha: 0.9), size: 22),
-            ],
-          ),
-        ),
+    void watch() {
+      final powerUps = context.read<PowerUpCubit>();
+      // Capped like the identical home placement (3/day).
+      ads.showRewardedCapped(
+        capKey: AdService.capFreePowerUp,
+        onReward: () {
+          powerUps.grantFreePowerUp();
+          RewardToast.show(
+            icon: Symbols.bolt_rounded,
+            amount: '+1 SPEED BOOST',
+          );
+        },
+      );
+    }
+
+    return CsListRow(
+      onTap: ready ? watch : null,
+      leading: CsIconDisc(Symbols.play_circle_rounded, size: 34, color: CsColors.gold),
+      title: 'Watch an ad — free Speed Boost',
+      subtitle: ready ? 'Adds 1 Speed Boost to your loadout' : 'No ad available right now',
+      trailing: CsButton.premium(
+        label: 'Watch',
+        size: CsButtonSize.small,
+        onPressed: ready ? watch : null,
       ),
     );
   }
 
-  Widget _buildPowerUpsTab(
-    GameTheme theme,
-    PremiumState premiumState,
-    CoinsState coinsState,
-  ) {
+  Widget _buildPowerUpsTab(CoinsState coinsState) {
     // Power-up keys are snake_case and map 1:1 to ArmedLoadout.apply in
     // the Flame game (lib/game/run_effects.dart) — descriptions promise
     // exactly what that switch does, nothing more.
     // Coin costs MUST match PurchasePowerUpWithCoinsCommandHandler.AllowedCosts
     // on the backend — server rejects request.CoinCost mismatches outright.
-    final powerUps = const [
+    const powerUps = [
       _PowerUpCatalogItem(
         type: 'speed_boost',
         name: 'Speed Boost',
         description: 'Faster flying and firing for the first 15 seconds.',
-        icon: Icons.speed,
         coinCost: 500,
       ),
       _PowerUpCatalogItem(
         type: 'invincibility',
         name: 'Invincibility',
         description: 'Launch with a shield plus 8s of invulnerability.',
-        icon: Icons.shield,
         coinCost: 1000,
       ),
       _PowerUpCatalogItem(
         type: 'score_multiplier',
         name: 'Score Multiplier',
         description: 'Double points for the first 30 seconds.',
-        icon: Icons.star,
         coinCost: 750,
       ),
       _PowerUpCatalogItem(
         type: 'slow_motion',
         name: 'Slow Motion',
         description: 'Enemies and bullets crawl for 10 seconds.',
-        icon: Icons.slow_motion_video,
         coinCost: 500,
       ),
       _PowerUpCatalogItem(
         type: 'teleport',
         name: 'Warp Escape',
         description: 'One charge: the first hit warps you home unharmed.',
-        icon: Icons.swap_calls,
         coinCost: 1200,
       ),
       _PowerUpCatalogItem(
         type: 'ghost_mode',
         name: 'Ghost Mode',
         description: 'Phase through enemies and bullets for 12 seconds.',
-        icon: Icons.blur_on,
         coinCost: 1500,
       ),
       _PowerUpCatalogItem(
         type: 'magnetic_pickup',
         name: 'Orb Magnet',
         description: 'Power-up orbs home toward you for 60 seconds.',
-        icon: Icons.attractions,
         coinCost: 1250,
       ),
       _PowerUpCatalogItem(
         type: 'score_shield',
         name: 'Last Stand',
         description: 'One charge: a lethal hit restores half health instead.',
-        icon: Icons.security,
         coinCost: 1500,
       ),
     ];
+    const bundles = PowerUpBundle.availableBundles;
 
     return BlocBuilder<PowerUpCubit, PowerUpState>(
       builder: (context, powerUpState) {
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: theme.accentColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline,
-                        color: theme.accentColor, size: 18),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Buy with coins, then arm one from the home screen '
-                        'loadout chip — it activates 5s into your next game.',
-                        style: TextStyle(
-                          color: theme.textMuted,
-                          fontSize: 12,
-                          height: 1.3,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Rewarded ad — free Speed Boost. Self-hides for Pro / no ad.
-              _buildFreePowerUpAdCard(context, theme),
-              Text(
-                'POWER-UPS',
-                style: TextStyle(
-                  color: theme.accentColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.8,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ...powerUps.map(
-                (p) => _buildPowerUpCatalogCard(p, theme, powerUpState),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'POWER-UP BUNDLES',
-                style: TextStyle(
-                  color: theme.accentColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.8,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Unlock multiple power-up types at a discount.',
-                style: TextStyle(
-                  color: theme.textMuted,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ...PowerUpBundle.availableBundles.map(
-                (bundle) => _buildPowerUpBundleCard(
-                    bundle, theme, premiumState, coinsState),
-              ),
-            ],
+        return _tabScroll([
+          _box(_tabHeader(
+            'Power-ups',
+            subtitle: 'Buy with coins, then arm one from the home screen '
+                'loadout chip — it activates 5s into your next game.',
+          )),
+          // Rewarded ad — free Speed Boost. Self-hides for Pro / no ad.
+          _box(_buildFreePowerUpAdRow()),
+          _box(_sectionLabel('Power-ups')),
+          _tileGrid(
+            count: powerUps.length,
+            extent: 214,
+            itemBuilder: (context, i) => _buildPowerUpTile(powerUps[i], powerUpState),
           ),
-        );
+          _box(_sectionLabel(
+            'Power-up bundles',
+            note: 'Unlock multiple power-up types at a discount.',
+          )),
+          _tileGrid(
+            count: bundles.length,
+            minTile: 300,
+            extent: 200,
+            maxColumns: 3,
+            minColumns: 1,
+            itemBuilder: (context, i) => _buildPowerUpBundleTile(bundles[i], coinsState),
+          ),
+        ]);
       },
     );
   }
 
-  Widget _buildPowerUpCatalogCard(
-    _PowerUpCatalogItem item,
-    GameTheme theme,
-    PowerUpState powerUpState,
-  ) {
+  Widget _buildPowerUpTile(_PowerUpCatalogItem item, PowerUpState powerUpState) {
+    final cs = context.cs;
     final owned = powerUpState.countFor(item.type);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: theme.accentColor.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(14),
+    void buy() => _purchasePowerUpWithCoins(item);
+    return _ItemTile(
+      state: owned > 0 ? CsTileState.done : CsTileState.future,
+      onTap: buy,
+      preview: ColoredBox(
+        color: CsColors.raised,
+        child: Center(
+          child: Icon(CsIcons.powerUp(item.type), size: cs(34), color: CsColors.ink),
+        ),
       ),
-      child: Row(
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: theme.accentColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(item.icon, color: theme.accentColor, size: 22),
-              ),
-              if (owned > 0)
-                Positioned(
-                  top: -6,
-                  right: -6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      'x$owned',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.name,
-                  style: TextStyle(
-                    color: theme.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  item.description,
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => _purchasePowerUpWithCoins(item, theme),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.primaryColor.withValues(alpha: 0.85),
-              foregroundColor: Colors.white,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              elevation: 0,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.monetization_on,
-                    size: 14, color: Colors.amber),
-                const SizedBox(width: 4),
-                Text(
-                  '${item.coinCost}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      badge: owned > 0 ? CsChip('×$owned', kind: CsChipKind.mint) : null,
+      name: item.name,
+      description: item.description,
+      footer: _footerRow(
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: CsCoins(item.coinCost),
+        ),
+        CsButton.secondary(label: 'Buy', size: CsButtonSize.small, onPressed: buy),
       ),
     );
   }
 
-  Future<void> _purchasePowerUpWithCoins(
-      _PowerUpCatalogItem item, GameTheme theme) async {
+  Future<void> _purchasePowerUpWithCoins(_PowerUpCatalogItem item) async {
     if (!await _ensurePurchasable()) return;
     if (!mounted) return;
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final coinsCubit = context.read<CoinsCubit>();
     final powerUpCubit = context.read<PowerUpCubit>();
     final coinsBalance = coinsCubit.state.balance.total;
     if (coinsBalance < item.coinCost) {
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(
-          content: Text('Insufficient coins!'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showCsToast(context, 'Insufficient coins!', kind: CsToastKind.error);
       return;
     }
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: theme.backgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Row(
-          children: [
-            Icon(item.icon, color: theme.accentColor),
-            const SizedBox(width: 8),
-            Text(item.name, style: TextStyle(color: theme.accentColor)),
-          ],
-        ),
-        content: Text(
-          'Buy 1 ${item.name} for ${item.coinCost} coins?',
-          style: TextStyle(color: theme.accentColor.withValues(alpha: 0.8)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text('Buy - ${item.coinCost} coins'),
-          ),
-        ],
-      ),
+    final confirmed = await showCsConfirm(
+      context,
+      eyebrow: 'Power-up',
+      title: item.name,
+      message: 'Buy 1 ${item.name} for ${item.coinCost} coins?',
+      confirmLabel: 'Buy · ${item.coinCost} coins',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
 
     final newBalance =
         await powerUpCubit.purchaseWithCoins(item.type, item.coinCost);
     if (!mounted) return;
     if (newBalance == null) {
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(
-          content: Text('Purchase failed. Try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showCsToast(context, 'Purchase failed. Try again.', kind: CsToastKind.error);
       return;
     }
     // Reflect the server-authoritative coin balance locally so the
     // CoinsCubit and any other UI stays in sync without an extra round-trip.
     await coinsCubit.setServerBalance(newBalance);
-    scaffoldMessenger.showSnackBar(
-      SnackBar(
-        content: Text('${item.name} added to your loadout!'),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 2),
-      ),
+    if (!mounted) return;
+    showCsToast(
+      context,
+      '${item.name} added to your loadout!',
+      kind: CsToastKind.success,
+      duration: const Duration(seconds: 2),
     );
   }
 
-  Widget _buildPowerUpBundleCard(
-    PowerUpBundle bundle,
-    GameTheme theme,
-    PremiumState premiumState,
-    CoinsState coinsState,
-  ) {
+  Widget _buildPowerUpBundleTile(PowerUpBundle bundle, CoinsState coinsState) {
+    final cs = context.cs;
+    final t = cs.type;
     // Bundles are CONSUMABLE count packs — repeat-purchasable by design
     // (no "owned" latch; every buy adds the counts to the inventory).
     final canAfford = coinsState.balance.total >= bundle.bundlePrice;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.purple.withValues(alpha: 0.14),
-            Colors.indigo.withValues(alpha: 0.08),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-      ),
+    void buy() => _purchaseCoinBundle(bundle, canAfford);
+    final leadKey = bundle.powerUps.keys.isEmpty
+        ? ''
+        : bundle.powerUps.keys.first.inventoryKey;
+    return CsTile(
+      state: CsTileState.future,
+      onTap: buy,
+      padding: EdgeInsets.all(cs(12)),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Colors.purple, Colors.indigo],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(bundle.icon, style: const TextStyle(fontSize: 22)),
-              ),
-              const SizedBox(width: 14),
+              CsIconDisc(CsIcons.powerUp(leadKey), size: 34, color: CsColors.gold),
+              SizedBox(width: cs(12)),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      bundle.name,
-                      style: TextStyle(
-                        color: theme.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
+                    Text(bundle.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
+                    SizedBox(height: cs(2)),
                     Text(
                       bundle.description,
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 12,
-                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.display(11, weight: FontWeight.w400, em: 0, height: 1.25, color: CsColors.ink55),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final entry in bundle.powerUps.entries)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.purple.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${entry.key.icon} ${entry.key.displayName} ×${entry.value}',
-                    style: TextStyle(
-                      color: theme.textPrimary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
+          SizedBox(height: cs(10)),
+          Expanded(
+            child: ClipRect(
+              child: Wrap(
+                spacing: cs(6),
+                runSpacing: cs(6),
+                children: [
+                  for (final entry in bundle.powerUps.entries)
+                    CsChip(
+                      '${entry.key.displayName} ×${entry.value}',
+                      icon: CsIcons.powerUp(entry.key.inventoryKey),
                     ),
-                  ),
-                ),
-            ],
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              if (bundle.originalPrice > bundle.bundlePrice)
-                Text(
-                  '${bundle.originalPrice.toInt()} coins',
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 12,
-                    decoration: TextDecoration.lineThrough,
-                  ),
-                ),
-              const SizedBox(width: 8),
-              Text(
-                '${bundle.bundlePrice.toInt()} coins',
-                style: const TextStyle(
-                  color: Colors.amber,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+          SizedBox(height: cs(8)),
+          _footerRow(
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (bundle.originalPrice > bundle.bundlePrice) ...[
+                    Text(
+                      '${bundle.originalPrice.toInt()}',
+                      style: t.mono(11, em: 0.04, color: CsColors.ink45).copyWith(
+                            decoration: TextDecoration.lineThrough,
+                            decorationColor: CsColors.ink45,
+                          ),
+                    ),
+                    SizedBox(width: cs(8)),
+                  ],
+                  CsCoins(bundle.bundlePrice.toInt(), size: 12),
+                ],
               ),
-              const Spacer(),
-              ElevatedButton(
-                onPressed: () => _purchaseCoinBundle(bundle, canAfford),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: canAfford
-                      ? theme.primaryColor
-                      : Colors.grey.shade600,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: Text(canAfford ? 'BUY' : 'NEED COINS'),
-              ),
-            ],
+            ),
+            CsButton.secondary(
+              label: canAfford ? 'Buy' : 'Need coins',
+              size: CsButtonSize.small,
+              onPressed: buy,
+            ),
           ),
         ],
       ),
@@ -2923,14 +1776,8 @@ class _StoreScreenState extends State<StoreScreen>
   Future<void> _purchaseCoinBundle(PowerUpBundle bundle, bool canAfford) async {
     if (!await _ensurePurchasable()) return;
     if (!mounted) return;
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     if (!canAfford) {
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(
-          content: Text('Insufficient coins!'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showCsToast(context, 'Insufficient coins!', kind: CsToastKind.error);
       return;
     }
     // Local-first purchase: PowerUpCubit spends coins via CoinsCubit
@@ -2940,21 +1787,213 @@ class _StoreScreenState extends State<StoreScreen>
     final newBalance = await powerUpCubit.purchaseBundleWithCoins(bundle.id);
     if (!mounted) return;
     if (newBalance == null) {
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(
-          content: Text('Purchase failed. Try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showCsToast(context, 'Purchase failed. Try again.', kind: CsToastKind.error);
       return;
     }
-    scaffoldMessenger.showSnackBar(
-      SnackBar(
-        content: Text('${bundle.name} added to your armory!'),
-        backgroundColor: Colors.green,
+    showCsToast(context, '${bundle.name} added to your armory!', kind: CsToastKind.success);
+  }
+}
+
+// =============================================================================
+// Private components
+// =============================================================================
+
+/// Grid tile for store items: rounded preview (with an optional corner
+/// badge), Syne name, one/two-line blurb, then a fixed-height footer row.
+/// The preview flexes so the tile fits any fixed grid row height.
+class _ItemTile extends StatelessWidget {
+  const _ItemTile({
+    required this.state,
+    required this.preview,
+    required this.name,
+    required this.description,
+    required this.footer,
+    this.badge,
+    this.onTap,
+  });
+
+  final CsTileState state;
+  final Widget preview;
+  final String name;
+  final String description;
+  final Widget footer;
+  final Widget? badge;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    final footerH = cs(34).clamp(34.0, 44.0);
+    return CsTile(
+      state: state,
+      onTap: onTap,
+      padding: EdgeInsets.all(cs(8)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(CsRadius.tile - 4),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  preview,
+                  if (badge != null)
+                    Positioned(top: cs(6), right: cs(6), child: badge!),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: cs(8)),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: cs(2)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.display(14, weight: FontWeight.w700, em: 0, height: 1.2),
+                ),
+                SizedBox(height: cs(2)),
+                Text(
+                  description,
+                  maxLines: cs.isCompact ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.display(11, weight: FontWeight.w400, em: 0, height: 1.25, color: CsColors.ink55),
+                ),
+                SizedBox(height: cs(6)),
+                SizedBox(height: footerH, child: footer),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+/// "Watch an ad for coins" row. Self-hides for Pro users / when ads are
+/// unavailable, and disables itself once the daily cap is hit or no ad is
+/// loaded. Credits coins offline-first via [CoinsCubit.earnCoins] — the same
+/// calls as the shared RewardedCoinsButton, restyled for the store list.
+class _RewardedCoinsRow extends StatefulWidget {
+  const _RewardedCoinsRow();
+
+  @override
+  State<_RewardedCoinsRow> createState() => _RewardedCoinsRowState();
+}
+
+class _RewardedCoinsRowState extends State<_RewardedCoinsRow> {
+  AdService? get _ads =>
+      getIt.isRegistered<AdService>() ? getIt<AdService>() : null;
+
+  @override
+  void initState() {
+    super.initState();
+    _ads?.preloadRewarded();
+  }
+
+  Future<void> _watch() async {
+    final ads = _ads;
+    if (ads == null) return;
+    final coins = context.read<CoinsCubit>();
+    await ads.showRewardedForCoins(
+      onCoins: (amount) {
+        coins.earnCoins(
+          CoinEarningSource.watchedAd,
+          customAmount: amount,
+          itemName: 'Watched ad',
+          metadata: const {'placement': 'store_free_coins'},
+        );
+        RewardToast.show(amount: '+$amount COINS');
+      },
+    );
+    if (mounted) setState(() {}); // refresh "N left today"
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ads = _ads;
+    if (ads == null || !ads.adsEnabled) return const SizedBox.shrink();
+    final remaining = ads.freeCoinAdsRemainingToday;
+    final enabled = ads.canShowFreeCoinAd;
+    return CsListRow(
+      onTap: enabled ? _watch : null,
+      leading: const CsIconDisc(Symbols.play_circle_rounded, size: 34, color: CsColors.gold),
+      title: 'Watch an ad — +${AdService.freeCoinsPerAd} coins',
+      subtitle: enabled
+          ? '$remaining left today'
+          : (remaining == 0 ? 'Come back tomorrow for more' : 'No ad available right now'),
+      trailing: CsButton.premium(
+        label: 'Watch',
+        size: CsButtonSize.small,
+        onPressed: enabled ? _watch : null,
+      ),
+    );
+  }
+}
+
+/// Very soft conic prism glow bleeding in from the top-right corner (the
+/// store mock's only decoration). Painted once, never animates.
+class _PrismGlow extends StatelessWidget {
+  const _PrismGlow();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: RepaintBoundary(
+        child: CustomPaint(painter: _PrismGlowPainter(context.cs.s)),
+      ),
+    );
+  }
+}
+
+class _PrismGlowPainter extends CustomPainter {
+  _PrismGlowPainter(this.s);
+  final double s;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = 180 * s;
+    final c = Offset(size.width - 100 * s, 100 * s);
+    final rect = Rect.fromCircle(center: c, radius: r);
+    const alpha = 0.15;
+    final paint = Paint()
+      ..shader = SweepGradient(
+        colors: [
+          CsColors.cyan.withValues(alpha: alpha),
+          CsColors.violet.withValues(alpha: alpha),
+          CsColors.pink.withValues(alpha: alpha),
+          CsColors.gold.withValues(alpha: alpha),
+          CsColors.mint.withValues(alpha: alpha),
+          CsColors.cyan.withValues(alpha: alpha),
+        ],
+        // CSS conic "from 200deg" → Flutter sweep starts at 3 o'clock.
+        transform: const GradientRotation(1.92),
+      ).createShader(rect)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 40 * s);
+    canvas.drawCircle(c, r, paint);
+  }
+
+  @override
+  bool shouldRepaint(_PrismGlowPainter old) => old.s != s;
+}
+
+class _PowerUpCatalogItem {
+  final String type;
+  final String name;
+  final String description;
+  final int coinCost;
+  const _PowerUpCatalogItem({
+    required this.type,
+    required this.name,
+    required this.description,
+    required this.coinCost,
+  });
 }
 
 // =============================================================================
@@ -3057,21 +2096,6 @@ class _ThemePreviewPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ThemePreviewPainter old) =>
       old.theme != theme;
-}
-
-class _PowerUpCatalogItem {
-  final String type;
-  final String name;
-  final String description;
-  final IconData icon;
-  final int coinCost;
-  const _PowerUpCatalogItem({
-    required this.type,
-    required this.name,
-    required this.description,
-    required this.icon,
-    required this.coinCost,
-  });
 }
 
 /// Paints a stylized ship-trail preview specific to each trail type.
@@ -3195,7 +2219,7 @@ class _TrailPreviewPainter extends CustomPainter {
     for (var i = 0; i < centers.length; i++) {
       final paint = Paint()
         ..color = (palette.isEmpty
-                ? Colors.cyan
+                ? CsColors.cyan
                 : Color.lerp(palette.first, palette.last,
                     i / centers.length)!)
             .withValues(alpha: 0.30)
