@@ -107,11 +107,16 @@ class LevelCompleteOverlay extends StatelessWidget {
             children: [
               CsLabel('Level $lv complete · ${game.mode.name}', color: CsColors.mint),
               SizedBox(height: cs(8)),
-              Text(
-                CampaignCatalog.levelNameFor(level),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: t.display(52, em: -0.04, height: 1),
+              // Title case like every other headline; scales down rather
+              // than truncating long names ("Shattered Light").
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _titleCase(CampaignCatalog.levelNameFor(level)),
+                  maxLines: 1,
+                  style: t.display(52, em: -0.04, height: 1),
+                ),
               ),
               SizedBox(height: cs(14)),
               Row(
@@ -207,7 +212,7 @@ class LevelCompleteOverlay extends StatelessWidget {
             CsLabel('Next · Level ${(level + 1).toString().padLeft(2, '0')}'),
             SizedBox(height: cs(8)),
             CsPrismText(
-              CampaignCatalog.levelNameFor(level + 1),
+              _titleCase(CampaignCatalog.levelNameFor(level + 1)),
               maxLines: 1,
               style: t.display(26, em: -0.03, height: 1.1),
             ),
@@ -281,3 +286,9 @@ class _BestLine extends StatelessWidget {
     );
   }
 }
+
+String _titleCase(String s) => s
+    .toLowerCase()
+    .split(' ')
+    .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+    .join(' ');
