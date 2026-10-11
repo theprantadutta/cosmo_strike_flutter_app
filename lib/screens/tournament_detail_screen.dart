@@ -1,6 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/tournament/tournament_context_cubit.dart';
 import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
@@ -12,11 +13,10 @@ import 'package:cosmo_strike_flutter_app/services/auth_service.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/screens/gameplay_screen.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
-import 'package:cosmo_strike_flutter_app/widgets/themed_loading.dart';
+
+enum _Tab { overview, standings, rules }
 
 class TournamentDetailScreen extends StatefulWidget {
   /// The tournament ID for deep link support.
@@ -35,11 +35,10 @@ class TournamentDetailScreen extends StatefulWidget {
   State<TournamentDetailScreen> createState() => _TournamentDetailScreenState();
 }
 
-class _TournamentDetailScreenState extends State<TournamentDetailScreen>
-    with SingleTickerProviderStateMixin {
+class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   final TournamentService _tournamentService = TournamentService();
 
-  late TabController _tabController;
+  _Tab _tab = _Tab.overview;
   Tournament? _tournament;
   List<TournamentParticipant> _leaderboard = [];
   // Server-authoritative rank for the current user — set from the
@@ -60,7 +59,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
   void initState() {
     super.initState();
     _tournament = widget.tournament;
-    _tabController = TabController(length: 3, vsync: this);
 
     if (_tournament != null) {
       // Tournament provided via navigation, load leaderboard
@@ -105,12 +103,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         });
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadLeaderboard() async {
@@ -172,873 +164,320 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
     _prizeClaimAttempted = true;
     final coins = await _tournamentService.claimPrize(t.id);
     if (coins > 0 && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('🏆 Tournament prize claimed: +$coins coins!')),
+      showCsToast(
+        context,
+        'Tournament prize claimed: +$coins coins!',
+        kind: CsToastKind.reward,
+        icon: Symbols.emoji_events_rounded,
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ThemeCubit, ThemeState>(
-      builder: (context, themeState) {
-        final theme = themeState.currentTheme;
-
-        return CommandScaffold(
-          theme: theme,
-          title: _tournament?.name ?? 'Tournament',
-          bottomBar: const ShipBannerAd(),
-          bodyPadding: EdgeInsets.zero,
-          actions: _tournament != null
-              ? [
-                  IconButton(
-                    onPressed: _refreshTournament,
-                    icon: Icon(
-                      Icons.refresh,
-                      color: theme.accentColor.withValues(alpha: 0.7),
-                      size: 24,
-                    ),
-                  ),
-                ]
-              : null,
-          body: _buildContent(theme),
-        );
-      },
+    return CsScaffold(
+      title: _tournament == null ? 'Event' : 'Events · ${_tournament!.type.displayName}',
+      bottomBar: const ShipBannerAd(),
+      trailing: [
+        if (_tournament != null)
+          CsIconButton(
+            icon: Symbols.refresh_rounded,
+            size: 36,
+            bordered: false,
+            color: CsColors.ink60,
+            tooltip: 'Refresh',
+            onPressed: _refreshTournament,
+          ),
+      ],
+      body: _buildContent(),
     );
   }
 
-  Widget _buildContent(GameTheme theme) {
+  Widget _buildContent() {
     // Show loading state when fetching tournament from deep link
     if (_isLoadingTournament) {
-      return ThemedLoading(theme: theme, label: 'Loading tournament...');
+      return const CsLoadingState(label: 'Loading tournament');
     }
 
     // Show error state
     if (_loadError != null || _tournament == null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: theme.accentColor.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _loadError ?? 'Tournament not found',
-              style: TextStyle(color: theme.textPrimary, fontSize: 16),
-            ),
-            const SizedBox(height: 24),
-            NeonButton(
-              onPressed: () => Navigator.of(context).pop(),
-              label: 'Go Back',
-              theme: theme,
-            ),
-          ],
+      return CsEmptyState.error(
+        title: _loadError ?? 'Tournament not found',
+        action: CsButton.secondary(
+          label: 'Go Back',
+          icon: Symbols.arrow_back_rounded,
+          onPressed: () => Navigator.of(context).pop(),
         ),
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // LEFT — identity + section rail + actions. Never scrolls:
-          // rendered at natural size and scaled down to fit the height.
-          Expanded(
-            flex: 4,
-            child: Center(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: SizedBox(width: 250, child: _buildLeftPanel(theme)),
-              ),
-            ),
-          ),
-          const SizedBox(width: 20),
-          // RIGHT — the selected section's content (swipeable).
-          Expanded(
-            flex: 6,
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildOverviewTab(theme),
-                _buildLeaderboardTab(theme),
-                _buildRulesTab(theme),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Left region — identity block, section rail and action buttons,
-  /// floating borderless on the starfield. Replaces the old stacked
-  /// glass info card + boxed TabBar + bottom-docked action bar.
-  Widget _buildLeftPanel(GameTheme theme) {
-    final tournament = _tournament!;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Identity — centered type-emoji disc.
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: _getTournamentTypeColor(
-                tournament.type,
-              ).withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              tournament.type.emoji,
-              style: const TextStyle(fontSize: 24),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        // Status + game-mode pills.
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: _getTournamentStatusColor(
-                  tournament.status,
-                ).withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                tournament.status.displayName,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: _getTournamentStatusColor(tournament.status),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    tournament.gameMode.emoji,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    tournament.gameMode.displayName,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.blue,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        // Key facts — compact muted rows.
-        _buildFactRow(theme, Icons.schedule, tournament.timeRemainingFormatted),
-        const SizedBox(height: 6),
-        _buildFactRow(
-          theme,
-          Icons.people,
-          '${tournament.currentParticipants}/${tournament.maxParticipants} players',
-        ),
-        if (tournament.hasJoined) ...[
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.green, size: 14),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'You\'re participating!',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                ),
-              ),
-              // Prefer the server-authoritative rank when we have it;
-              // fall back to the local heuristic only as a degraded
-              // mode (e.g. leaderboard wasn't loaded yet).
-              if ((_serverUserRank ?? 0) > 0 || tournament.userRank > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Rank #${_serverUserRank ?? tournament.userRank}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.amber,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          if (tournament.userBestScore != null &&
-              tournament.userAttempts != null) ...[
-            const SizedBox(height: 6),
-            _buildFactRow(
-              theme,
-              Icons.star_outline,
-              'Best Score: ${tournament.userBestScore} • Attempts: ${tournament.userAttempts}',
-            ),
-          ],
-        ],
-        const SizedBox(height: 12),
-        // Section rail — same borderless pattern as tournaments_screen.
-        AnimatedBuilder(
-          animation: _tabController,
-          builder: (context, _) {
-            const items = [
-              (Icons.info_outline, 'Overview'),
-              (Icons.leaderboard, 'Leaderboard'),
-              (Icons.rule, 'Rules'),
-            ];
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < items.length; i++)
-                  _buildNavItem(theme, i, items[i].$1, items[i].$2),
-              ],
-            );
+    final cs = context.cs;
+    return CsSplit(
+      leftWidth: 300,
+      gap: cs(40),
+      left: _buildLeftPanel(),
+      right: AnimatedSwitcher(
+        duration: CsMotion.base,
+        switchInCurve: CsMotion.standard,
+        child: KeyedSubtree(
+          key: ValueKey(_tab),
+          child: switch (_tab) {
+            _Tab.overview => _buildOverviewTab(),
+            _Tab.standings => _buildLeaderboardTab(),
+            _Tab.rules => _buildRulesTab(),
           },
         ),
-        if (tournament.status.canJoin || tournament.status.canSubmitScore) ...[
-          const SizedBox(height: 12),
-          _buildActionButtons(theme),
-        ],
-      ],
+      ),
     );
   }
 
-  Widget _buildFactRow(GameTheme theme, IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: theme.textMuted),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.textMuted,
-              fontWeight: FontWeight.w600,
-            ),
+  /// Left region — identity, key facts, your standing and section tabs
+  /// (scaled down on short phones, never scrolls), with the one primary
+  /// action pinned to the bottom.
+  Widget _buildLeftPanel() {
+    final tournament = _tournament!;
+    final cs = context.cs;
+    final t = cs.type;
+    final words = tournament.name.trim().split(RegExp(r'\s+'));
+    final parts = words.length < 2
+        ? [tournament.name]
+        : [words.sublist(0, words.length - 1).join(' '), ' ', words.last];
+    final rank = (_serverUserRank ?? 0) > 0 ? _serverUserRank! : tournament.userRank;
+
+    final info = <Widget>[
+      Wrap(spacing: cs(8), runSpacing: cs(6), children: [
+        _statusChip(tournament.status),
+        CsChip(tournament.gameMode.displayName, icon: _modeIcon(tournament.gameMode)),
+      ]),
+      SizedBox(height: cs(12)),
+      CsHeadline(
+        parts,
+        prismIndex: parts.length - 1,
+        style: t.display(34, em: -0.03, height: 1.02),
+      ),
+      SizedBox(height: cs(10)),
+      _Ticking(
+        builder: (_) => Text(
+          '${_timeLabel(tournament)} · ${tournament.currentParticipants}/${tournament.maxParticipants} PLAYERS',
+          maxLines: 2,
+          style: t.mono(11, em: 0.08, color: CsColors.ink55),
+        ),
+      ),
+      if (tournament.hasJoined) ...[
+        SizedBox(height: cs(14)),
+        Row(children: [
+          Icon(Symbols.check_circle_rounded, size: cs(15), color: CsColors.mint),
+          SizedBox(width: cs(6)),
+          Text("YOU'RE PARTICIPATING", style: t.mono(10, color: CsColors.mint)),
+          // Prefer the server-authoritative rank when we have it; fall back
+          // to the local heuristic only as a degraded mode.
+          if (rank > 0) ...[
+            SizedBox(width: cs(10)),
+            CsPrismText('#$rank', style: t.display(18, em: -0.02, height: 1)),
+          ],
+        ]),
+        if (tournament.userBestScore != null && tournament.userAttempts != null) ...[
+          SizedBox(height: cs(6)),
+          Text(
+            'BEST ${tournament.userBestScore} · ${tournament.userAttempts} ATTEMPTS',
+            style: t.mono(10, color: CsColors.ink45),
+          ),
+        ],
+      ],
+      SizedBox(height: cs(20)),
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: CsSegmented<_Tab>(
+          segments: const {_Tab.overview: 'Overview', _Tab.standings: 'Standings', _Tab.rules: 'Rules'},
+          selected: _tab,
+          onChanged: (v) => setState(() => _tab = v),
+        ),
+      ),
+    ];
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Expanded(child: CsFitColumn(children: info)),
+      if (tournament.status.canJoin || tournament.status.canSubmitScore) ...[
+        SizedBox(height: cs(14)),
+        ..._buildActionButtons(),
+      ],
+      if (tournament.status == TournamentStatus.upcoming) ...[
+        SizedBox(height: cs(14)),
+        _Ticking(
+          builder: (_) => CsMeta(
+            'Starts in ${tournament.timeRemainingFormatted}',
+            icon: Symbols.schedule_rounded,
+            color: CsColors.cyan,
           ),
         ),
       ],
-    );
+    ]);
   }
 
-  Widget _buildNavItem(GameTheme theme, int i, IconData icon, String label) {
-    final selected = _tabController.index == i;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _tabController.animateTo(i),
-      // No background at all — selection reads purely through the neon icon,
-      // brighter text, and a small glowing indicator dot.
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: selected ? theme.neonPrimary : theme.textMuted,
-            ),
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? theme.textPrimary : theme.textMuted,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const Spacer(),
-            if (selected)
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: theme.neonPrimary,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.neonPrimary.withValues(alpha: 0.7),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ],
+  String _timeLabel(Tournament t) => switch (t.status) {
+        TournamentStatus.active => 'ENDS IN ${t.timeRemainingFormatted.toUpperCase()}',
+        TournamentStatus.upcoming => 'STARTS IN ${t.timeRemainingFormatted.toUpperCase()}',
+        TournamentStatus.ended => 'ENDED ${t.formattedDateRange}',
+      };
+
+  List<Widget> _buildActionButtons() {
+    final tournament = _tournament!;
+    final cs = context.cs;
+    return [
+      if (!tournament.hasJoined && tournament.status.canJoin)
+        CsButton.primary(
+          label: _isJoining ? 'Joining…' : 'Join tournament',
+          icon: Symbols.person_add_rounded,
+          loading: _isJoining,
+          expand: true,
+          onPressed: _isJoining ? null : () => _joinTournament(),
+        )
+      else if (tournament.status.canSubmitScore)
+        CsButton.primary(
+          label: 'Play now',
+          icon: Symbols.play_arrow_rounded,
+          expand: true,
+          onPressed: _playTournament,
+        ),
+      if (tournament.requiresEntry) ...[
+        SizedBox(height: cs(10)),
+        Builder(
+          builder: (context) {
+            final premiumCubit = context.read<PremiumCubit>();
+            if (premiumCubit.state.hasPremium) {
+              return const CsMeta('Pro · Unlimited entries', icon: Symbols.diamond_rounded, color: CsColors.gold);
+            }
+            final tier = _getTournamentTier(tournament.type);
+            final count = premiumCubit.state.getTournamentEntryCount(tier);
+            return count > 0
+                ? CsMeta('Entries remaining: $count', icon: Symbols.confirmation_number_rounded, color: CsColors.mint)
+                : const CsMeta('No entries — tap Join to buy', icon: Symbols.error_rounded, color: CsColors.pink);
+          },
+        ),
+      ],
+    ];
+  }
+
+  Widget _buildOverviewTab() {
+    final tournament = _tournament!;
+    final cs = context.cs;
+    final t = cs.type;
+    final rewards = tournament.rewards.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+
+    return SingleChildScrollView(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const CsLabel('Description'),
+        SizedBox(height: cs(8)),
+        Text(tournament.description, style: t.body.copyWith(color: CsColors.ink70, fontSize: cs(14))),
+        SizedBox(height: cs(10)),
+        CsMeta(tournament.formattedDateRange, icon: Symbols.calendar_today_rounded, size: 10),
+        if (rewards.isNotEmpty) ...[
+          SizedBox(height: cs(24)),
+          const CsLabel('Prizes'),
+          SizedBox(height: cs(4)),
+          for (final entry in rewards)
+            CsListRow(
+              leading: SizedBox(
+                width: cs(30),
+                child: Text(
+                  entry.key.toString().padLeft(2, '0'),
+                  style: t.mono(13, em: 0.04, color: _rankColor(entry.key)),
                 ),
               ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOverviewTab(GameTheme theme) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildDescriptionCard(theme),
-          const SizedBox(height: 16),
-          _buildRewardsCard(theme),
-          const SizedBox(height: 16),
-          _buildGameModeCard(theme),
+              title: entry.value.name,
+              subtitle: entry.value.description.isEmpty ? null : entry.value.description,
+              trailing: entry.value.coins > 0 ? CsCoins(entry.value.coins, prefix: '+', size: 12) : null,
+            ),
         ],
-      ),
+        SizedBox(height: cs(24)),
+        const CsLabel('Game mode'),
+        SizedBox(height: cs(8)),
+        Row(children: [
+          Icon(_modeIcon(tournament.gameMode), size: cs(20), color: CsColors.ink),
+          SizedBox(width: cs(10)),
+          Flexible(child: Text(tournament.gameMode.displayName, style: t.rowTitle)),
+        ]),
+        SizedBox(height: cs(6)),
+        Text(tournament.gameMode.description, style: t.body),
+        SizedBox(height: cs(8)),
+      ]),
     );
   }
 
-  Widget _buildLeaderboardTab(GameTheme theme) {
+  Widget _buildLeaderboardTab() {
     if (_isLoading) {
-      return ThemedLoading(theme: theme, label: 'Loading leaderboard...');
+      return const CsLoadingState(label: 'Loading leaderboard');
     }
 
     // Explicit load-failure state. Distinguishes "fetch crashed" from
     // "genuinely empty tournament" so the user sees a retry button
     // instead of a misleading "no participants" screen.
     if (_leaderboardLoadFailed) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.cloud_off,
-                size: 64,
-                color: theme.accentColor.withValues(alpha: 0.5),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                "Couldn't load the leaderboard",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Check your connection and try again.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: theme.textMuted),
-              ),
-              const SizedBox(height: 20),
-              NeonButton(
-                onPressed: _loadLeaderboard,
-                label: 'Retry',
-                icon: Icons.refresh,
-                theme: theme,
-              ),
-            ],
-          ),
-        ),
+      return CsEmptyState.offline(
+        title: "Couldn't load the leaderboard",
+        message: 'Check your connection and try again.',
+        action: CsButton.secondary(label: 'Retry', icon: Symbols.refresh_rounded, onPressed: _loadLeaderboard),
       );
     }
 
     if (_leaderboard.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.leaderboard,
-              size: 80,
-              color: theme.accentColor.withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No participants yet',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: theme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Be the first to join!',
-              style: TextStyle(fontSize: 14, color: theme.textMuted),
-            ),
-          ],
-        ),
+      return const CsEmptyState(
+        icon: Symbols.leaderboard_rounded,
+        title: 'No participants yet',
+        message: 'Be the first to join!',
       );
     }
 
+    // AuthService is a singleton (factory pattern in auth_service.dart),
+    // NOT a registered Provider — call the singleton factory directly.
+    final uid = AuthService().currentUser?.uid;
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.zero,
       itemCount: _leaderboard.length,
       itemBuilder: (context, index) {
         final participant = _leaderboard[index];
-        final rank = index + 1;
-
-        return _buildLeaderboardItem(
-          participant,
-          rank,
-          theme,
-        ).gameListItem(index);
+        return _RankRow(
+          rank: index + 1,
+          name: participant.displayName,
+          photoUrl: participant.photoUrl,
+          subtitle: participant.attempts == 1 ? '1 ATTEMPT' : '${participant.attempts} ATTEMPTS',
+          score: '${participant.highScore}',
+          isYou: uid != null && participant.userId == uid,
+        );
       },
     );
   }
 
-  Widget _buildRulesTab(GameTheme theme) {
+  Widget _buildRulesTab() {
+    final cs = context.cs;
+    final t = cs.type;
+    final rules = _getTournamentRules();
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildRulesCard(theme),
-          const SizedBox(height: 16),
-          _buildScoringCard(theme),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDescriptionCard(GameTheme theme) {
-    final tournament = _tournament!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'DESCRIPTION',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.8,
-            color: theme.accentColor,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          tournament.description,
-          style: TextStyle(fontSize: 14, color: theme.textPrimary, height: 1.5),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Icon(Icons.calendar_today, size: 14, color: theme.textMuted),
-            const SizedBox(width: 8),
-            Text(
-              tournament.formattedDateRange,
-              style: TextStyle(fontSize: 13, color: theme.textMuted),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRewardsCard(GameTheme theme) {
-    final tournament = _tournament!;
-    if (tournament.rewards.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'REWARDS',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.8,
-            color: theme.accentColor,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ...tournament.rewards.entries.map((entry) {
-          final rank = entry.key;
-          final reward = entry.value;
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: _getRankColor(rank).withValues(alpha: 0.16),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      '#$rank',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: _getRankColor(rank),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        reward.name,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: theme.textPrimary,
-                        ),
-                      ),
-                      if (reward.coins > 0)
-                        Text(
-                          '+${reward.coins} coins',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.amber.withValues(alpha: 0.8),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildGameModeCard(GameTheme theme) {
-    final tournament = _tournament!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'GAME MODE',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.8,
-            color: theme.accentColor,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Text(
-              tournament.gameMode.emoji,
-              style: const TextStyle(fontSize: 20),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              tournament.gameMode.displayName,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: theme.textPrimary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          tournament.gameMode.description,
-          style: TextStyle(fontSize: 14, color: theme.textMuted, height: 1.4),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLeaderboardItem(
-    TournamentParticipant participant,
-    int rank,
-    GameTheme theme,
-  ) {
-    // AuthService is a singleton (factory pattern in auth_service.dart),
-    // NOT a registered Provider. The previous context.read<AuthService>()
-    // threw ProviderNotFoundException because nothing in the widget tree
-    // exposes it. Call the singleton factory directly.
-    final authService = AuthService();
-    final isCurrentUser = participant.userId == authService.currentUser?.uid;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      // Borderless: only the current user's row gets a faint accent tint
-      // for emphasis — everyone else floats straight on the starfield.
-      decoration: isCurrentUser
-          ? BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            )
-          : null,
-      child: Row(
-        children: [
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const CsLabel('Tournament rules'),
+        SizedBox(height: cs(4)),
+        for (var i = 0; i < rules.length; i++)
           Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: _getRankColor(rank).withValues(alpha: 0.16),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                '#$rank',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: _getRankColor(rank),
-                ),
+            padding: EdgeInsets.symmetric(vertical: cs(10)),
+            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: CsColors.hairline))),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(
+                width: cs(30),
+                child: Text((i + 1).toString().padLeft(2, '0'), style: t.mono(12, color: CsColors.ink45)),
               ),
-            ),
+              Expanded(child: Text(rules[i], style: t.body.copyWith(color: CsColors.ink, fontSize: cs(14)))),
+            ]),
           ),
-          const SizedBox(width: 12),
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: theme.accentColor.withValues(alpha: 0.16),
-            backgroundImage: participant.photoUrl != null
-                ? NetworkImage(participant.photoUrl!)
-                : null,
-            onBackgroundImageError: participant.photoUrl != null
-                ? (e, s) {}
-                : null,
-            child: participant.photoUrl == null
-                ? Text(
-                    participant.displayName.isNotEmpty
-                        ? participant.displayName[0].toUpperCase()
-                        : 'U',
-                    style: TextStyle(
-                      color: theme.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  participant.displayName,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: theme.textPrimary,
-                  ),
-                ),
-                Text(
-                  '${participant.attempts} attempts',
-                  style: TextStyle(fontSize: 12, color: theme.textMuted),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            '${participant.highScore}',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.amber,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRulesCard(GameTheme theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'TOURNAMENT RULES',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.8,
-            color: theme.accentColor,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ..._getTournamentRules().map(
-          (rule) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 4,
-                  height: 4,
-                  margin: const EdgeInsets.only(top: 8, right: 8),
-                  decoration: BoxDecoration(
-                    color: theme.accentColor.withValues(alpha: 0.6),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    rule,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: theme.textPrimary,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildScoringCard(GameTheme theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'SCORING SYSTEM',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.8,
-            color: theme.accentColor,
-          ),
-        ),
-        const SizedBox(height: 12),
+        SizedBox(height: cs(24)),
+        const CsLabel('Scoring system'),
+        SizedBox(height: cs(8)),
         Text(
           'Your highest score during the tournament period will count towards the final ranking. You can play multiple times to improve your score.',
-          style: TextStyle(fontSize: 14, color: theme.textPrimary, height: 1.4),
+          style: t.body.copyWith(color: CsColors.ink70, fontSize: cs(14)),
         ),
-      ],
-    );
-  }
-
-  Widget _buildActionButtons(GameTheme theme) {
-    final tournament = _tournament!;
-    // Borderless CTA stack — lives at the bottom of the left panel and
-    // floats straight on the starfield (no container, no top divider).
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (!tournament.hasJoined && tournament.status.canJoin)
-          NeonButton(
-            onPressed: _isJoining ? null : () => _joinTournament(),
-            label: _isJoining ? 'JOINING…' : 'JOIN TOURNAMENT',
-            icon: Icons.person_add,
-            theme: theme,
-            expand: true,
-          )
-        else if (tournament.status.canSubmitScore)
-          NeonButton(
-            onPressed: _playTournament,
-            label: 'PLAY NOW',
-            icon: Icons.play_arrow,
-            theme: theme,
-            expand: true,
-          ),
-
-        if (tournament.requiresEntry) ...[
-          const SizedBox(height: 8),
-          Builder(
-            builder: (context) {
-              final premiumCubit = context.read<PremiumCubit>();
-              if (premiumCubit.state.hasPremium) {
-                return _buildEntryStatusChip(
-                  icon: Icons.diamond,
-                  label: 'Pro · Unlimited entries',
-                  color: Colors.amber,
-                );
-              }
-              final tier = _getTournamentTier(tournament.type);
-              final count = premiumCubit.state.getTournamentEntryCount(tier);
-              return _buildEntryStatusChip(
-                icon: count > 0
-                    ? Icons.confirmation_number
-                    : Icons.error_outline,
-                label: count > 0
-                    ? 'Entries remaining: $count'
-                    : 'No entries — tap JOIN to buy',
-                color: count > 0 ? Colors.green : Colors.redAccent,
-              );
-            },
-          ),
-        ],
-
-        if (tournament.status == TournamentStatus.upcoming) ...[
-          const SizedBox(height: 8),
-          _buildEntryStatusChip(
-            icon: Icons.schedule,
-            label: 'Starts ${tournament.timeRemainingFormatted}',
-            color: theme.accentColor,
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildEntryStatusChip({
-    required IconData icon,
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
+        SizedBox(height: cs(8)),
+      ]),
     );
   }
 
@@ -1078,40 +517,12 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
     return baseRules;
   }
 
-  Color _getTournamentStatusColor(TournamentStatus status) {
-    switch (status) {
-      case TournamentStatus.active:
-        return Colors.green;
-      case TournamentStatus.upcoming:
-        return Colors.blue;
-      case TournamentStatus.ended:
-        return Colors.grey;
-    }
-  }
-
-  Color _getTournamentTypeColor(TournamentType type) {
-    switch (type) {
-      case TournamentType.daily:
-        return Colors.blue;
-      case TournamentType.weekly:
-        return Colors.orange;
-      case TournamentType.special:
-        return Colors.pink;
-    }
-  }
-
-  Color _getRankColor(int rank) {
-    switch (rank) {
-      case 1:
-        return Colors.amber;
-      case 2:
-        return Colors.grey;
-      case 3:
-        return Colors.brown;
-      default:
-        return Colors.blue;
-    }
-  }
+  Color _rankColor(int rank) => switch (rank) {
+        1 => CsColors.gold,
+        2 => CsColors.rank2,
+        3 => CsColors.rank3,
+        _ => CsColors.ink55,
+      };
 
   String _getTournamentTier(TournamentType type) {
     switch (type) {
@@ -1183,20 +594,14 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         // refresh — no more brittle ProviderScope.containerOf dance.
 
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Successfully joined tournament!')),
-        );
+        showCsToast(context, 'Successfully joined tournament!', kind: CsToastKind.success);
         await _refreshTournament();
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to join tournament')),
-        );
+        showCsToast(context, 'Failed to join tournament', kind: CsToastKind.error);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error joining tournament')),
-        );
+        showCsToast(context, 'Error joining tournament', kind: CsToastKind.error);
       }
     }
 
@@ -1206,7 +611,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
   }
 
   void _showNoEntryDialog(String tier) {
-    final theme = context.read<ThemeCubit>().state.currentTheme;
     final premiumCubit = context.read<PremiumCubit>();
     final entryCount = premiumCubit.state.getTournamentEntryCount(tier);
 
@@ -1227,120 +631,66 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
 
     final tierName = '${tier[0].toUpperCase()}${tier.substring(1)}';
 
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.grey[900],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.confirmation_num, color: Colors.amber, size: 24),
-              const SizedBox(width: 8),
-              Text(
-                'Entry Required',
-                style: TextStyle(
-                  color: theme.accentColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'You need a $tierName tournament entry to join this tournament.',
-                style: TextStyle(
-                  color: theme.accentColor.withValues(alpha: 0.8),
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Current $tierName entries: $entryCount',
-                style: TextStyle(
-                  color: entryCount > 0 ? Colors.green : Colors.red,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Pro subscribers get unlimited tournament access.',
-                style: TextStyle(
-                  color: theme.accentColor.withValues(alpha: 0.5),
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  color: theme.accentColor.withValues(alpha: 0.6),
-                ),
-              ),
+    // Free Bronze entry via rewarded ad (free users only, bronze tier only —
+    // never devalue the paid Silver/Gold entries). Daily-capped (2/day) so the
+    // paid bronze entry keeps a reason to exist.
+    final showAdEntry = tier == 'bronze' &&
+        getIt.isRegistered<AdService>() &&
+        getIt<AdService>().adsEnabled &&
+        getIt<AdService>().canShowCapped(AdService.capTournamentEntry);
+
+    showCsDialog<void>(
+      context,
+      builder: (ctx) {
+        final cs = ctx.cs;
+        final t = cs.type;
+        return CsDialog(
+          icon: Symbols.confirmation_number_rounded,
+          iconColor: CsColors.gold,
+          eyebrow: '$tierName tier',
+          title: 'Entry Required',
+          message: 'You need a $tierName tournament entry to join this tournament.',
+          content: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(
+              'CURRENT $tierName ENTRIES: $entryCount'.toUpperCase(),
+              style: t.mono(11, color: entryCount > 0 ? CsColors.mint : CsColors.pink),
             ),
-            // Free Bronze entry via rewarded ad (free users only, bronze tier
-            // only — never devalue the paid Silver/Gold entries). Daily-capped
-            // (2/day) so the paid bronze entry keeps a reason to exist.
-            if (tier == 'bronze' &&
-                getIt.isRegistered<AdService>() &&
-                getIt<AdService>().adsEnabled &&
-                getIt<AdService>().canShowCapped(AdService.capTournamentEntry))
-              TextButton.icon(
+            SizedBox(height: cs(10)),
+            Text('Pro subscribers get unlimited tournament access.', style: t.body.copyWith(color: CsColors.ink45)),
+          ]),
+          actions: [
+            CsButton.text(label: 'Cancel', onPressed: () => Navigator.of(ctx).pop()),
+            if (showAdEntry)
+              CsButton.secondary(
+                label: 'Free entry (ad) · '
+                    '${getIt<AdService>().dailyRemaining(AdService.capTournamentEntry)} left today',
+                icon: Symbols.smart_display_rounded,
                 onPressed: () {
-                  Navigator.of(context).pop();
+                  Navigator.of(ctx).pop();
                   getIt<AdService>().showRewardedCapped(
                     capKey: AdService.capTournamentEntry,
                     onReward: () {
                       premiumCubit.addTournamentEntry('bronze');
                       RewardToast.show(
-                        icon: Icons.emoji_events,
+                        icon: Symbols.emoji_events_rounded,
                         title: 'ENTRY GRANTED',
                         amount: '+1 BRONZE ENTRY',
                       );
                     },
                   );
                 },
-                icon: const Icon(
-                  Icons.play_circle_fill,
-                  color: Colors.amber,
-                  size: 18,
-                ),
-                label: Text(
-                  'Free entry (ad) — '
-                  '${getIt<AdService>().dailyRemaining(AdService.capTournamentEntry)} left today',
-                  style: TextStyle(color: theme.accentColor),
-                ),
               ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber,
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
+            CsButton.premium(
+              label: 'Buy $tierName Entry · '
+                  '${PurchaseService().getStorePrice(productId) ?? _getDefaultPrice(tier)}',
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(ctx).pop();
                 final purchaseService = PurchaseService();
                 final product = purchaseService.getProduct(productId);
                 if (product != null) {
                   purchaseService.buyProduct(product);
                 }
               },
-              child: Text(
-                'Buy $tierName Entry - ${PurchaseService().getStorePrice(productId) ?? _getDefaultPrice(tier)}',
-              ),
             ),
           ],
         );
@@ -1377,4 +727,137 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
           _refreshTournament();
         });
   }
+}
+
+IconData _modeIcon(TournamentGameMode mode) => switch (mode) {
+      TournamentGameMode.classic => Symbols.rocket_rounded,
+      TournamentGameMode.speedRun => Symbols.speed_rounded,
+      TournamentGameMode.survival => Symbols.timer_rounded,
+      TournamentGameMode.noWalls => Symbols.all_inclusive_rounded,
+      TournamentGameMode.powerUpMadness => Symbols.bolt_rounded,
+      TournamentGameMode.perfectGame => Symbols.diamond_rounded,
+    };
+
+Widget _statusChip(TournamentStatus status) => switch (status) {
+      TournamentStatus.active => const CsChip('Live', kind: CsChipKind.mint),
+      TournamentStatus.upcoming => const CsChip('Upcoming'),
+      TournamentStatus.ended => const CsChip('Ended'),
+    };
+
+/// Standings row — same language as the global leaderboard.
+class _RankRow extends StatelessWidget {
+  const _RankRow({
+    required this.rank,
+    required this.name,
+    required this.subtitle,
+    required this.score,
+    this.photoUrl,
+    this.isYou = false,
+  });
+
+  final int rank;
+  final String name;
+  final String subtitle;
+  final String score;
+  final String? photoUrl;
+  final bool isYou;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    final List<Color>? ring = isYou
+        ? null
+        : switch (rank) {
+            1 => const [CsColors.gold],
+            2 => const [CsColors.rank2],
+            3 => const [CsColors.rank3],
+            _ => const [Color(0x26FFFFFF)],
+          };
+    final d = cs(40);
+    final initials = Center(
+      child: Text(
+        CsAvatarRing.initialsOf(name),
+        style: t.display(40 * 0.32, weight: FontWeight.w700, em: 0.02, height: 1),
+      ),
+    );
+    return Container(
+      constraints: const BoxConstraints(minHeight: 48),
+      padding: EdgeInsets.symmetric(vertical: cs(12), horizontal: cs(4)),
+      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: CsColors.hairline))),
+      child: Row(children: [
+        SizedBox(
+          width: cs(34),
+          child: Text(
+            rank.toString().padLeft(2, '0'),
+            maxLines: 1,
+            style: t.mono(13, em: 0.04, color: isYou ? CsColors.ink : CsColors.ink55),
+          ),
+        ),
+        SizedBox.square(
+          dimension: d,
+          child: CsPrismRing(
+            circle: true,
+            fill: CsColors.raised,
+            colors: ring,
+            child: ClipOval(
+              child: photoUrl == null
+                  ? initials
+                  : Image.network(photoUrl!, fit: BoxFit.cover, width: d, height: d, errorBuilder: (_, _, _) => initials),
+            ),
+          ),
+        ),
+        SizedBox(width: cs(16)),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle)),
+              if (isYou) ...[SizedBox(width: cs(8)), const CsChip('You', kind: CsChipKind.solid)],
+            ]),
+            SizedBox(height: cs(2)),
+            Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.mono(10, color: CsColors.ink45)),
+          ]),
+        ),
+        SizedBox(width: cs(12)),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: cs(140)),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(score, maxLines: 1, style: t.display(20, em: -0.01)),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Rebuilds [builder] every second (countdowns).
+class _Ticking extends StatefulWidget {
+  const _Ticking({required this.builder});
+  final WidgetBuilder builder;
+
+  @override
+  State<_Ticking> createState() => _TickingState();
+}
+
+class _TickingState extends State<_Ticking> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context);
 }
