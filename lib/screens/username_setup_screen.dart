@@ -4,10 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/username_service.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 
 /// First-time username confirmation screen.
 ///
@@ -106,114 +105,105 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ThemeCubit, ThemeState>(
-      builder: (context, themeState) {
-        final theme = themeState.currentTheme;
-        // D-lite archetype: a centered, max-width glass card on the starfield
-        // so the form reads as a focused panel instead of stretching across the
-        // full landscape width.
-        return CommandScaffold(
-          theme: theme,
-          showTopBar: false,
-          body: Center(
-            child: SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 460),
-                child: GlassPanel(
-                  theme: theme,
-                  glow: true,
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Icon(Icons.person_pin, size: 52, color: theme.neonPrimary),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Pick your username',
-                        style: TextStyle(
-                          color: theme.textPrimary,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "It's how you'll show up on the leaderboard. "
-                        "We've picked one for you — keep it or change it.",
-                        style: TextStyle(color: theme.textMuted, fontSize: 13),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 24),
-                      TextField(
-                        controller: _controller,
-                        enabled: !_isLoading,
-                        autofocus: true,
-                        textCapitalization: TextCapitalization.none,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(
-                            RegExp(r'[a-zA-Z0-9_]'),
-                          ),
-                          LengthLimitingTextInputFormatter(20),
-                        ],
-                        decoration: InputDecoration(
-                          labelText: 'Username',
-                          labelStyle: TextStyle(color: theme.textMuted),
-                          filled: true,
-                          fillColor: theme.neonPrimary.withValues(alpha: 0.06),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: theme.stroke),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: theme.stroke),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                BorderSide(color: theme.neonPrimary, width: 1.5),
-                          ),
-                          errorText: _errorMessage,
-                          errorStyle: const TextStyle(color: Color(0xFFFF6B8A)),
-                        ),
-                        style: TextStyle(color: theme.textPrimary),
-                        maxLength: 20,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '• 3-20 characters\n'
-                        '• Must start with a letter\n'
-                        '• Letters, numbers, and underscores only',
-                        style: TextStyle(color: theme.textMuted, fontSize: 12),
-                      ),
-                      const SizedBox(height: 20),
-                      NeonButton(
-                        onPressed: _isLoading ? null : _onContinue,
-                        label: _isLoading ? 'SAVING...' : 'CONTINUE',
-                        icon: Icons.arrow_forward,
-                        theme: theme,
-                        expand: true,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'You can change this anytime in Settings.',
-                        style: TextStyle(
-                          color: theme.textMuted.withValues(alpha: 0.7),
-                          fontSize: 12,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
+    final cs = context.cs;
+    final t = cs.type;
+
+    final form = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _controller,
+          enabled: !_isLoading,
+          autofocus: true,
+          textCapitalization: TextCapitalization.none,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(
+              RegExp(r'[a-zA-Z0-9_]'),
+            ),
+            LengthLimitingTextInputFormatter(20),
+          ],
+          style: t.display(22, weight: FontWeight.w700, em: -0.01),
+          decoration: InputDecoration(
+            labelText: 'USERNAME',
+            prefixIcon: Padding(
+              padding: EdgeInsets.only(right: cs(10)),
+              child: Icon(Symbols.badge_rounded, size: cs(20), color: CsColors.ink45),
+            ),
+            prefixIconConstraints: BoxConstraints(minWidth: cs(30), minHeight: 44),
+            errorText: _errorMessage,
+            counterStyle: t.micro,
+          ),
+          maxLength: 20,
+          onSubmitted: (_) {
+            if (!_isLoading) _onContinue();
+          },
+        ),
+        SizedBox(height: cs(10)),
+        for (final rule in const [
+          '3-20 characters',
+          'Must start with a letter',
+          'Letters, numbers, and underscores only',
+        ])
+          Padding(
+            padding: EdgeInsets.only(bottom: cs(4)),
+            child: Row(
+              children: [
+                Container(width: cs(10), height: 1, color: CsColors.ink30),
+                SizedBox(width: cs(8)),
+                Expanded(
+                  child: Text(rule.toUpperCase(), style: t.micro),
                 ),
-              ),
+              ],
             ),
           ),
-        );
-      },
+        SizedBox(height: cs(20)),
+        CsButton.primary(
+          onPressed: _isLoading ? null : _onContinue,
+          loading: _isLoading,
+          label: _isLoading ? 'Saving' : 'Continue',
+          trailingIcon: _isLoading ? null : Symbols.arrow_forward_rounded,
+          expand: true,
+        ),
+        SizedBox(height: cs(12)),
+        Text(
+          'You can change this anytime in Settings.'.toUpperCase(),
+          textAlign: TextAlign.center,
+          style: t.micro,
+        ),
+      ],
+    );
+
+    return CsScaffold(
+      showTopBar: false,
+      washes: const [CsWash.violetTopRight],
+      body: CsSplit(
+        leftFlex: 5,
+        left: CsFitColumn(
+          alignment: Alignment.centerLeft,
+          children: [
+            const CsLogoMark(size: 40),
+            SizedBox(height: cs(22)),
+            const CsLabel('Call sign'),
+            SizedBox(height: cs(10)),
+            CsHeadline(const ['Pick your\n', 'username.'], prismIndex: 1, style: t.title),
+            SizedBox(height: cs(14)),
+            Text(
+              "It's how you'll show up on the leaderboard. "
+              "We've picked one for you — keep it or change it.",
+              style: t.body.copyWith(fontSize: cs(14)),
+            ),
+          ],
+        ),
+        right: Center(
+          child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: cs(400)),
+              child: form,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

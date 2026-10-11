@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
 import 'package:cosmo_strike_flutter_app/services/data_sync_service.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 
-/// A subtle sync status indicator widget that shows connectivity and sync state.
+/// A subtle sync status indicator: one Material Symbol in the corner.
 ///
-/// Designed to be minimal and non-intrusive - a small icon in the corner.
-/// States:
-/// - Online + synced: Small green dot (barely visible)
-/// - Online + syncing: Small spinning sync icon
-/// - Online + pending: Small cloud with number badge
-/// - Offline: Small gray cloud icon
+/// States (Prism Noir semantics):
+/// - Online + synced: mint cloud-done glyph at reduced opacity
+/// - Online + syncing: rotating cyan sync glyph
+/// - Online + pending: cyan upload glyph with a count badge
+/// - Failures: pink cloud-off glyph with a count badge
+/// - Offline: muted cloud-off glyph
 class SyncStatusIndicator extends StatefulWidget {
   final double size;
   final Color? onlineColor;
@@ -61,7 +62,7 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator>
           return ListenableBuilder(
             listenable: _connectivityService,
             builder: (context, child) {
-              return _buildIndicator(syncService);
+              return _buildIndicator(context, syncService);
             },
           );
         },
@@ -69,49 +70,44 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator>
     );
   }
 
-  Widget _buildIndicator(DataSyncService syncService) {
+  Widget _buildIndicator(BuildContext context, DataSyncService syncService) {
+    final cs = context.cs;
     final isOnline = _connectivityService.isOnline;
     final syncStatus = syncService.syncStatus;
     final pendingCount = syncService.pendingCount;
     final failedCount = syncService.failedCount;
 
-    // Update spin animation
+    // Spin only while a sync is actually running.
     if (syncStatus == SyncStatus.syncing) {
       _spinController.repeat();
     } else {
       _spinController.stop();
     }
 
-    // Determine icon and color
     IconData icon;
     Color color;
     Widget? badge;
 
     if (!isOnline) {
-      // Offline
-      icon = Icons.cloud_off_outlined;
-      color = widget.offlineColor ?? Colors.grey.shade500;
+      icon = Symbols.cloud_off_rounded;
+      color = widget.offlineColor ?? CsColors.ink45;
     } else if (syncStatus == SyncStatus.syncing) {
-      // Syncing
-      icon = Icons.sync;
-      color = widget.syncingColor ?? Colors.blue.shade400;
+      icon = Symbols.sync_rounded;
+      color = widget.syncingColor ?? CsColors.cyan;
     } else if (failedCount > 0) {
-      // Has failures
-      icon = Icons.cloud_off;
-      color = Colors.orange.shade400;
-      badge = _buildBadge(failedCount, Colors.orange);
+      icon = Symbols.cloud_off_rounded;
+      color = CsColors.pink;
+      badge = _buildBadge(context, failedCount, CsColors.pink);
     } else if (pendingCount > 0) {
-      // Has pending items
-      icon = Icons.cloud_upload_outlined;
-      color = widget.pendingColor ?? Colors.blue.shade300;
-      badge = _buildBadge(pendingCount, Colors.blue);
+      icon = Symbols.cloud_upload_rounded;
+      color = widget.pendingColor ?? CsColors.cyan;
+      badge = _buildBadge(context, pendingCount, CsColors.cyan);
     } else {
-      // Online and synced
-      icon = Icons.cloud_done_outlined;
-      color =
-          widget.onlineColor ?? Colors.green.shade400.withValues(alpha: 0.7);
+      icon = Symbols.cloud_done_rounded;
+      color = widget.onlineColor ?? CsColors.mint.withValues(alpha: 0.7);
     }
 
+    final iconSize = cs(widget.size);
     return Tooltip(
       message: _getTooltipMessage(
         isOnline,
@@ -120,18 +116,18 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator>
         failedCount,
       ),
       child: SizedBox(
-        width: widget.size + 8,
-        height: widget.size + 8,
+        width: iconSize + cs(8),
+        height: iconSize + cs(8),
         child: Stack(
           alignment: Alignment.center,
           children: [
             if (syncStatus == SyncStatus.syncing)
               RotationTransition(
                 turns: _spinController,
-                child: Icon(icon, size: widget.size, color: color),
+                child: Icon(icon, size: iconSize, color: color),
               )
             else
-              Icon(icon, size: widget.size, color: color),
+              Icon(icon, size: iconSize, color: color),
             if (badge != null) Positioned(top: 0, right: 0, child: badge),
           ],
         ),
@@ -139,21 +135,16 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator>
     );
   }
 
-  Widget _buildBadge(int count, Color color) {
+  Widget _buildBadge(BuildContext context, int count, Color color) {
+    final cs = context.cs;
     return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
+      padding: EdgeInsets.symmetric(horizontal: cs(3), vertical: cs(1)),
+      decoration: ShapeDecoration(color: color, shape: const StadiumBorder()),
+      constraints: BoxConstraints(minWidth: cs(12), minHeight: cs(12)),
+      alignment: Alignment.center,
       child: Text(
         count > 9 ? '9+' : count.toString(),
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 8,
-          fontWeight: FontWeight.bold,
-        ),
+        style: cs.type.mono(7, color: CsColors.onLight, weight: FontWeight.w600, em: 0, height: 1.1),
         textAlign: TextAlign.center,
       ),
     );
@@ -204,22 +195,23 @@ class SyncStatusDot extends StatelessWidget {
 
         Color color;
         if (!isOnline) {
-          color = Colors.grey.shade500;
+          color = CsColors.ink45;
         } else if (syncStatus == SyncStatus.syncing) {
-          color = Colors.blue.shade400;
+          color = CsColors.cyan;
         } else if (syncStatus == SyncStatus.error) {
-          color = Colors.orange.shade400;
+          color = CsColors.pink;
         } else if (pendingCount > 0) {
-          color = Colors.blue.shade300;
+          color = CsColors.cyan.withValues(alpha: 0.7);
         } else {
-          color = Colors.green.shade400;
+          color = CsColors.mint;
         }
 
+        final d = context.cs(size);
         return Tooltip(
           message: _getStatusMessage(isOnline, syncStatus, pendingCount),
           child: Container(
-            width: size,
-            height: size,
+            width: d,
+            height: d,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
         );
@@ -236,7 +228,7 @@ class SyncStatusDot extends StatelessWidget {
   }
 }
 
-/// An inline text widget showing sync status
+/// An inline mono text widget showing sync status
 class SyncStatusText extends StatelessWidget {
   final TextStyle? style;
   final bool showWhenSynced;
@@ -271,8 +263,8 @@ class SyncStatusText extends StatelessWidget {
         }
 
         return Text(
-          text,
-          style: style ?? TextStyle(fontSize: 10, color: Colors.grey.shade400),
+          text.toUpperCase(),
+          style: style ?? context.type.micro,
         );
       },
     );

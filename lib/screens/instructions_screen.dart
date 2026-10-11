@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
-import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
-/// How-to-play, clean landscape Command-HUD layout: a section rail on the
-/// LEFT (Objective / Controls / Pickups / Rules / Pro Tips, no-background
-/// glowing-dot selection) with the Back button beneath it, and the selected
-/// section's content on the RIGHT. Everything floats borderless on the
-/// starfield.
+/// How to play (Prism Noir): a section list on the LEFT styled like the
+/// store's category list (selected = 7% white fill + gold icon) with a
+/// "Back to game" action under it, and the selected section on the RIGHT —
+/// mono eyebrow, Syne headline, then hairline rows with Symbols glyphs or
+/// the real in-game sprites.
 class InstructionsScreen extends StatefulWidget {
   const InstructionsScreen({super.key});
 
@@ -19,551 +15,517 @@ class InstructionsScreen extends StatefulWidget {
   State<InstructionsScreen> createState() => _InstructionsScreenState();
 }
 
+class _Section {
+  const _Section(this.icon, this.label, this.headline, {this.sprite});
+  final IconData icon;
+  final String label;
+
+  /// Two parts; the second is painted in prism.
+  final List<String> headline;
+  final String? sprite;
+}
+
 class _InstructionsScreenState extends State<InstructionsScreen> {
   int _selected = 0;
 
   static const _sections = [
-    (Icons.flag, 'Objective'),
-    (Icons.touch_app, 'Controls'),
-    (Icons.military_tech, 'Combat'),
-    (Icons.flare, 'Power-Ups'),
-    (Icons.warning_amber, 'Bosses & Terrain'),
-    (Icons.lightbulb, 'Pro Tips'),
+    _Section(Symbols.flag_rounded, 'Objective', ['Bring the boss ', 'down.'],
+        sprite: 'assets/game/player/player_ship.png'),
+    _Section(Symbols.touch_app_rounded, 'Controls', ['Fly by ', 'feel.']),
+    _Section(Symbols.military_tech_rounded, 'Combat', ['Chain, graze, ', 'counter.']),
+    _Section(Symbols.flare_rounded, 'Power-Ups', ['Fly into the ', 'orbs.']),
+    _Section(Symbols.warning_rounded, 'Bosses & Terrain', ['Read the ', 'tell.'],
+        sprite: 'assets/game/bosses/boss_mothership.png'),
+    _Section(Symbols.lightbulb_rounded, 'Pro Tips', ['Fly like a ', 'pro.']),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ThemeCubit, ThemeState>(
-      builder: (context, state) {
-        final theme = state.currentTheme;
-
-        return CommandScaffold(
-          theme: theme,
-          title: 'How to Play',
-          bottomBar: const ShipBannerAd(),
-          bodyPadding: EdgeInsets.zero,
-          body: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // LEFT — section rail + back button. Never scrolls.
-                Expanded(
-                  flex: 3,
-                  child: Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: SizedBox(
-                        width: 210,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (var i = 0; i < _sections.length; i++)
-                              _buildNavItem(theme, i),
-                            const SizedBox(height: 14),
-                            NeonButton(
-                              onPressed: () => context.pop(),
-                              label: 'Back to Game',
-                              icon: Icons.arrow_back,
-                              theme: theme,
-                              expand: true,
-                              height: 42,
-                            ),
-                          ],
-                        ),
+    final cs = context.cs;
+    return CsScaffold(
+      title: 'How to Play',
+      trailing: [
+        CsMeta(
+          '${(_selected + 1).toString().padLeft(2, '0')} / ${_sections.length.toString().padLeft(2, '0')}',
+        ),
+      ],
+      bottomBar: const ShipBannerAd(),
+      body: CsSplit(
+        leftWidth: cs.isTablet ? 270 : 240,
+        left: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: CsFitColumn(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < _sections.length; i++)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: cs(4)),
+                      child: _NavItem(
+                        icon: _sections[i].icon,
+                        label: _sections[i].label,
+                        selected: _selected == i,
+                        onTap: () => setState(() => _selected = i),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                // RIGHT — the selected section, cross-faded on change.
-                Expanded(
-                  flex: 7,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: ListView(
-                      key: ValueKey<int>(_selected),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      children: _buildSectionContent(theme),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildNavItem(GameTheme theme, int i) {
-    final selected = _selected == i;
-    final (icon, label) = _sections[i];
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() => _selected = i),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: selected ? theme.neonPrimary : theme.textMuted,
-            ),
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? theme.textPrimary : theme.textMuted,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
+                ],
               ),
             ),
-            const Spacer(),
-            if (selected)
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: theme.neonPrimary,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.neonPrimary.withValues(alpha: 0.7),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-              ),
+            SizedBox(height: cs(10)),
+            CsButton.secondary(
+              onPressed: () => context.pop(),
+              label: 'Back to Game',
+              icon: Symbols.arrow_back_rounded,
+              expand: true,
+            ),
           ],
+        ),
+        right: AnimatedSwitcher(
+          duration: CsMotion.base,
+          switchInCurve: CsMotion.standard,
+          child: ListView(
+            key: ValueKey<int>(_selected),
+            padding: EdgeInsets.only(bottom: cs(12)),
+            children: [
+              _SectionHeader(section: _sections[_selected], index: _selected),
+              SizedBox(height: cs(16)),
+              ..._buildSectionContent(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  List<Widget> _buildSectionContent(GameTheme theme) {
+  List<Widget> _buildSectionContent() {
     switch (_selected) {
       case 0:
-        return [
-          _sectionLabel(theme, 'OBJECTIVE'),
-          const SizedBox(height: 12),
-          Text(
+        return const [
+          _Lead(
             'Fight through a 12-level campaign across 4 alien biomes. '
             'Each level is a choreographed gauntlet of enemy waves and '
             'formations that ends in a boss fight — bring the boss down '
             'to clear the level and unlock the next.',
-            style: TextStyle(
-              color: theme.textPrimary,
-              fontSize: 15,
-              height: 1.6,
-            ),
-          ).gameListItem(0),
-          const SizedBox(height: 12),
-          _buildRuleItem(
+          ),
+          _RuleRow(
             'Clearing a level unlocks the next — progress is saved the '
             'moment the boss falls',
-            theme,
-            1,
+            index: 1,
+            first: true,
           ),
-          _buildRuleItem(
+          _RuleRow(
             'Game modes (Settings) change the rules: lives, pacing, '
             'enemy fire, one-hit runs, or a Time Attack clock',
-            theme,
-            2,
+            index: 2,
           ),
-          _buildRuleItem(
+          _RuleRow(
             'Earn coins every run — more for kills, bosses, and '
             'first-time level clears',
-            theme,
-            3,
+            index: 3,
           ),
         ];
       case 1:
-        return [
-          _sectionLabel(theme, 'CONTROLS'),
-          const SizedBox(height: 12),
-          _buildControlItem(
-            'Drag Anywhere',
-            'Steer — your ship mirrors your finger, so your thumb '
+        return const [
+          _InfoRow(
+            leading: CsIconDisc(Symbols.swipe_rounded),
+            title: 'Drag Anywhere',
+            body: 'Steer — your ship mirrors your finger, so your thumb '
                 'never covers it',
-            theme,
-            0,
+            first: true,
           ),
-          _buildControlItem(
-            'Auto-Fire',
-            'Your cannon fires by itself — focus on flying',
-            theme,
-            1,
+          _InfoRow(
+            leading: CsIconDisc(Symbols.bolt_rounded),
+            title: 'Auto-Fire',
+            body: 'Your cannon fires by itself — focus on flying',
           ),
-          _buildControlItem(
-            'Double-Tap',
-            'Launch a missile (or use the missile button)',
-            theme,
-            2,
+          _InfoRow(
+            leading: CsIconDisc(Symbols.touch_double_rounded),
+            title: 'Double-Tap',
+            body: 'Launch a missile (or use the missile button)',
           ),
-          _buildControlItem(
-            'Pause Button',
-            'Pause the run — resume or quit safely',
-            theme,
-            3,
+          _InfoRow(
+            leading: CsIconDisc(Symbols.pause_rounded),
+            title: 'Pause Button',
+            body: 'Pause the run — resume or quit safely',
           ),
-          _buildControlItem(
-            'D-Pad (optional)',
-            'Prefer old-school? Enable the on-screen D-pad in Settings',
-            theme,
-            4,
+          _InfoRow(
+            leading: CsIconDisc(Symbols.gamepad_rounded),
+            title: 'D-Pad (optional)',
+            body: 'Prefer old-school? Enable the on-screen D-pad in Settings',
           ),
         ];
       case 2:
-        return [
-          _sectionLabel(theme, 'COMBAT SYSTEMS'),
-          const SizedBox(height: 12),
-          _buildFoodItem(
-            'Combo Chain',
-            'up to ×4 score',
-            const Color(0xFFFF7BD5),
-            theme,
-            0,
+        return const [
+          _InfoRow(
+            leading: CsIconDisc(Symbols.local_fire_department_rounded, color: CsColors.pink),
+            title: 'Combo Chain',
+            chip: 'up to ×4 score',
+            body: 'Chain kills fast — without getting hit — to climb the score '
+                'multiplier: ×2 at 5 kills, ×3 at 10, ×4 at 20. The chain '
+                'decays if you stop killing, and one landed hit resets it',
+            first: true,
           ),
-          _buildRuleItem(
-            'Chain kills fast — without getting hit — to climb the score '
-            'multiplier: ×2 at 5 kills, ×3 at 10, ×4 at 20. The chain '
-            'decays if you stop killing, and one landed hit resets it',
-            theme,
-            1,
+          _InfoRow(
+            leading: CsIconDisc(Symbols.near_me_rounded, color: CsColors.cyan),
+            title: 'Graze',
+            chip: '+15 & meter',
+            body: 'Let enemy bullets just miss your hull: each near miss pays '
+                'points and charges the graze meter — a full meter loads '
+                '+1 missile',
           ),
-          const SizedBox(height: 8),
-          _buildFoodItem(
-            'Graze',
-            '+15 & meter',
-            const Color(0xFF7DE8FF),
-            theme,
-            2,
+          _InfoRow(
+            leading: CsIconDisc(Symbols.my_location_rounded, color: CsColors.mint),
+            title: 'Counter Fire',
+            chip: 'shoot bullets',
+            body: 'Your cannon can shoot incoming fire out of the sky for points. '
+                'Boss energy bolts are tougher — land about 3 hits on one to '
+                'break it and clear a path',
           ),
-          _buildRuleItem(
-            'Let enemy bullets just miss your hull: each near miss pays '
-            'points and charges the graze meter — a full meter loads '
-            '+1 missile',
-            theme,
-            3,
-          ),
-          const SizedBox(height: 8),
-          _buildFoodItem(
-            'Counter Fire',
-            'shoot bullets',
-            const Color(0xFF9CFF8A),
-            theme,
-            4,
-          ),
-          _buildRuleItem(
-            'Your cannon can shoot incoming fire out of the sky for points. '
-            'Boss energy bolts are tougher — land about 3 hits on one to '
-            'break it and clear a path',
-            theme,
-            5,
-          ),
-          const SizedBox(height: 8),
-          _buildFoodItem(
-            'Formation Wipe',
-            'bonus + orb',
-            const Color(0xFFFFD37B),
-            theme,
-            6,
-          ),
-          _buildRuleItem(
-            'Destroy an entire enemy formation quickly for a wipe bonus '
-            'and a guaranteed power-up drop',
-            theme,
-            7,
+          _InfoRow(
+            leading: CsIconDisc(Symbols.grid_view_rounded, color: CsColors.gold),
+            title: 'Formation Wipe',
+            chip: 'bonus + orb',
+            body: 'Destroy an entire enemy formation quickly for a wipe bonus '
+                'and a guaranteed power-up drop',
           ),
         ];
       case 3:
-        return [
-          _sectionLabel(theme, 'POWER-UP DROPS'),
-          const SizedBox(height: 12),
-          _buildRuleItem(
+        return const [
+          _Lead(
             'Destroyed enemies sometimes drop power-up orbs — fly into '
-            'them to collect',
-            theme,
-            0,
+            'them to collect.',
           ),
-          _buildFoodItem('Weapon', 'tier up', const Color(0xFF7DE8FF), theme, 1),
-          _buildFoodItem('Shield', 'blocks 1 hit', const Color(0xFF8AB4FF), theme, 2),
-          _buildFoodItem('Missiles', '+3 ammo', const Color(0xFFFFD37B), theme, 3),
-          _buildFoodItem('Speed', 'move faster', const Color(0xFF9CFF8A), theme, 4),
-          _buildFoodItem('×2 Score', '10 seconds', const Color(0xFFFF7BD5), theme, 5),
-          _buildFoodItem('Slow-Mo', 'slows enemies', const Color(0xFFC59CFF), theme, 6),
-          _buildFoodItem('Magnet', 'pulls orbs in', const Color(0xFFFFB37B), theme, 7),
-          _buildFoodItem('Ghost', 'phase through', const Color(0xFFB0BEC5), theme, 8),
-          _buildFoodItem('Bomb', 'clears screen', const Color(0xFFFF8A8A), theme, 9),
-          _buildFoodItem('Extra Life', '+1 ship', const Color(0xFFFF6E9C), theme, 10),
-          const SizedBox(height: 10),
-          _buildRuleItem(
+          _PowerUpGrid(items: [
+            ('powerup_weapon', 'Weapon', 'tier up'),
+            ('powerup_shield', 'Shield', 'blocks 1 hit'),
+            ('powerup_missiles', 'Missiles', '+3 ammo'),
+            ('powerup_speed', 'Speed', 'move faster'),
+            ('powerup_x2', '×2 Score', '10 seconds'),
+            ('powerup_slowmo', 'Slow-Mo', 'slows enemies'),
+            ('powerup_magnet', 'Magnet', 'pulls orbs in'),
+            ('powerup_ghost', 'Ghost', 'phase through'),
+            ('powerup_bomb', 'Bomb', 'clears screen'),
+            ('powerup_life', 'Extra Life', '+1 ship'),
+          ]),
+          _RuleRow(
             'Timed boosts (×2 Score, Speed, Slow-Mo, Ghost, Magnet) run for '
             'a few seconds; Shield and Weapon last until used or upgraded',
-            theme,
-            11,
+            index: 1,
+            first: true,
           ),
-          _buildRuleItem(
+          _RuleRow(
             'Arm a store-bought power-up before launch from the loadout chip '
             'on the home screen for an instant head start',
-            theme,
-            12,
+            index: 2,
           ),
         ];
       case 4:
-        return [
-          _sectionLabel(theme, 'BOSSES & TERRAIN'),
-          const SizedBox(height: 12),
-          _buildRuleItem(
+        return const [
+          _RuleRow(
             'Every boss attack is telegraphed — a warning flash shows '
             'where it will hit before it fires. Watch, then move',
-            theme,
-            0,
+            index: 1,
+            first: true,
           ),
-          _buildRuleItem(
+          _RuleRow(
             'Boss energy bolts can be shot down — it takes about 3 hits '
             'each, so focus your fire to punch a gap in the curtain',
-            theme,
-            1,
+            index: 2,
           ),
-          _buildRuleItem(
+          _RuleRow(
             'Bosses fight in phases: each phase flip clears their '
             'bullets and changes their attack pattern',
-            theme,
-            2,
+            index: 3,
           ),
-          _buildRuleItem(
+          _RuleRow(
             'Terrain is a threat: clipping the floor, ceiling, or an '
             'obstacle damages your ship and bounces you away',
-            theme,
-            3,
+            index: 4,
           ),
-          _buildRuleItem(
+          _RuleRow(
             'Watch for canyon squeezes — the corridor narrows during '
             'set pieces, and wall-mounted turrets pour aimed fire',
-            theme,
-            4,
+            index: 5,
           ),
-          _buildRuleItem(
+          _RuleRow(
             'Out of lives? You get ONE revive per run — watch an ad or '
             'spend 200 coins to keep the run alive',
-            theme,
-            5,
+            index: 6,
           ),
         ];
       default:
-        return [
-          _sectionLabel(theme, 'PRO TIPS'),
-          const SizedBox(height: 12),
-          _buildTipItem(
+        return const [
+          _RuleRow(
             'Wipe whole formations fast — the bonus and guaranteed orb '
             'beat picking off stragglers',
-            theme,
-            0,
+            tip: true,
+            first: true,
           ),
-          _buildTipItem(
+          _RuleRow(
             'Graze on purpose: skimming bullet streams is the fastest '
             'way to bank missiles',
-            theme,
-            1,
+            tip: true,
           ),
-          _buildTipItem(
-            'Save missiles for armored hulls and boss phases',
-            theme,
-            2,
-          ),
-          _buildTipItem(
+          _RuleRow('Save missiles for armored hulls and boss phases', tip: true),
+          _RuleRow(
             'Protect your combo — backing off for a second beats '
             'breaking a ×4 chain',
-            theme,
-            3,
+            tip: true,
           ),
-          _buildTipItem(
+          _RuleRow(
             'Arm a store power-up before launch for a head start '
             '(loadout chip on the home screen)',
-            theme,
-            4,
+            tip: true,
           ),
-          _buildTipItem(
+          _RuleRow(
             'Learn each boss\'s telegraphs — every attack has a tell',
-            theme,
-            5,
+            tip: true,
           ),
-          _buildTipItem(
+          _RuleRow(
             'When dodging gets tight, shoot the boss bolts down — 3 hits '
             'clears one and opens a lane',
-            theme,
-            6,
+            tip: true,
           ),
         ];
     }
   }
+}
 
-  Widget _sectionLabel(GameTheme theme, String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        color: theme.accentColor,
-        fontSize: 11,
-        fontWeight: FontWeight.w900,
-        letterSpacing: 1.8,
+/// Category-list item (as on the store): 7% white fill + gold icon when
+/// selected, quiet ink otherwise.
+class _NavItem extends StatelessWidget {
+  const _NavItem({required this.icon, required this.label, required this.selected, required this.onTap});
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return CsPressable(
+      onTap: onTap,
+      scale: 0.98,
+      semanticLabel: label,
+      child: AnimatedContainer(
+        duration: CsMotion.base,
+        curve: CsMotion.standard,
+        constraints: const BoxConstraints(minHeight: 44),
+        padding: EdgeInsets.symmetric(horizontal: cs(14), vertical: cs(10)),
+        decoration: BoxDecoration(
+          color: selected ? CsColors.fill07 : Colors.transparent,
+          borderRadius: BorderRadius.circular(CsRadius.tile),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: cs(20), color: selected ? CsColors.gold : CsColors.ink45),
+            SizedBox(width: cs(14)),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: cs.type.display(
+                  15,
+                  weight: selected ? FontWeight.w700 : FontWeight.w600,
+                  em: 0,
+                  color: selected ? CsColors.ink : CsColors.ink60,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildControlItem(
-    String gesture,
-    String action,
-    GameTheme theme,
-    int index,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        children: [
-          // Gesture chip — borderless tint.
-          Container(
-            width: 150,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              gesture,
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.section, required this.index});
+  final _Section section;
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CsLabel('${(index + 1).toString().padLeft(2, '0')} · ${section.label}'),
+              SizedBox(height: cs(8)),
+              CsHeadline(section.headline, prismIndex: 1, style: t.section, maxLines: 2),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              action,
-              style: TextStyle(color: theme.textMuted, fontSize: 13.5),
-            ),
+        ),
+        if (section.sprite != null) ...[
+          SizedBox(width: cs(16)),
+          Image.asset(
+            section.sprite!,
+            height: cs(56),
+            width: cs(110),
+            alignment: Alignment.bottomRight,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
           ),
         ],
-      ),
-    ).gameListItem(index);
+      ],
+    );
   }
+}
 
-  Widget _buildFoodItem(
-    String name,
-    String points,
-    Color color,
-    GameTheme theme,
-    int index,
-  ) {
+/// Lead paragraph under the headline.
+class _Lead extends StatelessWidget {
+  const _Lead(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.only(bottom: cs(14)),
+      child: Text(text, style: cs.type.body.copyWith(fontSize: cs(15), color: CsColors.ink70, height: 1.5)),
+    );
+  }
+}
+
+/// Hairline row: mono index (or gold star for tips) + body copy.
+class _RuleRow extends StatelessWidget {
+  const _RuleRow(this.text, {this.index, this.tip = false, this.first = false});
+  final String text;
+  final int? index;
+  final bool tip;
+  final bool first;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: cs(12)),
+      decoration: BoxDecoration(
+        border: Border(
+          top: first ? const BorderSide(color: CsColors.hairline) : BorderSide.none,
+          bottom: const BorderSide(color: CsColors.hairline),
+        ),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Glowing pickup orb.
-          Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.5),
-                  blurRadius: 8,
-                  spreadRadius: 2,
+          SizedBox(
+            width: cs(34),
+            child: tip
+                ? Icon(Symbols.star_rounded, size: cs(16), color: CsColors.gold)
+                : Text(index.toString().padLeft(2, '0'), style: t.mono(11, color: CsColors.ink45)),
+          ),
+          Expanded(child: Text(text, style: t.body.copyWith(fontSize: cs(14), color: CsColors.ink70))),
+        ],
+      ),
+    );
+  }
+}
+
+/// Hairline row with a leading glyph, title (+ optional mono chip) and an
+/// unclamped body (descriptions here run 2-3 lines).
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.leading, required this.title, required this.body, this.chip, this.first = false});
+  final Widget leading;
+  final String title;
+  final String body;
+  final String? chip;
+  final bool first;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: cs(12)),
+      decoration: BoxDecoration(
+        border: Border(
+          top: first ? const BorderSide(color: CsColors.hairline) : BorderSide.none,
+          bottom: const BorderSide(color: CsColors.hairline),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          leading,
+          SizedBox(width: cs(14)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
+                    ),
+                    if (chip != null) ...[SizedBox(width: cs(8)), CsChip(chip!)],
+                  ],
                 ),
+                SizedBox(height: cs(4)),
+                Text(body, style: t.body),
               ],
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              name,
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: theme.foodColor.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              points,
-              style: TextStyle(
-                color: theme.foodColor,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
         ],
       ),
-    ).gameListItem(index);
+    );
   }
+}
 
-  Widget _buildRuleItem(String rule, GameTheme theme, int index) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 5,
-            height: 5,
-            margin: const EdgeInsets.only(top: 7, right: 10),
-            decoration: BoxDecoration(
-              color: theme.neonPrimary.withValues(alpha: 0.8),
-              shape: BoxShape.circle,
-            ),
-          ),
-          Expanded(
-            child: Text(
-              rule,
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 14,
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ).gameListItem(index);
-  }
+/// Power-up pickups as a two-column hairline list with the real sprites.
+class _PowerUpGrid extends StatelessWidget {
+  const _PowerUpGrid({required this.items});
 
-  Widget _buildTipItem(String tip, GameTheme theme, int index) {
+  /// (sprite file stem, name, effect)
+  final List<(String, String, String)> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    final cols = cs.isTablet ? 3 : 2;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.star, color: theme.foodColor, size: 15),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              tip,
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 14,
-                height: 1.4,
+      padding: EdgeInsets.only(bottom: cs(18)),
+      child: LayoutBuilder(builder: (context, c) {
+        final gap = cs(16);
+        final w = (c.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          children: [
+            for (final (file, name, effect) in items)
+              Container(
+                width: w,
+                padding: EdgeInsets.symmetric(vertical: cs(9)),
+                decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: CsColors.hairline))),
+                child: Row(
+                  children: [
+                    Image.asset(
+                      'assets/game/powerups/$file.png',
+                      width: cs(28),
+                      height: cs(28),
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.medium,
+                    ),
+                    SizedBox(width: cs(12)),
+                    Expanded(
+                      child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle.copyWith(fontSize: cs(14))),
+                    ),
+                    SizedBox(width: cs(8)),
+                    Text(effect.toUpperCase(), maxLines: 1, style: t.mono(9, color: CsColors.ink45)),
+                  ],
+                ),
               ),
-            ),
-          ),
-        ],
-      ),
-    ).gameListItem(index);
+          ],
+        );
+      }),
+    );
   }
 }

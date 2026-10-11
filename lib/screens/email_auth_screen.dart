@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 
 /// Email/password sign-in, account-creation, and anonymous-account link
-/// screen. Tab switcher between Sign In and Create Account.
+/// screen. Segmented switcher between Sign In and Create Account.
 ///
 /// When invoked with [linkFromAnonymous] = true, the action buttons call
 /// the link* variants on AuthCubit instead of the standalone sign-in /
 /// create methods — keeping the same Firebase UID so backend progress
 /// (coins, cosmetics, scores) is preserved.
+///
+/// Layout: intro (logo, headline, copy) on the left; the segmented control
+/// and the underline form on the right (scrolls with the keyboard up).
 class EmailAuthScreen extends StatefulWidget {
   final bool linkFromAnonymous;
 
@@ -23,9 +24,9 @@ class EmailAuthScreen extends StatefulWidget {
   State<EmailAuthScreen> createState() => _EmailAuthScreenState();
 }
 
-class _EmailAuthScreenState extends State<EmailAuthScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabs;
+class _EmailAuthScreenState extends State<EmailAuthScreen> {
+  /// 0 = Sign In / Link Existing, 1 = Create Account.
+  int _tab = 0;
   final _signInFormKey = GlobalKey<FormState>();
   final _createFormKey = GlobalKey<FormState>();
   final _signInEmail = TextEditingController();
@@ -37,14 +38,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
   bool _showCreatePassword = false;
 
   @override
-  void initState() {
-    super.initState();
-    _tabs = TabController(length: 2, vsync: this);
-  }
-
-  @override
   void dispose() {
-    _tabs.dispose();
     _signInEmail.dispose();
     _signInPassword.dispose();
     _createEmail.dispose();
@@ -54,77 +48,52 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<ThemeCubit>().state.currentTheme;
+    final cs = context.cs;
+    final link = widget.linkFromAnonymous;
 
-    // D-lite archetype: a centered, max-width glass card with the tabbed
-    // sign-in / create-account form on the starfield.
-    return CommandScaffold(
-      theme: theme,
-      title: widget.linkFromAnonymous ? 'Save Your Progress' : 'Email Sign-In',
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: GlassPanel(
-              theme: theme,
-              glow: true,
-              padding: const EdgeInsets.all(20),
+    return CsScaffold(
+      title: link ? 'Save Your Progress' : 'Email Sign-In',
+      washes: const [CsWash.cyanLeft],
+      body: CsSplit(
+        leftFlex: 4,
+        gap: cs(44),
+        left: _AuthIntro(
+          eyebrow: link ? 'Upgrade guest account' : 'Email & password',
+          headline: link ? const ['Save your\n', 'progress.'] : const ['Sign in with\n', 'email.'],
+          body: link
+              ? 'Add an email and password to your account so you can buy items, '
+                  'restore on reinstall, and sign in from any device.'
+              : 'Sign in to an existing account or create a new one. Your local '
+                  'progress stays on this device either way.',
+        ),
+        right: Align(
+          alignment: Alignment.topCenter,
+          child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: cs(440)),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (widget.linkFromAnonymous) ...[
-                    Text(
-                      'Add an email and password to your account so you can buy items, restore on reinstall, and sign in from any device.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  Container(
-                    decoration: BoxDecoration(
-                      color: theme.neonPrimary.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: theme.stroke),
-                    ),
-                    child: TabBar(
-                      controller: _tabs,
-                      indicator: BoxDecoration(
-                        color: theme.neonPrimary.withValues(alpha: 0.85),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      labelColor: const Color(0xFF03040A),
-                      unselectedLabelColor: theme.textMuted,
-                      labelStyle: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      dividerColor: Colors.transparent,
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      tabs: [
-                        Tab(
-                          text: widget.linkFromAnonymous
-                              ? 'Link Existing'
-                              : 'Sign In',
-                        ),
-                        const Tab(text: 'Create Account'),
-                      ],
-                    ),
+                  CsSegmented<int>(
+                    expand: true,
+                    segments: {
+                      0: link ? 'Link Existing' : 'Sign In',
+                      1: 'Create Account',
+                    },
+                    selected: _tab,
+                    onChanged: (v) => setState(() => _tab = v),
                   ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    height: 300,
-                    child: TabBarView(
-                      controller: _tabs,
-                      children: [
-                        _buildSignInForm(theme),
-                        _buildCreateForm(theme),
-                      ],
-                    ),
+                  SizedBox(height: cs(14)),
+                  // Both forms stay mounted so their keys/inputs survive
+                  // switching segments.
+                  IndexedStack(
+                    index: _tab,
+                    sizing: StackFit.loose,
+                    children: [
+                      _buildSignInForm(context),
+                      _buildCreateForm(context),
+                    ],
                   ),
                 ],
               ),
@@ -135,39 +104,36 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
     );
   }
 
-  Widget _buildSignInForm(GameTheme theme) {
+  Widget _buildSignInForm(BuildContext context) {
+    final cs = context.cs;
     return Form(
       key: _signInFormKey,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _emailField(_signInEmail),
-          const SizedBox(height: 14),
+          SizedBox(height: cs(10)),
           _passwordField(
             controller: _signInPassword,
             obscure: !_showSignInPassword,
             onToggle: () =>
                 setState(() => _showSignInPassword = !_showSignInPassword),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: cs(6)),
           Align(
             alignment: Alignment.centerRight,
-            child: TextButton(
+            child: CsButton.text(
+              label: 'Forgot password?',
+              size: CsButtonSize.small,
               onPressed: _busy ? null : _onForgotPassword,
-              child: Text(
-                'Forgot password?',
-                style: TextStyle(color: theme.neonPrimary),
-              ),
             ),
           ),
-          const SizedBox(height: 8),
-          NeonButton(
+          SizedBox(height: cs(10)),
+          CsButton.primary(
             onPressed: _busy ? null : _onSignInOrLink,
-            label: _busy
-                ? '...'
-                : (widget.linkFromAnonymous
-                    ? 'Link to Existing Account'
-                    : 'Sign In'),
-            theme: theme,
+            loading: _busy,
+            label: widget.linkFromAnonymous ? 'Link to Existing Account' : 'Sign In',
             expand: true,
           ),
         ],
@@ -175,13 +141,16 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
     );
   }
 
-  Widget _buildCreateForm(GameTheme theme) {
+  Widget _buildCreateForm(BuildContext context) {
+    final cs = context.cs;
     return Form(
       key: _createFormKey,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _emailField(_createEmail),
-          const SizedBox(height: 14),
+          SizedBox(height: cs(10)),
           _passwordField(
             controller: _createPassword,
             obscure: !_showCreatePassword,
@@ -190,15 +159,11 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
             minLength: 8,
             helper: 'At least 8 characters',
           ),
-          const SizedBox(height: 20),
-          NeonButton(
+          SizedBox(height: cs(22)),
+          CsButton.primary(
             onPressed: _busy ? null : _onCreateOrLink,
-            label: _busy
-                ? '...'
-                : (widget.linkFromAnonymous
-                    ? 'Create & Link Account'
-                    : 'Create Account'),
-            theme: theme,
+            loading: _busy,
+            label: widget.linkFromAnonymous ? 'Create & Link Account' : 'Create Account',
             expand: true,
           ),
         ],
@@ -213,8 +178,8 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
       autocorrect: false,
       enableSuggestions: false,
       textInputAction: TextInputAction.next,
-      style: const TextStyle(color: Colors.white),
-      decoration: _decoration('Email', Icons.email_outlined),
+      style: context.type.rowTitle.copyWith(fontWeight: FontWeight.w500),
+      decoration: _decoration('Email', Symbols.mail_rounded),
       validator: (v) {
         final s = (v ?? '').trim();
         if (s.isEmpty) return 'Email is required';
@@ -235,16 +200,17 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
     return TextFormField(
       controller: controller,
       obscureText: obscure,
-      style: const TextStyle(color: Colors.white),
+      style: context.type.rowTitle.copyWith(fontWeight: FontWeight.w500),
       decoration: _decoration(
         'Password',
-        Icons.lock_outline,
+        Symbols.lock_rounded,
         helperText: helper,
-        suffixIcon: IconButton(
-          icon: Icon(
-            obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-            color: Colors.white.withValues(alpha: 0.7),
-          ),
+        suffixIcon: CsIconButton(
+          icon: obscure ? Symbols.visibility_off_rounded : Symbols.visibility_rounded,
+          bordered: false,
+          size: 36,
+          color: CsColors.ink55,
+          tooltip: obscure ? 'Show password' : 'Hide password',
           onPressed: onToggle,
         ),
       ),
@@ -257,38 +223,25 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
     );
   }
 
+  /// Underline field from the theme's InputDecorationTheme (pink micro
+  /// errors, mono label); only the glyphs are added here.
   InputDecoration _decoration(
     String label,
     IconData icon, {
     String? helperText,
     Widget? suffixIcon,
   }) {
+    final cs = context.cs;
     return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
-      helperText: helperText,
-      helperStyle: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
-      prefixIcon: Icon(icon, color: Colors.white.withValues(alpha: 0.8)),
+      labelText: label.toUpperCase(),
+      helperText: helperText?.toUpperCase(),
+      prefixIcon: Padding(
+        padding: EdgeInsets.only(right: cs(10)),
+        child: Icon(icon, size: cs(18), color: CsColors.ink45),
+      ),
+      prefixIconConstraints: BoxConstraints(minWidth: cs(28), minHeight: 44),
       suffixIcon: suffixIcon,
-      filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.08),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide:
-            BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.white, width: 1.5),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.redAccent),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-      ),
+      suffixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
     );
   }
 
@@ -417,21 +370,41 @@ class _EmailAuthScreenState extends State<EmailAuthScreen>
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.shade700,
-      ),
-    );
+    showCsToast(context, message, kind: CsToastKind.error);
   }
 
   void _showInfo(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green.shade700,
-      ),
+    showCsToast(context, message, kind: CsToastKind.success);
+  }
+}
+
+/// Left column of the onboarding screens: logo mark, mono eyebrow, a big
+/// Syne headline with one prism word, and body copy. Never scrolls — scales
+/// down on short phones (and when the keyboard is up).
+class _AuthIntro extends StatelessWidget {
+  const _AuthIntro({required this.eyebrow, required this.headline, required this.body});
+  final String eyebrow;
+
+  /// Two parts; the second is painted in prism.
+  final List<String> headline;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    return CsFitColumn(
+      alignment: Alignment.centerLeft,
+      children: [
+        const CsLogoMark(size: 40),
+        SizedBox(height: cs(22)),
+        CsLabel(eyebrow),
+        SizedBox(height: cs(10)),
+        CsHeadline(headline, prismIndex: 1, style: t.title),
+        SizedBox(height: cs(14)),
+        Text(body, style: t.body.copyWith(fontSize: cs(14))),
+      ],
     );
   }
 }

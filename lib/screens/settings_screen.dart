@@ -25,15 +25,33 @@ import 'package:cosmo_strike_flutter_app/services/review_service.dart';
 import 'package:cosmo_strike_flutter_app/services/share_service.dart';
 import 'package:cosmo_strike_flutter_app/services/walkthrough_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/credits_dialog.dart';
 
+/// Settings (Prism Noir): a section list on the LEFT styled like the store's
+/// category list (selected = 7% white fill + gold icon) with BACK TO GAME
+/// pinned under it, and the selected section on the RIGHT — mono eyebrow,
+/// Syne headline, then hairline rows with the theme's Switch / CsSegmented
+/// controls.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
+
+/// Left-rail sections, in pane order.
+const _kSections = <(IconData, String)>[
+  (Symbols.gamepad_rounded, 'Controls'),
+  (Symbols.sports_esports_rounded, 'Gameplay'),
+  (Symbols.volume_up_rounded, 'Audio'),
+  (Symbols.palette_rounded, 'Visual'),
+  (Symbols.notifications_rounded, 'Notifications'),
+  (Symbols.person_rounded, 'Profile'),
+  (Symbols.help_rounded, 'Help'),
+  (Symbols.workspace_premium_rounded, 'Premium'),
+  (Symbols.accessibility_new_rounded, 'Access'),
+];
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final AudioService _audioService = AudioService();
@@ -44,7 +62,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Which section of the left rail is selected (drives the right pane).
   int _selectedSection = 0;
 
-  /// Shared by the rail's ListView and its always-visible Scrollbar.
+  /// Shared by the rail's ListView and its Scrollbar.
   final ScrollController _railScrollController = ScrollController();
   bool _soundEnabled = true;
   bool _musicEnabled = true;
@@ -202,50 +220,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
             builder: (context, authState) {
               return BlocBuilder<PremiumCubit, PremiumState>(
                 builder: (context, premiumState) {
-                  final theme = themeState.currentTheme;
-
-                  return CommandScaffold(
-                    theme: theme,
+                  final cs = context.cs;
+                  final section = _kSections[_selectedSection];
+                  return CsScaffold(
                     title: 'Settings',
+                    trailing: [
+                      CsMeta(
+                        '${_two(_selectedSection + 1)} / ${_two(_kSections.length)}',
+                      ),
+                    ],
                     bottomBar: const ShipBannerAd(),
-                    bodyPadding: EdgeInsets.zero,
-                    body: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // LEFT — vertical section rail. Deliberate
-                          // exception to the no-scroll rule: 8 sections at
-                          // a readable size don't fit the short viewport,
-                          // so the rail scrolls, with edge fades hinting
-                          // that more items are above/below. The BACK
-                          // button stays pinned outside the scroll.
-                          Expanded(flex: 3, child: _buildNavRail(theme)),
-                          const SizedBox(width: 20),
-                          // RIGHT — the selected section's content.
-                          Expanded(
-                            flex: 7,
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 250),
-                              child: SingleChildScrollView(
-                                key: ValueKey(_selectedSection),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 8,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: _buildSectionPane(
-                                    _selectedSection,
-                                    themeState,
-                                    authState,
-                                    premiumState,
-                                    theme,
-                                  ),
-                                ),
+                    body: CsSplit(
+                      leftWidth: cs.isTablet ? 260 : 220,
+                      left: _buildNavRail(),
+                      right: AnimatedSwitcher(
+                        duration: CsMotion.base,
+                        switchInCurve: CsMotion.standard,
+                        child: SingleChildScrollView(
+                          key: ValueKey(_selectedSection),
+                          padding: EdgeInsets.only(bottom: cs(16)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              CsLabel('${_two(_selectedSection + 1)} · Settings'),
+                              SizedBox(height: cs(6)),
+                              Text(
+                                section.$2,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: cs.type.display(30, em: -0.03, height: 1.05),
                               ),
-                            ),
+                              SizedBox(height: cs(14)),
+                              ..._buildSectionPane(
+                                _selectedSection,
+                                themeState,
+                                authState,
+                                premiumState,
+                                themeState.currentTheme,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   );
@@ -258,124 +273,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Vertical, borderless section rail for the left region. Selection
-  /// reads purely through the neon icon, brighter text, and a glowing
-  /// indicator dot — no backgrounds, no borders.
-  ///
-  /// The item list SCROLLS (deliberate exception — 8 readable items don't
-  /// fit the short landscape viewport); top/bottom edge fades signal the
-  /// overflow, and the always-visible scrollbar thumb reinforces it.
-  Widget _buildNavRail(GameTheme theme) {
-    const items = [
-      (Icons.gamepad, 'Controls'),
-      (Icons.sports_esports, 'Gameplay'),
-      (Icons.volume_up, 'Audio'),
-      (Icons.palette, 'Visual'),
-      (Icons.notifications, 'Notifications'),
-      (Icons.person, 'Profile'),
-      (Icons.help_outline, 'Help'),
-      (Icons.workspace_premium, 'Premium'),
-      (Icons.accessibility_new, 'Access'),
-    ];
+  static String _two(int n) => n.toString().padLeft(2, '0');
 
+  /// Section list for the left region. 9 sections at a ≥44dp target don't
+  /// fit a short landscape phone, so the list scrolls (with a thin
+  /// scrollbar); BACK TO GAME stays pinned below it.
+  Widget _buildNavRail() {
+    final cs = context.cs;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
-          child: ShaderMask(
-            // Fade the list out at the top/bottom edges so it reads as
-            // "more above / more below" — the scroll affordance.
-            shaderCallback: (rect) => const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.transparent,
-                Colors.white,
-                Colors.white,
-                Colors.transparent,
-              ],
-              stops: [0.0, 0.07, 0.9, 1.0],
-            ).createShader(rect),
-            blendMode: BlendMode.dstIn,
-            child: Scrollbar(
+          child: Scrollbar(
+            controller: _railScrollController,
+            thickness: 2,
+            radius: const Radius.circular(1),
+            child: ListView.separated(
               controller: _railScrollController,
-              thumbVisibility: true,
-              thickness: 2.5,
-              radius: const Radius.circular(2),
-              child: ListView(
-                controller: _railScrollController,
-                padding: const EdgeInsets.fromLTRB(0, 10, 8, 14),
-                children: [
-                  for (var i = 0; i < items.length; i++)
-                    _buildNavItem(theme, i, items[i].$1, items[i].$2),
-                ],
+              padding: EdgeInsets.only(right: cs(8)),
+              itemCount: _kSections.length,
+              separatorBuilder: (_, _) => SizedBox(height: cs(2)),
+              itemBuilder: (context, i) => _NavItem(
+                icon: _kSections[i].$1,
+                label: _kSections[i].$2,
+                selected: _selectedSection == i,
+                onTap: () => setState(() => _selectedSection = i),
               ),
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        NeonButton(
+        SizedBox(height: cs(10)),
+        CsButton.secondary(
           onPressed: () => context.pop(),
-          label: 'BACK TO GAME',
-          theme: theme,
-          icon: Icons.arrow_back,
+          label: 'Back to Game',
+          icon: Symbols.arrow_back_rounded,
           expand: true,
-          height: 44,
         ),
       ],
     );
   }
 
-  Widget _buildNavItem(GameTheme theme, int i, IconData icon, String label) {
-    final selected = _selectedSection == i;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() => _selectedSection = i),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 21,
-              color: selected ? theme.neonPrimary : theme.textMuted,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? theme.textPrimary : theme.textMuted,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const Spacer(),
-            if (selected)
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: theme.neonPrimary,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.neonPrimary.withValues(alpha: 0.7),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   /// Right-pane content for the selected rail section. Every control keeps
-  /// its exact handler / cubit wiring — only the layout moved from one long
-  /// scroll into per-section panes.
+  /// its exact handler / cubit wiring.
   List<Widget> _buildSectionPane(
     int section,
     ThemeState themeState,
@@ -387,8 +326,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // 1. Controls (most frequently adjusted during gameplay)
       case 0:
         return [
-          _buildSection('CONTROLS', [
-            _buildAudioSwitch('D-Pad Controls', _dPadEnabled, (value) async {
+          _buildSwitchRow(
+            icon: Symbols.gamepad_rounded,
+            title: 'D-Pad Controls',
+            subtitle: 'Show an on-screen analog pad for steering during gameplay',
+            value: _dPadEnabled,
+            first: true,
+            onChanged: (value) async {
               setState(() {
                 _dPadEnabled = value;
               });
@@ -397,25 +341,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 settingName: 'dpad_enabled',
                 value: '$value',
               );
-            }, theme),
-            const SizedBox(height: 8),
-            Text(
-              'Show an on-screen analog pad for steering during gameplay',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-            // D-Pad Position Selector (only show when D-Pad is enabled)
-            if (_dPadEnabled) ...[
-              const SizedBox(height: 16),
-              _buildDPadPositionSelector(theme),
-            ],
-            const SizedBox(height: 16),
-            _buildAudioSwitch('Haptic Feedback', _hapticsEnabled, (
-              value,
-            ) async {
+            },
+          ),
+          // D-Pad Position Selector (only show when D-Pad is enabled)
+          if (_dPadEnabled) _buildDPadPositionSelector(),
+          _buildSwitchRow(
+            icon: Symbols.vibration_rounded,
+            title: 'Haptic Feedback',
+            subtitle: 'Vibrate on hits, pickups, and boss beats',
+            value: _hapticsEnabled,
+            onChanged: (value) async {
               setState(() {
                 _hapticsEnabled = value;
               });
@@ -427,19 +362,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 settingName: 'haptics_enabled',
                 value: '$value',
               );
-            }, theme),
-            const SizedBox(height: 8),
-            Text(
-              'Vibrate on hits, pickups, and boss beats',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildControlInfo(theme),
-          ], theme),
+            },
+          ),
+          SizedBox(height: context.cs(22)),
+          _buildControlInfo(),
         ];
 
       // 2. Gameplay (mode + effects). Board size and the crash-feedback
@@ -447,12 +373,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // shooter — both removed (the data plumbing stays for sync compat).
       case 1:
         return [
-          _buildSection('GAMEPLAY', [
-            _buildGameModeSelector(theme),
-            const SizedBox(height: 20),
-            _buildAudioSwitch('Screen Shake', _screenShakeEnabled, (
-              value,
-            ) async {
+          _buildGameModeSelector(),
+          SizedBox(height: context.cs(18)),
+          _buildSwitchRow(
+            icon: Symbols.vibration_rounded,
+            title: 'Screen Shake',
+            subtitle: 'Jolt the view when you take hits, lose a ship, or down a boss',
+            value: _screenShakeEnabled,
+            first: true,
+            onChanged: (value) async {
               setState(() {
                 _screenShakeEnabled = value;
               });
@@ -463,24 +392,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 settingName: 'screen_shake',
                 value: '$value',
               );
-            }, theme),
-            const SizedBox(height: 8),
-            Text(
-              'Jolt the view when you take hits, lose a ship, or down a boss',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ], theme),
+            },
+          ),
         ];
 
       // 3. Audio
       case 2:
         return [
-          _buildSection('AUDIO', [
-            _buildAudioSwitch('Sound Effects', _soundEnabled, (value) async {
+          _buildSwitchRow(
+            icon: Symbols.volume_up_rounded,
+            title: 'Sound Effects',
+            subtitle: 'Weapons, explosions, pickups and UI sounds',
+            value: _soundEnabled,
+            first: true,
+            onChanged: (value) async {
               setState(() {
                 _soundEnabled = value;
               });
@@ -491,9 +416,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 settingName: 'sound_effects',
                 value: '$value',
               );
-            }, theme),
-            const SizedBox(height: 16),
-            _buildAudioSwitch('Background Music', _musicEnabled, (value) async {
+            },
+          ),
+          _buildSwitchRow(
+            icon: Symbols.music_note_rounded,
+            title: 'Background Music',
+            subtitle: 'Menu and in-flight soundtrack',
+            value: _musicEnabled,
+            onChanged: (value) async {
               setState(() {
                 _musicEnabled = value;
               });
@@ -502,95 +432,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 settingName: 'background_music',
                 value: '$value',
               );
-            }, theme),
-          ], theme),
+            },
+          ),
         ];
 
-      // 4. Visual (theme + trail effects)
+      // 4. Visual (gameplay theme + trail effects)
       case 3:
         return [
-          _buildSection('VISUAL', [
-            _buildThemeSelector(themeState, theme),
-            const SizedBox(height: 20),
-            _buildAudioSwitch(
-              'Engine Trail Effects',
-              themeState.isTrailSystemEnabled,
-              (value) async {
-                await context.read<ThemeCubit>().setTrailSystemEnabled(value);
-              },
-              theme,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Enable particle trails behind your ship',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ], theme),
+          _buildThemeSelector(theme),
+          _buildSwitchRow(
+            icon: Symbols.auto_awesome_rounded,
+            title: 'Engine Trail Effects',
+            subtitle: 'Enable particle trails behind your ship',
+            value: themeState.isTrailSystemEnabled,
+            onChanged: (value) async {
+              await context.read<ThemeCubit>().setTrailSystemEnabled(value);
+            },
+          ),
         ];
 
       // 5. Notifications (+ debug-only test panel)
       case 4:
         return [
-          _buildSection('NOTIFICATIONS', [
-            _buildAudioSwitch(
-              'Daily Reminder',
-              _notifDailyReminder,
-              (v) => _toggleNotification(
-                NotificationType.dailyReminder,
-                v,
-                (val) => _notifDailyReminder = val,
-              ),
-              theme,
+          _buildSwitchRow(
+            icon: Symbols.alarm_rounded,
+            title: 'Daily Reminder',
+            value: _notifDailyReminder,
+            first: true,
+            onChanged: (v) => _toggleNotification(
+              NotificationType.dailyReminder,
+              v,
+              (val) => _notifDailyReminder = val,
             ),
-            const SizedBox(height: 16),
-            _buildAudioSwitch(
-              'Tournament Alerts',
-              _notifTournament,
-              (v) => _toggleNotification(
-                NotificationType.tournament,
-                v,
-                (val) => _notifTournament = val,
-              ),
-              theme,
+          ),
+          _buildSwitchRow(
+            icon: Symbols.emoji_events_rounded,
+            title: 'Tournament Alerts',
+            value: _notifTournament,
+            onChanged: (v) => _toggleNotification(
+              NotificationType.tournament,
+              v,
+              (val) => _notifTournament = val,
             ),
-            const SizedBox(height: 16),
-            _buildAudioSwitch(
-              'Achievement Unlocks',
-              _notifAchievement,
-              (v) => _toggleNotification(
-                NotificationType.achievement,
-                v,
-                (val) => _notifAchievement = val,
-              ),
-              theme,
+          ),
+          _buildSwitchRow(
+            icon: Symbols.military_tech_rounded,
+            title: 'Achievement Unlocks',
+            value: _notifAchievement,
+            onChanged: (v) => _toggleNotification(
+              NotificationType.achievement,
+              v,
+              (val) => _notifAchievement = val,
             ),
-            const SizedBox(height: 16),
-            _buildAudioSwitch(
-              'Social Updates',
-              _notifSocial,
-              (v) => _toggleNotification(
-                NotificationType.social,
-                v,
-                (val) => _notifSocial = val,
-              ),
-              theme,
+          ),
+          _buildSwitchRow(
+            icon: Symbols.group_rounded,
+            title: 'Social Updates',
+            value: _notifSocial,
+            onChanged: (v) => _toggleNotification(
+              NotificationType.social,
+              v,
+              (val) => _notifSocial = val,
             ),
-            const SizedBox(height: 16),
-            _buildAudioSwitch(
-              'Special Events',
-              _notifSpecialEvent,
-              (v) => _toggleNotification(
-                NotificationType.specialEvent,
-                v,
-                (val) => _notifSpecialEvent = val,
-              ),
-              theme,
+          ),
+          _buildSwitchRow(
+            icon: Symbols.celebration_rounded,
+            title: 'Special Events',
+            value: _notifSpecialEvent,
+            onChanged: (v) => _toggleNotification(
+              NotificationType.specialEvent,
+              v,
+              (val) => _notifSpecialEvent = val,
             ),
-          ], theme),
+          ),
 
           // Diagnostic buttons that isolate each layer of the notification
           // pipeline. Gated behind kDebugMode so production builds never see
@@ -598,61 +512,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // development + Play Store internal testing, not user features.
           // See NOTIFICATIONS_TESTING.md for triage guide.
           if (kDebugMode) ...[
-            const SizedBox(height: 32),
-            _buildSection('TEST NOTIFICATIONS', [
-              _buildNotificationTestPanel(theme),
-            ], theme),
+            SizedBox(height: context.cs(26)),
+            const CsLabel('Test notifications · debug', color: CsColors.gold),
+            SizedBox(height: context.cs(8)),
+            _buildNotificationTestPanel(),
           ],
         ];
 
       // 6. User profile
       case 5:
-        return [
-          _buildSection('USER PROFILE', [
-            _buildUserProfileSettings(authState, theme),
-          ], theme),
-        ];
+        return [_buildUserProfileSettings(authState)];
 
       // 7. Help & tutorial
       case 6:
         return [
-          _buildSection('HELP & TUTORIAL', [
-            _buildReplayTutorialButton(theme),
-            const SizedBox(height: 16),
-            _buildRateButton(theme),
-            const SizedBox(height: 16),
-            _buildShareButton(theme),
-            const SizedBox(height: 16),
-            _buildCreditsButton(theme),
-            _buildPrivacyChoicesButton(theme),
-          ], theme),
+          _buildReplayTutorialButton(),
+          _buildRateButton(),
+          _buildShareButton(),
+          _buildCreditsButton(theme),
+          _buildPrivacyChoicesButton(),
         ];
 
       // 8. Premium (if available)
       case 7:
+        if (!premiumState.isInitialized) {
+          return [
+            SizedBox(
+              height: context.cs(160),
+              child: const CsLoadingState(label: 'Loading premium status'),
+            ),
+          ];
+        }
         return [
-          if (premiumState.isInitialized)
-            _buildSection('PREMIUM FEATURES', [
-              _buildPremiumStatusCard(premiumState, theme),
-              if (!premiumState.hasPremium)
-                _buildUpgradeButton(premiumState, theme),
-              _buildRestorePurchasesButton(premiumState, theme),
-              _buildPurchaseHistoryButton(premiumState, theme),
-              if (premiumState.hasPremium || premiumState.ownedSkins.isNotEmpty)
-                _buildCosmeticsButton(premiumState, theme),
-              if (premiumState.hasBattlePass)
-                _buildBattlePassButton(premiumState, theme),
-            ], theme),
+          _buildPremiumStatusCard(premiumState),
+          if (!premiumState.hasPremium) _buildUpgradeButton(premiumState),
+          _buildRestorePurchasesButton(premiumState),
+          _buildPurchaseHistoryButton(premiumState),
+          if (premiumState.hasPremium || premiumState.ownedSkins.isNotEmpty)
+            _buildCosmeticsButton(premiumState),
+          if (premiumState.hasBattlePass) _buildBattlePassButton(premiumState),
         ];
 
       // 9. Accessibility
       case 8:
         return [
-          _buildSection('ACCESSIBILITY', [
-            _buildColorBlindControl(themeState, theme),
-            const SizedBox(height: 24),
-            _buildReduceMotionControl(theme),
-          ], theme),
+          _buildColorBlindControl(themeState),
+          _buildReduceMotionControl(),
         ];
 
       default:
@@ -663,391 +568,278 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// One-tap color-blind friendly skin. Toggling on applies the high-contrast
   /// blue↔orange [GameTheme.accessible] palette through the normal ThemeCubit
   /// path (persisted + synced); toggling off returns to Classic.
-  Widget _buildColorBlindControl(ThemeState themeState, GameTheme theme) {
+  Widget _buildColorBlindControl(ThemeState themeState) {
     final isOn = themeState.currentTheme == GameTheme.accessible;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildAudioSwitch('Color-Blind Friendly', isOn, (value) async {
-          await context.read<ThemeCubit>().setTheme(
-            value ? GameTheme.accessible : GameTheme.classic,
-          );
-          _analytics.trackSettingChanged(
-            settingName: 'color_blind_mode',
-            value: '$value',
-          );
-        }, theme),
-        const SizedBox(height: 8),
-        Text(
-          'High-contrast blue & orange palette that stays distinct for all '
-          'types of color blindness.',
-          style: TextStyle(color: theme.textMuted, fontSize: 12),
-        ),
-      ],
+    return _buildSwitchRow(
+      icon: Symbols.contrast_rounded,
+      title: 'Color-Blind Friendly',
+      subtitle: 'High-contrast blue & orange gameplay palette that stays '
+          'distinct for all types of color blindness.',
+      value: isOn,
+      first: true,
+      onChanged: (value) async {
+        await context.read<ThemeCubit>().setTheme(
+          value ? GameTheme.accessible : GameTheme.classic,
+        );
+        _analytics.trackSettingChanged(
+          settingName: 'color_blind_mode',
+          value: '$value',
+        );
+      },
     );
   }
 
   /// Reduce-motion accessibility toggle. Persists the preference and, when
   /// enabled, immediately calms the most motion-heavy effects (screen shake +
   /// engine trails) through their existing cubits for instant feedback.
-  Widget _buildReduceMotionControl(GameTheme theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildAudioSwitch('Reduce Motion', _reduceMotion, (value) async {
-          // Capture cubits before any await so we never touch context across
-          // an async gap.
-          final settingsCubit = context.read<GameSettingsCubit>();
-          final themeCubit = context.read<ThemeCubit>();
-          setState(() => _reduceMotion = value);
-          await PreferencesService().setReduceMotion(value);
-          if (value) {
-            setState(() => _screenShakeEnabled = false);
-            await settingsCubit.setScreenShakeEnabled(false);
-            await themeCubit.setTrailSystemEnabled(false);
-          }
-          _analytics.trackSettingChanged(
-            settingName: 'reduce_motion',
-            value: '$value',
-          );
-        }, theme),
-        const SizedBox(height: 8),
-        Text(
-          'Dials down screen shake, engine trails, and busy background motion.',
-          style: TextStyle(color: theme.textMuted, fontSize: 12),
-        ),
-      ],
+  Widget _buildReduceMotionControl() {
+    return _buildSwitchRow(
+      icon: Symbols.motion_photos_off_rounded,
+      title: 'Reduce Motion',
+      subtitle: 'Dials down screen shake, engine trails, and busy background motion.',
+      value: _reduceMotion,
+      onChanged: (value) async {
+        // Capture cubits before any await so we never touch context across
+        // an async gap.
+        final settingsCubit = context.read<GameSettingsCubit>();
+        final themeCubit = context.read<ThemeCubit>();
+        setState(() => _reduceMotion = value);
+        await PreferencesService().setReduceMotion(value);
+        if (value) {
+          setState(() => _screenShakeEnabled = false);
+          await settingsCubit.setScreenShakeEnabled(false);
+          await themeCubit.setTrailSystemEnabled(false);
+        }
+        _analytics.trackSettingChanged(
+          settingName: 'reduce_motion',
+          value: '$value',
+        );
+      },
     );
   }
 
-  /// Section pane: uppercase HUD label + content floating directly on the
-  /// starfield — no glass, no borders (the rail already names the section).
-  Widget _buildSection(String title, List<Widget> children, GameTheme theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: theme.accentColor,
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.8,
-          ),
-        ),
-        const SizedBox(height: 16),
-        ...children,
-      ],
+  /// Hairline row with a theme [Switch]; the whole row toggles.
+  Widget _buildSwitchRow({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required bool value,
+    required Function(bool) onChanged,
+    bool first = false,
+  }) {
+    return _SettingRow(
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
+      first: first,
+      onTap: () => onChanged(!value),
+      trailing: Switch(value: value, onChanged: onChanged),
     );
   }
 
-  Widget _buildThemeSelector(ThemeState themeState, GameTheme theme) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Current Theme',
-                    style: TextStyle(color: theme.textMuted, fontSize: 14),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    theme.name,
-                    style: TextStyle(
-                      color: theme.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+  /// Hairline action row: icon · title/subtitle · chevron.
+  Widget _buildActionRow({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required VoidCallback? onTap,
+    bool first = false,
+    Widget? trailing,
+    Color iconColor = CsColors.ink70,
+    Color? titleColor,
+    Color? subtitleColor,
+  }) {
+    return _SettingRow(
+      icon: icon,
+      iconColor: iconColor,
+      title: title,
+      titleColor: titleColor,
+      subtitle: subtitle,
+      subtitleColor: subtitleColor,
+      first: first,
+      onTap: onTap,
+      trailing: trailing ??
+          Icon(Symbols.chevron_right_rounded, size: context.cs(20), color: CsColors.ink45),
+    );
+  }
 
-            // Theme preview swatch — the dark fill IS the preview content
-            // (it shows the skin's background colour); no halo around it.
-            Container(
-              width: 60,
-              height: 40,
-              decoration: BoxDecoration(
-                color: theme.backgroundColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: theme.shipColor,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: theme.foodColor,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 16),
-
-        NeonButton(
+  /// Purchased colour themes now tint GAMEPLAY only — menus always use
+  /// Prism Noir. The picker still lives in the store's Themes tab.
+  Widget _buildThemeSelector(GameTheme theme) {
+    final cs = context.cs;
+    return _SettingRow(
+      icon: Symbols.palette_rounded,
+      title: 'Gameplay Theme · ${theme.name}',
+      subtitle: 'Colours your ship, enemies and effects in flight. '
+          'Menus always use Prism Noir.',
+      first: true,
+      onTap: () => context.push('${AppRoutes.store}?tab=2'),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ThemeSwatch(theme: theme),
+          SizedBox(width: cs(12)),
           // Routes to the Themes tab of the unified store (tab index 2:
           // Pro / Coins / Themes / Skins / Trails / Power-Ups).
-          onPressed: () => context.push('${AppRoutes.store}?tab=2'),
-          label: 'BROWSE THEMES',
-          theme: theme,
-          variant: NeonButtonVariant.outline,
-          icon: Icons.palette,
-          expand: true,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAudioSwitch(
-    String title,
-    bool value,
-    Function(bool) onChanged,
-    GameTheme theme,
-  ) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title, style: TextStyle(color: theme.textPrimary, fontSize: 16)),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeThumbColor: theme.accentColor,
-          activeTrackColor: theme.accentColor.withValues(alpha: 0.3),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDPadPositionSelector(GameTheme theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.gamepad, color: theme.neonPrimary, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              'D-Pad Position',
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: DPadPosition.values.map((position) {
-            final isSelected = _dPadPosition == position;
-            return Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () async {
-                  setState(() {
-                    _dPadPosition = position;
-                  });
-                  await context.read<GameSettingsCubit>().updateDPadPosition(
-                    position,
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 8,
-                  ),
-                  // No background — selection reads via the neon label.
-                  decoration: const BoxDecoration(),
-                  child: Column(
-                    children: [
-                      Text(position.icon, style: const TextStyle(fontSize: 20)),
-                      const SizedBox(height: 4),
-                      Text(
-                        position.displayName,
-                        style: TextStyle(
-                          color: isSelected
-                              ? theme.neonPrimary
-                              : theme.textMuted,
-                          fontSize: 12,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildControlInfo(GameTheme theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Flight Controls',
-          style: TextStyle(
-            color: theme.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildControlItem(
-          'Drag',
-          'Slide anywhere — your ship mirrors the movement',
-          theme,
-        ),
-        _buildControlItem('D-Pad', 'Analog steering (when enabled)', theme),
-        _buildControlItem('Double Tap', 'Fire a missile (uses ammo)', theme),
-        _buildControlItem('🚀 Button', 'Fire a missile (uses ammo)', theme),
-        _buildControlItem('⏸ HUD Button', 'Pause / resume the run', theme),
-        const SizedBox(height: 8),
-        Text(
-          'Your ship fires automatically — focus on flying.',
-          style: TextStyle(
-            color: theme.textMuted,
-            fontSize: 12,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildControlItem(String control, String action, GameTheme theme) {
-    // Gesture chip: borderless faint tint + plain muted description.
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              control,
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              action,
-              style: TextStyle(color: theme.textMuted, fontSize: 12),
-            ),
+          CsButton.secondary(
+            onPressed: () => context.push('${AppRoutes.store}?tab=2'),
+            label: 'Browse',
+            size: CsButtonSize.small,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildGameModeSelector(GameTheme theme) {
+  Widget _buildDPadPositionSelector() {
+    final cs = context.cs;
+    return _SettingRow(
+      icon: Symbols.open_with_rounded,
+      title: 'D-Pad Position',
+      below: Padding(
+        padding: EdgeInsets.only(top: cs(4)),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: CsSegmented<DPadPosition>(
+            segments: {
+              for (final p in DPadPosition.values) p: p.displayName,
+            },
+            selected: _dPadPosition,
+            onChanged: (position) async {
+              setState(() {
+                _dPadPosition = position;
+              });
+              await context.read<GameSettingsCubit>().updateDPadPosition(
+                position,
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlInfo() {
+    final cs = context.cs;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const CsLabel('Flight controls'),
+        SizedBox(height: cs(6)),
+        _buildControlItem('Drag', 'Slide anywhere — your ship mirrors the movement', first: true),
+        _buildControlItem('D-Pad', 'Analog steering (when enabled)'),
+        _buildControlItem('Double Tap', 'Fire a missile (uses ammo)'),
+        _buildControlItem('Missile Button', 'Fire a missile (uses ammo)'),
+        _buildControlItem('Pause Button', 'Pause / resume the run'),
+        SizedBox(height: cs(10)),
+        Text(
+          'Your ship fires automatically — focus on flying.'.toUpperCase(),
+          style: cs.type.micro,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildControlItem(String control, String action, {bool first = false}) {
+    final cs = context.cs;
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: cs(9)),
+      decoration: BoxDecoration(
+        border: Border(
+          top: first ? const BorderSide(color: CsColors.hairline) : BorderSide.none,
+          bottom: const BorderSide(color: CsColors.hairline),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: cs(130),
+            child: Align(alignment: Alignment.centerLeft, child: CsChip(control)),
+          ),
+          SizedBox(width: cs(10)),
+          Expanded(child: Text(action, style: cs.type.body)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGameModeSelector() {
+    final cs = context.cs;
+    final t = cs.type;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const CsLabel('Game mode'),
+        SizedBox(height: cs(8)),
         Row(
           children: [
+            Icon(CsIcons.mode(_selectedGameMode), size: cs(22), color: CsColors.ink),
+            SizedBox(width: cs(10)),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Game Mode',
-                    style: TextStyle(color: theme.textMuted, fontSize: 14),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_selectedGameMode.icon} ${_selectedGameMode.name}',
-                    style: TextStyle(
-                      color: theme.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+              child: Text(
+                _selectedGameMode.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: t.display(20, em: -0.02),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        Text(
-          _selectedGameMode.description,
-          style: TextStyle(
-            color: theme.textMuted,
-            fontSize: 12,
-            fontStyle: FontStyle.italic,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: GameMode.values.map((mode) {
-            final isSelected = _selectedGameMode == mode;
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () async {
-                setState(() => _selectedGameMode = mode);
-                await context.read<GameSettingsCubit>().updateGameMode(mode);
-                _analytics.trackSettingChanged(
-                  settingName: 'game_mode',
-                  value: mode.name,
-                );
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                // No background at all — the selected option reads through
-                // its neon text color alone.
-                decoration: const BoxDecoration(),
-                child: Text(
-                  '${mode.icon} ${mode.name}',
-                  style: TextStyle(
-                    color: isSelected ? theme.neonPrimary : theme.textMuted,
-                    fontSize: 11,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
+        SizedBox(height: cs(4)),
+        Text(_selectedGameMode.description, style: t.body),
+        SizedBox(height: cs(14)),
+        LayoutBuilder(
+          builder: (context, c) {
+            final cols = c.maxWidth > cs(560) ? 4 : (c.maxWidth > cs(300) ? 3 : 2);
+            final gap = cs(8);
+            final w = (c.maxWidth - gap * (cols - 1)) / cols;
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: GameMode.values.map((mode) {
+                final isSelected = _selectedGameMode == mode;
+                return CsTile(
+                  width: w,
+                  state: isSelected ? CsTileState.current : CsTileState.future,
+                  padding: EdgeInsets.symmetric(horizontal: cs(10), vertical: cs(10)),
+                  onTap: () async {
+                    setState(() => _selectedGameMode = mode);
+                    await context.read<GameSettingsCubit>().updateGameMode(mode);
+                    _analytics.trackSettingChanged(
+                      settingName: 'game_mode',
+                      value: mode.name,
+                    );
+                  },
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 24),
+                    child: Row(
+                      children: [
+                        Icon(
+                          CsIcons.mode(mode),
+                          size: cs(16),
+                          color: isSelected ? CsColors.ink : CsColors.ink45,
+                        ),
+                        SizedBox(width: cs(8)),
+                        Expanded(
+                          child: Text(
+                            mode.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: t.display(
+                              12,
+                              weight: FontWeight.w700,
+                              em: 0,
+                              color: isSelected ? CsColors.ink : CsColors.ink60,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              }).toList(),
             );
-          }).toList(),
+          },
         ),
       ],
     );
@@ -1058,7 +850,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // shooter has no such overlay. The storage/sync plumbing for the value
   // stays untouched for backend compatibility.
 
-  Widget _buildUserProfileSettings(AuthState authState, GameTheme theme) {
+  Widget _buildUserProfileSettings(AuthState authState) {
+    final cs = context.cs;
+    final t = cs.type;
     // Resolve the username explicitly so the row labels it as "Username"
     // and shows the same value the change-username dialog pre-fills.
     // Falls back to displayName / 'Not set' so the row never goes blank.
@@ -1069,148 +863,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
         : (authState.user?.displayName.isNotEmpty == true
               ? authState.user!.displayName
               : 'Not set');
+    final isGuest = authState.isGuestUser;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Current username display
         Row(
           children: [
+            CsAvatarRing(
+              name: usernameLabel,
+              size: 52,
+              ring: isGuest ? CsRingKind.none : CsRingKind.prism,
+            ),
+            SizedBox(width: cs(14)),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Username',
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 12,
-                      letterSpacing: 0.5,
+                  const CsLabel('Username'),
+                  SizedBox(height: cs(4)),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '@$usernameLabel',
+                      maxLines: 1,
+                      style: t.display(22, em: -0.02),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Icon(
-                        authState.isGuestUser
-                            ? Icons.person_outline
-                            : Icons.verified_user,
-                        color: authState.isGuestUser
-                            ? Colors.orange
-                            : Colors.green,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          '@$usernameLabel',
-                          style: TextStyle(
-                            color: theme.textPrimary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    authState.isGuestUser
-                        ? 'Guest Account'
-                        : 'Authenticated Account',
-                    style: TextStyle(color: theme.textMuted, fontSize: 11),
+                  SizedBox(height: cs(4)),
+                  CsMeta(
+                    isGuest ? 'Guest Account' : 'Authenticated Account',
+                    icon: isGuest ? Symbols.person_rounded : Symbols.verified_user_rounded,
+                    iconColor: isGuest ? CsColors.gold : CsColors.mint,
+                    size: 10,
                   ),
                 ],
               ),
             ),
-
-            // Profile type indicator — borderless tinted status disc
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: (authState.isGuestUser ? Colors.orange : Colors.green)
-                    .withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(25),
-              ),
-              child: Icon(
-                authState.isGuestUser
-                    ? Icons.person_outline
-                    : Icons.account_circle,
-                color: authState.isGuestUser ? Colors.orange : Colors.green,
-                size: 24,
-              ),
-            ),
           ],
         ),
+        SizedBox(height: cs(16)),
 
-        const SizedBox(height: 16),
-
-        // Username actions
-        if (authState.isGuestUser) ...[
-          // For guest users, allow username change
-          NeonButton(
-            onPressed: () => _showUsernameDialog(authState, theme),
-            label: 'CHANGE USERNAME',
-            theme: theme,
-            variant: NeonButtonVariant.outline,
-            icon: Icons.edit,
-            expand: true,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Sign in to keep your progress and play with friends',
-            style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ] else ...[
-          // For authenticated users
-          NeonButton(
-            onPressed: () => _showUsernameDialog(authState, theme),
-            label: 'CHANGE USERNAME',
-            theme: theme,
-            variant: NeonButtonVariant.outline,
-            icon: Icons.edit,
-            expand: true,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Your username is visible to friends and on leaderboards',
-            style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+        // Username actions — same dialog for guest and authenticated users;
+        // only the helper copy differs.
+        _buildActionRow(
+          icon: Symbols.edit_rounded,
+          title: 'Change Username',
+          subtitle: isGuest
+              ? 'Sign in to keep your progress and play with friends'
+              : 'Your username is visible to friends and on leaderboards',
+          first: true,
+          onTap: () => _showUsernameDialog(authState),
+        ),
 
         // Danger zone — permanent account deletion (Play policy requires an
         // in-app path). Shown for every account type: guests have server
         // rows too once they've synced.
-        const SizedBox(height: 24),
-        NeonButton(
-          onPressed: () => _showDeleteAccountDialog(theme),
-          label: 'DELETE ACCOUNT',
-          theme: theme,
-          variant: NeonButtonVariant.outline,
-          icon: Icons.delete_forever,
-          expand: true,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Permanently deletes your account and all game data. '
-          'This cannot be undone.',
-          style: TextStyle(
-            color: Colors.red.withValues(alpha: 0.8),
-            fontSize: 11,
-            fontStyle: FontStyle.italic,
-          ),
-          textAlign: TextAlign.center,
+        SizedBox(height: cs(22)),
+        const CsLabel('Danger zone', color: CsColors.pink),
+        SizedBox(height: cs(6)),
+        _buildActionRow(
+          icon: Symbols.delete_forever_rounded,
+          iconColor: CsColors.pink,
+          title: 'Delete Account',
+          titleColor: CsColors.pink,
+          subtitle: 'Permanently deletes your account and all game data. '
+              'This cannot be undone.',
+          first: true,
+          onTap: _showDeleteAccountDialog,
         ),
       ],
     );
@@ -1220,78 +942,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// then a type-DELETE gate before the button arms. On success every local
   /// store is already wiped (AuthCubit → UnifiedUserService.deleteAccount),
   /// so we route straight back to first-time auth.
-  void _showDeleteAccountDialog(GameTheme theme) {
+  void _showDeleteAccountDialog() {
     final confirmController = TextEditingController();
-    showDialog<void>(
-      context: context,
+    showCsDialog<void>(
+      context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) {
+          final cs = dialogContext.cs;
+          final t = cs.type;
           final armed = confirmController.text.trim().toUpperCase() == 'DELETE';
-          return AlertDialog(
-            backgroundColor: theme.backgroundColor,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text(
-              'Delete Account?',
-              style: TextStyle(color: Colors.red),
-            ),
+          return CsDialog(
+            icon: Symbols.delete_forever_rounded,
+            iconColor: CsColors.pink,
+            eyebrow: 'Danger zone',
+            title: 'Delete Account?',
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'This permanently deletes:',
-                  style: TextStyle(color: theme.textPrimary, fontSize: 14),
+                  style: t.body.copyWith(color: CsColors.ink),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: cs(8)),
                 Text(
                   '• Your account and sign-in identity\n'
                   '• All progress, scores and statistics\n'
                   '• Coins, cosmetics and unlocked content\n'
                   '• Friends, achievements and quest history',
-                  style: TextStyle(color: theme.textMuted, fontSize: 13),
+                  style: t.body.copyWith(height: 1.6),
                 ),
-                const SizedBox(height: 12),
-                const Text(
-                  'This cannot be undone.',
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
+                SizedBox(height: cs(12)),
+                Text(
+                  'This cannot be undone.'.toUpperCase(),
+                  style: t.mono(11, color: CsColors.pink, weight: FontWeight.w600),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: cs(8)),
                 TextField(
                   controller: confirmController,
                   onChanged: (_) => setDialogState(() {}),
-                  style: TextStyle(color: theme.textPrimary),
-                  decoration: InputDecoration(
-                    labelText: "Type DELETE to confirm",
-                    labelStyle: TextStyle(color: theme.textMuted),
+                  style: t.rowTitle,
+                  decoration: const InputDecoration(
+                    labelText: 'TYPE DELETE TO CONFIRM',
                   ),
                 ),
               ],
             ),
             actions: [
-              TextButton(
+              CsButton.text(
+                label: 'Cancel',
                 onPressed: () => Navigator.of(dialogContext).pop(),
-                child: Text('Cancel', style: TextStyle(color: theme.textMuted)),
               ),
-              TextButton(
+              CsButton.primary(
+                label: 'Delete forever',
+                icon: Symbols.delete_forever_rounded,
                 onPressed: armed
                     ? () {
                         Navigator.of(dialogContext).pop();
                         _performAccountDeletion();
                       }
                     : null,
-                child: Text(
-                  'Delete forever',
-                  style: TextStyle(
-                    color: armed ? Colors.red : theme.textMuted,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
               ),
             ],
           );
@@ -1301,13 +1011,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _performAccountDeletion() async {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text('Deleting your account...'),
-        backgroundColor: Colors.red,
-      ),
-    );
+    showCsToast(context, 'Deleting your account...', icon: Symbols.delete_forever_rounded);
 
     final ok = await context.read<AuthCubit>().deleteAccount();
     if (!mounted) return;
@@ -1316,133 +1020,82 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Local state is fully wiped — land on the fresh-install auth screen.
       context.go(AppRoutes.firstTimeAuth);
     } else {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            context.read<AuthCubit>().state.errorMessage ??
-                'Could not delete your account. Please try again.',
-          ),
-          backgroundColor: Colors.red,
-        ),
+      showCsToast(
+        context,
+        context.read<AuthCubit>().state.errorMessage ??
+            'Could not delete your account. Please try again.',
+        kind: CsToastKind.error,
       );
     }
   }
 
-  /// Three-button diagnostic surface for the notification pipeline. Each
-  /// button isolates one layer:
+  /// Diagnostic surface for the notification pipeline. Each row isolates
+  /// one layer:
   ///   • Send Local Test   → permission + channel + display path
   ///   • Send Push via Backend → FCM token + backend send + delivery
   ///   • Copy FCM Token    → manual Firebase Console testing
   /// If "local" works but "backend" doesn't, the break is in token
   /// registration or backend send. If neither works, the OS-level
   /// permission is denied.
-  Widget _buildNotificationTestPanel(GameTheme theme) {
+  Widget _buildNotificationTestPanel() {
     final fcmToken = _notificationService.fcmToken;
     final hasFcmToken = fcmToken != null && fcmToken.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        NeonButton(
-          onPressed: _sendTestLocalNotification,
-          label: 'SEND LOCAL TEST',
-          theme: theme,
-          variant: NeonButtonVariant.outline,
-          icon: Icons.notifications_active,
-          expand: true,
+        _buildActionRow(
+          icon: Symbols.notifications_active_rounded,
+          title: 'Send Local Test',
+          subtitle: 'Fires immediately. If you don\'t see it, OS permission is denied '
+              'or the channel is blocked in system settings.',
+          first: true,
+          onTap: _sendTestLocalNotification,
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Fires immediately. If you don\'t see it, OS permission is denied '
-          'or the channel is blocked in system settings.',
-          style: TextStyle(color: theme.textMuted, fontSize: 12),
-        ),
-        const SizedBox(height: 16),
-        NeonButton(
-          onPressed: hasFcmToken ? _sendTestPushViaBackend : null,
-          label: hasFcmToken ? 'SEND PUSH VIA BACKEND' : 'NO FCM TOKEN',
-          theme: theme,
-          variant: NeonButtonVariant.outline,
-          icon: Icons.cloud_upload,
-          expand: true,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          hasFcmToken
+        _buildActionRow(
+          icon: Symbols.cloud_upload_rounded,
+          title: hasFcmToken ? 'Send Push via Backend' : 'No FCM Token',
+          subtitle: hasFcmToken
               ? 'Backend sends a push to your device via FCM. Should arrive '
                     'within ~5 seconds if token + backend + delivery all work.'
               : 'FCM token not yet registered. Sign in or restart the app, '
                     'then return to retry.',
-          style: TextStyle(color: theme.textMuted, fontSize: 12),
+          onTap: hasFcmToken ? _sendTestPushViaBackend : null,
         ),
         if (kDebugMode) ...[
-          const SizedBox(height: 16),
-          NeonButton(
-            onPressed: hasFcmToken ? _copyFcmTokenToClipboard : null,
-            label: 'COPY FCM TOKEN',
-            theme: theme,
-            variant: NeonButtonVariant.outline,
-            icon: Icons.content_copy,
-            expand: true,
+          _buildActionRow(
+            icon: Symbols.content_copy_rounded,
+            title: 'Copy FCM Token',
+            subtitle: 'Debug only. Paste into Firebase Console → Cloud Messaging → '
+                'Send test message to bypass the backend entirely.',
+            subtitleColor: CsColors.gold.withValues(alpha: 0.7),
+            onTap: hasFcmToken ? _copyFcmTokenToClipboard : null,
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Debug only. Paste into Firebase Console → Cloud Messaging → '
-            'Send test message to bypass the backend entirely.',
-            style: TextStyle(
-              color: theme.accentColor.withValues(alpha: 0.6),
-              fontSize: 12,
-            ),
+          _buildActionRow(
+            icon: Symbols.schedule_rounded,
+            title: 'Schedule Test at Time',
+            subtitle: 'Pick date + time. Backend schedules a one-off Hangfire job to '
+                'fire an FCM push at that instant — fires even if the app is '
+                'killed and even if the device clock drifts. Cancel via the '
+                'next button.',
+            subtitleColor: CsColors.gold.withValues(alpha: 0.7),
+            onTap: _scheduleTestAtTime,
           ),
-          const SizedBox(height: 16),
-          NeonButton(
-            onPressed: _scheduleTestAtTime,
-            label: 'SCHEDULE TEST AT TIME',
-            theme: theme,
-            variant: NeonButtonVariant.outline,
-            icon: Icons.schedule,
-            expand: true,
+          _buildActionRow(
+            icon: Symbols.cancel_rounded,
+            title: 'Cancel Scheduled Test',
+            onTap: _cancelScheduledTest,
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Pick date + time. Backend schedules a one-off Hangfire job to '
-            'fire an FCM push at that instant — fires even if the app is '
-            'killed and even if the device clock drifts. Cancel via the '
-            'next button.',
-            style: TextStyle(
-              color: theme.accentColor.withValues(alpha: 0.6),
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 12),
-          NeonButton(
-            onPressed: _cancelScheduledTest,
-            label: 'CANCEL SCHEDULED TEST',
-            theme: theme,
-            variant: NeonButtonVariant.ghost,
-            icon: Icons.cancel_outlined,
-            expand: true,
-          ),
-          const SizedBox(height: 16),
-          NeonButton(
-            onPressed: _previewDailyReminder,
-            label: 'PREVIEW DAILY REMINDER',
-            theme: theme,
-            variant: NeonButtonVariant.outline,
-            icon: Icons.alarm_on,
-            expand: true,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Backend fires the exact daily reminder variant this user '
-            'would receive at the next 20:00-local tick — streak / '
-            'challenge / high-score branches all evaluated server-side '
-            'from your real DB state. Bypasses the timing gate for '
-            'instant verification.',
-            style: TextStyle(
-              color: theme.accentColor.withValues(alpha: 0.6),
-              fontSize: 12,
-            ),
+          _buildActionRow(
+            icon: Symbols.alarm_on_rounded,
+            title: 'Preview Daily Reminder',
+            subtitle: 'Backend fires the exact daily reminder variant this user '
+                'would receive at the next 20:00-local tick — streak / '
+                'challenge / high-score branches all evaluated server-side '
+                'from your real DB state. Bypasses the timing gate for '
+                'instant verification.',
+            subtitleColor: CsColors.gold.withValues(alpha: 0.7),
+            onTap: _previewDailyReminder,
           ),
         ],
       ],
@@ -1452,26 +1105,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _sendTestLocalNotification() async {
     await _notificationService.sendTestLocalNotification();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Local test fired — check your notification tray.'),
-        duration: Duration(seconds: 3),
-      ),
+    showCsToast(
+      context,
+      'Local test fired — check your notification tray.',
+      duration: const Duration(seconds: 3),
     );
   }
 
   Future<void> _sendTestPushViaBackend() async {
     final ok = await _notificationService.sendTestNotificationViaBackend();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? 'Backend accepted the push. Should arrive within ~5s.'
-              : 'Backend rejected. Check API logs (FCM token registered?).',
-        ),
-        duration: const Duration(seconds: 4),
-      ),
+    showCsToast(
+      context,
+      ok
+          ? 'Backend accepted the push. Should arrive within ~5s.'
+          : 'Backend rejected. Check API logs (FCM token registered?).',
+      kind: ok ? CsToastKind.success : CsToastKind.error,
+      duration: const Duration(seconds: 4),
     );
   }
 
@@ -1480,11 +1130,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (token == null) return;
     await Clipboard.setData(ClipboardData(text: token));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('FCM token copied. Paste into Firebase Console.'),
-        duration: Duration(seconds: 3),
-      ),
+    showCsToast(
+      context,
+      'FCM token copied. Paste into Firebase Console.',
+      kind: CsToastKind.success,
+      duration: const Duration(seconds: 3),
     );
   }
 
@@ -1518,41 +1168,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (!fireAt.isAfter(DateTime.now())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pick a future date + time'),
-          duration: Duration(seconds: 3),
-        ),
+      showCsToast(
+        context,
+        'Pick a future date + time',
+        kind: CsToastKind.error,
+        duration: const Duration(seconds: 3),
       );
       return;
     }
 
     final ok = await _notificationService.scheduleTestNotificationAt(fireAt);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? 'Scheduled via backend for ${_formatScheduledTime(fireAt)}'
-              : 'Backend rejected the schedule. Check the API logs.',
-        ),
-        duration: const Duration(seconds: 4),
-      ),
+    showCsToast(
+      context,
+      ok
+          ? 'Scheduled via backend for ${_formatScheduledTime(fireAt)}'
+          : 'Backend rejected the schedule. Check the API logs.',
+      kind: ok ? CsToastKind.success : CsToastKind.error,
+      duration: const Duration(seconds: 4),
     );
   }
 
   Future<void> _cancelScheduledTest() async {
     final ok = await _notificationService.cancelScheduledTestNotification();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? 'Scheduled test cancelled (backend job deleted)'
-              : 'Cancel returned non-200 — local handle cleared anyway',
-        ),
-        duration: const Duration(seconds: 3),
-      ),
+    showCsToast(
+      context,
+      ok
+          ? 'Scheduled test cancelled (backend job deleted)'
+          : 'Cancel returned non-200 — local handle cleared anyway',
+      duration: const Duration(seconds: 3),
     );
   }
 
@@ -1566,9 +1211,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final message = variant == null
         ? 'No variant applied (no streak / no challenge / no high score yet, or no FCM token registered).'
         : 'Preview fired via backend (variant: $variant). Check your tray.';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 4)),
-    );
+    showCsToast(context, message, duration: const Duration(seconds: 4));
   }
 
   String _formatScheduledTime(DateTime dt) {
@@ -1579,7 +1222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// Re-opens Google's UMP privacy options form so users can change their
   /// personalized-ad consent. Only shown to free users with ads enabled.
-  Widget _buildPrivacyChoicesButton(GameTheme theme) {
+  Widget _buildPrivacyChoicesButton() {
     final ads = getIt.isRegistered<AdService>() ? getIt<AdService>() : null;
     // Only show when ads are enabled AND a consent form is actually available
     // to present. Without the form check this button opened nothing (and logged
@@ -1588,158 +1231,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (ads == null || !ads.adsEnabled || !ads.privacyOptionsRequired) {
       return const SizedBox.shrink();
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 16),
-        NeonButton(
-          onPressed: () async {
-            final messenger = ScaffoldMessenger.of(context);
-            final shown = await ads.showPrivacyOptions();
-            if (!shown) {
-              messenger.showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    "Ad privacy options aren't available right now.",
-                  ),
-                ),
-              );
-            }
-          },
-          label: 'PRIVACY & AD CHOICES',
-          theme: theme,
-          variant: NeonButtonVariant.outline,
-          icon: Icons.privacy_tip,
-          expand: true,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Manage personalized ad consent',
-          style: TextStyle(color: theme.textMuted, fontSize: 12),
-        ),
-      ],
+    return _buildActionRow(
+      icon: Symbols.privacy_tip_rounded,
+      title: 'Privacy & Ad Choices',
+      subtitle: 'Manage personalized ad consent',
+      onTap: () async {
+        final shown = await ads.showPrivacyOptions();
+        if (!shown && mounted) {
+          showCsToast(context, "Ad privacy options aren't available right now.");
+        }
+      },
     );
   }
 
   /// User-initiated app rating. Unlike the auto-prompt (which is gated to
   /// strong moments), this always tries to surface the native review sheet
   /// and falls back to the store listing when the in-app API isn't available.
-  Widget _buildRateButton(GameTheme theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        NeonButton(
-          onPressed: () => getIt<ReviewService>().rateAppManually(),
-          label: 'RATE THIS GAME',
-          theme: theme,
-          variant: NeonButtonVariant.outline,
-          icon: Icons.star_rate,
-          expand: true,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Enjoying Cosmo Strike? Leave us a rating',
-          style: TextStyle(color: theme.textMuted, fontSize: 12),
-        ),
-      ],
+  Widget _buildRateButton() {
+    return _buildActionRow(
+      icon: Symbols.star_rate_rounded,
+      iconColor: CsColors.gold,
+      title: 'Rate This Game',
+      subtitle: 'Enjoying Cosmo Strike? Leave us a rating',
+      onTap: () => getIt<ReviewService>().rateAppManually(),
     );
   }
 
   /// Opens the native OS share sheet with a pre-filled invite + store link.
-  Widget _buildShareButton(GameTheme theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        NeonButton(
-          onPressed: () => ShareService().shareApp(),
-          label: 'SHARE WITH FRIENDS',
-          theme: theme,
-          variant: NeonButtonVariant.outline,
-          icon: Icons.share,
-          expand: true,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Invite friends to join the fight',
-          style: TextStyle(color: theme.textMuted, fontSize: 12),
-        ),
-      ],
+  Widget _buildShareButton() {
+    return _buildActionRow(
+      icon: Symbols.share_rounded,
+      title: 'Share with Friends',
+      subtitle: 'Invite friends to join the fight',
+      onTap: () => ShareService().shareApp(),
     );
   }
 
   Widget _buildCreditsButton(GameTheme theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        NeonButton(
-          onPressed: () => showCreditsDialog(context, theme),
-          label: 'ABOUT & CREDITS',
-          theme: theme,
-          variant: NeonButtonVariant.outline,
-          icon: Icons.info_outline,
-          expand: true,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'App version, credits, and links',
-          style: TextStyle(color: theme.textMuted, fontSize: 12),
-        ),
-      ],
+    return _buildActionRow(
+      icon: Symbols.info_rounded,
+      title: 'About & Credits',
+      subtitle: 'App version, credits, and links',
+      onTap: () => showCreditsDialog(context, theme),
     );
   }
 
-  Widget _buildReplayTutorialButton(GameTheme theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        NeonButton(
-          onPressed: () => _showReplayTutorialDialog(theme),
-          label: 'REPLAY TUTORIAL',
-          theme: theme,
-          variant: NeonButtonVariant.outline,
-          icon: Icons.school,
-          expand: true,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Watch the home tour or game tutorial again',
-          style: TextStyle(color: theme.textMuted, fontSize: 12),
-        ),
-      ],
+  Widget _buildReplayTutorialButton() {
+    return _buildActionRow(
+      icon: Symbols.school_rounded,
+      title: 'Replay Tutorial',
+      subtitle: 'Watch the home tour or game tutorial again',
+      first: true,
+      onTap: _showReplayTutorialDialog,
     );
   }
 
-  void _showReplayTutorialDialog(GameTheme theme) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: theme.backgroundColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.school, color: theme.accentColor),
-            const SizedBox(width: 12),
-            Text(
-              'Replay Tutorial',
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'Which tutorial would you like to replay?',
-          style: TextStyle(color: theme.textMuted),
-        ),
+  void _showReplayTutorialDialog() {
+    showCsDialog<void>(
+      context,
+      builder: (dialogContext) => CsDialog(
+        icon: Symbols.school_rounded,
+        eyebrow: 'Help',
+        title: 'Replay Tutorial',
+        message: 'Which tutorial would you like to replay?',
         actions: [
-          TextButton(
+          CsButton.text(
+            label: 'Cancel',
             onPressed: () {
               Navigator.of(dialogContext).pop();
             },
-            child: Text('Cancel', style: TextStyle(color: theme.textMuted)),
           ),
-          TextButton(
+          CsButton.secondary(
+            label: 'Home Tour',
             onPressed: () async {
               Navigator.of(dialogContext).pop();
               final walkthroughService = WalkthroughService();
@@ -1751,9 +1314,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 context.go(AppRoutes.home);
               }
             },
-            child: Text('Home Tour', style: TextStyle(color: theme.foodColor)),
           ),
-          TextButton(
+          CsButton.primary(
+            label: 'Game Tutorial',
             onPressed: () async {
               Navigator.of(dialogContext).pop();
               final walkthroughService = WalkthroughService();
@@ -1763,17 +1326,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 context.go(AppRoutes.game);
               }
             },
-            child: Text(
-              'Game Tutorial',
-              style: TextStyle(color: theme.accentColor),
-            ),
           ),
         ],
       ),
     );
   }
 
-  void _showUsernameDialog(AuthState authState, GameTheme theme) {
+  void _showUsernameDialog(AuthState authState) {
     // Pre-fill with the current username so the user can see what it is
     // before editing. Previously the field opened empty, which made it
     // unclear what the existing value was and forced users to retype
@@ -1786,125 +1345,70 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String? errorMessage;
     bool isLoading = false;
 
-    showDialog(
-      context: context,
+    showCsDialog<void>(
+      context,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (dialogContext, setState) {
-            return AlertDialog(
-              backgroundColor: theme.backgroundColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Text(
-                'Change Username',
-                style: TextStyle(
-                  color: theme.primaryColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (currentUsername.isNotEmpty) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+            final cs = dialogContext.cs;
+            final t = cs.type;
+            return CsDialog(
+              eyebrow: 'Profile',
+              title: 'Change Username',
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (currentUsername.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Text('CURRENT ', style: t.mono(10, color: CsColors.ink45)),
+                        Flexible(
+                          child: Text(
+                            currentUsername,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: t.mono(11, color: CsColors.ink, weight: FontWeight.w600),
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: theme.accentColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.person,
-                              size: 14,
-                              color: theme.accentColor.withValues(alpha: 0.7),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Current: ',
-                              style: TextStyle(
-                                color: theme.textMuted,
-                                fontSize: 12,
-                              ),
-                            ),
-                            Flexible(
-                              child: Text(
-                                currentUsername,
-                                style: TextStyle(
-                                  color: theme.textPrimary,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    Text(
-                      'Choose a unique username that represents you in the game.',
-                      style: TextStyle(color: theme.textMuted, fontSize: 14),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-
-                    TextField(
-                      controller: usernameController,
-                      decoration: InputDecoration(
-                        labelText: 'Username',
-                        labelStyle: TextStyle(color: theme.textMuted),
-                        hintText: 'Enter new username',
-                        hintStyle: TextStyle(color: theme.textMuted),
-                        // Borderless filled input — definition comes from
-                        // the faint fill, not an outline.
-                        filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.06),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        errorText: errorMessage,
-                        errorStyle: const TextStyle(color: Colors.red),
-                      ),
-                      style: TextStyle(color: theme.textPrimary),
-                      maxLength: 20,
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    Text(
-                      '• 3-20 characters\n• Must start with a letter\n• Letters, numbers, and underscores only',
-                      style: TextStyle(color: theme.textMuted, fontSize: 12),
-                    ),
+                    SizedBox(height: cs(10)),
                   ],
-                ),
+                  Text(
+                    'Choose a unique username that represents you in the game.',
+                    style: t.body,
+                  ),
+                  SizedBox(height: cs(10)),
+                  TextField(
+                    controller: usernameController,
+                    style: t.rowTitle,
+                    decoration: InputDecoration(
+                      labelText: 'USERNAME',
+                      hintText: 'Enter new username',
+                      errorText: errorMessage,
+                      counterStyle: t.micro,
+                    ),
+                    maxLength: 20,
+                  ),
+                  SizedBox(height: cs(6)),
+                  Text(
+                    '3-20 characters · Must start with a letter · '
+                    'Letters, numbers, and underscores only'.toUpperCase(),
+                    style: t.micro.copyWith(height: 1.5),
+                  ),
+                ],
               ),
               actions: [
-                TextButton(
+                CsButton.text(
+                  label: 'Cancel',
                   onPressed: isLoading
                       ? null
                       : () => Navigator.of(dialogContext).pop(),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: theme.textMuted),
-                  ),
                 ),
-                ElevatedButton(
+                CsButton.primary(
+                  label: 'Update',
+                  loading: isLoading,
                   onPressed: isLoading
                       ? null
                       : () async {
@@ -1918,9 +1422,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                           bool success = false;
                           final authCubit = context.read<AuthCubit>();
-                          final scaffoldMessenger = ScaffoldMessenger.of(
-                            context,
-                          );
 
                           if (authState.isGuestUser) {
                             success = await authCubit.updateGuestUsername(
@@ -1952,38 +1453,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                           if (success && dialogContext.mounted) {
                             Navigator.of(dialogContext).pop();
-                            scaffoldMessenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Username updated to "$newUsername"',
-                                ),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
+                            if (mounted) {
+                              showCsToast(
+                                context,
+                                'Username updated to "$newUsername"',
+                                kind: CsToastKind.success,
+                              );
+                            }
                           }
 
                           setState(() {
                             isLoading = false;
                           });
                         },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.accentColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: isLoading
-                      ? SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
-                        )
-                      : Text('Update', style: TextStyle(color: Colors.white)),
                 ),
               ],
             );
@@ -1996,275 +1478,122 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 // Premium UI Components
 extension _SettingsPremium on _SettingsScreenState {
-  Widget _buildPremiumStatusCard(PremiumState premiumState, GameTheme theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        gradient: premiumState.hasPremium
-            ? const LinearGradient(
-                colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
-              )
-            : LinearGradient(
-                colors: [
-                  theme.accentColor.withValues(alpha: 0.1),
-                  theme.backgroundColor.withValues(alpha: 0.05),
+  Widget _buildPremiumStatusCard(PremiumState premiumState) {
+    final cs = context.cs;
+    final t = cs.type;
+    final pro = premiumState.hasPremium;
+    return Padding(
+      padding: EdgeInsets.only(bottom: cs(14)),
+      child: CsTile(
+        state: pro ? CsTileState.pro : CsTileState.future,
+        radius: CsRadius.card,
+        padding: EdgeInsets.all(cs(16)),
+        child: Row(
+          children: [
+            Icon(
+              pro ? Symbols.diamond_rounded : Symbols.lock_rounded,
+              color: pro ? CsColors.gold : CsColors.ink60,
+              size: cs(26),
+            ),
+            SizedBox(width: cs(14)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  pro
+                      ? CsHeadline(const ['Cosmo Strike ', 'Pro'], prismIndex: 1, style: t.display(20, em: -0.02))
+                      : Text('Premium Status', style: t.display(20, em: -0.02)),
+                  SizedBox(height: cs(3)),
+                  Text(
+                    pro ? 'Active subscription' : 'Unlock premium features',
+                    style: t.body,
+                  ),
+                  if (pro && premiumState.subscriptionExpiry != null) ...[
+                    SizedBox(height: cs(3)),
+                    Text(
+                      'Renews ${premiumState.subscriptionExpiry!.day}/${premiumState.subscriptionExpiry!.month}'
+                          .toUpperCase(),
+                      style: t.mono(10, color: CsColors.gold),
+                    ),
+                  ],
                 ],
               ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            premiumState.hasPremium ? Icons.diamond : Icons.lock,
-            color: premiumState.hasPremium ? Colors.black : theme.accentColor,
-            size: 24,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  premiumState.hasPremium
-                      ? 'Cosmo Strike Pro'
-                      : 'Premium Status',
-                  style: TextStyle(
-                    color: premiumState.hasPremium
-                        ? Colors.black
-                        : Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  premiumState.hasPremium
-                      ? 'Active subscription'
-                      : 'Unlock premium features',
-                  style: TextStyle(
-                    color: premiumState.hasPremium
-                        ? Colors.black.withValues(alpha: 0.8)
-                        : Colors.white.withValues(alpha: 0.7),
-                    fontSize: 14,
-                  ),
-                ),
-                if (premiumState.hasPremium &&
-                    premiumState.subscriptionExpiry != null)
-                  Text(
-                    'Renews ${premiumState.subscriptionExpiry!.day}/${premiumState.subscriptionExpiry!.month}',
-                    style: TextStyle(
-                      color: Colors.black.withValues(alpha: 0.6),
-                      fontSize: 12,
-                    ),
-                  ),
-              ],
             ),
-          ),
-          if (premiumState.hasPremium)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'PRO',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-        ],
+            if (pro) const CsChip('PRO', kind: CsChipKind.gold),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildUpgradeButton(PremiumState premiumState, GameTheme theme) {
-    // Full-width so the CTA actually reads as the primary action of the
-    // Premium section. Routes to the dedicated subscription screen
+  Widget _buildUpgradeButton(PremiumState premiumState) {
+    // Routes to the dedicated subscription screen
     // (PremiumBenefitsScreen → /premium-benefits) — the same destination
     // the pause overlay's Premium button uses. The previous in-screen
     // dialog locked the user to monthly with no upsell or comparison.
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: NeonButton(
+    return Padding(
+      padding: EdgeInsets.only(bottom: context.cs(14)),
+      child: CsButton.premium(
         onPressed: () => context.push(AppRoutes.premiumBenefits),
         label: 'Upgrade to Pro',
-        theme: theme,
-        icon: Icons.star,
+        icon: Symbols.workspace_premium_rounded,
         expand: true,
       ),
     );
   }
 
-  Widget _buildRestorePurchasesButton(
-    PremiumState premiumState,
-    GameTheme theme,
-  ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: TextButton(
-        onPressed: () => _restorePurchases(),
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          backgroundColor: theme.accentColor.withValues(alpha: 0.1),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.restore, color: theme.accentColor),
-            const SizedBox(width: 8),
-            Text(
-              'Restore Purchases',
-              style: TextStyle(
-                color: theme.accentColor,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
+  Widget _buildRestorePurchasesButton(PremiumState premiumState) {
+    return _buildActionRow(
+      icon: Symbols.restore_rounded,
+      title: 'Restore Purchases',
+      first: true,
+      onTap: () => _restorePurchases(),
+    );
+  }
+
+  Widget _buildPurchaseHistoryButton(PremiumState premiumState) {
+    return _buildActionRow(
+      icon: Symbols.history_rounded,
+      title: 'Purchase History',
+      onTap: () => _showPurchaseHistory(),
+    );
+  }
+
+  Widget _buildCosmeticsButton(PremiumState premiumState) {
+    final cs = context.cs;
+    return _buildActionRow(
+      icon: Symbols.rocket_rounded,
+      title: 'Ship Cosmetics',
+      onTap: () => _openCosmeticsSelector(),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (premiumState.ownedSkins.isNotEmpty)
+            CsChip('${premiumState.ownedSkins.length} owned'),
+          SizedBox(width: cs(8)),
+          Icon(Symbols.chevron_right_rounded, size: cs(20), color: CsColors.ink45),
+        ],
       ),
     );
   }
 
-  Widget _buildPurchaseHistoryButton(
-    PremiumState premiumState,
-    GameTheme theme,
-  ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: TextButton(
-        onPressed: () => _showPurchaseHistory(),
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          backgroundColor: theme.accentColor.withValues(alpha: 0.1),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+  Widget _buildBattlePassButton(PremiumState premiumState) {
+    final cs = context.cs;
+    return _buildActionRow(
+      icon: Symbols.military_tech_rounded,
+      iconColor: CsColors.violet,
+      title: 'Battle Pass',
+      onTap: () => _openBattlePass(),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'TIER ${premiumState.battlePassTier}',
+            style: cs.type.mono(10, color: CsColors.violet),
           ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.history, color: theme.accentColor),
-            const SizedBox(width: 8),
-            Text(
-              'Purchase History',
-              style: TextStyle(
-                color: theme.accentColor,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCosmeticsButton(PremiumState premiumState, GameTheme theme) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: TextButton(
-        onPressed: () => _openCosmeticsSelector(),
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          backgroundColor: theme.accentColor.withValues(alpha: 0.1),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.palette, color: theme.accentColor),
-            const SizedBox(width: 8),
-            Text(
-              'Ship Cosmetics',
-              style: TextStyle(
-                color: theme.accentColor,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(width: 8),
-            if (premiumState.ownedSkins.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: theme.accentColor,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${premiumState.ownedSkins.length}',
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBattlePassButton(PremiumState premiumState, GameTheme theme) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.purple.withValues(alpha: 0.3),
-              Colors.blue.withValues(alpha: 0.3),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: TextButton(
-          onPressed: () => _openBattlePass(),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            backgroundColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.military_tech, color: Colors.purple),
-              const SizedBox(width: 8),
-              const Text(
-                'Battle Pass',
-                style: TextStyle(
-                  color: Colors.purple,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.purple,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Tier ${premiumState.battlePassTier}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+          SizedBox(width: cs(8)),
+          Icon(Symbols.chevron_right_rounded, size: cs(20), color: CsColors.ink45),
+        ],
       ),
     );
   }
@@ -2287,12 +1616,7 @@ extension _SettingsPremium on _SettingsScreenState {
     if (!mounted) return;
 
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Restoring purchases...'),
-          backgroundColor: Colors.blue,
-        ),
-      );
+      showCsToast(context, 'Restoring purchases...', icon: Symbols.restore_rounded);
 
       final purchaseService = PurchaseService();
       await purchaseService.restorePurchases();
@@ -2300,22 +1624,18 @@ extension _SettingsPremium on _SettingsScreenState {
       if (mounted) {
         // Results arrive asynchronously on the purchase stream — this only
         // confirms the restore REQUEST went through, not that items landed.
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Restore requested — any purchases will appear in a moment.',
-            ),
-            backgroundColor: Colors.green,
-          ),
+        showCsToast(
+          context,
+          'Restore requested — any purchases will appear in a moment.',
+          kind: CsToastKind.success,
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to restore purchases. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
+        showCsToast(
+          context,
+          'Failed to restore purchases. Please try again.',
+          kind: CsToastKind.error,
         );
       }
     }
@@ -2328,74 +1648,69 @@ extension _SettingsPremium on _SettingsScreenState {
 
       if (!mounted) return;
 
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Purchase History'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: history.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No purchases found',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: history.length,
-                    itemBuilder: (context, index) {
-                      final purchase = history[index];
-                      // Purchase is already a Map<String, dynamic>
-                      try {
-                        final productId =
-                            purchase['productId']?.toString() ?? 'Unknown';
-                        final transactionDate =
-                            purchase['transactionDate']?.toString() ?? '';
-                        final status =
-                            purchase['status']?.toString() ?? 'Unknown';
+      showCsDialog<void>(
+        context,
+        builder: (context) {
+          final cs = context.cs;
+          return CsDialog(
+            eyebrow: 'Premium',
+            title: 'Purchase History',
+            content: SizedBox(
+              height: cs(220),
+              child: history.isEmpty
+                  ? const CsEmptyState(
+                      icon: Symbols.receipt_long_rounded,
+                      title: 'No purchases found',
+                      compact: true,
+                    )
+                  : ListView.builder(
+                      itemCount: history.length,
+                      itemBuilder: (context, index) {
+                        final purchase = history[index];
+                        // Purchase is already a Map<String, dynamic>
+                        try {
+                          final productId =
+                              purchase['productId']?.toString() ?? 'Unknown';
+                          final transactionDate =
+                              purchase['transactionDate']?.toString() ?? '';
+                          final status =
+                              purchase['status']?.toString() ?? 'Unknown';
 
-                        return Card(
-                          child: ListTile(
-                            leading: Icon(
-                              _getPurchaseIcon(
-                                _getTypeFromProductId(productId),
-                              ),
+                          return CsListRow(
+                            dividerTop: index == 0,
+                            leading: CsIconDisc(
+                              _getPurchaseIcon(_getTypeFromProductId(productId)),
+                              size: 34,
                             ),
-                            title: Text(_formatProductName(productId)),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Status: $status'),
-                                Text('Date: ${_formatDate(transactionDate)}'),
-                              ],
-                            ),
-                          ),
-                        );
-                      } catch (e) {
-                        return ListTile(
-                          title: Text('Purchase #${index + 1}'),
-                          subtitle: const Text('Data parsing error'),
-                        );
-                      }
-                    },
-                  ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
+                            title: _formatProductName(productId),
+                            subtitle:
+                                'Status: $status · Date: ${_formatDate(transactionDate)}',
+                          );
+                        } catch (e) {
+                          return CsListRow(
+                            dividerTop: index == 0,
+                            title: 'Purchase #${index + 1}',
+                            subtitle: 'Data parsing error',
+                          );
+                        }
+                      },
+                    ),
             ),
-          ],
-        ),
+            actions: [
+              CsButton.secondary(
+                label: 'Close',
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          );
+        },
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to load purchase history'),
-            backgroundColor: Colors.red,
-          ),
+        showCsToast(
+          context,
+          'Failed to load purchase history',
+          kind: CsToastKind.error,
         );
       }
     }
@@ -2404,21 +1719,21 @@ extension _SettingsPremium on _SettingsScreenState {
   IconData _getPurchaseIcon(String type) {
     switch (type) {
       case 'subscription':
-        return Icons.star;
+        return Symbols.star_rounded;
       case 'theme':
-        return Icons.palette;
+        return Symbols.palette_rounded;
       case 'skin':
-        return Icons.pets;
+        return Symbols.rocket_rounded;
       case 'trail':
-        return Icons.auto_awesome;
+        return Symbols.auto_awesome_rounded;
       case 'bundle':
-        return Icons.shopping_bag;
+        return Symbols.shopping_bag_rounded;
       case 'battlepass':
-        return Icons.emoji_events;
+        return Symbols.emoji_events_rounded;
       case 'tournament':
-        return Icons.sports_esports;
+        return Symbols.sports_esports_rounded;
       default:
-        return Icons.shopping_cart;
+        return Symbols.shopping_cart_rounded;
     }
   }
 
@@ -2477,5 +1792,166 @@ extension _SettingsPremium on _SettingsScreenState {
 
   void _openBattlePass() {
     context.push(AppRoutes.battlePass);
+  }
+}
+
+/// Category-list item (as on the store): 7% white fill + gold icon when
+/// selected, quiet ink otherwise. ≥44dp tall.
+class _NavItem extends StatelessWidget {
+  const _NavItem({required this.icon, required this.label, required this.selected, required this.onTap});
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return CsPressable(
+      onTap: onTap,
+      scale: 0.98,
+      semanticLabel: label,
+      child: AnimatedContainer(
+        duration: CsMotion.base,
+        curve: CsMotion.standard,
+        constraints: const BoxConstraints(minHeight: 44),
+        padding: EdgeInsets.symmetric(horizontal: cs(14), vertical: cs(9)),
+        decoration: BoxDecoration(
+          color: selected ? CsColors.fill07 : Colors.transparent,
+          borderRadius: BorderRadius.circular(CsRadius.tile),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: cs(20), color: selected ? CsColors.gold : CsColors.ink45),
+            SizedBox(width: cs(14)),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: cs.type.display(
+                  15,
+                  weight: selected ? FontWeight.w700 : FontWeight.w600,
+                  em: 0,
+                  color: selected ? CsColors.ink : CsColors.ink60,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Settings row: hairline-separated, leading glyph, title, unclamped
+/// subtitle (settings copy is the documentation — never truncate it),
+/// optional extra content [below], trailing control.
+class _SettingRow extends StatelessWidget {
+  const _SettingRow({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
+    this.below,
+    this.first = false,
+    this.iconColor = CsColors.ink70,
+    this.titleColor,
+    this.subtitleColor,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final Widget? below;
+  final bool first;
+  final Color iconColor;
+  final Color? titleColor;
+  final Color? subtitleColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    final row = Container(
+      constraints: const BoxConstraints(minHeight: 52),
+      padding: EdgeInsets.symmetric(vertical: cs(11), horizontal: cs(2)),
+      decoration: BoxDecoration(
+        border: Border(
+          top: first ? const BorderSide(color: CsColors.hairline) : BorderSide.none,
+          bottom: const BorderSide(color: CsColors.hairline),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: cs(20), color: iconColor),
+          SizedBox(width: cs(14)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: titleColor == null ? t.rowTitle : t.rowTitle.copyWith(color: titleColor),
+                ),
+                if (subtitle != null) ...[
+                  SizedBox(height: cs(3)),
+                  Text(
+                    subtitle!,
+                    style: subtitleColor == null ? t.body : t.body.copyWith(color: subtitleColor),
+                  ),
+                ],
+                if (below != null) ...[SizedBox(height: cs(8)), below!],
+              ],
+            ),
+          ),
+          if (trailing != null) ...[SizedBox(width: cs(14)), trailing!],
+        ],
+      ),
+    );
+    if (onTap == null) return row;
+    return CsPressable(onTap: onTap, scale: 0.99, semanticLabel: title, child: row);
+  }
+}
+
+/// Small preview of a gameplay colour theme: its background fill with the
+/// ship + pickup colours as dots. Reads [GameTheme] purely as data.
+class _ThemeSwatch extends StatelessWidget {
+  const _ThemeSwatch({required this.theme});
+  final GameTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return Container(
+      width: cs(44),
+      height: cs(28),
+      decoration: BoxDecoration(
+        color: theme.backgroundColor,
+        borderRadius: BorderRadius.circular(cs(8)),
+        border: Border.all(color: CsColors.lineSubtle),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          Container(
+            width: cs(10),
+            height: cs(10),
+            decoration: BoxDecoration(color: theme.shipColor, borderRadius: BorderRadius.circular(2)),
+          ),
+          Container(
+            width: cs(7),
+            height: cs(7),
+            decoration: BoxDecoration(color: theme.foodColor, shape: BoxShape.circle),
+          ),
+        ],
+      ),
+    );
   }
 }

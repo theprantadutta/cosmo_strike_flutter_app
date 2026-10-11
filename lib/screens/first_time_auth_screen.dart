@@ -1,17 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/utils/privacy_policy.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 
 class FirstTimeAuthScreen extends StatefulWidget {
   const FirstTimeAuthScreen({super.key});
@@ -92,345 +87,145 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
 
   @override
   Widget build(BuildContext context) {
-    final themeState = context.watch<ThemeCubit>().state;
     final authCubit = context.read<AuthCubit>();
-    final theme = themeState.currentTheme;
+    final cs = context.cs;
 
-    return Scaffold(
-      body: AnimatedAppBackground(
-        theme: theme,
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final screenHeight = constraints.maxHeight;
-              // Bumped from <600 to <800 so the tighter layout is the
-              // default — most phones (incl. 6.1" / Pixel-class) sit
-              // around 800-900 logical pixels, and with three auth
-              // buttons + the guest-can't-purchase subtitle the prior
-              // large-screen sizing pushed content past the fold.
-              final screenWidth = constraints.maxWidth;
-              final isSmallScreen = screenHeight < 800;
-              final isNarrowScreen = screenWidth < 400;
-
-              if (_showPrivacyPolicy) {
-                return _buildPrivacyPolicyView(
-                  theme,
-                  screenHeight,
-                  screenWidth,
-                  isSmallScreen,
-                  isNarrowScreen,
-                );
-              }
-
-              // Landscape: branding on the left, sign-in options in a glass
-              // card on the right.
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // LEFT — branding + welcome.
-                    Expanded(
-                      flex: 5,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          HoloLogo(size: isSmallScreen ? 60 : 78, theme: theme)
-                              .gamePop(),
-                          const SizedBox(height: 18),
-                          ShaderMask(
-                            shaderCallback: (bounds) => LinearGradient(
-                              colors: [theme.neonPrimary, theme.neonSecondary],
-                            ).createShader(bounds),
-                            child: const Text(
-                              'WELCOME TO\nCOSMO STRIKE',
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                height: 1.15,
-                                letterSpacing: 2,
-                              ),
-                            ),
-                          ).gameEntrance(delay: 100.ms),
-                          const SizedBox(height: 12),
-                          Text(
-                            "Pick how you'd like to launch — you can upgrade a "
-                            'guest to a full account anytime.',
-                            style: TextStyle(
-                              color: theme.textMuted,
-                              fontSize: 14,
-                              height: 1.4,
-                            ),
-                          ).gameEntrance(delay: 200.ms),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 18),
-                    // RIGHT — sign-in options.
-                    Expanded(
-                      flex: 5,
-                      child: Center(
-                        child: SingleChildScrollView(
-                          primary: false,
-                          child: GlassPanel(
-                            theme: theme,
-                            glow: true,
-                            padding: const EdgeInsets.all(20),
-                            child: _isLoading
-                                ? Padding(
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 28),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        CircularProgressIndicator(
-                                          color: theme.neonPrimary,
-                                          strokeWidth: 3,
-                                        ),
-                                        const SizedBox(height: 16),
-                                        Text(
-                                          'Signing you in...',
-                                          style: TextStyle(
-                                            color: theme.textMuted,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                : Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      NeonButton(
-                                        onPressed: () =>
-                                            _handleGoogleSignIn(authCubit),
-                                        label: 'Sign in with Google',
-                                        leading: const FaIcon(
-                                          FontAwesomeIcons.google,
-                                          size: 18,
-                                          color: Color(0xFF03040A),
-                                        ),
-                                        theme: theme,
-                                        expand: true,
-                                      ).gameZoomIn(delay: 250.ms),
-                                      const SizedBox(height: 12),
-                                      NeonButton(
-                                        onPressed: () =>
-                                            context.push(AppRoutes.emailAuth),
-                                        label: 'Sign in with Email',
-                                        icon: Icons.email_outlined,
-                                        theme: theme,
-                                        variant: NeonButtonVariant.outline,
-                                        expand: true,
-                                      ).gameZoomIn(delay: 300.ms),
-                                      const SizedBox(height: 12),
-                                      NeonButton(
-                                        onPressed: () =>
-                                            _confirmGuestLogin(authCubit),
-                                        label: 'Continue as Guest',
-                                        icon: Icons.person_outline_rounded,
-                                        theme: theme,
-                                        variant: NeonButtonVariant.ghost,
-                                        expand: true,
-                                      ).gameZoomIn(delay: 350.ms),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        'Guests play and save locally but '
-                                        "can't make purchases. Sign in with "
-                                        'Google or Email when you want to '
-                                        'subscribe or buy.',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: theme.textMuted
-                                              .withValues(alpha: 0.8),
-                                          fontSize: 11,
-                                          height: 1.4,
-                                        ),
-                                      ).gameZoomIn(delay: 400.ms),
-                                    ],
-                                  ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+    return CsScaffold(
+      showTopBar: false,
+      washes: const [CsWash.cyanLeft, CsWash.pinkBottomRight],
+      stars: true,
+      body: AnimatedSwitcher(
+        duration: CsMotion.base,
+        switchInCurve: CsMotion.standard,
+        child: _showPrivacyPolicy
+            ? KeyedSubtree(key: const ValueKey('privacy'), child: _buildPrivacyPolicyView(context))
+            : KeyedSubtree(
+                key: const ValueKey('signin'),
+                child: CsSplit(
+                  leftFlex: 5,
+                  gap: cs(44),
+                  left: _AuthIntro(
+                    eyebrow: 'Pilot registration',
+                    headline: const ['Welcome to\nCosmo ', 'Strike'],
+                    body: "Pick how you'd like to launch — you can upgrade a "
+                        'guest to a full account anytime.',
+                  ),
+                  right: _buildSignInOptions(context, authCubit),
                 ),
-              );
-            },
+              ),
+      ),
+    );
+  }
+
+  Widget _buildSignInOptions(BuildContext context, AuthCubit authCubit) {
+    final cs = context.cs;
+    if (_isLoading) {
+      return const CsLoadingState(label: 'Signing you in');
+    }
+    return Center(
+      child: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: cs(380)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const CsLabel('Choose how to sign in'),
+              SizedBox(height: cs(14)),
+              _GoogleSignInButton(onPressed: () => _handleGoogleSignIn(authCubit)),
+              SizedBox(height: cs(12)),
+              CsButton.secondary(
+                label: 'Sign in with Email',
+                icon: Symbols.mail_rounded,
+                expand: true,
+                onPressed: () => context.push(AppRoutes.emailAuth),
+              ),
+              SizedBox(height: cs(6)),
+              CsButton.text(
+                label: 'Continue as Guest',
+                icon: Symbols.person_rounded,
+                expand: true,
+                onPressed: () => _confirmGuestLogin(authCubit),
+              ),
+              SizedBox(height: cs(12)),
+              const CsHairline(),
+              SizedBox(height: cs(12)),
+              Text(
+                'Guests play and save locally but '
+                "can't make purchases. Sign in with "
+                'Google or Email when you want to '
+                'subscribe or buy.',
+                textAlign: TextAlign.center,
+                style: cs.type.micro.copyWith(height: 1.5),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildPrivacyPolicyView(
-    GameTheme theme,
-    double screenHeight,
-    double screenWidth,
-    bool isSmallScreen,
-    bool isNarrowScreen,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
-      child: Row(
+  Widget _buildPrivacyPolicyView(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+
+    final policy = DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(CsRadius.card),
+        border: Border.all(color: CsColors.lineSubtle),
+      ),
+      child: _privacyPolicyContent.isEmpty
+          ? const CsLoadingState(label: 'Loading policy')
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(CsRadius.card),
+              child: Scrollbar(
+                child: SingleChildScrollView(
+                  primary: true,
+                  padding: EdgeInsets.all(cs(22)),
+                  child: Text(
+                    _privacyPolicyContent,
+                    style: t.body.copyWith(color: CsColors.ink70, height: 1.55),
+                  ),
+                ),
+              ),
+            ),
+    );
+
+    return CsSplit(
+      leftWidth: cs.isTablet ? 340 : 300,
+      left: _AuthIntro(
+        eyebrow: 'Privacy policy · v${PrivacyPolicy.currentPrivacyPolicyVersion}',
+        headline: const ['Cleared for\n', 'takeoff.'],
+        body: 'Before you launch, take a moment with our Privacy Policy & '
+            "Terms — then you're cleared for takeoff.",
+      ),
+      right: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // LEFT — branding, the accept toggle, and the launch CTA.
-          Expanded(
-            flex: 5,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                HoloLogo(size: isSmallScreen ? 52 : 68, theme: theme)
-                    .gameEntrance(),
-                const SizedBox(height: 14),
-                Text(
-                  'COSMO STRIKE',
-                  style: TextStyle(
-                    color: theme.textPrimary,
-                    fontSize: isSmallScreen ? 24 : 30,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 3,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Before you launch, take a moment with our Privacy Policy & '
-                  "Terms — then you're cleared for takeoff.",
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 14,
-                    height: 1.4,
-                  ),
-                ),
-                const Spacer(),
-                // The whole card toggles acceptance.
-                GlassPanel(
-                  theme: theme,
-                  glow: _privacyAccepted,
-                  borderColor:
-                      _privacyAccepted ? theme.neonPrimary : theme.stroke,
-                  padding: const EdgeInsets.all(14),
-                  onTap: () {
-                    setState(() => _privacyAccepted = !_privacyAccepted);
+          Expanded(child: policy),
+          SizedBox(height: cs(14)),
+          Row(
+            children: [
+              Expanded(
+                child: _ConsentCheck(
+                  value: _privacyAccepted,
+                  label: 'I have read and agree to the Privacy Policy and '
+                      'Terms of Service.',
+                  onChanged: (v) {
+                    setState(() => _privacyAccepted = v);
                     if (_privacyAccepted) PrivacyPolicy.recordAccepted();
                   },
-                  child: Row(
-                    children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 160),
-                        width: 26,
-                        height: 26,
-                        decoration: BoxDecoration(
-                          color: _privacyAccepted
-                              ? theme.neonPrimary
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(7),
-                          border: Border.all(
-                            color: _privacyAccepted
-                                ? theme.neonPrimary
-                                : theme.stroke,
-                            width: 2,
-                          ),
-                        ),
-                        child: _privacyAccepted
-                            ? const Icon(Icons.check,
-                                size: 18, color: Color(0xFF03040A))
-                            : null,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'I have read and agree to the Privacy Policy and '
-                          'Terms of Service.',
-                          style: TextStyle(
-                            color: theme.textPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            height: 1.3,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
-                const SizedBox(height: 12),
-                NeonButton(
-                  onPressed: _privacyAccepted
-                      ? () => setState(() => _showPrivacyPolicy = false)
-                      : null,
-                  label: 'Agree & Continue',
-                  icon: Icons.rocket_launch,
-                  theme: theme,
-                  expand: true,
-                ),
-                const SizedBox(height: 4),
-              ],
-            ),
-          ),
-          const SizedBox(width: 18),
-          // RIGHT — the policy itself, prominent and scrollable.
-          Expanded(
-            flex: 6,
-            child: GlassPanel(
-              theme: theme,
-              padding: const EdgeInsets.fromLTRB(18, 14, 8, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: Row(
-                      children: [
-                        Icon(Icons.privacy_tip_outlined,
-                            color: theme.neonPrimary, size: 22),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Privacy Policy',
-                          style: TextStyle(
-                            color: theme.textPrimary,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          'v${PrivacyPolicy.currentPrivacyPolicyVersion}',
-                          style:
-                              TextStyle(color: theme.textMuted, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Divider(color: theme.stroke, height: 1),
-                  const SizedBox(height: 10),
-                  Expanded(
-                    child: _privacyPolicyContent.isEmpty
-                        ? Center(
-                            child: CircularProgressIndicator(
-                                color: theme.neonPrimary),
-                          )
-                        : SingleChildScrollView(
-                            primary: false,
-                            padding: const EdgeInsets.only(right: 10),
-                            child: Text(
-                              _privacyPolicyContent,
-                              style: TextStyle(
-                                color: theme.textMuted,
-                                fontSize: isSmallScreen ? 12 : 13,
-                                height: 1.5,
-                              ),
-                            ),
-                          ),
-                  ),
-                ],
               ),
-            ).gameZoomIn(delay: 150.ms),
+              SizedBox(width: cs(16)),
+              CsButton.primary(
+                label: 'Agree & Continue',
+                icon: Symbols.rocket_launch_rounded,
+                onPressed: _privacyAccepted
+                    ? () => setState(() => _showPrivacyPolicy = false)
+                    : null,
+              ),
+            ],
           ),
         ],
       ),
@@ -489,89 +284,47 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
   /// or tapping "I Changed My Mind" no-ops and leaves them on the auth
   /// screen so they can pick Google / Email instead.
   Future<void> _confirmGuestLogin(AuthCubit authCubit) async {
-    final theme = context.read<ThemeCubit>().state.currentTheme;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
+    final confirmed = await showCsDialog<bool>(
+      context,
       // Force an explicit choice — the warning matters too much to dismiss
       // by tapping outside the dialog.
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: theme.backgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: theme.accentColor.withValues(alpha: 0.3),
-          ),
-        ),
-        title: Row(
-          children: [
-            Icon(
-              Icons.warning_amber_rounded,
-              color: theme.foodColor,
-              size: 28,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Heads up',
-                style: TextStyle(
-                  color: theme.accentColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
+      builder: (dialogContext) => CsDialog(
+        icon: Symbols.warning_rounded,
+        iconColor: CsColors.gold,
+        eyebrow: 'Guest account',
+        title: 'Heads up',
+        content: const Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _GuestWarningBullet(
-              icon: Icons.delete_outline_rounded,
+              icon: Symbols.delete_rounded,
               text: 'Guest data is automatically deleted from our '
                   'servers after 90 days of inactivity.',
-              theme: theme,
             ),
-            const SizedBox(height: 14),
             _GuestWarningBullet(
-              icon: Icons.cloud_sync_rounded,
+              icon: Symbols.cloud_sync_rounded,
               text: 'To save your progress permanently and play across '
                   'devices, sign in with Google or Email instead.',
-              theme: theme,
             ),
-            const SizedBox(height: 14),
             _GuestWarningBullet(
-              icon: Icons.shopping_cart_outlined,
+              icon: Symbols.shopping_cart_rounded,
               text: 'Guest accounts cannot purchase products or '
                   'subscriptions. Sign in if you want to upgrade to Pro '
                   'or buy cosmetics.',
-              theme: theme,
+              last: true,
             ),
           ],
         ),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(
-              'I changed my mind',
-              style: TextStyle(
-                color: theme.accentColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          TextButton(
+          CsButton.text(
+            label: 'Proceed anyway',
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(
-              'Proceed anyway',
-              style: TextStyle(
-                color: theme.foodColor.withValues(alpha: 0.85),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+          ),
+          CsButton.primary(
+            label: 'I changed my mind',
+            onPressed: () => Navigator.of(dialogContext).pop(false),
           ),
         ],
       ),
@@ -616,63 +369,138 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
 
   void _showError(String message) {
     if (!mounted) return;
+    showCsToast(context, message, kind: CsToastKind.error);
+  }
+}
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
+/// Left column of the onboarding screens: logo mark, mono eyebrow, a big
+/// Syne headline with one prism word, and body copy. Never scrolls — scales
+/// down on short phones.
+class _AuthIntro extends StatelessWidget {
+  const _AuthIntro({required this.eyebrow, required this.headline, required this.body});
+  final String eyebrow;
+
+  /// Two parts; the second is painted in prism.
+  final List<String> headline;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    return CsFitColumn(
+      alignment: Alignment.centerLeft,
+      children: [
+        const CsLogoMark(size: 44),
+        SizedBox(height: cs(26)),
+        CsLabel(eyebrow),
+        SizedBox(height: cs(10)),
+        CsHeadline(headline, prismIndex: 1, style: t.title),
+        SizedBox(height: cs(14)),
+        Text(body, style: t.body.copyWith(fontSize: cs(14))),
+      ],
+    );
+  }
+}
+
+/// White primary pill with the Google "G" brand glyph (FontAwesome).
+/// [CsButton] only takes an [IconData], and FontAwesome 11 glyphs are
+/// [FaIconData], so the pill is composed here with the same metrics.
+class _GoogleSignInButton extends StatelessWidget {
+  const _GoogleSignInButton({required this.onPressed});
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return CsPressable(
+      onTap: onPressed,
+      semanticLabel: 'Sign in with Google',
+      child: Container(
+        constraints: BoxConstraints(minHeight: cs(48).clamp(44.0, 64.0)),
+        padding: EdgeInsets.symmetric(horizontal: cs(26)),
+        decoration: const ShapeDecoration(color: CsColors.ink, shape: StadiumBorder()),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, color: Colors.white),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(message, style: const TextStyle(fontSize: 16)),
+            FaIcon(FontAwesomeIcons.google, size: cs(17), color: CsColors.onLight),
+            SizedBox(width: cs(10)),
+            Flexible(
+              child: Text(
+                'SIGN IN WITH GOOGLE',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: cs.type.button.copyWith(color: CsColors.onLight),
+              ),
             ),
           ],
         ),
-        backgroundColor: Colors.red,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
       ),
     );
   }
 }
 
-/// Single-line warning row used inside the guest-confirmation dialog —
-/// theme-tinted icon on the left, body text on the right. Kept private
-/// to this file because no other screen renders the same pattern.
-class _GuestWarningBullet extends StatelessWidget {
-  const _GuestWarningBullet({
-    required this.icon,
-    required this.text,
-    required this.theme,
-  });
-
-  final IconData icon;
-  final String text;
-  final GameTheme theme;
+/// Theme checkbox + label; the whole row is the tap target.
+class _ConsentCheck extends StatelessWidget {
+  const _ConsentCheck({required this.value, required this.label, required this.onChanged});
+  final bool value;
+  final String label;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(
-          icon,
-          color: theme.accentColor.withValues(alpha: 0.85),
-          size: 20,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              color: theme.accentColor.withValues(alpha: 0.85),
-              fontSize: 14,
-              height: 1.4,
+    final cs = context.cs;
+    return CsPressable(
+      scale: 0.99,
+      onTap: () => onChanged(!value),
+      semanticLabel: label,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Row(
+          children: [
+            SizedBox.square(
+              dimension: 32,
+              child: Checkbox(value: value, onChanged: (v) => onChanged(v ?? false)),
             ),
-          ),
+            SizedBox(width: cs(10)),
+            Expanded(
+              child: Text(
+                label,
+                style: cs.type.display(13, weight: FontWeight.w600, em: 0, height: 1.3, color: CsColors.ink),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
+    );
+  }
+}
+
+/// Warning row inside the guest-confirmation dialog — gold glyph, body text,
+/// hairline under each row except the last.
+class _GuestWarningBullet extends StatelessWidget {
+  const _GuestWarningBullet({required this.icon, required this.text, this.last = false});
+
+  final IconData icon;
+  final String text;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: cs(10)),
+      decoration: BoxDecoration(
+        border: Border(bottom: last ? BorderSide.none : const BorderSide(color: CsColors.hairline)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: cs(18), color: CsColors.ink60),
+          SizedBox(width: cs(12)),
+          Expanded(child: Text(text, style: cs.type.body.copyWith(fontSize: cs(14)))),
+        ],
+      ),
     );
   }
 }
