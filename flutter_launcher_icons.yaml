@@ -14,6 +14,11 @@ flutter_launcher_icons:
   adaptive_icon_foreground_inset: 8
   remove_alpha_ios: true
   background_color_ios: "#0A0A0D"
+  # iOS 18 dark + tinted appearances: the rocket on transparent (the system
+  # supplies the dark ground); tinted is derived from it in grayscale.
+  image_path_ios_dark_transparent: "assets/branding/icon-ios-dark-1024.png"
+  image_path_ios_tinted_grayscale: "assets/branding/icon-ios-tinted-1024.png"
+  desaturate_tinted_to_grayscale_ios: true
   web:
     generate: true
     image_path: "assets/branding/icon-512.png"

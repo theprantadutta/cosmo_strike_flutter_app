@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#05060F</color>
+    <color name="ic_launcher_background">#0A0A0D</color>
+    <!-- Prism pink: tints the ic_stat_notify silhouette in the shade. -->
+    <color name="notification_accent">#FF8AD8</color>
 </resources>

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' show Color;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -321,6 +322,8 @@ class NotificationService {
       priority: Priority.high,
       ticker: 'Cosmo Strike',
       icon: '@drawable/ic_stat_notify',
+      // Prism pink accent for the small icon (matches the FCM default).
+      color: Color(0xFFFF8AD8),
       playSound: true,
       enableVibration: true,
     );
