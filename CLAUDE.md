@@ -12,7 +12,7 @@ Cosmo Strike is played **horizontally**. The app is locked to landscape
 (status/navigation bars hidden, `SystemUiMode.immersiveSticky`).
 
 **Design and lay out every screen for a wide, short landscape viewport** —
-centered max-width glass cards for forms/dialogs, two-region (left/right) layouts
+centered max-width dialog cards for forms, two-region (left/right) layouts
 for content, never tall portrait-stacked columns that overflow below the fold.
 
 ## ⚠️ Architecture: OFFLINE-FIRST, DRIFT IS THE SOURCE OF TRUTH
@@ -55,42 +55,39 @@ one-off API call.
 - **Auth/users:** `unified_user_service.dart` (guest / anonymous / Google),
   Firebase Auth; guests can upgrade and keep local progress via the first-sign-in pull.
 
-## Visual design — "Command HUD" (clean / minimal)
-Sleek sci-fi neon aesthetic: deep-indigo/near-black base, neon cyan + magenta
-accents, glassmorphic panels, a full custom-painted deep-space background
-(`lib/ui/widgets/starfield_background.dart`: gradient + nebulae + sun/planets/moon
-+ a drifting parallax starfield & comet). Design system lives in `lib/ui/`
-(barrel `lib/ui/design.dart`):
-- `CommandScaffold` — app shell (space bg + glass top bar + landscape SafeArea).
-- `GlassPanel` / `HoloCard` — frosted-glass surfaces / tappable tiles.
-- `NeonButton` — the standard button. `HudChip` — telemetry pill (`bordered` opt-out).
-- `StarfieldBackground`, `HoloLogo`, `LaunchEmblem`, `GameTokens`.
-- Per-skin neon getters on `GameTheme` (`lib/utils/constants.dart`): `neonPrimary`,
-  `neonSecondary`, `glow`, `stroke`, `surface`, `surfaceGlass`, `textPrimary`,
-  `textMuted`, `gridLine`.
+## Visual design — "Prism Noir"
+Near-black canvas (#0A0A0D UI, #08080B in-game), iridescent prism gradient
+(cyan #7CF5FF → violet #A78BFA → pink #FF8AD8 → gold #FFD58A, + mint #9BFFC8)
+used sparingly as the only colour, big Syne 800 headlines, IBM Plex Mono
+uppercase labels, 1px hairlines instead of cards. Source kit (mocks + exact
+CSS): `docs/redesign/AGENT_BRIEF.md` explains where it lives and the rules.
 
-**Clean/minimal direction (hard rules, learned from the home/loading/daily
-redesigns — apply to every future screen):**
-- **No borders, ever**: no hairline strokes on cards, buttons, chips, pills,
-  app bars, or the back button.
-- **Prefer FULLY transparent over glass**: list cards, nav chips, top command
-  bars, and hero CTAs float straight on the starfield — no fills, no gradients,
-  and no `GlassPanel`/`BackdropFilter` behind them (the blur frosts the scene
-  into a visible dark box even with a transparent fill). Reserve subtle tinted
-  fills for deliberate highlights only (e.g. a gold celebration card).
-- **Keep tap targets**: transparent tappables need
-  `behavior: HitTestBehavior.opaque` (whole area tappable, not just the paint).
-- Definition comes from **neon icon discs, slim (≈6px) progress bars, glow,
-  spacing, and the cyan/magenta accents** — never outlines or boxes.
-- **Landscape two-region layouts** (e.g. telemetry/summary left, list right);
-  side panels must **never scroll** — render at natural size inside
-  `FittedBox(scaleDown)` so they use the height responsively.
-- Background scenery is dimmed (bodies ~50%, stars capped) so white/grey text
-  stays readable over it — don't brighten it back up under text.
-
-Build new screens with `CommandScaffold` + these widgets. Reference screens:
-`home_screen.dart` (menu hub), `leaderboard_screen.dart` (list/detail),
-`username_setup_screen.dart` / `email_auth_screen.dart` (centered form card).
+- Tokens + ThemeData: `lib/theme/cosmo_theme.dart` (`CsColors`, `CsGradients`,
+  `CsMotion`, `buildCosmoTheme()`).
+- Components: `lib/ui/cs/` — import ONLY the barrel `lib/ui/cs.dart` (also
+  re-exports Material Symbols; use `Symbols.*_rounded`, filled by theme).
+  `CsScaffold` (canvas + SafeArea + `CsTopBar`) → `CsSplit` (summary left,
+  content right) is the standard screen. Buttons: `CsButton.primary` (one white
+  pill per screen) / `.secondary` / `.text` / `.premium` (gold) / `.prism`.
+  Also `CsTile` (done/current/selected/future/locked/pro), `CsPrismRing`,
+  `CsPrismText`, `CsProgressLine`, `CsRingProgress`, `CsStatGrid`,
+  `CsListRow`, `CsAvatarRing`, `CsChip`, `CsSegmented`, `CsToggleChip`,
+  `showCsDialog`/`CsDialog`, `showCsConfirm`, `showCsToast`,
+  `CsLoadingState`/`CsEmptyState`.
+- **Responsive:** every size goes through `context.cs` (`cs(16)` scales a value
+  from the 960×432 design frame; factor clamps 0.72–1.4 by the tighter axis)
+  and `context.type` (pre-scaled type scale). Must look designed on 640×360
+  phones up to 13" iPads: distribute tablet height with Expanded/Spacer, side
+  columns never scroll (`CsFitColumn`), lists may. No raw px font sizes.
+- Prism marks only the 1–2 things that matter per screen. Semantic colours:
+  mint = success, gold = coins/reward/premium, pink = danger/game over,
+  violet = XP, cyan = info. No glows/shadows, no glassmorphism (pause scrim is
+  the one blur), no looping shimmer.
+- Purchased colour themes (`ThemeCubit` / `GameTheme`) tint **gameplay only**
+  via `CosmoPalette`; menus are always Prism Noir. Don't colour UI from
+  `GameTheme` getters.
+- Dialogs are centred `CsDialog`s (no bottom sheets in landscape); toasts via
+  `showCsToast` / `RewardToast`.
 
 ## Gameplay: choreographed sprite campaign
 The Flame game is a 12-level campaign (4 biomes × 3 levels) with modes as
@@ -131,7 +128,7 @@ modifiers on top. Key pieces (all in `lib/game/`):
 
 ## Structure
 - `lib/game/` — Flame gameplay (logic off-limits; reskin via palette/render only).
-- `lib/ui/` — the command-HUD design system (widgets + tokens; barrel `design.dart`).
+- `lib/theme/` + `lib/ui/cs/` — the Prism Noir design system (barrel `lib/ui/cs.dart`).
 - `lib/screens/` — full screens. `lib/widgets/` — shared widgets/overlays.
 - `lib/data/` — Drift `database/`, `daos/`, datasources (local cache / remote api).
 - `lib/services/` — app services incl. `sync/sync_engine.dart`, `data_sync_service.dart`,
@@ -148,8 +145,8 @@ modifiers on top. Key pieces (all in `lib/game/`):
   Icon/splash config lives in the standalone `flutter_launcher_icons.yaml` and
   `flutter_native_splash.yaml` files at the app root (these override pubspec —
   keep config ONLY there, never duplicated in pubspec.yaml).
-  Brand mark = Material `Icons.rocket_launch` in neon cyan; sources in
-  `assets/icon/` (not bundled).
+  Brand mark = the prism rocket; icon/splash sources in `assets/branding/`
+  (not bundled); in-app brand art in `assets/images/brand/`.
 - Drift schema is currently collapsed to **schemaVersion 1**; changing tables may
   require an `adb shell pm clear com.pranta.cosmostrike` on dev devices.
 - Keep home-screen walkthrough `GlobalKey`s (`HomeWalkthrough.*`) attached to their
