@@ -178,6 +178,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  /// Reads the Drift daily-bonus row directly and applies the same
+  /// local-day rule as [CoinsState.wasDailyBonusClaimedToday].
+  Future<bool> _bonusClaimedTodayInDrift() async {
+    try {
+      final storage = StorageService();
+      if (!storage.isInitialized) return false;
+      final row = await storage.storeDao.getDailyBonusRow();
+      if (row?.lastClaimUtcMs == null) return false;
+      return CoinsState.initial()
+          .copyWith(
+            dailyBonusLastClaimUtcMs: row!.lastClaimUtcMs,
+            dailyBonusLastClaimTzOffsetMinutes: row.lastClaimTzOffsetMinutes,
+          )
+          .wasDailyBonusClaimedToday;
+    } catch (e) {
+      AppLogger.error('Daily bonus Drift check failed', e);
+      return false;
+    }
+  }
+
   /// Check and show daily bonus popup if available.
   /// Offline-first: reads CoinsCubit's local state. No network call.
   Future<void> _checkDailyBonus() async {
@@ -186,9 +206,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     if (!mounted) return;
 
-    // Frontend gate: already claimed today, skip everything
+    // Wait until CoinsCubit has hydrated from Drift. Before that its state
+    // is the "never claimed" default, so checking early (slow cold start,
+    // debug builds) popped the bonus again for a day already claimed.
     final coinsCubit = context.read<CoinsCubit>();
+    if (!coinsCubit.state.isReady) {
+      try {
+        await coinsCubit.stream
+            .firstWhere((s) => s.isReady)
+            .timeout(const Duration(seconds: 10));
+      } catch (_) {
+        return; // Not ready (or errored): never risk a duplicate prompt.
+      }
+      if (!mounted) return;
+    }
+
+    // Frontend gate: already claimed today, skip everything. Drift is the
+    // source of truth, so re-read the row directly rather than trusting
+    // cubit state alone.
     if (coinsCubit.wasDailyBonusClaimedToday) return;
+    if (await _bonusClaimedTodayInDrift()) return;
+    if (!mounted) return;
 
     try {
       DailyBonusStatus? status;
