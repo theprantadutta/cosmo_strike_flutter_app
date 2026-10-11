@@ -1,6 +1,17 @@
-# Native splash — near-black Prism Noir ground + the prism rocket mark.
-# Same ground in light and dark so the hand-off to the animated Flutter splash
-# (LoadingScreen) is seamless: native splash → identical colour → logo animates.
+# Native splash — the prism rocket alone on the Prism Noir ground.
+#
+# Seamless hand-off (same approach as the ai-persona app): the native splash
+# and the first frame of the Flutter splash (LoadingScreen) draw the SAME
+# image (assets/images/brand/splash-mark.png) at the SAME size, centred on the
+# same #0A0A0D, so removing the native splash is invisible; then the Flutter
+# splash animates everything else into place.
+#
+# Sizes fail silently here — keep them exact if you replace a file:
+#  - image: 1024x1024 at 4x → 256dp; the rocket's bbox is 480px → 120dp.
+#  - android_12.image: 1152x1152 at 4x → 288dp; same 480px rocket, every
+#    pixel (glow included) inside the centred 768px circle Android 12 crops to.
+#  - No branding slot: Android 12 places it at a fixed bottom position we
+#    can't match from Flutter, so the wordmark arrives in the Flutter splash.
 # Regenerate with: dart run flutter_native_splash:create
 # ⚠️ The create command rewrites AndroidManifest.xml and STRIPS
 #    android:screenOrientation="sensorLandscape" from MainActivity —
@@ -15,8 +26,6 @@ flutter_native_splash:
     color_dark: "#0A0A0D"
     image: assets/branding/android12-splash-icon-1152.png
     image_dark: assets/branding/android12-splash-icon-1152.png
-    branding: assets/branding/android12-branding-800x320.png
-    branding_dark: assets/branding/android12-branding-800x320.png
   fullscreen: true
   android: true
   ios: true

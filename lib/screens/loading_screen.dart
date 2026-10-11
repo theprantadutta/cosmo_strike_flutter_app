@@ -31,7 +31,8 @@ class LoadingScreen extends StatefulWidget {
 
 class _LoadingScreenState extends State<LoadingScreen>
     with TickerProviderStateMixin {
-  late AnimationController _progressController;
+  /// One timeline for the whole entrance; see [_SplashStage].
+  late final AnimationController _intro;
 
   String _currentTask = 'Initializing Cosmo Strike...';
   double _progress = 0.0;
@@ -64,10 +65,10 @@ class _LoadingScreenState extends State<LoadingScreen>
     // Hide the Splash Screen after initialization
     FlutterNativeSplash.remove();
 
-    _progressController = AnimationController(
-      duration: const Duration(milliseconds: 200), // Faster progress updates
-      vsync: this,
-    );
+    // Frame 0 is pixel-identical to the native splash; the timeline then
+    // lifts the mark and brings everything else into place.
+    _intro = AnimationController(vsync: this, duration: _SplashStage.duration)
+      ..forward();
 
     // Seed a random starting tip so it's not always the same on every launch,
     // then rotate through them with a gentle fade while loading.
@@ -86,7 +87,7 @@ class _LoadingScreenState extends State<LoadingScreen>
   @override
   void dispose() {
     _tipTimer?.cancel();
-    _progressController.dispose();
+    _intro.dispose();
     super.dispose();
   }
 
@@ -130,15 +131,8 @@ class _LoadingScreenState extends State<LoadingScreen>
       // preload, adding its full duration to the loading screen even
       // though the two operations don't depend on each other (drain is
       // POST-to-server, preload is GET-from-server).
-      await _updateProgress(
-        0.60,
-        'Loading game data...',
-        'Fetching Game Data',
-      );
-      await Future.wait([
-        _preloadAllDataConcurrently(),
-        _drainSyncQueue(),
-      ]);
+      await _updateProgress(0.60, 'Loading game data...', 'Fetching Game Data');
+      await Future.wait([_preloadAllDataConcurrently(), _drainSyncQueue()]);
 
       // Step 6: Initialize Audio System
       await _updateProgress(
@@ -165,13 +159,18 @@ class _LoadingScreenState extends State<LoadingScreen>
           );
         } catch (e) {
           // Timeout - fall back to checking SharedPreferences directly
-          AppLogger.warning('AuthCubit local init timeout, checking prefs directly');
+          AppLogger.warning(
+            'AuthCubit local init timeout, checking prefs directly',
+          );
           try {
             final prefs = await SharedPreferences.getInstance();
-            final isFirstTimeFromPrefs = !(prefs.getBool('first_time_setup_complete') ?? false);
+            final isFirstTimeFromPrefs =
+                !(prefs.getBool('first_time_setup_complete') ?? false);
             // Update state if needed (though authCubit should have it by now)
             if (authCubit.state.isFirstTimeUser != isFirstTimeFromPrefs) {
-              AppLogger.info('Using direct prefs check: isFirstTime=$isFirstTimeFromPrefs');
+              AppLogger.info(
+                'Using direct prefs check: isFirstTime=$isFirstTimeFromPrefs',
+              );
             }
           } catch (_) {
             // Ignore - use whatever authCubit has
@@ -190,6 +189,8 @@ class _LoadingScreenState extends State<LoadingScreen>
           if (!mounted) {
             return;
           }
+          await _introDone();
+          if (!mounted) return;
           context.go(AppRoutes.firstTimeAuth);
           return;
         }
@@ -199,6 +200,8 @@ class _LoadingScreenState extends State<LoadingScreen>
       // last accepted it, gate them through the re-consent screen first.
       final policyAccepted = await PrivacyPolicy.isCurrentVersionAccepted();
       if (!policyAccepted) {
+        if (!mounted) return;
+        await _introDone();
         if (!mounted) return;
         context.go(AppRoutes.privacyConsent);
         return;
@@ -216,6 +219,8 @@ class _LoadingScreenState extends State<LoadingScreen>
 
       // Navigation to Home Screen with smooth transition (returning users)
       if (mounted) {
+        await _introDone();
+        if (!mounted) return;
         context.go(AppRoutes.home);
       }
     } catch (error) {
@@ -364,10 +369,7 @@ class _LoadingScreenState extends State<LoadingScreen>
       );
       final userId = unifiedUserService.currentUser?.uid ?? 'local_pending';
 
-      final syncService = Provider.of<DataSyncService>(
-        context,
-        listen: false,
-      );
+      final syncService = Provider.of<DataSyncService>(context, listen: false);
 
       await syncService.initialize(userId);
       AppLogger.success('DataSyncService initialized with userId: $userId');
@@ -398,15 +400,18 @@ class _LoadingScreenState extends State<LoadingScreen>
         return;
       }
 
-      final syncService = Provider.of<DataSyncService>(
-        context,
-        listen: false,
-      );
+      final syncService = Provider.of<DataSyncService>(context, listen: false);
       await syncService.forceSyncNow();
       AppLogger.success('Force sync completed');
     } catch (e) {
       AppLogger.sync('Force sync warning', e);
     }
+  }
+
+  /// Never cut the entrance off mid-flight on a fast launch.
+  Future<void> _introDone() async {
+    if (_intro.isCompleted) return;
+    await _intro.forward().orCancel.catchError((_) {});
   }
 
   Future<void> _updateProgress(
@@ -420,9 +425,6 @@ class _LoadingScreenState extends State<LoadingScreen>
       _progress = progress;
       _currentTask = message;
     });
-
-    _progressController.reset();
-    _progressController.forward();
 
     // Minimal delay for UI update (reduced from 50ms)
     await Future.delayed(const Duration(milliseconds: 16)); // ~1 frame
@@ -452,107 +454,21 @@ class _LoadingScreenState extends State<LoadingScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Prism Noir splash: identical #0A0A0D ground to the native splash, so the
-    // hand-off is invisible; then the mark scales in, the wordmark rises and
-    // the prism line tracks real init progress.
     return Scaffold(
       backgroundColor: CsColors.bg,
-      body: CsBackground(
-        stars: true,
-        washes: const [CsWash.violetCenter, CsWash.cyanBottomLeft, CsWash.pinkBottomRight],
-        child: SafeArea(
-          child: AnimatedSwitcher(
-            duration: CsMotion.slow,
-            child: _hasError ? _buildErrorView() : _buildLoadingView(),
-          ),
-        ),
+      body: AnimatedSwitcher(
+        duration: CsMotion.slow,
+        child: _hasError
+            ? SafeArea(child: _buildErrorView())
+            : _SplashStage(
+                key: const ValueKey('loading'),
+                intro: _intro,
+                progress: _progress,
+                status: _currentTask.replaceAll('...', '').replaceAll('…', ''),
+                tip: _tips[_tipIndex],
+                tipKey: _tipIndex,
+              ),
       ),
-    );
-  }
-
-  Widget _buildLoadingView() {
-    final cs = context.cs;
-    final t = cs.type;
-    return Stack(
-      key: const ValueKey('loading'),
-      children: [
-        Center(
-          child: SingleChildScrollView(
-            physics: const NeverScrollableScrollPhysics(),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: 1),
-                  duration: const Duration(milliseconds: 500),
-                  curve: CsMotion.standard,
-                  builder: (_, v, child) => Opacity(
-                    opacity: v,
-                    child: Transform.scale(scale: 0.92 + 0.08 * v, child: child),
-                  ),
-                  child: CsLogoMark(size: cs.isCompact ? 110 : 150),
-                ),
-                SizedBox(height: cs(22)),
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: 1),
-                  duration: const Duration(milliseconds: 500),
-                  curve: const Interval(0.3, 1, curve: CsMotion.standard),
-                  builder: (_, v, child) => Opacity(
-                    opacity: v,
-                    child: Transform.translate(offset: Offset(0, 8 * (1 - v)), child: child),
-                  ),
-                  child: const CsWordmark(size: 26, spacing: 0.2),
-                ),
-                SizedBox(height: cs(22)),
-                CsProgressLine(value: _progress, width: cs(180), gradient: CsGradients.prism),
-                SizedBox(height: cs(18)),
-                AnimatedSwitcher(
-                  duration: CsMotion.base,
-                  child: Text(
-                    _currentTask.replaceAll('...', '').replaceAll('…', '').toUpperCase(),
-                    key: ValueKey(_currentTask),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: t.mono(10, em: 0.2, color: CsColors.ink55),
-                  ),
-                ),
-                SizedBox(height: cs(14)),
-                SizedBox(
-                  width: cs(420),
-                  height: cs(36),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 500),
-                    child: Text(
-                      _tips[_tipIndex],
-                      key: ValueKey<int>(_tipIndex),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: t.body.copyWith(color: CsColors.ink30),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: cs(18),
-          child: FutureBuilder<PackageInfo>(
-            future: PackageInfo.fromPlatform(),
-            builder: (context, snap) {
-              final v = snap.data?.version;
-              return Text(
-                [if (v != null) 'v$v', 'Developed by Pranta Dutta'].join(' · ').toUpperCase(),
-                textAlign: TextAlign.center,
-                style: t.mono(10, color: CsColors.ink30),
-              );
-            },
-          ),
-        ),
-      ],
     );
   }
 
@@ -569,6 +485,245 @@ class _LoadingScreenState extends State<LoadingScreen>
               onPressed: _retryInitialization,
             )
           : SizedBox(height: cs(1)),
+    );
+  }
+}
+
+/// The animated splash.
+///
+/// Frame 0 matches the native splash exactly: the same
+/// `splash-mark.png` (256dp box, 120dp rocket) centred on the same #0A0A0D,
+/// with nothing else drawn — so the native → Flutter hand-off is invisible.
+/// The timeline then lifts and settles the mark, blooms a soft prism wash
+/// behind it, rises the COSMO/STRIKE letters in a stagger, draws the prism
+/// slash and progress line, and finally fades in the status, tip, stars and
+/// footer.
+class _SplashStage extends StatelessWidget {
+  const _SplashStage({
+    super.key,
+    required this.intro,
+    required this.progress,
+    required this.status,
+    required this.tip,
+    required this.tipKey,
+  });
+
+  static const duration = Duration(milliseconds: 1700);
+
+  /// Native splash geometry (see flutter_native_splash.yaml).
+  static const _markBox = 256.0;
+  static const _rocket = 120.0;
+
+  final AnimationController intro;
+  final double progress;
+  final String status;
+  final String tip;
+  final int tipKey;
+
+  static double _seg(
+    double t,
+    double a,
+    double b, [
+    Curve c = CsMotion.standard,
+  ]) => c.transform(((t - a) / (b - a)).clamp(0.0, 1.0));
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = box.maxWidth, h = box.maxHeight;
+
+        // Final composition: mark, wordmark, line, status, tip — centred as a
+        // group. Sizes scale with the device; the mark never grows past the
+        // native size so the lift reads as "settling", not zooming.
+        final endScale = (cs.s * 0.92).clamp(0.62, 1.0);
+        final rocketEnd = _rocket * endScale;
+        final below = cs(26) + cs(22) + 2 + cs(18) + cs(14) + cs(14) + cs(34);
+        final group = rocketEnd + cs(24) + below;
+        final rocketEndCy = (h - group) / 2 + rocketEnd / 2;
+        final belowTop = rocketEndCy + rocketEnd / 2 + cs(24);
+
+        return AnimatedBuilder(
+          animation: intro,
+          builder: (context, _) {
+            final v = intro.value;
+            final lift = _seg(v, 0.08, 0.52);
+            final scale = 1 + (endScale - 1) * lift;
+            final cy = h / 2 + (rocketEndCy - h / 2) * lift;
+            final bloom = _seg(v, 0.18, 0.75);
+            final late = _seg(v, 0.68, 1.0);
+
+            return Stack(
+              children: [
+                // Washes + stars arrive with the bloom; frame 0 is flat #0A0A0D.
+                Positioned.fill(
+                  child: Opacity(
+                    opacity: bloom,
+                    child: const CsBackground(
+                      stars: true,
+                      washes: [
+                        CsWash.violetCenter,
+                        CsWash.cyanBottomLeft,
+                        CsWash.pinkBottomRight,
+                      ],
+                    ),
+                  ),
+                ),
+                // The mark: same image + size as the native splash at frame 0.
+                Positioned(
+                  left: w / 2 - _markBox * scale / 2,
+                  top: cy - _markBox * scale / 2,
+                  width: _markBox * scale,
+                  height: _markBox * scale,
+                  child: Image.asset(
+                    'assets/images/brand/splash-mark.png',
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.medium,
+                    gaplessPlayback: true,
+                  ),
+                ),
+                // Everything that falls into place under the mark.
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: belowTop,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _StaggeredWordmark(value: v),
+                      SizedBox(height: cs(22)),
+                      Opacity(
+                        opacity: _seg(v, 0.58, 0.8),
+                        child: SizedBox(
+                          width: cs(180) * _seg(v, 0.58, 0.9),
+                          child: CsProgressLine(
+                            value: progress,
+                            gradient: CsGradients.prism,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: cs(18)),
+                      Opacity(
+                        opacity: late,
+                        child: AnimatedSwitcher(
+                          duration: CsMotion.base,
+                          child: Text(
+                            status.toUpperCase(),
+                            key: ValueKey(status),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: t.mono(10, em: 0.2, color: CsColors.ink55),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: cs(14)),
+                      Opacity(
+                        opacity: late,
+                        child: SizedBox(
+                          width: cs(440),
+                          height: cs(34),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 500),
+                            child: Text(
+                              tip,
+                              key: ValueKey<int>(tipKey),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: t.body.copyWith(color: CsColors.ink30),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: MediaQuery.paddingOf(context).bottom + cs(18),
+                  child: Opacity(
+                    opacity: late,
+                    child: FutureBuilder<PackageInfo>(
+                      future: PackageInfo.fromPlatform(),
+                      builder: (context, snap) {
+                        final ver = snap.data?.version;
+                        return Text(
+                          [
+                            if (ver != null) 'v$ver',
+                            'Developed by Pranta Dutta',
+                          ].join(' · ').toUpperCase(),
+                          textAlign: TextAlign.center,
+                          style: t.mono(10, color: CsColors.ink30),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// COSMO/STRIKE with each letter rising 10px and fading in on a 25ms
+/// stagger; the prism slash draws in last.
+class _StaggeredWordmark extends StatelessWidget {
+  const _StaggeredWordmark({required this.value});
+  final double value;
+
+  static const _letters = 'COSMO/STRIKE';
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final st = context.type.display(26, em: 0.2, height: 1);
+    final rise = cs(10);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < _letters.length; i++)
+          Builder(
+            builder: (context) {
+              final start = 0.3 + i * 0.022;
+              final p = _SplashStage._seg(
+                value,
+                start,
+                start + 0.24,
+                Curves.easeOutCubic,
+              );
+              final ch = _letters[i];
+              if (ch == '/') {
+                final draw = _SplashStage._seg(value, 0.5, 0.74);
+                return Opacity(
+                  opacity: draw,
+                  child: Transform.scale(
+                    scaleY: draw,
+                    child: CsPrismText(
+                      '/',
+                      style: st,
+                      gradient: const LinearGradient(
+                        colors: [CsColors.cyan, CsColors.pink],
+                      ),
+                    ),
+                  ),
+                );
+              }
+              return Opacity(
+                opacity: p,
+                child: Transform.translate(
+                  offset: Offset(0, rise * (1 - p)),
+                  child: Text(ch, style: st),
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 }
