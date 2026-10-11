@@ -1883,7 +1883,7 @@ class _ItemTile extends StatelessWidget {
 /// "Watch an ad for coins" row. Self-hides for Pro users / when ads are
 /// unavailable, and disables itself once the daily cap is hit or no ad is
 /// loaded. Credits coins offline-first via [CoinsCubit.earnCoins] — the same
-/// calls as the shared RewardedCoinsButton, restyled for the store list.
+/// calls as the old shared rewarded-coins card, restyled for the store list.
 class _RewardedCoinsRow extends StatefulWidget {
   const _RewardedCoinsRow();
 

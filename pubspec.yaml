@@ -42,8 +42,6 @@ dependencies:
   path: ^1.9.1
 
   # Animations and effects
-  flutter_animate: ^4.5.2
-
   # Fonts (Syne + IBM Plex Mono) are bundled as assets under assets/fonts/ and
   # declared in the flutter: fonts: section — no runtime download, fully offline.
 
