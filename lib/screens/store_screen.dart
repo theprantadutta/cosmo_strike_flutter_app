@@ -552,7 +552,8 @@ class _StoreScreenState extends State<StoreScreen>
               fallbackPrice: 39.99,
               cadence: '/yr',
               billedLabel: 'Billed yearly',
-              savingsLabel: 'Save 33%',
+              // Live from Play / App Store prices; hidden until both load.
+              savingsLabel: _yearlySavingsLabel(),
               featured: true,
             ),
           ),
@@ -1204,7 +1205,7 @@ class _StoreScreenState extends State<StoreScreen>
                 Text('All Themes Bundle', maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
                 SizedBox(height: cs(3)),
                 Text(
-                  'All 6 premium themes · save 33%',
+                  _themesBundleSubtitle(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: t.mono(10, em: 0.06, color: CsColors.ink55),
@@ -1276,6 +1277,40 @@ class _StoreScreenState extends State<StoreScreen>
       case GameTheme.accessible:
         return 'High-contrast, color-blind friendly';
     }
+  }
+
+  /// "Save N%" for yearly vs 12× monthly, from live store prices.
+  String? _yearlySavingsLabel() {
+    final pct = PurchaseService().yearlySavingsPercent(ProductIds.proMonthly, ProductIds.proYearly);
+    return pct == null ? null : 'Save $pct%';
+  }
+
+  static const _premiumThemeIds = [
+    ProductIds.crystalTheme,
+    ProductIds.cyberpunkTheme,
+    ProductIds.spaceTheme,
+    ProductIds.oceanTheme,
+    ProductIds.desertTheme,
+    ProductIds.forestTheme,
+  ];
+
+  /// Bundle subtitle; the saving is the bundle vs buying every premium theme
+  /// separately at live store prices (omitted until all prices load).
+  String _themesBundleSubtitle() {
+    final purchases = PurchaseService();
+    final bundle = purchases.getStorePriceValue(ProductIds.themesBundle);
+    final singles = _premiumThemeIds.map(purchases.getStorePriceValue).toList();
+    final sameCurrency = _premiumThemeIds.every(
+      (id) => purchases.getStoreCurrency(id) == purchases.getStoreCurrency(ProductIds.themesBundle),
+    );
+    final pct = (singles.contains(null) || !sameCurrency)
+        ? null
+        : PurchaseService.savingsPercent(
+            full: singles.fold<double>(0, (a, b) => a + b!),
+            actual: bundle,
+          );
+    final base = 'All ${_premiumThemeIds.length} premium themes';
+    return pct == null ? base : '$base · save $pct%';
   }
 
   String? _productIdForTheme(GameTheme target) {

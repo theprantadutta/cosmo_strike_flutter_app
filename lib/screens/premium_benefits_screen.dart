@@ -124,6 +124,13 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     );
   }
 
+  /// "Save N%" for yearly vs 12× monthly from live store prices; null
+  /// (no chip) until both plans have loaded.
+  String? _yearlySavingsLabel(PurchaseService purchases) {
+    final pct = purchases.yearlySavingsPercent(ProductIds.proMonthly, ProductIds.proYearly);
+    return pct == null ? null : 'Save $pct%';
+  }
+
   Widget _buildPurchasePanel() {
     final cs = context.cs;
     final t = cs.type;
@@ -172,7 +179,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
                   cadence: '/yr',
                   note: _trialLabel(ProductIds.proYearly) ?? 'Billed yearly',
                   noteIsTrial: _trialLabel(ProductIds.proYearly) != null,
-                  badge: 'Save 33%',
+                  badge: _yearlySavingsLabel(purchases),
                   featured: true,
                   busy: _subscribing && _isYearly,
                   busyLabel: _sawPurchaseSuccess ? 'Activating…' : 'Connecting…',
