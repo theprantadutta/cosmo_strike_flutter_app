@@ -562,7 +562,7 @@ class _TierStrip extends StatelessWidget {
     return LayoutBuilder(builder: (context, c) {
       final labelH = cs(14);
       final gap = cs(8);
-      final maxTile = cs(cs.isTablet ? 92 : 66);
+      final maxTile = cs(cs.isTablet ? 110 : 66);
       final tileH = ((c.maxHeight - labelH - gap * 2) / 2).clamp(36.0, maxTile);
       final tileW = cs(cs.isTablet ? 118 : 106);
       final extent = tileW + gap;
@@ -623,9 +623,17 @@ class _TierStrip extends StatelessWidget {
         },
       );
 
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [rowLabels, Expanded(child: strip)],
+      // Centre the two tracks in the free height so tall screens (iPad)
+      // don't leave an empty band under the grid.
+      return Align(
+        alignment: Alignment.center,
+        child: SizedBox(
+          height: labelH + gap * 2 + tileH * 2,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [rowLabels, Expanded(child: strip)],
+          ),
+        ),
       );
     });
   }

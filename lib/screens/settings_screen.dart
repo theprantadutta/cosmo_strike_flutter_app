@@ -302,8 +302,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ),
-        SizedBox(height: cs(10)),
-        CsButton.secondary(
+        // Short phones: the top-bar back arrow is enough; give the
+        // section list the room instead.
+        if (!cs.isCompact) SizedBox(height: cs(10)),
+        if (!cs.isCompact) CsButton.secondary(
           onPressed: () => context.pop(),
           label: 'Back to Game',
           icon: Symbols.arrow_back_rounded,

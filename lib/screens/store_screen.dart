@@ -177,14 +177,18 @@ class _StoreScreenState extends State<StoreScreen>
       animation: _tabController,
       builder: (context, _) {
         final cs = context.cs;
-        return CsFitColumn(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < _tabLabels.length; i++) ...[
-              if (i > 0) SizedBox(height: cs(2)),
-              _buildRailItem(i),
+        // Scrolls (rather than scaling down) on short phones so every
+        // category keeps a full 44dp tap target.
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < _tabLabels.length; i++) ...[
+                if (i > 0) SizedBox(height: cs(2)),
+                _buildRailItem(i),
+              ],
             ],
-          ],
+          ),
         );
       },
     );

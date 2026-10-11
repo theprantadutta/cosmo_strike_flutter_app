@@ -9,6 +9,9 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/branding/ic_launcher_foreground-1024.png"
   adaptive_icon_background: "assets/branding/ic_launcher_background-1024.png"
   adaptive_icon_monochrome: "assets/branding/ic_launcher_monochrome-1024.png"
+  # The kit art already carries its own padding; 8% (not the default 16%)
+  # keeps the rocket large while its nose stays inside circular masks.
+  adaptive_icon_foreground_inset: 8
   remove_alpha_ios: true
   background_color_ios: "#0A0A0D"
   web:

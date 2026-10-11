@@ -92,11 +92,17 @@ class CsDialog extends StatelessWidget {
                   ),
                   if (actions.isNotEmpty) ...[
                     SizedBox(height: cs(22)),
-                    Wrap(
-                      alignment: WrapAlignment.end,
-                      spacing: cs(10),
-                      runSpacing: cs(10),
-                      children: actions,
+                    // Align: a bare Wrap would shrink to its content inside
+                    // the start-aligned column and ignore WrapAlignment.end.
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Wrap(
+                        alignment: WrapAlignment.end,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: cs(10),
+                        runSpacing: cs(10),
+                        children: actions,
+                      ),
                     ),
                   ],
                 ],
