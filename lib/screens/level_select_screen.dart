@@ -329,16 +329,7 @@ class _LevelPanel extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   if (planet >= cs(36)) ...[
-                    SizedBox.square(
-                      dimension: planet,
-                      child: Opacity(
-                        opacity: unlocked ? 1 : 0.35,
-                        child: Image.asset(
-                          'assets/images/bg/planet-prism.png',
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
+                    CsPlanet(size: planet, dim: !unlocked),
                     SizedBox(height: cs(14)),
                   ],
                   Text(

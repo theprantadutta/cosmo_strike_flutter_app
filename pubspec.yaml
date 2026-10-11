@@ -139,7 +139,6 @@ flutter:
   assets:
     - assets/audio/
     - assets/images/brand/
-    - assets/images/bg/
     - assets/images/ui/
     # Gameplay sprites (Flutter asset dirs are not recursive — list each).
     - assets/game/player/

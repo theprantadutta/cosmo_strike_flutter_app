@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -730,8 +732,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 /// Lays out the menu: top bar, hero (vertically centred in the free space),
-/// bottom nav, with the prism planet + ship composited on the right. Works
-/// from a 640x360 phone up to a 13" iPad by scaling the planet to the space.
+/// bottom nav, with the eclipse scene bleeding off the right edge behind the
+/// content. Works from a 640x360 phone up to a 13" iPad: the scene is sized
+/// from the available height.
 class _HomeLayout extends StatelessWidget {
   const _HomeLayout({required this.topBar, required this.hero, required this.nav});
   final Widget topBar;
@@ -741,20 +744,19 @@ class _HomeLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = context.cs;
+    final pad = cs.screenPadding;
+    final safe = MediaQuery.paddingOf(context);
     return LayoutBuilder(builder: (context, c) {
-      final topClear = cs(52);
-      final planet = ((c.maxHeight - topClear) * 0.92).clamp(0.0, c.maxWidth * 0.40);
       return Stack(
         clipBehavior: Clip.none,
         children: [
-          // Planet + orbit + ship. Sits behind the content and may run under
-          // the top telemetry, like the mock.
+          // Behind everything; bleeds past the screen padding to the edges.
           Positioned(
-            right: cs(8),
-            top: topClear + (c.maxHeight - topClear - planet) / 2 - cs(16),
-            width: planet,
-            height: planet,
-            child: const IgnorePointer(child: _PlanetHero()),
+            left: -pad.left - safe.left,
+            top: -pad.top - safe.top,
+            right: -pad.right - safe.right,
+            bottom: -pad.bottom - safe.bottom,
+            child: const IgnorePointer(child: _EclipseHero()),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -807,29 +809,67 @@ class _HeroTitle extends StatelessWidget {
   }
 }
 
-/// Prism planet with a tilted orbit ring and the player ship riding it.
-class _PlanetHero extends StatelessWidget {
-  const _PlanetHero();
+/// Home hero art: a near-black planet sinking off the bottom-right corner,
+/// its limb lit by a thin prism rim (an eclipse), a faint orbit line, and the
+/// player ship gliding over it with a lit engine. Black canvas + prism as the
+/// accent — the planet is painted once; only the ship animates.
+class _EclipseHero extends StatefulWidget {
+  const _EclipseHero();
+
+  @override
+  State<_EclipseHero> createState() => _EclipseHeroState();
+}
+
+class _EclipseHeroState extends State<_EclipseHero> with SingleTickerProviderStateMixin {
+  late final AnimationController _drift =
+      AnimationController(vsync: this, duration: const Duration(seconds: 6));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Respect the system "reduce motion" setting.
+    if (MediaQuery.of(context).disableAnimations) {
+      _drift.stop();
+    } else if (!_drift.isAnimating) {
+      _drift.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _drift.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, c) {
-      final d = c.maxWidth;
+      final w = c.maxWidth, h = c.maxHeight;
+      final geo = _EclipseGeometry(Size(w, h));
+      final shipW = math.min(w * 0.2, h * 0.3);
       return Stack(clipBehavior: Clip.none, children: [
         Positioned.fill(
-          child: Image.asset('assets/images/bg/planet-prism.png', fit: BoxFit.contain),
+          child: RepaintBoundary(child: CustomPaint(painter: _EclipsePainter(geo))),
         ),
-        Positioned(
-          left: -d * 0.22,
-          right: -d * 0.3,
-          top: d * 0.36,
-          height: d * 0.26,
-          child: const CustomPaint(painter: _OrbitPainter()),
-        ),
-        Positioned(
-          left: d * 0.08,
-          top: d * 0.41,
-          width: d * 0.44,
+        AnimatedBuilder(
+          animation: _drift,
+          builder: (context, child) {
+            final t = _drift.value * 2 * math.pi;
+            final bob = math.sin(t) * h * 0.012;
+            final sway = math.sin(t * 0.5) * w * 0.008;
+            return Positioned(
+              left: geo.ship.dx - shipW / 2 + sway,
+              top: geo.ship.dy - shipW * 0.33 + bob,
+              width: shipW,
+              child: Transform.rotate(
+                angle: -0.06 + math.cos(t) * 0.012,
+                child: CustomPaint(
+                  painter: _ThrustPainter(pulse: 0.75 + 0.25 * math.sin(t * 4)),
+                  child: child,
+                ),
+              ),
+            );
+          },
           child: Image.asset('assets/images/ui/ship-hero.png', fit: BoxFit.contain),
         ),
       ]);
@@ -837,31 +877,184 @@ class _PlanetHero extends StatelessWidget {
   }
 }
 
-/// Thin tilted ellipse orbit around the planet.
-class _OrbitPainter extends CustomPainter {
-  const _OrbitPainter();
+/// Shared layout for the scene so the painter and the ship agree.
+class _EclipseGeometry {
+  _EclipseGeometry(this.size)
+      : r = _radius(size),
+        center = Offset(size.width * 0.80, size.height * 0.44 + _radius(size)),
+        ship = Offset(size.width * 0.66, size.height * 0.30);
+
+  // The scene spans the whole screen; the planet lives in the right ~40%.
+  static double _radius(Size s) => math.min(s.height * 0.72, s.width * 0.42);
+
+  final Size size;
+  final double r;
+  final Offset center;
+  final Offset ship;
+
+  /// Direction the light comes from (top-left), as a unit vector.
+  static const light = Offset(-0.62, -0.78);
+}
+
+class _EclipsePainter extends CustomPainter {
+  _EclipsePainter(this.g);
+  final _EclipseGeometry g;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final c = g.center, r = g.r;
+    final bounds = Offset.zero & size;
+    final litPoint = c + _EclipseGeometry.light * r;
+
+    // Fades anything on the dark (bottom-right) side of the planet.
+    Shader litMask(double reach) => LinearGradient(
+          begin: Alignment(
+            (litPoint.dx / size.width) * 2 - 1,
+            (litPoint.dy / size.height) * 2 - 1,
+          ),
+          end: Alignment(
+            ((c.dx - _EclipseGeometry.light.dx * r * reach) / size.width) * 2 - 1,
+            ((c.dy - _EclipseGeometry.light.dy * r * reach) / size.height) * 2 - 1,
+          ),
+          colors: const [Color(0xFFFFFFFF), Color(0x00FFFFFF)],
+        ).createShader(bounds);
+
+    // 1. Atmosphere: soft prism-violet halo hugging the lit limb.
+    canvas.saveLayer(bounds, Paint());
+    final haloR = r * 1.32;
+    canvas.drawCircle(
+      c,
+      haloR,
+      Paint()
+        ..shader = RadialGradient(
+          colors: const [Color(0x00A78BFA), Color(0x55A78BFA), Color(0x22FF8AD8), Color(0x00FF8AD8)],
+          stops: [r / haloR - 0.02, r / haloR, (r / haloR + 1) / 2, 1],
+        ).createShader(Rect.fromCircle(center: c, radius: haloR)),
+    );
+    canvas.drawRect(bounds, Paint()..shader = litMask(0.6)..blendMode = BlendMode.dstIn);
+    canvas.restore();
+
+    // 2. Orbit, back half (hidden behind the planet's body below).
+    final orbit = Rect.fromCenter(center: c, width: r * 3.1, height: r * 0.62);
+    final orbitPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0x33FFFFFF);
     canvas.save();
-    canvas.translate(size.width / 2, size.height / 2);
-    canvas.rotate(-0.14);
-    final r = Rect.fromCenter(center: Offset.zero, width: size.width, height: size.height * 0.28);
-    canvas.drawOval(
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate(-0.2);
+    canvas.translate(-c.dx, -c.dy);
+    canvas.drawArc(orbit, math.pi, math.pi, false, orbitPaint);
+    canvas.restore();
+
+    // 3. Body: graphite sphere, faintly lit from the top-left.
+    final body = Rect.fromCircle(center: c, radius: r);
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = const RadialGradient(
+          center: Alignment(-0.55, -0.7),
+          radius: 1.05,
+          colors: [Color(0xFF22222B), Color(0xFF121218), Color(0xFF09090C)],
+          stops: [0, 0.45, 1],
+        ).createShader(body),
+    );
+
+    // 4. Surface texture: a few faint latitude bands, clipped to the body.
+    canvas.save();
+    canvas.clipPath(Path()..addOval(body));
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate(-0.2);
+    final band = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0x08FFFFFF);
+    for (final k in [-0.55, -0.25, 0.1]) {
+      canvas.drawOval(Rect.fromCenter(center: Offset(0, r * k), width: r * 2.4, height: r * 0.34), band);
+    }
+    canvas.restore();
+
+    // 5. Rim light: prism stroke + soft glow, fading round to the dark side.
+    canvas.saveLayer(bounds, Paint());
+    final sweep = SweepGradient(
+      colors: const [CsColors.cyan, CsColors.violet, CsColors.pink, CsColors.gold, CsColors.cyan],
+      transform: GradientRotation(math.atan2(_EclipseGeometry.light.dy, _EclipseGeometry.light.dx) - 1.2),
+    ).createShader(body);
+    canvas.drawCircle(
+      c,
       r,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..shader = const LinearGradient(
-          colors: [Color(0x00FFFFFF), Color(0x80FFFFFF), Color(0x55FFFFFF), Color(0x00FFFFFF)],
-          stops: [0, .3, .75, 1],
-        ).createShader(r),
+        ..strokeWidth = r * 0.03
+        ..shader = sweep
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.035),
+    );
+    canvas.drawCircle(
+      c,
+      r - 0.75,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..shader = sweep,
+    );
+    canvas.drawRect(bounds, Paint()..shader = litMask(0.35)..blendMode = BlendMode.dstIn);
+    canvas.restore();
+
+    // 6. Orbit, front half (crosses in front of the planet).
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate(-0.2);
+    canvas.translate(-c.dx, -c.dy);
+    canvas.drawArc(
+      orbit,
+      0,
+      math.pi,
+      false,
+      orbitPaint
+        ..shader = LinearGradient(
+          colors: const [Color(0x00FFFFFF), Color(0x66FFFFFF), Color(0x00FFFFFF)],
+          stops: const [0.1, 0.45, 0.9],
+        ).createShader(orbit),
     );
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_OrbitPainter old) => false;
+  bool shouldRepaint(_EclipsePainter old) => old.g.size != g.size;
+}
+
+/// Engine glow + a short fading prism trail behind the ship's tail.
+class _ThrustPainter extends CustomPainter {
+  _ThrustPainter({required this.pulse});
+  final double pulse;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final tail = Offset(size.width * 0.06, size.height * 0.5);
+    final trailRect = Rect.fromLTWH(tail.dx - size.width * 1.1, tail.dy - 1, size.width * 1.1, 2);
+    canvas.drawRect(
+      trailRect,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [Color(0x007CF5FF), Color(0x337CF5FF), Color(0x99A78BFA)],
+          stops: [0, 0.6, 1],
+        ).createShader(trailRect),
+    );
+    final glowR = size.height * 0.42 * pulse;
+    canvas.drawCircle(
+      tail,
+      glowR,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [CsColors.cyan.withValues(alpha: 0.85 * pulse), const Color(0x007CF5FF)],
+        ).createShader(Rect.fromCircle(center: tail, radius: glowR)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ThrustPainter old) => old.pulse != pulse;
 }
 
 /// Overflow for the secondary tools that used to crowd the top bar.
