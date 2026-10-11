@@ -18,8 +18,8 @@ abstract final class BiomeCatalog {
     ceilingAssetTall: GameAssets.terrainAsteroidCeilingTall,
     floorHeight: 56,
     ceilingHeight: 48,
-    bgColor: Color(0xFF05060F),
-    starTint: Color(0xFF9DC6FF),
+    bgColor: Color(0xFF08080B),
+    starTint: Color(0xFFDCD2FF),
     obstacles: [
       ObstacleSpec(
         asset: GameAssets.obstacleAsteroidSmall,
@@ -45,8 +45,8 @@ abstract final class BiomeCatalog {
     floorAsset: GameAssets.terrainCityFloor,
     floorAssetTall: GameAssets.terrainCityFloorTall,
     floorHeight: 60,
-    bgColor: Color(0xFF0A0613),
-    starTint: Color(0xFFE2A8FF),
+    bgColor: Color(0xFF08080B),
+    starTint: Color(0xFFFFD6F1),
     obstacles: [
       // Drifting debris over the ruined skyline.
       ObstacleSpec(
@@ -68,8 +68,8 @@ abstract final class BiomeCatalog {
     ceilingAssetTall: GameAssets.terrainHiveCeilingTall,
     floorHeight: 56,
     ceilingHeight: 52,
-    bgColor: Color(0xFF070D09),
-    starTint: Color(0xFFA8FFC2),
+    bgColor: Color(0xFF08080B),
+    starTint: Color(0xFFD2FFE6),
     obstacles: [
       // Indestructible organic spikes riding the hive floor.
       ObstacleSpec(
@@ -95,8 +95,8 @@ abstract final class BiomeCatalog {
     floorAsset: GameAssets.terrainCrystalFloor,
     floorAssetTall: GameAssets.terrainCrystalFloorTall,
     floorHeight: 58,
-    bgColor: Color(0xFF060B16),
-    starTint: Color(0xFFB8E8FF),
+    bgColor: Color(0xFF08080B),
+    starTint: Color(0xFFCCFBFF),
     obstacles: [
       ObstacleSpec(
         asset: GameAssets.obstacleCrystal,

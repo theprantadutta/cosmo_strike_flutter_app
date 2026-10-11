@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flutter/painting.dart';
 
+import '../../cosmo_palette.dart';
 import '../../cosmo_strike_game.dart';
 import '../../game_audio.dart';
 import '../boss.dart';
@@ -529,6 +530,8 @@ class BossBeam extends PositionComponent
 
   double _age = 0;
   double _damageCd = 0;
+  final Paint _bandPaint = Paint();
+  final Paint _corePaint = Paint();
 
   @override
   void update(double dt) {
@@ -554,13 +557,12 @@ class BossBeam extends PositionComponent
         ? _age / 0.1
         : (_age > duration - 0.15 ? (duration - _age) / 0.15 : 1.0);
     final a = fade.clamp(0.0, 1.0);
+    _bandPaint.color = CosmoPalette.pink.withValues(alpha: 0.30 * a);
+    _corePaint.color = const Color(0xFFFFE6F6).withValues(alpha: 0.95 * a);
     canvas.drawRect(
       Rect.fromLTRB(0, rowY - _halfBand, fromX, rowY + _halfBand),
-      Paint()..color = const Color(0xFFFF2D78).withValues(alpha: 0.30 * a),
+      _bandPaint,
     );
-    canvas.drawRect(
-      Rect.fromLTRB(0, rowY - 6, fromX, rowY + 6),
-      Paint()..color = const Color(0xFFFFE3EE).withValues(alpha: 0.95 * a),
-    );
+    canvas.drawRect(Rect.fromLTRB(0, rowY - 6, fromX, rowY + 6), _corePaint);
   }
 }

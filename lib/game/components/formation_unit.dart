@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flame/components.dart';
-import 'package:flutter/painting.dart';
 
+import '../cosmo_palette.dart';
 import '../cosmo_strike_game.dart';
 import '../game_audio.dart';
 import '../levels/formation.dart';
@@ -259,7 +259,7 @@ class Formation extends Component with HasGameReference<CosmoStrikeGame> {
     game.pools.scorePopup(
       _lastKillPos + Vector2(0, -34),
       'FORMATION WIPE +$awarded',
-      color: const Color(0xFFFFD37B),
+      color: CosmoPalette.gold,
       scale: 1.25,
       duration: 1.0,
     );

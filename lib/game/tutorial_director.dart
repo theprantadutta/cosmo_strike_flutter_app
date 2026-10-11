@@ -1,10 +1,11 @@
 import 'package:flame/components.dart';
-import 'package:flutter/material.dart' show Color, IconData, Icons;
+import 'package:flutter/material.dart' show IconData, Icons;
 
 import 'components/bullets.dart';
 import 'components/enemy.dart';
 import 'components/fx.dart';
 import 'components/power_up.dart';
+import 'cosmo_palette.dart';
 import 'cosmo_strike_game.dart';
 import 'game_audio.dart';
 import 'levels/level_def.dart';
@@ -218,7 +219,7 @@ class TutorialDirector extends Component
     game.pools.scorePopup(
       game.player.position + Vector2(0, -42),
       cheer,
-      color: const Color(0xFF7DE8FF),
+      color: CosmoPalette.cyan,
       scale: 1.25,
       duration: 1.0,
     );
@@ -416,7 +417,7 @@ class TutorialDirector extends Component
     game.pools.scorePopup(
       game.player.position + Vector2(0, -52),
       'PILOT CERTIFIED!',
-      color: const Color(0xFFFFD37B),
+      color: CosmoPalette.gold,
       scale: 1.5,
       duration: 1.6,
     );

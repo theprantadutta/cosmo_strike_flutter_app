@@ -61,8 +61,13 @@ class PooledFx extends PositionComponent {
 
   bool active = false;
   SpriteAnimationTicker? _ticker;
+  Paint? _paint;
 
-  void play(SpriteAnimation animation, Vector2 at, Vector2 displaySize) {
+  /// [paint] optionally tints the frames (e.g. the theme-accent muzzle
+  /// flash); it must be a long-lived cached Paint.
+  void play(SpriteAnimation animation, Vector2 at, Vector2 displaySize,
+      {Paint? paint}) {
+    _paint = paint;
     _ticker = animation.createTicker()..onComplete = stop;
     position.setFrom(at);
     size.setFrom(displaySize);
@@ -83,7 +88,7 @@ class PooledFx extends PositionComponent {
   @override
   void render(Canvas canvas) {
     if (!active) return;
-    _ticker?.getSprite().render(canvas, size: size);
+    _ticker?.getSprite().render(canvas, size: size, overridePaint: _paint);
   }
 }
 

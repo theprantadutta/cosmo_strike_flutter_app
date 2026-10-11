@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
@@ -7,6 +8,7 @@ import 'package:flame/sprite.dart';
 import 'package:flutter/painting.dart';
 
 import '../../models/premium_cosmetics.dart' show ShipSkinType;
+import '../cosmo_palette.dart';
 import '../cosmo_strike_game.dart';
 import '../game_assets.dart';
 import '../game_audio.dart';
@@ -58,7 +60,7 @@ class PlayerShip extends PositionComponent
   double _damageFlash = 0;
   static final Paint _damagePaint = Paint()
     ..colorFilter =
-        const ColorFilter.mode(Color(0xCCFF4D6E), BlendMode.srcATop);
+        const ColorFilter.mode(Color(0xCCFF8AD8), BlendMode.srcATop);
 
   void flashDamage() => _damageFlash = 0.35;
 
@@ -73,6 +75,39 @@ class PlayerShip extends PositionComponent
   Paint? _skinPaint;
   Paint? _skinGlowPaint;
   double _skinTime = 0;
+
+  // ---- static render paints (no per-frame allocation) ----
+  static final Paint _ghostPaint = Paint()..color = const Color(0x80FFFFFF);
+  static final Paint _blinkPaint = Paint()..color = const Color(0x55FFFFFF);
+
+  // ---- prism stripe (theme-tinted, drawn over the hull sprite) ----
+  // Geometry mirrors the sprite generator: a wedge along the centreline
+  // from the tail (x=10) to the nose (x=186) in 192x128 sprite space,
+  // skipping the cockpit canopy (x 106–150). Scaled to the 51x34 hull.
+  static const double _k = 51 / 192;
+  static final Path _stripePath = () {
+    double hw(double x) => 5.4 * (186 - x) / 176;
+    Offset p(double x, double y) => Offset(x * _k, y * _k);
+    return Path()
+      ..moveTo(p(10, 64 - hw(10)).dx, p(10, 64 - hw(10)).dy)
+      ..lineTo(p(106, 64 - hw(106)).dx, p(106, 64 - hw(106)).dy)
+      ..lineTo(p(106, 64 + hw(106)).dx, p(106, 64 + hw(106)).dy)
+      ..lineTo(p(10, 64 + hw(10)).dx, p(10, 64 + hw(10)).dy)
+      ..close()
+      ..moveTo(p(150, 64 - hw(150)).dx, p(150, 64 - hw(150)).dy)
+      ..lineTo(p(186, 64).dx, p(186, 64).dy)
+      ..lineTo(p(150, 64 + hw(150)).dx, p(150, 64 + hw(150)).dy)
+      ..close();
+  }();
+  final Paint _stripePaint = Paint()..isAntiAlias = true;
+  int _stripeSkinVersion = -1;
+
+  /// Banking pose angle (radians) — matches the up/down sprite poses.
+  static const double _bankAngle = 6 * math.pi / 180;
+
+  final Vector2 _exhaustPos = Vector2.zero();
+  static final Vector2 _exhaustSize = Vector2.all(26);
+  static final Vector2 _shieldPos = Vector2(-7, -10);
 
   // ---- one-shot charges (armed loadout) ----
   /// First lethal-or-not hit is negated by warping back to spawn.
@@ -159,9 +194,19 @@ class PlayerShip extends PositionComponent
       _skinPaint = Paint()
         ..colorFilter = ColorFilter.mode(
             c.withValues(alpha: _skinTintAlpha), BlendMode.srcATop);
+      // Pre-shaped soft halo (radial falloff) instead of a per-frame
+      // MaskFilter blur; the colour rides a modulate filter so cycling
+      // skins only swap an immutable ColorFilter.
       _skinGlowPaint = Paint()
-        ..color = c.withValues(alpha: _skinGlowAlpha)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+        ..shader = ui.Gradient.radial(
+          Offset(size.x / 2, size.y / 2),
+          size.x * 0.62,
+          [
+            const Color(0xFFFFFFFF).withValues(alpha: _skinGlowAlpha),
+            const Color(0x00FFFFFF),
+          ],
+        )
+        ..colorFilter = ColorFilter.mode(c, BlendMode.modulate);
     }
   }
 
@@ -315,6 +360,7 @@ class PlayerShip extends PositionComponent
       if (_weaponTimer <= 0) weapon = WeaponMode.single;
     }
     _exhaust.update(dt);
+    if (_stripeSkinVersion != CosmoPalette.skinVersion) _rebuildStripe();
 
     // Multi-color skins cycle their palette (rainbow sweeps, golden
     // shimmers): lerp between consecutive colors, one second per color.
@@ -329,7 +375,7 @@ class PlayerShip extends PositionComponent
           skinColors[i], skinColors[(i + 1) % skinColors.length], t - i)!;
       _skinPaint!.colorFilter = ColorFilter.mode(
           c.withValues(alpha: _skinTintAlpha), BlendMode.srcATop);
-      _skinGlowPaint!.color = c.withValues(alpha: _skinGlowAlpha);
+      _skinGlowPaint!.colorFilter = ColorFilter.mode(c, BlendMode.modulate);
     }
 
     // ---- movement: smoothed velocity toward the desired vector ----
@@ -364,6 +410,15 @@ class PlayerShip extends PositionComponent
         game.phase == GamePhase.playing) {
       fire();
     }
+  }
+
+  void _rebuildStripe() {
+    _stripeSkinVersion = CosmoPalette.skinVersion;
+    _stripePaint.shader = ui.Gradient.linear(
+      const Offset(10 * _k, 0),
+      const Offset(186 * _k, 0),
+      [CosmoPalette.accent, CosmoPalette.secondary],
+    );
   }
 
   /// The velocity the ship is trying to reach this frame.
@@ -425,13 +480,12 @@ class PlayerShip extends PositionComponent
     // Paint priority: ghost phase > fresh-damage red flash > invuln
     // blink > cosmetic skin tint. Gameplay feedback always reads over
     // the cosmetic.
-    final paint = ghosted
-        ? (Paint()..color = const Color(0x80FFFFFF))
+    final feedback = ghosted
+        ? _ghostPaint
         : _damageFlash > 0
             ? _damagePaint
-            : (blinkOff
-                ? (Paint()..color = const Color(0x55FFFFFF))
-                : _skinPaint);
+            : (blinkOff ? _blinkPaint : null);
+    final paint = feedback ?? _skinPaint;
 
     // Skin glow halo behind everything — suppressed during blink-off
     // frames so the invulnerability flicker still reads.
@@ -443,27 +497,46 @@ class PlayerShip extends PositionComponent
       );
     }
 
-    // Exhaust behind the tail.
-    final exhaustSprite = _exhaust.getSprite();
-    exhaustSprite.render(
+    // Banking pose by smoothed vertical velocity (screen y grows down).
+    final bank = _vySmoothed < -60 ? -1 : (_vySmoothed > 60 ? 1 : 0);
+
+    // Thrust behind the tail nozzle — neutral white art tinted with the
+    // theme accent (gameplay feedback paints win while active).
+    _exhaustPos.setValues(-17, size.y / 2 - 13 - bank * 1.8);
+    _exhaust.getSprite().render(
       canvas,
-      position: Vector2(-14, size.y / 2 - 9),
-      size: Vector2.all(18),
-      overridePaint: paint,
+      position: _exhaustPos,
+      size: _exhaustSize,
+      overridePaint: feedback ?? CosmoPalette.accentTint,
     );
 
-    // Banking pose by smoothed vertical velocity (screen y grows down).
-    final sprite = _vySmoothed < -60
-        ? _spriteUp
-        : (_vySmoothed > 60 ? _spriteDown : _spriteLevel);
+    final sprite =
+        bank < 0 ? _spriteUp : (bank > 0 ? _spriteDown : _spriteLevel);
     sprite.render(canvas, size: size, overridePaint: paint);
+
+    // Theme-tinted prism stripe along the hull centreline.
+    if (!blinkOff) {
+      _stripePaint.color = ghosted
+          ? const Color(0x80FFFFFF)
+          : const Color(0xFFFFFFFF);
+      if (bank != 0) {
+        canvas.save();
+        canvas.translate(98 * _k, 64 * _k);
+        canvas.rotate(bank * _bankAngle);
+        canvas.translate(-98 * _k, -64 * _k);
+        canvas.drawPath(_stripePath, _stripePaint);
+        canvas.restore();
+      } else {
+        canvas.drawPath(_stripePath, _stripePaint);
+      }
+    }
 
     // Shield bubble: the one-hit [shielded] power-up OR the timed post-revive
     // protection window — both read as the same protective dome.
     if (shielded || protectTimer > 0) {
       _shieldSprite.render(
         canvas,
-        position: Vector2(-7, -10),
+        position: _shieldPos,
         size: Vector2(size.x + 14, size.y + 20),
       );
     }
@@ -492,6 +565,11 @@ class BoundaryGlow extends PositionComponent
   double _intensity = 0;
   double _age = 0;
 
+  final Paint _halo = Paint()
+    ..strokeWidth = 12
+    ..strokeCap = StrokeCap.round;
+  final Paint _core = Paint()..strokeWidth = 1.5;
+
   @override
   void update(double dt) {
     _age += dt;
@@ -511,22 +589,11 @@ class BoundaryGlow extends PositionComponent
     final bottom = game.playfieldBottom - 6;
     final shimmer = 0.8 + 0.2 * math.sin(_age * 9);
     // Soft halo + crisp core line.
-    canvas.drawLine(
-      Offset(x, top),
-      Offset(x, bottom),
-      Paint()
-        ..color = const Color(0xFF22D3EE)
-            .withValues(alpha: 0.10 * _intensity * shimmer)
-        ..strokeWidth = 12
-        ..strokeCap = StrokeCap.round,
-    );
-    canvas.drawLine(
-      Offset(x, top),
-      Offset(x, bottom),
-      Paint()
-        ..color = const Color(0xFF9BEAF8)
-            .withValues(alpha: 0.5 * _intensity * shimmer)
-        ..strokeWidth = 2,
-    );
+    _halo.color =
+        CosmoPalette.accent.withValues(alpha: 0.08 * _intensity * shimmer);
+    _core.color =
+        CosmoPalette.accent.withValues(alpha: 0.45 * _intensity * shimmer);
+    canvas.drawLine(Offset(x, top), Offset(x, bottom), _halo);
+    canvas.drawLine(Offset(x, top), Offset(x, bottom), _core);
   }
 }

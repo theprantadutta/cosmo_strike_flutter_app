@@ -4,6 +4,7 @@ import 'package:flutter/painting.dart';
 import 'components/bullets.dart';
 import 'components/fx.dart';
 import 'components/popups.dart';
+import 'cosmo_palette.dart';
 import 'cosmo_strike_game.dart';
 import 'game_assets.dart';
 
@@ -104,7 +105,7 @@ class GamePools {
   void muzzleFlash(Vector2 at) {
     final fx = _flashes[_fl];
     _fl = (_fl + 1) % _flashes.length;
-    fx.play(_flashAnim, at, Vector2.all(20));
+    fx.play(_flashAnim, at, Vector2.all(20), paint: CosmoPalette.accentTint);
   }
 
   void scorePopup(

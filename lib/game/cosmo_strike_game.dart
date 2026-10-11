@@ -22,6 +22,7 @@ import 'components/power_up.dart';
 import 'components/ship_trail.dart';
 import 'components/starfield.dart';
 import 'components/terrain.dart';
+import 'cosmo_palette.dart';
 import 'game_assets.dart';
 import 'game_audio.dart';
 import 'levels/level_catalog.dart';
@@ -320,7 +321,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   }
 
   @override
-  Color backgroundColor() => const Color(0xFF05060F);
+  Color backgroundColor() => CosmoPalette.bgDeep;
 
   @override
   Future<void> onLoad() async {
@@ -766,7 +767,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       pools.scorePopup(
         enemy.position + Vector2(0, -42),
         '×${combo.multiplier} CHAIN',
-        color: const Color(0xFFFF7BD5),
+        color: CosmoPalette.violet,
         scale: 1.3,
         duration: 0.9,
       );
@@ -813,7 +814,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       pools.scorePopup(
         player.position + Vector2(0, -30),
         'SHIELD DOWN',
-        color: const Color(0xFF7DE8FF),
+        color: CosmoPalette.cyan,
         duration: 0.8,
       );
       GameAudio.playerHit();
@@ -830,7 +831,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       pools.scorePopup(
         player.position + Vector2(0, -30),
         'COMBO BREAK',
-        color: const Color(0xFFFF8A8A),
+        color: CosmoPalette.pink,
         scale: 1.15,
         duration: 0.8,
       );
@@ -881,7 +882,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       pools.scorePopup(
         player.position + Vector2(0, -30),
         'MISSILE +1',
-        color: const Color(0xFFFFD37B),
+        color: CosmoPalette.gold,
         scale: 1.2,
         duration: 0.9,
       );

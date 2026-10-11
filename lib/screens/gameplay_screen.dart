@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:cosmo_strike_flutter_app/game/cosmo_palette.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
@@ -207,6 +208,9 @@ class _GameplayScreenState extends State<GameplayScreen>
     // start, same as the control settings.
     final premium = context.read<PremiumCubit>().state;
     final themeState = context.read<ThemeCubit>().state;
+    // Purchased colour themes tint gameplay only (menus stay Prism Noir):
+    // ship stripe, thrust, shots and the battlefield washes.
+    CosmoPalette.applyGameTheme(themeState.currentTheme);
 
     // The selected game mode is a MODIFIER on top of the campaign level
     // (lives, pacing, enemy fire, drops, one-hit, Time Attack clock).

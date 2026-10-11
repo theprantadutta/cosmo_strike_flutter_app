@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 import 'package:flame/flame.dart';
 import 'package:flutter/painting.dart';
 
+import '../cosmo_palette.dart';
 import '../cosmo_strike_game.dart';
 import '../game_assets.dart';
 import 'boss.dart';
@@ -86,7 +87,8 @@ class PlayerBullet extends PositionComponent
   @override
   void render(Canvas canvas) {
     if (!active) return;
-    _sprite.render(canvas, size: size);
+    // Neutral-white streak art × the theme accent.
+    _sprite.render(canvas, size: size, overridePaint: CosmoPalette.accentTint);
   }
 
   @override
@@ -259,6 +261,7 @@ class EnemyBullet extends PositionComponent
   late final CircleHitbox _hitbox =
       CircleHitbox(collisionType: CollisionType.inactive);
 
+  static final Paint _hitFlashPaint = Paint();
   static Sprite? _enemySprite;
   static Sprite? _bossSprite;
   static Sprite? _mortarSprite;
@@ -358,10 +361,11 @@ class EnemyBullet extends PositionComponent
       canvas.scale(swell);
       canvas.translate(-size.x / 2, -size.y / 2);
       _sprite.render(canvas, size: size);
+      _hitFlashPaint.color = Color.fromRGBO(255, 255, 255, 0.55 * t);
       canvas.drawCircle(
         Offset(size.x / 2, size.y / 2),
         size.x / 2,
-        Paint()..color = Color.fromRGBO(255, 255, 255, 0.55 * t),
+        _hitFlashPaint,
       );
       canvas.restore();
       return;
