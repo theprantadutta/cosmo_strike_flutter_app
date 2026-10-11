@@ -2,13 +2,10 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/utils/privacy_policy.dart';
@@ -21,10 +18,9 @@ import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
 import 'package:cosmo_strike_flutter_app/services/unified_user_service.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class LoadingScreen extends StatefulWidget {
   const LoadingScreen({super.key});
@@ -38,7 +34,6 @@ class _LoadingScreenState extends State<LoadingScreen>
   late AnimationController _progressController;
 
   String _currentTask = 'Initializing Cosmo Strike...';
-  String _subTask = '';
   double _progress = 0.0;
   bool _hasError = false;
   String _errorMessage = '';
@@ -424,7 +419,6 @@ class _LoadingScreenState extends State<LoadingScreen>
     setState(() {
       _progress = progress;
       _currentTask = message;
-      _subTask = subMessage;
     });
 
     _progressController.reset();
@@ -451,7 +445,6 @@ class _LoadingScreenState extends State<LoadingScreen>
       _showRetryButton = false;
       _progress = 0.0;
       _currentTask = 'Retrying initialization...';
-      _subTask = '';
     });
 
     await _initializeApp();
@@ -459,512 +452,123 @@ class _LoadingScreenState extends State<LoadingScreen>
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ThemeCubit, ThemeState>(
-      builder: (context, themeState) {
-        final theme = themeState.currentTheme;
-
-        return Scaffold(
-          // Same animated deep-space scene as the home screen (nebulae, sun,
-          // planets, drifting starfield) — replaces the old bespoke gradient
-          // + particle painter so the first screen matches the app.
-          body: AppBackground(
-            theme: theme,
-            child: SafeArea(
-              child: _hasError
-                  ? _buildErrorView(theme)
-                  : _buildLoadingView(theme),
-            ),
+    // Prism Noir splash: identical #0A0A0D ground to the native splash, so the
+    // hand-off is invisible; then the mark scales in, the wordmark rises and
+    // the prism line tracks real init progress.
+    return Scaffold(
+      backgroundColor: CsColors.bg,
+      body: CsBackground(
+        stars: true,
+        washes: const [CsWash.violetCenter, CsWash.cyanBottomLeft, CsWash.pinkBottomRight],
+        child: SafeArea(
+          child: AnimatedSwitcher(
+            duration: CsMotion.slow,
+            child: _hasError ? _buildErrorView() : _buildLoadingView(),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Widget _buildLoadingView(GameTheme theme) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Landscape phones report a short height — treat < 600 as "compact"
-        // (smaller logo/text) so nothing clips.
-        final isSmallScreen = constraints.maxHeight < 600;
-
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
-          child: Column(
-            children: [
-              // Landscape body: branding on the left, live loading status
-              // (spinner + progress + tip) on the right. Each side centers and
-              // can scroll on tiny screens so content never overflows.
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      flex: 5,
-                      child: Center(
-                        child: SingleChildScrollView(
-                          primary: false,
-                          child: _buildGameHeader(theme, isSmallScreen),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      flex: 6,
-                      child: Center(
-                        child: SingleChildScrollView(
-                          primary: false,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildEnhancedLoadingArea(theme, isSmallScreen),
-                              const SizedBox(height: 14),
-                              _buildProgressSection(theme, isSmallScreen),
-                              const SizedBox(height: 12),
-                              _buildTipCard(theme, isSmallScreen),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 6),
-              _buildBrandedFooter(theme, isSmallScreen),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildGameHeader(GameTheme theme, [bool isSmallScreen = false]) {
-    final logoSize = isSmallScreen ? 88.0 : 110.0;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+  Widget _buildLoadingView() {
+    final cs = context.cs;
+    final t = cs.type;
+    return Stack(
+      key: const ValueKey('loading'),
       children: [
-        // Glowing logo with the same shimmer treatment as the home brand.
-        Container(
-          decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(
-                color: theme.accentColor.withValues(alpha: 0.3),
-                blurRadius: 32,
-                spreadRadius: 4,
-              ),
-            ],
-          ),
-          // The official brand mark: the rocket_launch glyph in neon cyan.
-          // (Was an Image.asset whose PNG never shipped — the fallback icon
-          // became the brand.)
-          child: SizedBox(
-            width: logoSize,
-            height: logoSize,
-            child: Icon(
-              Icons.rocket_launch,
-              size: logoSize * 0.78,
-              color: theme.accentColor,
-            ),
-          )
-              .animate(onPlay: (c) => c.repeat(reverse: true))
-              .shimmer(
-                duration: 2500.ms,
-                color: theme.accentColor.withValues(alpha: 0.25),
-              ),
-        ),
-
-        SizedBox(height: isSmallScreen ? 12 : 16),
-
-        // Gradient wordmark — matches the home top-bar brand.
-        ShaderMask(
-          shaderCallback: (bounds) => LinearGradient(
-            colors: [theme.primaryColor, theme.accentColor],
-          ).createShader(bounds),
-          child: Text(
-            'COSMO STRIKE',
-            style: TextStyle(
-              fontSize: isSmallScreen ? 24 : 28,
-              fontWeight: FontWeight.w900,
-              color: Colors.white, // base for ShaderMask
-              letterSpacing: 3,
-            ),
-          ),
-        ),
-
-        SizedBox(height: isSmallScreen ? 6 : 8),
-
-        Text(
-          'PREMIUM SPACE SHOOTER EXPERIENCE',
-          style: TextStyle(
-            fontSize: isSmallScreen ? 9 : 11,
-            fontWeight: FontWeight.w600,
-            color: theme.textMuted,
-            letterSpacing: 1.5,
-          ),
-        ).gameEntrance(delay: 200.ms),
-      ],
-    );
-  }
-
-  Widget _buildEnhancedLoadingArea(
-    GameTheme theme, [
-    bool isSmallScreen = false,
-  ]) {
-    // Borderless per the clean design: the status floats straight on the
-    // starfield. Fixed heights prevent layout shifts as messages change.
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Current task with pulsing beacon — fixed height area.
-          SizedBox(
-            height: isSmallScreen ? 28 : 36,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+        Center(
+          child: SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: theme.accentColor,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: theme.accentColor.withValues(alpha: 0.5),
-                            blurRadius: 4,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                    )
-                    .animate(onPlay: (controller) => controller.repeat())
-                    .scale(
-                      begin: const Offset(0.8, 0.8),
-                      end: const Offset(1.2, 1.2),
-                    )
-                    .then(delay: 200.ms)
-                    .scale(
-                      begin: const Offset(1.2, 1.2),
-                      end: const Offset(0.8, 0.8),
-                    ),
-
-                const SizedBox(width: 12),
-
-                Flexible(
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 500),
+                  curve: CsMotion.standard,
+                  builder: (_, v, child) => Opacity(
+                    opacity: v,
+                    child: Transform.scale(scale: 0.92 + 0.08 * v, child: child),
+                  ),
+                  child: CsLogoMark(size: cs.isCompact ? 110 : 150),
+                ),
+                SizedBox(height: cs(22)),
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 500),
+                  curve: const Interval(0.3, 1, curve: CsMotion.standard),
+                  builder: (_, v, child) => Opacity(
+                    opacity: v,
+                    child: Transform.translate(offset: Offset(0, 8 * (1 - v)), child: child),
+                  ),
+                  child: const CsWordmark(size: 26, spacing: 0.2),
+                ),
+                SizedBox(height: cs(22)),
+                CsProgressLine(value: _progress, width: cs(180), gradient: CsGradients.prism),
+                SizedBox(height: cs(18)),
+                AnimatedSwitcher(
+                  duration: CsMotion.base,
                   child: Text(
-                    _currentTask,
-                    style: TextStyle(
-                      fontSize: isSmallScreen ? 14 : 16,
-                      fontWeight: FontWeight.w700,
-                      color: theme.textPrimary,
-                      height: 1.2,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
+                    _currentTask.replaceAll('...', '').replaceAll('…', '').toUpperCase(),
+                    key: ValueKey(_currentTask),
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    style: t.mono(10, em: 0.2, color: CsColors.ink55),
+                  ),
+                ),
+                SizedBox(height: cs(14)),
+                SizedBox(
+                  width: cs(420),
+                  height: cs(36),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 500),
+                    child: Text(
+                      _tips[_tipIndex],
+                      key: ValueKey<int>(_tipIndex),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.body.copyWith(color: CsColors.ink30),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-
-          // Subtask area — fixed height whether content exists or not.
-          SizedBox(
-            height: isSmallScreen ? 16 : 20,
-            child: _subTask.isNotEmpty
-                ? Text(
-                    _subTask,
-                    style: TextStyle(
-                      fontSize: isSmallScreen ? 11 : 13,
-                      color: theme.textMuted,
-                      fontStyle: FontStyle.italic,
-                      fontWeight: FontWeight.w500,
-                      height: 1.2,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  )
-                : const SizedBox(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressSection(GameTheme theme, [bool isSmallScreen = false]) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 40),
-      child: Column(
-        children: [
-          // Slim neon progress bar — borderless track per the clean design.
-          Container(
-            height: 6,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(3),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: Stack(
-                children: [
-
-                  // Progress fill with animation
-                  AnimatedBuilder(
-                    animation: _progressController,
-                    builder: (context, child) {
-                      return FractionallySizedBox(
-                        widthFactor: _progress,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                theme.accentColor,
-                                theme.foodColor,
-                                theme.accentColor,
-                              ],
-                              stops: const [0.0, 0.5, 1.0],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-
-                  // Shimmer effect
-                  AnimatedBuilder(
-                    animation: _progressController,
-                    builder: (context, child) {
-                      return Transform.translate(
-                        offset: Offset(_progressController.value * 200 - 50, 0),
-                        child: Container(
-                          width: 50,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.white.withValues(alpha: 0.0),
-                                Colors.white.withValues(alpha: 0.4),
-                                Colors.white.withValues(alpha: 0.0),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          SizedBox(height: isSmallScreen ? 12 : 16),
-
-          // Progress percentage with enhanced styling
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'LOADING',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: theme.textMuted,
-                  letterSpacing: 1.5,
-                ),
-              ),
-
-              // Plain percentage — no chip box, clean design.
-              Text(
-                '${(_progress * 100).toInt()}%',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: theme.accentColor,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ).gameZoomIn(delay: 300.ms);
-  }
-
-  Widget _buildTipCard(GameTheme theme, [bool isSmallScreen = false]) {
-    // Borderless per the clean design — the tip floats on the starfield.
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: isSmallScreen ? 48 : 52,
-        vertical: isSmallScreen ? 8 : 10,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header: glowing bulb + label
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.lightbulb_rounded,
-                size: isSmallScreen ? 14 : 16,
-                color: theme.foodColor,
-              )
-                  .animate(onPlay: (c) => c.repeat(reverse: true))
-                  .fadeIn(duration: 900.ms)
-                  .then()
-                  .fade(begin: 1.0, end: 0.5, duration: 900.ms),
-              const SizedBox(width: 8),
-              Text(
-                'DID YOU KNOW?',
-                style: TextStyle(
-                  fontSize: isSmallScreen ? 10 : 11,
-                  fontWeight: FontWeight.w700,
-                  color: theme.accentColor.withValues(alpha: 0.8),
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ],
-          ),
-
-          SizedBox(height: isSmallScreen ? 8 : 10),
-
-          // Rotating tip text with a smooth fade/slide between tips. Fixed
-          // height keeps the layout from jumping as tip lengths change.
-          SizedBox(
-            height: isSmallScreen ? 46 : 54,
-            child: Center(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 500),
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeIn,
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 0.25),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
-                  ),
-                ),
-                child: Text(
-                  _tips[_tipIndex],
-                  key: ValueKey<int>(_tipIndex),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: isSmallScreen ? 12 : 13.5,
-                    height: 1.3,
-                    color: theme.primaryColor.withValues(alpha: 0.92),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    ).gameZoomIn(delay: 400.ms);
-  }
-
-  Widget _buildBrandedFooter(GameTheme theme, [bool isSmallScreen = false]) {
-    // One slim muted line — borderless, no pill, per the clean design.
-    return Text(
-      'DEVELOPED BY PRANTA DUTTA',
-      style: TextStyle(
-        fontSize: isSmallScreen ? 9 : 10,
-        fontWeight: FontWeight.w600,
-        color: theme.textMuted,
-        letterSpacing: 2,
-      ),
-      textAlign: TextAlign.center,
-    ).gameEntrance(delay: 700.ms);
-  }
-
-  Widget _buildErrorView(GameTheme theme) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Error icon with animation
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.red.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.red.withValues(alpha: 0.3),
-              width: 2,
-            ),
-          ),
-          child: const Icon(Icons.error_outline, size: 64, color: Colors.red),
-        ).animate().scale(delay: 200.ms).shake(),
-
-        const SizedBox(height: 32),
-
-        Text(
-          'INITIALIZATION FAILED',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: theme.primaryColor,
-            letterSpacing: 1,
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: cs(18),
+          child: FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, snap) {
+              final v = snap.data?.version;
+              return Text(
+                [if (v != null) 'v$v', 'Developed by Pranta Dutta'].join(' · ').toUpperCase(),
+                textAlign: TextAlign.center,
+                style: t.mono(10, color: CsColors.ink30),
+              );
+            },
           ),
         ),
-
-        const SizedBox(height: 16),
-
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 32),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.red.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-          ),
-          child: Text(
-            _errorMessage,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white.withValues(alpha: 0.9),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ),
-
-        if (_showRetryButton) ...[
-          const SizedBox(height: 32),
-
-          ElevatedButton(
-                onPressed: _retryInitialization,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.accentColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.refresh),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'RETRY',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              )
-              .gameZoomIn(delay: 300.ms),
-        ],
       ],
     );
   }
-}
 
+  Widget _buildErrorView() {
+    final cs = context.cs;
+    return CsEmptyState.error(
+      key: const ValueKey('error'),
+      title: "Couldn't start up",
+      message: _errorMessage,
+      action: _showRetryButton
+          ? CsButton.primary(
+              label: 'Retry',
+              icon: Symbols.refresh_rounded,
+              onPressed: _retryInitialization,
+            )
+          : SizedBox(height: cs(1)),
+    );
+  }
+}

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:cosmo_strike_flutter_app/theme/cosmo_theme.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
@@ -179,7 +180,11 @@ class _ShipBannerAdState extends State<ShipBannerAd> {
     // so the ad fills it without shifting surrounding layout.
     final ad = _ad;
     final reservedHeight = (_adSize ?? AdSize.banner).height.toDouble();
-    return SafeArea(
+    return ColoredBox(
+      // Same canvas as the screen so the reserved strip never reads as a
+      // separate black bar while an ad is loading or absent.
+      color: CsColors.bg,
+      child: SafeArea(
       // Hug the anchored edge: a bottom banner ignores the bottom inset, a top
       // banner ignores the top inset (so it sits flush under the status bar).
       top: widget.top,
@@ -196,6 +201,7 @@ class _ShipBannerAdState extends State<ShipBannerAd> {
                 ),
               )
             : const SizedBox.shrink(), // reserved but empty until an ad loads
+      ),
       ),
     );
   }

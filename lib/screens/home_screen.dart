@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,20 +18,19 @@ import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
 import 'package:cosmo_strike_flutter_app/services/share_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/walkthrough_service.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/battle_pass_cubit.dart';
+import 'package:cosmo_strike_flutter_app/services/progression_service.dart';
+import 'package:cosmo_strike_flutter_app/utils/campaign_catalog.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/rewarded_action_button.dart';
-import 'package:cosmo_strike_flutter_app/widgets/app_background.dart';
 import 'package:cosmo_strike_flutter_app/widgets/credits_dialog.dart';
 import 'package:cosmo_strike_flutter_app/widgets/daily_bonus_popup.dart';
-import 'package:cosmo_strike_flutter_app/widgets/player_progression.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
-import 'package:cosmo_strike_flutter_app/widgets/theme_transition_system.dart';
-import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
 import 'package:cosmo_strike_flutter_app/widgets/walkthrough/home_walkthrough.dart';
 import 'package:cosmo_strike_flutter_app/widgets/walkthrough/walkthrough_overlay.dart';
 import 'package:talker_flutter/talker_flutter.dart';
@@ -44,29 +42,13 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _logoController;
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _dailyBonusChecked = false;
   bool _walkthroughChecked = false;
 
   @override
   void initState() {
     super.initState();
-
-    _logoController = AnimationController(
-      duration: const Duration(milliseconds: 1500), // Reduced duration
-      vsync: this,
-    );
-
-    // Theme transitions are handled by ThemeTransitionWidget directly
-
-    // Start logo animation with a slight delay
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) {
-        _logoController.forward();
-      }
-    });
 
     // Check for daily bonus after a short delay
     Future.delayed(const Duration(milliseconds: 800), () {
@@ -121,12 +103,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (!mounted) return;
 
     final settingsCubit = context.read<GameSettingsCubit>();
-    final useDPad = await showModalBottomSheet<bool>(
-      context: context,
-      isDismissible: false,
-      enableDrag: false,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    final useDPad = await showCsDialog<bool>(
+      context,
+      barrierDismissible: false,
       builder: (sheetContext) => const _ControlChoiceSheet(),
     );
 
@@ -166,12 +145,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (!mounted) return;
     if (alreadyPrompted) return;
 
-    final selected = await showModalBottomSheet<GameMode>(
-      context: context,
-      isDismissible: false,
-      enableDrag: false,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    final selected = await showCsDialog<GameMode>(
+      context,
+      barrierDismissible: false,
       builder: (sheetContext) =>
           _GameModeFirstLaunchSheet(initialMode: settingsCubit.state.gameMode),
     );
@@ -301,750 +277,298 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   @override
-  void dispose() {
-    _logoController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final walkthroughState = ref.watch(walkthroughProvider);
+    final theme = context.watch<ThemeCubit>().state.currentTheme;
+    final authState = context.watch<AuthCubit>().state;
 
-    return BlocBuilder<ThemeCubit, ThemeState>(
-      builder: (context, themeState) {
-        final theme = themeState.currentTheme;
-
-        return BlocBuilder<AuthCubit, AuthState>(
-          builder: (context, authState) {
-            return Stack(
-              children: [
-                ThemeTransitionWidget(
-                  controller: ThemeTransitionController(vsync: this),
-                  currentTheme: theme,
-                  child: Scaffold(
-                    bottomNavigationBar: const ShipBannerAd(),
-                    body: AppBackground(
-                      theme: theme,
-                      child: SafeArea(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final screenWidth = constraints.maxWidth;
-                            final screenHeight = constraints.maxHeight;
-
-                            // Enhanced screen size detection with more granular breakpoints
-                            final isVerySmallScreen =
-                                screenHeight < 600 || screenWidth < 350;
-
-                            // Use a simple Column with proper constraints for better stability
-                            return Column(
-                              children: [
-                                // Top navigation bar - fixed height
-                                Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: screenWidth * 0.04,
-                                    vertical: isVerySmallScreen ? 4 : 8,
-                                  ),
-                                  child: _buildTopNavigation(
-                                    context,
-                                    authState,
-                                    theme,
-                                    isVerySmallScreen,
-                                  ),
-                                ),
-
-                                // Landscape command deck: LEFT brand +
-                                // nav grid + action row, RIGHT big hero
-                                // LAUNCH bay. Reuses the existing
-                                // sub-builders (so the walkthrough keys /
-                                // daily-bonus / game-mode logic stay
-                                // intact); only the composition changes.
-                                Expanded(
-                                  child: Padding(
-                                    // Bottom gap keeps the command deck
-                                    // (esp. the PRO/STORE/COINS row) clear
-                                    // of the banner ad sitting underneath.
-                                    padding: EdgeInsets.fromLTRB(
-                                      screenWidth * 0.03,
-                                      0,
-                                      screenWidth * 0.03,
-                                      12,
-                                    ),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        // Left — brand/telemetry header,
-                                        // nav grid, and PRO/STORE/COINS row.
-                                        Expanded(
-                                          flex: 6,
-                                          // BEST + coins now live in the top
-                                          // command bar, so the left column
-                                          // is given entirely to the icon
-                                          // rail.
-                                          child: _buildBottomNavigation(
-                                            context,
-                                            themeState,
-                                            theme,
-                                            screenHeight,
-                                            screenWidth,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        // Right — big hero LAUNCH bay.
-                                        Expanded(
-                                          flex: 5,
-                                          child: Column(
-                                            children: [
-                                              Expanded(
-                                                child: _buildLaunchHero(
-                                                  context,
-                                                  theme,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              ConstrainedBox(
-                                                constraints:
-                                                    const BoxConstraints(
-                                                      maxHeight: 68,
-                                                    ),
-                                                child: _buildActionButtonsRow(
-                                                  context: context,
-                                                  theme: theme,
-                                                  screenWidth: screenWidth,
-                                                  isSmallScreen:
-                                                      screenHeight < 750,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    floatingActionButton: kDebugMode
-                        ? FloatingActionButton(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      TalkerScreen(talker: AppLogger.instance),
-                                ),
-                              );
-                            },
-                            backgroundColor: theme.accentColor.withValues(
-                              alpha: 0.1,
-                            ),
-                            foregroundColor: theme.accentColor,
-                            mini: true,
-                            child: const Icon(Icons.bug_report),
-                          )
-                        : null,
-                  ),
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: CsColors.bg,
+          bottomNavigationBar: const ShipBannerAd(),
+          body: CsBackground(
+            stars: true,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: context.cs.screenPadding,
+                child: _HomeLayout(
+                  topBar: _buildTopBar(context, authState),
+                  hero: _buildHero(context, theme),
+                  nav: _buildNav(context),
                 ),
-
-                // Walkthrough overlay
-                if (walkthroughState.isActive &&
-                    walkthroughState.currentStep != null)
-                  WalkthroughOverlay(
-                    step: walkthroughState.currentStep!,
-                    theme: theme,
-                    currentStepIndex: walkthroughState.currentStepIndex,
-                    totalSteps: walkthroughState.steps.length,
-                    onNext: () => ref.read(walkthroughProvider.notifier).next(),
-                    onSkip: () => ref.read(walkthroughProvider.notifier).skip(),
+              ),
+            ),
+          ),
+          floatingActionButton: kDebugMode
+              ? CsIconButton(
+                  icon: Symbols.bug_report_rounded,
+                  size: 34,
+                  color: CsColors.ink45,
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => TalkerScreen(talker: AppLogger.instance),
+                    ),
                   ),
+                )
+              : null,
+          floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+        ),
 
-                // Sync restore overlay is mounted globally in
-                // CosmoStrikeApp.builder so it appears regardless
-                // of which screen is active during the pull.
-              ],
-            );
-          },
+        // Walkthrough overlay
+        if (walkthroughState.isActive && walkthroughState.currentStep != null)
+          WalkthroughOverlay(
+            step: walkthroughState.currentStep!,
+            theme: theme,
+            currentStepIndex: walkthroughState.currentStepIndex,
+            totalSteps: walkthroughState.steps.length,
+            onNext: () => ref.read(walkthroughProvider.notifier).next(),
+            onSkip: () => ref.read(walkthroughProvider.notifier).skip(),
+          ),
+
+        // Sync restore overlay is mounted globally in
+        // CosmoStrikeApp.builder so it appears regardless
+        // of which screen is active during the pull.
+      ],
+    );
+  }
+
+  /// Top bar: lockup left; telemetry, overflow tools, settings and the
+  /// prism-ringed avatar right.
+  Widget _buildTopBar(BuildContext context, AuthState authState) {
+    final cs = context.cs;
+    final t = cs.type;
+    final meta = t.mono(11, color: CsColors.ink60, em: 0.12);
+    final adsOn = getIt.isRegistered<AdService>() && getIt<AdService>().adsEnabled;
+
+    Widget tapText(String text, VoidCallback onTap, {Key? key, TextStyle? style}) => CsPressable(
+          key: key,
+          onTap: onTap,
+          semanticLabel: text,
+          child: SizedBox(
+            height: 44,
+            child: Center(child: Text(text, maxLines: 1, style: style ?? meta)),
+          ),
         );
-      },
-    );
-  }
 
-  Widget _buildTopNavigation(
-    BuildContext context,
-    AuthState authState,
-    GameTheme theme,
-    bool isSmallScreen,
-  ) {
-    final gap = SizedBox(width: isSmallScreen ? 6 : 8);
-    final screenHeight = MediaQuery.of(context).size.height;
-    return Row(
-      children: [
-        // LEFT: brand (logo + COSMO STRIKE). Expanded so it owns the left
-        // third; FittedBox inside scales the name instead of truncating.
-        Expanded(
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: _buildGameTitle(theme, screenHeight),
-          ),
-        ),
-
-        // CENTER: live telemetry — BEST high score + coins. The equal-flex
-        // Expanded zones on either side keep this group dead-centred.
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GestureDetector(
-              onTap: () => context.push(AppRoutes.statistics),
-              child: HudChip(
-                theme: theme,
-                accent: Colors.amber,
-                icon: Icons.emoji_events,
-                label:
-                    'BEST ${context.watch<GameSettingsCubit>().state.highScore}',
-                dense: false,
-                bordered: false,
-              ),
-            ),
-            gap,
-            BlocBuilder<CoinsCubit, CoinsState>(
-              builder: (context, coinsState) {
-                // Same HudChip as the BEST pill (dense + amber accent) so the
-                // two telemetry cards share identical height and styling.
-                return GestureDetector(
-                  onTap: () => context.push(AppRoutes.store),
-                  child: HudChip(
-                    key: HomeWalkthrough.coinsKey,
-                    theme: theme,
-                    accent: Colors.amber,
-                    icon: Icons.monetization_on,
-                    label: _formatCoins(coinsState.total),
-                    dense: false,
-                    bordered: false,
-                  ),
-                );
-              },
-            ),
-            // EARN chip — rewarded ad for free coins, free users only.
-            if (getIt.isRegistered<AdService>() &&
-                getIt<AdService>().adsEnabled) ...[
-              gap,
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => _watchForCoins(context),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
-                  ),
-                  // Borderless amber tint — reads as an offer next to the
-                  // coins balance.
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.play_circle_fill,
-                        color: Colors.amber,
-                        size: 15,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'EARN ${AdService.freeCoinsPerAd}',
-                        style: const TextStyle(
-                          color: Colors.amber,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-
-        // RIGHT: tools, ordered from the right edge inward as
-        // profile, settings, help, about, share — i.e. left-to-right:
-        // share, about, help, settings, profile.
-        Expanded(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerRight,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                _buildTopIconButton(
-                  icon: Icons.share,
-                  color: theme.foodColor,
-                  isSmallScreen: isSmallScreen,
-                  onTap: () => ShareService().shareApp(),
-                ),
-                gap,
-                _buildTopIconButton(
-                  icon: Icons.info_outline,
-                  color: theme.accentColor,
-                  isSmallScreen: isSmallScreen,
-                  onTap: () => showCreditsDialog(context, theme),
-                ),
-                gap,
-                _buildTopIconButton(
-                  icon: Icons.help_outline,
-                  color: theme.foodColor,
-                  isSmallScreen: isSmallScreen,
-                  onTap: () => context.push(AppRoutes.instructions),
-                ),
-                gap,
-                _buildTopIconButton(
-                  key: HomeWalkthrough.settingsKey,
-                  icon: Icons.settings_rounded,
-                  color: theme.accentColor,
-                  isSmallScreen: isSmallScreen,
-                  onTap: () => context.push(AppRoutes.settings),
-                ),
-                gap,
-                PlayerIdentityBadge(
-                  key: HomeWalkthrough.profileKey,
-                  theme: theme,
-                  isSmallScreen: true,
-                  photoUrl: authState.isSignedIn ? authState.photoURL : null,
-                  onTap: () => context.push(AppRoutes.profile),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// A square neon icon tool for the top command bar (about / settings /
-  /// how-to). Centralises the bordered-glass icon button styling.
-  Widget _buildTopIconButton({
-    Key? key,
-    required IconData icon,
-    required Color color,
-    required bool isSmallScreen,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        key: key,
-        padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
-        // Borderless per the clean design — just a faint tinted disc.
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(isSmallScreen ? 14 : 16),
-        ),
-        child: Icon(icon, color: color, size: isSmallScreen ? 20 : 22),
-      ),
-    );
-  }
-
-  Widget _buildGameTitle(GameTheme theme, double screenHeight) {
-    // Compact HORIZONTAL brand lockup for the wide-short landscape header:
-    // a small glowing logo beside the gradient wordmark (left-aligned), with
-    // a tiny HUD subtitle. Replaces the old big centered logo-over-text stack
-    // that crowded the top of the command deck and read as misaligned next to
-    // the BEST chip.
-    final logoSize = screenHeight < 650 ? 38.0 : 46.0;
-    final titleSize = screenHeight < 650 ? 22.0 : 26.0;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(
-                color: theme.accentColor.withValues(alpha: 0.3),
-                blurRadius: 24,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          // The official brand mark: the rocket_launch glyph in neon cyan —
-          // same mark as the loading screen and About dialog.
-          child:
-              SizedBox(
-                    width: logoSize,
-                    height: logoSize,
-                    child: Icon(
-                      Icons.rocket_launch,
-                      size: logoSize * 0.78,
-                      color: theme.accentColor,
-                    ),
-                  )
-                  .animate(
-                    onPlay: (controller) => controller.repeat(reverse: true),
-                  )
-                  .shimmer(
-                    duration: 2500.ms,
-                    color: theme.accentColor.withValues(alpha: 0.25),
-                  )
-                  .gameHero(),
-        ),
-        const SizedBox(width: 12),
-        // "COSMO STRIKE" wordmark — gradient-shaded to match the hero look
-        // used elsewhere (game-over screen, About dialog). Wrapped in a
-        // FittedBox(scaleDown) so it shrinks to fit the available width
-        // instead of EVER truncating the name.
-        Flexible(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: ShaderMask(
-              shaderCallback: (bounds) => LinearGradient(
-                colors: [theme.primaryColor, theme.accentColor],
-              ).createShader(bounds),
-              child: Text(
-                'COSMO STRIKE',
-                maxLines: 1,
-                softWrap: false,
-                style: TextStyle(
-                  fontSize: titleSize,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white, // base for ShaderMask
-                  letterSpacing: 2,
-                  height: 1.0,
-                  shadows: [
-                    Shadow(
-                      color: theme.accentColor.withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Landscape hero "launch bay" — the RIGHT half of the command deck.
-  ///
-  /// A big tappable glass panel that fills the right column: a self-animating
-  /// neon [LaunchEmblem] (sized from the available space via LayoutBuilder so
-  /// it never overflows), a gradient "LAUNCH" CTA, and the loadout chip
-  /// (which self-hides when the user owns no power-ups). Tapping anywhere on
-  /// the panel runs the one-time game-mode prompt then routes to the
-  /// campaign level select.
-  Widget _buildLaunchHero(BuildContext context, GameTheme theme) {
-    return GestureDetector(
-      onTap: () async {
-        // First-launch setup prompts, in the order they matter: how you
-        // fly, then how you want the run tuned. Both are one-time no-ops
-        // for users who've already chosen.
-        await _maybeShowControlChoicePrompt();
-        if (!context.mounted) return;
-        await _maybeShowGameModePrompt();
-        if (!context.mounted) return;
-        // Drop STRAIGHT into the next unlocked level — the "continue"
-        // target — so the most common intent (just keep playing) is a
-        // single tap with no campaign screen in the way. Players who want
-        // to replay or jump around tap "Choose level" below to open the
-        // campaign map. Routes through the themed pre-game loader (which
-        // pushReplacements to /game so back from the game lands here).
-        final startLevel = await getIt<AppDatabase>().stageProgressDao
-            .getFurthestUnlocked();
-        if (!context.mounted) return;
-        context.push(AppRoutes.playLoading, extra: startLevel);
-      },
-      // No GlassPanel — its backdrop blur frosts the starfield into a visible
-      // box. A plain transparent Container (opaque hit-test on the parent
-      // GestureDetector) keeps the whole bay tappable while the emblem + glow
-      // alone define the launch button, fully see-through behind it.
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        // Walkthrough targets the whole launch bay now.
-        key: HomeWalkthrough.playButtonKey,
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-        // Natural-size content inside FittedBox(scaleDown), per the design
-        // system's no-overflow rule: the previous Expanded+fixed-children
-        // Column overflowed by ~12px on short viewports once the loadout
-        // chip appeared. Now the whole bay shrinks uniformly when tight and
-        // renders at natural size everywhere else.
-        child: LayoutBuilder(
-          builder: (ctx, cons) {
-            final emblemSize = (cons.maxHeight * 0.55)
-                .clamp(76.0, 164.0)
-                .clamp(0.0, cons.maxWidth);
-            return Center(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    LaunchEmblem(theme: theme, size: emblemSize),
-                    const SizedBox(height: 4),
-                    ShaderMask(
-                      shaderCallback: (b) => LinearGradient(
-                        colors: [theme.neonPrimary, theme.neonSecondary],
-                      ).createShader(b),
-                      child: const Text(
-                        'LAUNCH',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: 4,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Continue campaign',
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 13,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Loadout chip self-hides when the user owns no power-ups.
-                    _buildPowerUpLoadoutChip(theme),
-                    const SizedBox(height: 10),
-                    // Secondary action: open the campaign map to replay / jump to a
-                    // specific level. Nested GestureDetector wins the tap over the
-                    // parent launch-bay handler, so this never triggers a launch.
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => context.push(AppRoutes.levelSelect),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.grid_view_rounded,
-                              size: 14,
-                              color: theme.neonSecondary.withValues(alpha: 0.9),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'CHOOSE LEVEL',
-                              style: TextStyle(
-                                color: theme.neonSecondary.withValues(
-                                  alpha: 0.9,
-                                ),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.4,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPowerUpLoadoutChip(GameTheme theme) {
-    return BlocBuilder<PowerUpCubit, PowerUpState>(
-      builder: (context, powerUpState) {
-        // Hide entirely when the user has no inventory — keeps the home
-        // screen uncluttered for free users / users who haven't bought
-        // power-ups yet.
-        if (powerUpState.totalOwned == 0) return const SizedBox.shrink();
-
-        final armed = powerUpState.armed;
-        final armedLabel = armed == null ? null : _loadoutLabelFor(armed);
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: GestureDetector(
-            onTap: () => _openLoadoutSheet(theme, powerUpState),
-            // Transparent chip — keep the whole pill tappable.
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              // Borderless: an ARMED loadout earns a deliberate tinted
-              // highlight + glow; unarmed floats fully transparent on
-              // the starfield (icon + text alone carry it).
-              decoration: armed != null
-                  ? BoxDecoration(
-                      color: theme.accentColor.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.accentColor.withValues(alpha: 0.25),
-                          blurRadius: 12,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    )
-                  : null,
+    return SizedBox(
+      height: 44,
+      child: Row(
+        children: [
+          const CsLogoLockup(),
+          const Spacer(),
+          Flexible(
+            flex: 0,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    armed != null ? Icons.flash_on : Icons.flash_on_outlined,
-                    color: armed != null ? Colors.amber : theme.accentColor,
-                    size: 16,
+                  tapText(
+                    'BEST ${context.watch<GameSettingsCubit>().state.highScore}',
+                    () => context.push(AppRoutes.statistics),
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    armed != null
-                        ? 'Armed: $armedLabel'
-                        : 'Loadout (${powerUpState.totalOwned})',
-                    style: TextStyle(
-                      color: theme.accentColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                  SizedBox(width: cs(22)),
+                  BlocBuilder<CoinsCubit, CoinsState>(
+                    builder: (context, coinsState) => tapText(
+                      'COINS ${_formatCoins(coinsState.total)}',
+                      () => context.push(AppRoutes.store),
+                      key: HomeWalkthrough.coinsKey,
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.keyboard_arrow_down,
-                    color: theme.accentColor.withValues(alpha: 0.7),
-                    size: 16,
+                  // EARN — rewarded ad for free coins, free users only.
+                  if (adsOn) ...[
+                    SizedBox(width: cs(12)),
+                    CsPressable(
+                      onTap: () => _watchForCoins(context),
+                      semanticLabel: 'Watch an ad to earn coins',
+                      child: SizedBox(
+                        height: 44,
+                        child: Center(
+                          child: CsChip(
+                            '+${AdService.freeCoinsPerAd}',
+                            kind: CsChipKind.outline,
+                            icon: Symbols.play_circle_rounded,
+                            size: 10,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  SizedBox(width: cs(22)),
+                  ListenableBuilder(
+                    listenable: getIt<ProgressionService>(),
+                    builder: (context, _) => tapText(
+                      'LV ${getIt<ProgressionService>().level.toString().padLeft(2, '0')}',
+                      () => context.push(AppRoutes.profile),
+                      style: meta.copyWith(color: CsColors.ink),
+                    ),
+                  ),
+                  SizedBox(width: cs(14)),
+                  _HomeMoreMenu(
+                    onShare: () => ShareService().shareApp(),
+                    onAbout: () => showCreditsDialog(context, context.read<ThemeCubit>().state.currentTheme),
+                    onHelp: () => context.push(AppRoutes.instructions),
+                  ),
+                  CsIconButton(
+                    key: HomeWalkthrough.settingsKey,
+                    icon: Symbols.settings_rounded,
+                    bordered: false,
+                    size: 38,
+                    color: CsColors.ink70,
+                    tooltip: 'Settings',
+                    onPressed: () => context.push(AppRoutes.settings),
+                  ),
+                  SizedBox(width: cs(8)),
+                  CsPressable(
+                    key: HomeWalkthrough.profileKey,
+                    semanticLabel: 'Profile',
+                    onTap: () => context.push(AppRoutes.profile),
+                    child: CsAvatarRing(
+                      name: authState.displayName,
+                      size: 34,
+                      image: authState.isSignedIn && (authState.photoURL?.isNotEmpty ?? false)
+                          ? NetworkImage(authState.photoURL!)
+                          : null,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Hero: mission label, the next level's name set huge with the prism on
+  /// its tail, and the LAUNCH pill + loadout + campaign access.
+  Widget _buildHero(BuildContext context, GameTheme theme) {
+    final cs = context.cs;
+    final t = cs.type;
+    return StreamBuilder<List<StageProgressRow>>(
+      stream: _stagesStream,
+      builder: (context, snap) {
+        final rows = snap.data ?? const <StageProgressRow>[];
+        final unlocked = rows.where((r) => r.unlocked).map((r) => r.stageId);
+        final level = unlocked.isEmpty ? 1 : unlocked.reduce((a, b) => a > b ? a : b);
+        final name = _titleCase(CampaignCatalog.levelNameFor(level));
+        final biome = CampaignCatalog.biomeNameFor(level);
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'MISSION ${level.toString().padLeft(2, '0')} / $biome',
+              style: t.mono(11, em: 0.16, color: CsColors.ink55),
+            ),
+            SizedBox(height: cs(16)),
+            _HeroTitle(name: name),
+            SizedBox(height: cs(22)),
+            Wrap(
+              spacing: cs(14),
+              runSpacing: cs(8),
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                CsButton.primary(
+                  key: HomeWalkthrough.playButtonKey,
+                  label: 'Launch',
+                  trailingIcon: Symbols.arrow_forward_rounded,
+                  onPressed: () => _launch(context),
+                ),
+                _buildLoadoutChip(theme),
+                CsButton.text(
+                  label: 'Campaign',
+                  size: CsButtonSize.small,
+                  icon: Symbols.grid_view_rounded,
+                  onPressed: () => context.push(AppRoutes.levelSelect),
+                ),
+              ],
+            ),
+          ],
         );
       },
     );
   }
 
-  String _loadoutLabelFor(String inventoryKey) {
-    switch (inventoryKey) {
-      case 'speed_boost':
-        return 'Speed Boost';
-      case 'invincibility':
-        return 'Invincibility';
-      case 'score_multiplier':
-        return 'Score Multiplier';
-      case 'slow_motion':
-        return 'Slow Motion';
-      case 'teleport':
-        return 'Warp Escape';
-      case 'ghost_mode':
-        return 'Ghost Mode';
-      case 'magnetic_pickup':
-        return 'Orb Magnet';
-      case 'score_shield':
-        return 'Last Stand';
-      default:
-        return inventoryKey;
-    }
+  Future<void> _launch(BuildContext context) async {
+    // First-launch setup prompts, in the order they matter: how you
+    // fly, then how you want the run tuned. Both are one-time no-ops
+    // for users who've already chosen.
+    await _maybeShowControlChoicePrompt();
+    if (!context.mounted) return;
+    await _maybeShowGameModePrompt();
+    if (!context.mounted) return;
+    // Drop STRAIGHT into the next unlocked level — the "continue"
+    // target — so the most common intent (just keep playing) is a
+    // single tap with no campaign screen in the way. Routes through the
+    // pre-game loader (which pushReplacements to /game so back from the
+    // game lands here).
+    final startLevel = await getIt<AppDatabase>().stageProgressDao.getFurthestUnlocked();
+    if (!context.mounted) return;
+    context.push(AppRoutes.playLoading, extra: startLevel);
   }
 
-  IconData _loadoutIconFor(String inventoryKey) {
-    switch (inventoryKey) {
-      case 'speed_boost':
-        return Icons.speed;
-      case 'invincibility':
-        return Icons.shield;
-      case 'score_multiplier':
-        return Icons.star;
-      case 'slow_motion':
-        return Icons.slow_motion_video;
-      case 'teleport':
-        return Icons.swap_calls;
-      case 'ghost_mode':
-        return Icons.blur_on;
-      case 'magnetic_pickup':
-        return Icons.attractions;
-      case 'score_shield':
-        return Icons.security;
-      default:
-        return Icons.flash_on;
-    }
+  late final Stream<List<StageProgressRow>> _stagesStream =
+      getIt<AppDatabase>().stageProgressDao.watchAll();
+
+  static String _titleCase(String s) => s
+      .toLowerCase()
+      .split(' ')
+      .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+      .join(' ');
+
+  /// "LOADOUT · 03 ▾" / "ARMED · SPEED BOOST ▾". Hidden with no inventory.
+  Widget _buildLoadoutChip(GameTheme theme) {
+    return BlocBuilder<PowerUpCubit, PowerUpState>(
+      builder: (context, powerUpState) {
+        if (powerUpState.totalOwned == 0) return const SizedBox.shrink();
+        final cs = context.cs;
+        final armed = powerUpState.armed;
+        final label = armed != null
+            ? 'ARMED · ${CsIcons.powerUpLabel(armed).toUpperCase()}'
+            : 'LOADOUT · ${powerUpState.totalOwned.toString().padLeft(2, '0')}';
+        return CsPressable(
+          onTap: () => _openLoadoutSheet(theme, powerUpState),
+          semanticLabel: 'Power-up loadout',
+          child: SizedBox(
+            height: 44,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (armed != null) ...[
+                Icon(CsIcons.powerUp(armed), size: cs(16), color: CsColors.gold),
+                SizedBox(width: cs(6)),
+              ],
+              Text(label,
+                  style: cs.type.mono(12, em: 0.08, color: armed != null ? CsColors.gold : CsColors.ink60)),
+              SizedBox(width: cs(4)),
+              Icon(Symbols.expand_more_rounded, size: cs(16), color: CsColors.ink45),
+            ]),
+          ),
+        );
+      },
+    );
   }
 
   void _openLoadoutSheet(GameTheme theme, PowerUpState state) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return _LoadoutBottomSheet(
-          theme: theme,
-          labelFor: _loadoutLabelFor,
-          iconFor: _loadoutIconFor,
-        );
-      },
+    showCsDialog(
+      context,
+      builder: (sheetContext) => _LoadoutSheet(theme: theme),
     );
   }
 
-  Widget _buildActionButtonsRow({
-    required BuildContext context,
-    required GameTheme theme,
-    required double screenWidth,
-    required bool isSmallScreen,
-  }) {
-    // Compact pair, centred under the launch emblem — fixed widths instead
-    // of Expanded so the two buttons sit tight side by side rather than
-    // stretching to the column edges. (Watch-for-coins moved to the top
-    // bar's EARN chip beside the coins pill.)
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 132,
-          child: _buildModernActionButton(
-            context: context,
-            theme: theme,
-            icon: Icons.diamond,
-            label: 'PRO',
-            accent: Colors.purple.shade300,
-            isSmallScreen: isSmallScreen,
-            onTap: () => context.push(AppRoutes.premiumBenefits),
-          ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 132,
-          child: _buildModernActionButton(
-            context: context,
-            theme: theme,
-            icon: Icons.store,
-            label: 'STORE',
-            accent: Colors.amber,
-            isSmallScreen: isSmallScreen,
-            onTap: () => context.push(AppRoutes.store),
-            widgetKey: HomeWalkthrough.storeKey,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Rewarded "watch for coins" from the home action row. Honours the daily
+  /// Rewarded "watch for coins" from the home top bar. Honours the daily
   /// cap; credits offline-first via CoinsCubit.
   Future<void> _watchForCoins(BuildContext context) async {
     final ads = getIt<AdService>();
     if (!ads.canShowFreeCoinAd) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            ads.freeCoinAdsRemainingToday == 0
-                ? "You've hit today's free-coin limit — come back tomorrow!"
-                : 'No ad available right now, try again shortly',
-          ),
-        ),
+      showCsToast(
+        context,
+        ads.freeCoinAdsRemainingToday == 0
+            ? "You've hit today's free-coin limit — come back tomorrow!"
+            : 'No ad available right now, try again shortly',
       );
       return;
     }
@@ -1063,406 +587,96 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  Widget _buildModernActionButton({
-    required BuildContext context,
-    required GameTheme theme,
-    required IconData icon,
-    required String label,
-    required Color accent,
-    required bool isSmallScreen,
-    required VoidCallback onTap,
-    Key? widgetKey,
-  }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Track the parent's max height so the button fills the wider
-        // 72 px container we now give it from _buildMainPlayArea (was
-        // 48 before). Clamped to keep small-screen sanity; on a 750+ px
-        // device this lands at ~64 px tall.
-        final buttonHeight = constraints.maxHeight > 0
-            ? (constraints.maxHeight * 0.95).clamp(48.0, 72.0)
-            : 56.0;
-        // Drive icon + text sizing off the height so the visual weight
-        // scales with the button instead of staying frozen at the old
-        // 48-px values. The clamps keep the geometry within sensible
-        // bounds on extreme screen sizes.
-        final discSize = (buttonHeight * 0.52).clamp(32.0, 40.0);
-        final iconSize = (buttonHeight * 0.26).clamp(14.0, 18.0);
-        final labelSize = (buttonHeight * 0.21).clamp(11.0, 14.0);
+  /// Bottom text nav over a hairline. Every old menu tile maps to one item.
+  Widget _buildNav(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    final daily = ref.watch(dailyChallengesProvider);
+    final unclaimed = _getDailyChallengesBadge();
+    final passTier = context.watch<BattlePassCubit>().state.currentTier;
 
-        return GestureDetector(
-          onTap: onTap,
-          // Whole area tappable even though the fill is transparent now.
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            key: widgetKey,
-            height: buttonHeight,
-            constraints: BoxConstraints(
-              // Clamp so minWidth can never exceed the (narrow, in landscape)
-              // available width — otherwise BoxConstraints is non-normalized
-              // and asserts.
-              minWidth: constraints.maxWidth.clamp(0.0, 100.0),
-              maxWidth: constraints.maxWidth,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            // Fully transparent — no fill, no border. The neon icon disc +
-            // label carry the button; clean look per the minimal direction.
-            decoration: const BoxDecoration(),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Neon tint disc (same language as the nav rail chips):
-                // translucent fill + glow, glyph in the accent color.
-                Container(
-                  width: discSize,
-                  height: discSize,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: accent.withValues(alpha: 0.28),
-                        blurRadius: 12,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Icon(icon, color: accent, size: iconSize),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: labelSize,
-                    fontWeight: FontWeight.w700,
-                    color: theme.textPrimary.withValues(alpha: 0.88),
-                    letterSpacing: 1.1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildBottomNavigation(
-    BuildContext context,
-    ThemeState themeState,
-    GameTheme theme,
-    double screenHeight,
-    double screenWidth,
-  ) {
-    // 8 items laid out as a 4×2 grid of glass tiles that FILL the right
-    // command-deck column. Each row is an Expanded so the four rows share
-    // the column height evenly; each tile is an Expanded so the two tiles
-    // share the row width evenly. STATS is duplicated in the compact stats
-    // row above the nav (left of high score) AND in the grid here — the
-    // upper instance keeps stats one tap away from the home eyeline.
-    final navigationItems = [
-      _NavItem(
-        Icons.calendar_today,
-        'DAILY',
-        Colors.cyan,
-        () {
-          context.push(AppRoutes.dailyChallenges);
-        },
-        badge: _getDailyChallengesBadge(),
-        widgetKey: HomeWalkthrough.dailyChallengesKey,
-      ),
-      _NavItem(Icons.timeline, 'BATTLE', Colors.deepPurple.shade300, () {
-        context.push(AppRoutes.battlePass);
-      }),
-      _NavItem(Icons.emoji_events, 'EVENTS', Colors.deepOrange, () {
-        context.push(AppRoutes.tournaments);
-      }),
-      _NavItem(Icons.leaderboard, 'BOARD', Colors.lightBlue, () {
-        context.push(AppRoutes.leaderboard);
-      }),
-      _NavItem(Icons.people, 'FRIENDS', Colors.pinkAccent, () {
-        context.push(AppRoutes.friends);
-      }),
-      _NavItem(
-        Icons.palette,
-        'SKINS',
-        Colors.indigo.shade300,
-        () {
-          context.push(AppRoutes.cosmetics);
-        },
-        widgetKey: HomeWalkthrough.cosmeticsKey,
-      ),
-      _NavItem(Icons.military_tech, 'AWARDS', Colors.orange, () {
-        context.push(AppRoutes.achievements);
-      }),
-      _NavItem(Icons.analytics, 'STATS', Colors.teal, () {
-        context.push(AppRoutes.statistics);
-      }),
-    ];
-
-    // Icon rail: 2 rows × 4 columns of neon icon chips. Each row is an
-    // Expanded so the two rows split the column height; each cell is an
-    // Expanded so the four chips split the row width evenly.
-    const cols = 4;
-    final rows = <Widget>[];
-    for (var r = 0; r * cols < navigationItems.length; r++) {
-      final cells = <Widget>[];
-      for (var c = 0; c < cols; c++) {
-        final i = r * cols + c;
-        cells.add(
-          Expanded(
-            child: i < navigationItems.length
-                ? _buildNavChip(
-                    navigationItems[i],
-                    theme,
-                    i,
-                    // Top row pulls down, bottom row pulls up → rows sit closer.
-                    alignY: r == 0 ? 0.55 : -0.55,
-                  )
-                : const SizedBox.shrink(),
-          ),
-        );
-        if (c < cols - 1) cells.add(const SizedBox(width: 10));
-      }
-      rows.add(
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(children: cells),
-          ),
+    Widget item(String label, VoidCallback onTap,
+        {Key? key, String? badge, Color badgeColor = CsColors.mint, Color? color, bool dot = false}) {
+      return CsPressable(
+        key: key,
+        onTap: onTap,
+        semanticLabel: label,
+        child: SizedBox(
+          height: 44,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(label, style: t.nav.copyWith(color: color ?? CsColors.ink70)),
+            if (badge != null) ...[
+              SizedBox(width: cs(6)),
+              Text(badge, style: t.mono(10, color: badgeColor, em: 0.04)),
+            ],
+            if (dot) ...[
+              SizedBox(width: cs(5)),
+              Container(
+                width: 5,
+                height: 5,
+                decoration: const BoxDecoration(color: CsColors.gold, shape: BoxShape.circle),
+              ),
+            ],
+          ]),
         ),
       );
     }
 
-    return Column(children: rows);
-  }
+    final gap = SizedBox(width: cs(26));
+    final left = <Widget>[
+      item(
+        'DAILY',
+        () => context.push(AppRoutes.dailyChallenges),
+        key: HomeWalkthrough.dailyChallengesKey,
+        color: CsColors.ink,
+        badge: daily.totalCount > 0 ? '${daily.completedCount}/${daily.totalCount}' : null,
+        dot: unclaimed != null,
+      ),
+      item('PASS', () => context.push(AppRoutes.battlePass),
+          badge: 'T$passTier', badgeColor: CsColors.pink),
+      item('EVENTS', () => context.push(AppRoutes.tournaments)),
+      item('RANKS', () => context.push(AppRoutes.leaderboard)),
+      item('FRIENDS', () => context.push(AppRoutes.friends)),
+      item('HANGAR', () => context.push(AppRoutes.cosmetics), key: HomeWalkthrough.cosmeticsKey),
+      item('AWARDS', () => context.push(AppRoutes.achievements)),
+      item('STATS', () => context.push(AppRoutes.statistics)),
+    ];
+    final right = <Widget>[
+      item('PRO', () => context.push(AppRoutes.premiumBenefits)),
+      item('STORE ↗', () => context.push(AppRoutes.store),
+          key: HomeWalkthrough.storeKey, color: CsColors.gold),
+    ];
 
-  Widget _buildNavChip(
-    _NavItem item,
-    GameTheme theme,
-    int index, {
-    double alignY = 0,
-  }) {
-    // Clean borderless neon disc — the same language as the daily /
-    // leaderboard redesigns: a translucent tint circle (NOT a solid
-    // gradient fill) with a soft glow, the glyph in the item's neon
-    // color, and a quiet near-white label. Definition comes from glow
-    // and spacing, never fills heavy enough to read as boxes.
-    final base = item.color;
-    // Icon + label live together as one tight group INSIDE the cell. [alignY]
-    // pulls the group vertically toward the rail's centre (top row nudged
-    // down, bottom row nudged up) so the two rows sit closer together.
-    // No GlassPanel here on purpose: its BackdropFilter blur smears the
-    // starfield into a dark frosted rectangle even with a transparent fill.
-    // A plain opaque-hit-test GestureDetector keeps the whole cell tappable
-    // while letting the background show straight through behind the chip.
-    return GestureDetector(
-      key: item.widgetKey,
-      onTap: item.onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Align(
-        alignment: Alignment(0, alignY),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // Neon tint disc: see-through fill + outer glow.
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: base.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: base.withValues(alpha: 0.28),
-                        blurRadius: 12,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Icon(item.icon, color: base, size: 20),
-                ),
-                if (item.badge != null && item.badge! > 0)
-                  Positioned(
-                    right: -5,
-                    top: -5,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent,
-                        shape: BoxShape.circle,
-                        // Glow instead of the old white ring — no borders.
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.redAccent.withValues(alpha: 0.6),
-                            blurRadius: 8,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${item.badge}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            Text(
-              item.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: theme.textPrimary.withValues(alpha: 0.88),
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.1,
-              ),
-            ),
-          ],
+    List<Widget> spaced(List<Widget> xs) => [
+          for (var i = 0; i < xs.length; i++) ...[if (i > 0) gap, xs[i]],
+        ];
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(border: Border(top: BorderSide(color: CsColors.hairline))),
+      child: Padding(
+        padding: EdgeInsets.only(top: cs(6)),
+        // Scales down as one row on narrow phones instead of wrapping.
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: _navNaturalWidth(context),
+            child: Row(children: [...spaced(left), const Spacer(), ...spaced(right)]),
+          ),
         ),
       ),
-    ).gameGridItem(index);
+    );
   }
 
-  // void _showComingSoonDialog(
-  //   BuildContext context,
-  //   GameTheme theme,
-  //   String featureName,
-  // ) {
-  //   showDialog(
-  //     context: context,
-  //     builder: (BuildContext context) {
-  //       return AlertDialog(
-  //         backgroundColor: theme.backgroundColor,
-  //         shape: RoundedRectangleBorder(
-  //           borderRadius: BorderRadius.circular(24),
-  //           side: BorderSide(
-  //             color: Colors.green.withValues(alpha: 0.3),
-  //             width: 2,
-  //           ),
-  //         ),
-  //         title: Row(
-  //           children: [
-  //             Icon(Icons.construction, color: Colors.amber, size: 28),
-  //             const SizedBox(width: 12),
-  //             Expanded(
-  //               child: Text(
-  //                 'Coming Soon',
-  //                 style: TextStyle(
-  //                   color: theme.accentColor,
-  //                   fontWeight: FontWeight.bold,
-  //                   fontSize: 20,
-  //                 ),
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //         content: Column(
-  //           mainAxisSize: MainAxisSize.min,
-  //           children: [
-  //             Container(
-  //               padding: const EdgeInsets.all(20),
-  //               decoration: BoxDecoration(
-  //                 gradient: LinearGradient(
-  //                   colors: [
-  //                     Colors.green.withValues(alpha: 0.1),
-  //                     Colors.teal.withValues(alpha: 0.05),
-  //                   ],
-  //                 ),
-  //                 borderRadius: BorderRadius.circular(16),
-  //                 border: Border.all(
-  //                   color: Colors.green.withValues(alpha: 0.3),
-  //                 ),
-  //               ),
-  //               child: Column(
-  //                 children: [
-  //                   Icon(Icons.group_work, size: 48, color: Colors.green),
-  //                   const SizedBox(height: 16),
-  //                   Text(
-  //                     featureName,
-  //                     style: TextStyle(
-  //                       color: theme.accentColor,
-  //                       fontWeight: FontWeight.bold,
-  //                       fontSize: 18,
-  //                     ),
-  //                   ),
-  //                   const SizedBox(height: 8),
-  //                   Text(
-  //                     'We\'re working hard to bring you an amazing multiplayer experience!',
-  //                     textAlign: TextAlign.center,
-  //                     style: TextStyle(
-  //                       color: theme.accentColor.withValues(alpha: 0.7),
-  //                       fontSize: 14,
-  //                     ),
-  //                   ),
-  //                 ],
-  //               ),
-  //             ),
-  //             const SizedBox(height: 16),
-  //             Row(
-  //               children: [
-  //                 Icon(Icons.star, color: Colors.amber, size: 16),
-  //                 const SizedBox(width: 8),
-  //                 Expanded(
-  //                   child: Text(
-  //                     'Stay tuned for updates!',
-  //                     style: TextStyle(
-  //                       color: theme.accentColor.withValues(alpha: 0.8),
-  //                       fontSize: 12,
-  //                       fontStyle: FontStyle.italic,
-  //                     ),
-  //                   ),
-  //                 ),
-  //               ],
-  //             ),
-  //           ],
-  //         ),
-  //         actions: [
-  //           TextButton(
-  //             onPressed: () => Navigator.of(context).pop(),
-  //             style: TextButton.styleFrom(
-  //               backgroundColor: Colors.green.withValues(alpha: 0.1),
-  //               padding: const EdgeInsets.symmetric(
-  //                 horizontal: 24,
-  //                 vertical: 12,
-  //               ),
-  //               shape: RoundedRectangleBorder(
-  //                 borderRadius: BorderRadius.circular(16),
-  //                 side: BorderSide(color: Colors.green.withValues(alpha: 0.3)),
-  //               ),
-  //             ),
-  //             child: Text(
-  //               'Got it!',
-  //               style: TextStyle(
-  //                 color: Colors.green,
-  //                 fontWeight: FontWeight.w600,
-  //               ),
-  //             ),
-  //           ),
-  //         ],
-  //       );
-  //     },
-  //   );
-  // }
+  /// The nav row is laid out at the full content width when it fits, and at
+  /// its natural width (then scaled down) when it doesn't.
+  double _navNaturalWidth(BuildContext context) {
+    final cs = context.cs;
+    final mq = MediaQuery.of(context);
+    final avail = mq.size.width - mq.padding.horizontal - cs.screenPadding.horizontal;
+    final natural = cs(880);
+    return avail > natural ? avail : natural;
+  }
 
   /// Format coin balance for display (e.g., 1.2K, 1.5M)
   String _formatCoins(int coins) {
@@ -1478,40 +692,224 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   /// Get the badge count for daily challenges (unclaimed rewards).
   /// Watches the Riverpod provider so the home screen rebuilds and the
-  /// badge updates the moment a reward is claimed elsewhere — previously
-  /// the value was read once from the singleton DailyChallengeService
-  /// (a ChangeNotifier the home screen didn't subscribe to), leaving
-  /// the badge stale until a manual rebuild.
+  /// badge updates the moment a reward is claimed elsewhere.
   int? _getDailyChallengesBadge() {
     final count = ref.watch(unclaimedRewardsCountProvider);
     return count > 0 ? count : null;
   }
 }
 
-// Navigation item helper class
-class _NavItem {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  final int? badge;
-  final GlobalKey? widgetKey;
+/// Lays out the menu: top bar, hero (vertically centred in the free space),
+/// bottom nav, with the prism planet + ship composited on the right. Works
+/// from a 640x360 phone up to a 13" iPad by scaling the planet to the space.
+class _HomeLayout extends StatelessWidget {
+  const _HomeLayout({required this.topBar, required this.hero, required this.nav});
+  final Widget topBar;
+  final Widget hero;
+  final Widget nav;
 
-  _NavItem(
-    this.icon,
-    this.label,
-    this.color,
-    this.onTap, {
-    this.badge,
-    this.widgetKey,
-  });
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return LayoutBuilder(builder: (context, c) {
+      final topClear = cs(52);
+      final planet = ((c.maxHeight - topClear) * 0.92).clamp(0.0, c.maxWidth * 0.40);
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Planet + orbit + ship. Sits behind the content and may run under
+          // the top telemetry, like the mock.
+          Positioned(
+            right: cs(8),
+            top: topClear + (c.maxHeight - topClear - planet) / 2 - cs(16),
+            width: planet,
+            height: planet,
+            child: const IgnorePointer(child: _PlanetHero()),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              topBar,
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: c.maxWidth * 0.82),
+                    child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: hero),
+                  ),
+                ),
+              ),
+              nav,
+            ],
+          ),
+        ],
+      );
+    });
+  }
 }
 
-/// First-launch bottom sheet that asks the user to pick a default game mode.
-/// Returns the selected GameMode, or null if dismissed without confirming.
+/// Two-line hero name: all but the last word on line 1, the last word on
+/// line 2 with its second half in prism ("Iron / Dread·nought").
+class _HeroTitle extends StatelessWidget {
+  const _HeroTitle({required this.name});
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final st = context.type.hero;
+    final words = name.split(' ');
+    final last = words.removeLast();
+    final cut = (last.length / 2).floor().clamp(1, last.length - 1);
+    final line2a = last.length > 1 ? last.substring(0, cut) : last;
+    final line2b = last.length > 1 ? last.substring(cut) : '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (words.isNotEmpty) Text(words.join(' '), maxLines: 1, style: st),
+        Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic, children: [
+          Text(line2a, maxLines: 1, style: st),
+          if (line2b.isNotEmpty) CsPrismText(line2b, style: st, maxLines: 1),
+        ]),
+      ],
+    );
+  }
+}
+
+/// Prism planet with a tilted orbit ring and the player ship riding it.
+class _PlanetHero extends StatelessWidget {
+  const _PlanetHero();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      final d = c.maxWidth;
+      return Stack(clipBehavior: Clip.none, children: [
+        Positioned.fill(
+          child: Image.asset('assets/images/bg/planet-prism.png', fit: BoxFit.contain),
+        ),
+        Positioned(
+          left: -d * 0.22,
+          right: -d * 0.3,
+          top: d * 0.36,
+          height: d * 0.26,
+          child: const CustomPaint(painter: _OrbitPainter()),
+        ),
+        Positioned(
+          left: d * 0.08,
+          top: d * 0.41,
+          width: d * 0.44,
+          child: Image.asset('assets/images/ui/ship-hero.png', fit: BoxFit.contain),
+        ),
+      ]);
+    });
+  }
+}
+
+/// Thin tilted ellipse orbit around the planet.
+class _OrbitPainter extends CustomPainter {
+  const _OrbitPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.translate(size.width / 2, size.height / 2);
+    canvas.rotate(-0.14);
+    final r = Rect.fromCenter(center: Offset.zero, width: size.width, height: size.height * 0.28);
+    canvas.drawOval(
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..shader = const LinearGradient(
+          colors: [Color(0x00FFFFFF), Color(0x80FFFFFF), Color(0x55FFFFFF), Color(0x00FFFFFF)],
+          stops: [0, .3, .75, 1],
+        ).createShader(r),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_OrbitPainter old) => false;
+}
+
+/// Overflow for the secondary tools that used to crowd the top bar.
+class _HomeMoreMenu extends StatelessWidget {
+  const _HomeMoreMenu({required this.onShare, required this.onAbout, required this.onHelp});
+  final VoidCallback onShare;
+  final VoidCallback onAbout;
+  final VoidCallback onHelp;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<int>(
+      tooltip: 'More',
+      padding: EdgeInsets.zero,
+      offset: const Offset(0, 44),
+      onSelected: (v) => switch (v) {
+        0 => onHelp(),
+        1 => onShare(),
+        _ => onAbout(),
+      },
+      itemBuilder: (context) {
+        PopupMenuItem<int> row(int v, IconData icon, String label) => PopupMenuItem(
+              value: v,
+              child: Row(children: [
+                Icon(icon, size: 18, color: CsColors.ink60),
+                const SizedBox(width: 12),
+                Text(label, style: context.type.rowTitle.copyWith(fontSize: 14)),
+              ]),
+            );
+        return [
+          row(0, Symbols.help_rounded, 'How to play'),
+          row(1, Symbols.share_rounded, 'Share Cosmo Strike'),
+          row(2, Symbols.info_rounded, 'About'),
+        ];
+      },
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Icon(Symbols.more_horiz_rounded, size: context.cs(22), color: CsColors.ink70),
+      ),
+    );
+  }
+}
+
+/// Shared centred-dialog frame for the first-launch choosers.
+class _ChoiceDialog extends StatelessWidget {
+  const _ChoiceDialog({
+    required this.eyebrow,
+    required this.title,
+    required this.options,
+    required this.footer,
+    required this.cta,
+  });
+
+  final String eyebrow;
+  final String title;
+  final Widget options;
+  final Widget footer;
+  final Widget cta;
+
+  @override
+  Widget build(BuildContext context) {
+    return CsDialog(
+      maxWidth: 640,
+      eyebrow: eyebrow,
+      title: title,
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [options, SizedBox(height: context.cs(14)), footer],
+      ),
+      actions: [cta],
+    );
+  }
+}
+
 /// First-launch control chooser: touch-drag steering vs on-screen D-pad.
-/// Pops `true` for D-pad, `false` for touch. Same borderless glow sheet
-/// language as the game-mode picker below.
+/// Pops `true` for D-pad, `false` for touch.
 class _ControlChoiceSheet extends StatefulWidget {
   const _ControlChoiceSheet();
 
@@ -1524,205 +922,60 @@ class _ControlChoiceSheetState extends State<_ControlChoiceSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.read<ThemeCubit>().state.currentTheme;
-
-    return SafeArea(
-      top: false,
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.backgroundColor.withValues(alpha: 0.98),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: [
-            BoxShadow(
-              color: theme.accentColor.withValues(alpha: 0.25),
-              blurRadius: 24,
-              spreadRadius: 1,
-            ),
-          ],
+    return _ChoiceDialog(
+      eyebrow: 'Controls',
+      title: 'How do you want to fly?',
+      options: Row(children: [
+        Expanded(
+          child: _option(
+            useDPad: false,
+            icon: Symbols.swipe_rounded,
+            title: 'Touch drag',
+            tagline: 'Recommended',
+            description: 'Drag anywhere on screen — your ship mirrors your finger.',
+          ),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Text(
-              'HOW DO YOU WANT TO FLY?',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: theme.accentColor,
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'You can change this anytime in Settings',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: theme.textMuted, fontSize: 11),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildOption(
-                    theme,
-                    useDPad: false,
-                    icon: Icons.swipe,
-                    title: 'TOUCH DRAG',
-                    tagline: 'Recommended',
-                    description:
-                        'Drag anywhere on screen — your ship '
-                        'mirrors your finger.',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildOption(
-                    theme,
-                    useDPad: true,
-                    icon: Icons.gamepad,
-                    title: 'D-PAD',
-                    tagline: 'Classic',
-                    description:
-                        'An on-screen directional pad, '
-                        'old-school handheld style.',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => Navigator.of(context).pop(_useDPad),
-              child: Container(
-                height: 46,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [theme.neonPrimary, theme.neonSecondary],
-                  ),
-                  borderRadius: BorderRadius.circular(23),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.neonPrimary.withValues(alpha: 0.35),
-                      blurRadius: 14,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: const Text(
-                  'CONFIRM',
-                  style: TextStyle(
-                    color: Color(0xFF03040A),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ),
-            ),
-          ],
+        SizedBox(width: context.cs(12)),
+        Expanded(
+          child: _option(
+            useDPad: true,
+            icon: Symbols.gamepad_rounded,
+            title: 'D-pad',
+            tagline: 'Classic',
+            description: 'An on-screen directional pad, old-school handheld style.',
+          ),
         ),
-      ),
+      ]),
+      footer: Text('You can change this anytime in Settings', style: context.type.micro),
+      cta: CsButton.primary(label: 'Confirm', onPressed: () => Navigator.of(context).pop(_useDPad)),
     );
   }
 
-  Widget _buildOption(
-    GameTheme theme, {
+  Widget _option({
     required bool useDPad,
     required IconData icon,
     required String title,
     required String tagline,
     required String description,
   }) {
-    final isSelected = _useDPad == useDPad;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    final cs = context.cs;
+    final t = cs.type;
+    final on = _useDPad == useDPad;
+    return CsTile(
+      state: on ? CsTileState.current : CsTileState.done,
       onTap: () => setState(() => _useDPad = useDPad),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 30,
-              color: isSelected ? theme.neonPrimary : theme.textMuted,
-              shadows: isSelected
-                  ? [
-                      Shadow(
-                        color: theme.neonPrimary.withValues(alpha: 0.7),
-                        blurRadius: 14,
-                      ),
-                    ]
-                  : null,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                color: isSelected ? theme.textPrimary : theme.textMuted,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              tagline,
-              style: TextStyle(
-                color: isSelected ? theme.neonPrimary : theme.textMuted,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              description,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 11,
-                height: 1.3,
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Glowing dot marks the selection — no boxes, no borders.
-            Container(
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(
-                color: isSelected ? theme.neonPrimary : Colors.transparent,
-                shape: BoxShape.circle,
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: theme.neonPrimary.withValues(alpha: 0.7),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        ),
-                      ]
-                    : null,
-              ),
-            ),
-          ],
-        ),
-      ),
+      padding: EdgeInsets.all(cs(16)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: cs(22), color: on ? CsColors.ink : CsColors.ink45),
+          const Spacer(),
+          Text(tagline.toUpperCase(), style: t.mono(9, color: on ? CsColors.mint : CsColors.ink45)),
+        ]),
+        SizedBox(height: cs(12)),
+        Text(title, style: t.rowTitle),
+        SizedBox(height: cs(4)),
+        Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.body),
+      ]),
     );
   }
 }
@@ -1733,8 +986,7 @@ class _GameModeFirstLaunchSheet extends StatefulWidget {
   final GameMode initialMode;
 
   @override
-  State<_GameModeFirstLaunchSheet> createState() =>
-      _GameModeFirstLaunchSheetState();
+  State<_GameModeFirstLaunchSheet> createState() => _GameModeFirstLaunchSheetState();
 }
 
 class _GameModeFirstLaunchSheetState extends State<_GameModeFirstLaunchSheet> {
@@ -1742,436 +994,127 @@ class _GameModeFirstLaunchSheetState extends State<_GameModeFirstLaunchSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.read<ThemeCubit>().state.currentTheme;
-    final modes = GameMode.values;
+    final cs = context.cs;
+    final t = cs.type;
+    const modes = GameMode.values;
     const cols = 4;
-
-    return SafeArea(
-      top: false,
-      child: Container(
-        // Borderless modal sheet per the clean design — dark surface framed
-        // purely by neon glow.
-        decoration: BoxDecoration(
-          color: theme.backgroundColor.withValues(alpha: 0.98),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: [
-            BoxShadow(
-              color: theme.accentColor.withValues(alpha: 0.25),
-              blurRadius: 24,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
+    return _ChoiceDialog(
+      eyebrow: 'Game mode',
+      title: 'Pick a game mode',
+      options: Column(mainAxisSize: MainAxisSize.min, children: [
+        for (var r = 0; r * cols < modes.length; r++) ...[
+          if (r > 0) SizedBox(height: cs(8)),
+          Row(children: [
+            for (var c = 0; c < cols; c++) ...[
+              if (c > 0) SizedBox(width: cs(8)),
+              Expanded(
+                child: r * cols + c < modes.length ? _modeTile(modes[r * cols + c]) : const SizedBox.shrink(),
               ),
-            ),
-            Text(
-              'PICK A GAME MODE',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: theme.accentColor,
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'You can change this anytime in Settings',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: theme.textMuted, fontSize: 11),
-            ),
-            const SizedBox(height: 12),
-            // Landscape mode grid — 4×2 compact chips; selection reads via
-            // neon text + glowing dot, no boxes.
-            for (var r = 0; r * cols < modes.length; r++) ...[
-              Row(
-                children: [
-                  for (var c = 0; c < cols; c++)
-                    if (r * cols + c < modes.length)
-                      Expanded(
-                        child: _buildModeChip(theme, modes[r * cols + c]),
-                      )
-                    else
-                      const Expanded(child: SizedBox.shrink()),
-                ],
-              ),
-              if ((r + 1) * cols < modes.length) const SizedBox(height: 4),
             ],
-            const SizedBox(height: 10),
-            // Live description of the selected mode — fixed height so the
-            // sheet doesn't jump as selections change.
-            SizedBox(
-              height: 32,
-              child: Center(
-                child: Text(
-                  _selected.description,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 12,
-                    height: 1.3,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            // Gradient START pill — same CTA language as the store.
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => Navigator.of(context).pop(_selected),
-              child: Container(
-                height: 46,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [theme.neonPrimary, theme.neonSecondary],
-                  ),
-                  borderRadius: BorderRadius.circular(23),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.neonPrimary.withValues(alpha: 0.35),
-                      blurRadius: 14,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: const Text(
-                  'START PLAYING',
-                  style: TextStyle(
-                    color: Color(0xFF03040A),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ]),
+        ],
+      ]),
+      footer: SizedBox(
+        height: cs(34),
+        child: Text(_selected.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.body),
+      ),
+      cta: CsButton.primary(
+        label: 'Start playing',
+        trailingIcon: Symbols.arrow_forward_rounded,
+        onPressed: () => Navigator.of(context).pop(_selected),
       ),
     );
   }
 
-  Widget _buildModeChip(GameTheme theme, GameMode mode) {
-    final isSelected = _selected == mode;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+  Widget _modeTile(GameMode mode) {
+    final cs = context.cs;
+    final on = _selected == mode;
+    return CsTile(
+      state: on ? CsTileState.current : CsTileState.future,
       onTap: () => setState(() => _selected = mode),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(mode.icon, style: const TextStyle(fontSize: 20)),
-            const SizedBox(height: 4),
-            Text(
-              mode.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: isSelected ? theme.neonPrimary : theme.textMuted,
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            // Glowing dot marks the selection — no boxes, no borders.
-            Container(
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(
-                color: isSelected ? theme.neonPrimary : Colors.transparent,
-                shape: BoxShape.circle,
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: theme.neonPrimary.withValues(alpha: 0.7),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        ),
-                      ]
-                    : null,
-              ),
-            ),
-          ],
+      height: cs(64).clamp(48.0, 96.0),
+      padding: EdgeInsets.symmetric(horizontal: cs(10), vertical: cs(8)),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(CsIcons.mode(mode), size: cs(18), color: on ? CsColors.ink : CsColors.ink45),
+        SizedBox(height: cs(6)),
+        Text(
+          mode.name.toUpperCase(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: cs.type.mono(9, color: on ? CsColors.ink : CsColors.ink55),
         ),
-      ),
+      ]),
     );
   }
 }
 
-/// Pre-game power-up loadout sheet. Lists every type the user owns,
-/// highlights the currently armed one, and lets them switch / unarm.
-/// Closing the sheet without picking leaves the previous selection
-/// intact — the sheet is a passive viewer/editor, not a wizard.
-class _LoadoutBottomSheet extends StatelessWidget {
+/// Pre-game power-up loadout. Lists every type the user owns, highlights
+/// the armed one, and lets them switch / unarm. Closing leaves the previous
+/// selection intact — a passive viewer/editor, not a wizard.
+class _LoadoutSheet extends StatelessWidget {
+  const _LoadoutSheet({required this.theme});
   final GameTheme theme;
-  final String Function(String key) labelFor;
-  final IconData Function(String key) iconFor;
-
-  const _LoadoutBottomSheet({
-    required this.theme,
-    required this.labelFor,
-    required this.iconFor,
-  });
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<PowerUpCubit, PowerUpState>(
       builder: (context, state) {
-        final entries = state.inventory.entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value));
-        return SafeArea(
-          top: false,
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.backgroundColor.withValues(alpha: 0.98),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(24),
+        final cs = context.cs;
+        final t = cs.type;
+        final entries = state.inventory.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+        return CsDialog(
+          maxWidth: 600,
+          eyebrow: 'Loadout',
+          title: 'Power-up loadout',
+          message: 'Pre-load one power-up — it activates 5 seconds into your next game.',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Rewarded — grab a free Speed Boost without spending coins.
+              RewardedActionButton(
+                theme: theme,
+                icon: Symbols.bolt_rounded,
+                label: 'Watch ad — free Speed Boost',
+                capKey: AdService.capFreePowerUp,
+                onWatch: () async {
+                  final powerUps = context.read<PowerUpCubit>();
+                  await getIt<AdService>().showRewardedCapped(
+                    capKey: AdService.capFreePowerUp,
+                    onReward: () {
+                      powerUps.grantFreePowerUp();
+                      RewardToast.show(icon: Symbols.bolt_rounded, amount: '+1 SPEED BOOST');
+                    },
+                  );
+                },
               ),
-              border: Border.all(
-                color: theme.accentColor.withValues(alpha: 0.4),
-                width: 2,
-              ),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: theme.accentColor.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Row(
-                  children: [
-                    Icon(Icons.flash_on, color: theme.accentColor, size: 22),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Power-Up Loadout',
-                      style: TextStyle(
-                        color: theme.accentColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+              SizedBox(height: cs(8)),
+              if (entries.isEmpty)
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: cs(20)),
+                  child: Text('You have no power-ups. Visit the store to buy some!',
+                      textAlign: TextAlign.center, style: t.body),
+                )
+              else
+                for (final e in entries)
+                  CsListRow(
+                    title: CsIcons.powerUpLabel(e.key),
+                    subtitle: 'Owned · ${e.value}',
+                    leading: CsIconDisc(
+                      CsIcons.powerUp(e.key),
+                      color: state.armed == e.key ? CsColors.gold : CsColors.ink60,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Pre-load one power-up — it activates 5 seconds into your next game.',
-                  style: TextStyle(
-                    color: theme.accentColor.withValues(alpha: 0.7),
-                    fontSize: 12,
+                    trailing: state.armed == e.key
+                        ? const CsChip('Armed', kind: CsChipKind.gold)
+                        : Icon(Symbols.add_circle_rounded, size: cs(22), color: CsColors.ink45),
+                    onTap: () {
+                      final cubit = context.read<PowerUpCubit>();
+                      state.armed == e.key ? cubit.unarm() : cubit.arm(e.key);
+                    },
                   ),
-                ),
-                const SizedBox(height: 16),
-                // Rewarded — grab a free Speed Boost without spending coins.
-                RewardedActionButton(
-                  theme: theme,
-                  icon: Icons.bolt,
-                  label: 'Watch ad — free Speed Boost',
-                  capKey: AdService.capFreePowerUp,
-                  onWatch: () async {
-                    final powerUps = context.read<PowerUpCubit>();
-                    await getIt<AdService>().showRewardedCapped(
-                      capKey: AdService.capFreePowerUp,
-                      onReward: () {
-                        powerUps.grantFreePowerUp();
-                        RewardToast.show(
-                          icon: Icons.bolt,
-                          amount: '+1 SPEED BOOST',
-                        );
-                      },
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                // The inventory list is the only part that grows with owned
-                // types — it flexes to the remaining sheet height and
-                // scrolls, so the short landscape sheet (~320px) never
-                // overflows. Header + DONE stay pinned.
-                Flexible(
-                  child: entries.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 32),
-                          child: Center(
-                            child: Text(
-                              'You have no power-ups.\nVisit the store to buy some!',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: theme.accentColor.withValues(alpha: 0.6),
-                              ),
-                            ),
-                          ),
-                        )
-                      : SingleChildScrollView(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: entries.map((e) {
-                              final key = e.key;
-                              final count = e.value;
-                              final isArmed = state.armed == key;
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(12),
-                                  onTap: () {
-                                    if (isArmed) {
-                                      context.read<PowerUpCubit>().unarm();
-                                    } else {
-                                      context.read<PowerUpCubit>().arm(key);
-                                    }
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: isArmed
-                                          ? theme.accentColor.withValues(
-                                              alpha: 0.20,
-                                            )
-                                          : Colors.white.withValues(
-                                              alpha: 0.04,
-                                            ),
-                                      border: Border.all(
-                                        color: isArmed
-                                            ? theme.accentColor
-                                            : Colors.white.withValues(
-                                                alpha: 0.10,
-                                              ),
-                                        width: isArmed ? 2 : 1,
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: theme.accentColor.withValues(
-                                              alpha: 0.15,
-                                            ),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(
-                                            iconFor(key),
-                                            color: theme.accentColor,
-                                            size: 18,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                labelFor(key),
-                                                style: TextStyle(
-                                                  color: theme.accentColor,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              Text(
-                                                'Owned: $count',
-                                                style: TextStyle(
-                                                  color: theme.accentColor
-                                                      .withValues(alpha: 0.65),
-                                                  fontSize: 11,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        if (isArmed)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 5,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: theme.accentColor,
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            child: Text(
-                                              'ARMED',
-                                              style: TextStyle(
-                                                color: theme.backgroundColor,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          )
-                                        else
-                                          Icon(
-                                            Icons.add_circle_outline,
-                                            color: theme.accentColor.withValues(
-                                              alpha: 0.7,
-                                            ),
-                                            size: 22,
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.accentColor,
-                      foregroundColor: theme.backgroundColor,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'DONE',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
+          actions: [CsButton.primary(label: 'Done', onPressed: () => Navigator.of(context).pop())],
         );
       },
     );
