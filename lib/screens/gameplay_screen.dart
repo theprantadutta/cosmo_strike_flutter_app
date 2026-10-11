@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +10,7 @@ import 'package:uuid/uuid.dart';
 
 import '../data/database/app_database.dart';
 import '../game/components/power_up.dart';
-import '../game/cosmo_palette.dart';
+import '../game/levels/level_def.dart';
 import '../game/cosmo_strike_game.dart';
 import '../game/tutorial_director.dart';
 import '../models/daily_challenge.dart';
@@ -34,8 +35,8 @@ import '../services/tournament_service.dart';
 import '../services/weekly_quest_service.dart';
 import '../services/haptic_service.dart';
 import '../services/walkthrough_service.dart';
-import '../ui/design.dart';
-import '../utils/constants.dart';
+import '../ui/cs.dart';
+import '../ui/design/immersive.dart';
 import '../widgets/game_dpad.dart';
 import '../widgets/gameplay/game_over_overlay.dart';
 import '../widgets/gameplay/level_complete_overlay.dart';
@@ -634,8 +635,10 @@ class _GameplayScreenState extends State<GameplayScreen>
           // Ad failed to show (expired between readiness check and tap):
           // keep the offer up; the countdown continues.
           if (!shown && mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Ad not ready — try coins instead')),
+            showCsToast(
+              context,
+              'Ad not ready — try coins instead',
+              kind: CsToastKind.error,
             );
           }
         });
@@ -662,8 +665,10 @@ class _GameplayScreenState extends State<GameplayScreen>
       },
     );
     if (!shown && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ad not ready — try again in a moment')),
+      showCsToast(
+        context,
+        'Ad not ready — try again in a moment',
+        kind: CsToastKind.error,
       );
     }
   }
@@ -704,8 +709,10 @@ class _GameplayScreenState extends State<GameplayScreen>
       },
     );
     if (!shown && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ad not ready — try again in a moment')),
+      showCsToast(
+        context,
+        'Ad not ready — try again in a moment',
+        kind: CsToastKind.error,
       );
     }
   }
@@ -721,19 +728,42 @@ class _GameplayScreenState extends State<GameplayScreen>
       _game.revive();
       _celebrateRevive();
     } else if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Not enough coins')));
+      showCsToast(context, 'Not enough coins', kind: CsToastKind.error);
     }
   }
 
+  /// Pink edge vignette for the landed-hit pulse — const so the 450ms pulse
+  /// only animates an opacity, never re-allocates a gradient per frame.
+  static const RadialGradient _hitVignette = RadialGradient(
+    radius: 1.15,
+    colors: [Color(0x00FF8AD8), Color(0x4DFF8AD8)],
+    stops: [0.55, 1.0],
+  );
+
   @override
   Widget build(BuildContext context) {
+    final cs = context.cs;
     final dPadOnRight =
         _dPadEnabled && _dPadPosition == DPadPosition.bottomRight;
+    final dPadOnLeft = _dPadEnabled && _dPadPosition == DPadPosition.bottomLeft;
+    final dPadCenter =
+        _dPadEnabled && _dPadPosition == DPadPosition.bottomCenter;
+
+    // HUD inset (28 in the design frame) and the bottom-corner controls'
+    // footprint, so the boss bar never runs under the missile button or
+    // the d-pad.
+    final inset = cs(CsSpace.hud);
+    final missileSize = _MissileButton.sizeFor(cs);
+    const dPad = GameDPad.defaultDiameter;
+    final gap = cs(24);
+    final leftReserve = dPadOnRight
+        ? missileSize + gap
+        : (dPadOnLeft ? dPad + gap : 0.0);
+    final rightReserve = dPadOnRight ? dPad + gap : missileSize + gap;
+    final bossLift = dPadCenter ? dPad + cs(12) : 0.0;
 
     return Scaffold(
-      backgroundColor: CosmoPalette.bgDeep,
+      backgroundColor: CsColors.bgGame,
       // NO banner during active play: the steering pan gesture covers the
       // whole screen, so an in-play banner is an accidental-click (invalid
       // traffic) risk and eats vertical dodge space. Banners float INSIDE the
@@ -757,7 +787,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                   child: GameWidget(game: _game),
                 ),
 
-                // Red edge vignette pulse on every landed hit — shake-setting
+                // Pink edge vignette pulse on every landed hit — shake-setting
                 // independent, so a hit ALWAYS reads on screen.
                 ValueListenableBuilder<int>(
                   valueListenable: _game.hitPulseNotifier,
@@ -769,28 +799,27 @@ class _GameplayScreenState extends State<GameplayScreen>
                         tween: Tween(begin: 1, end: 0),
                         duration: const Duration(milliseconds: 450),
                         curve: Curves.easeOut,
-                        builder: (_, t, _) {
+                        builder: (_, t, child) {
                           if (t <= 0.01) return const SizedBox.shrink();
-                          return Container(
-                            decoration: BoxDecoration(
-                              gradient: RadialGradient(
-                                radius: 1.15,
-                                colors: [
-                                  const Color(0x00000000),
-                                  CosmoPalette.hostile.withValues(
-                                    alpha: 0.30 * t,
-                                  ),
-                                ],
-                                stops: const [0.55, 1.0],
-                              ),
-                            ),
-                          );
+                          return Opacity(opacity: t, child: child);
                         },
+                        child: const SizedBox.expand(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(gradient: _hitVignette),
+                          ),
+                        ),
                       ),
                     );
                   },
                 ),
-                SafeArea(child: _Hud(game: _game)),
+                SafeArea(
+                  child: _Hud(
+                    game: _game,
+                    bossLeftReserve: leftReserve,
+                    bossRightReserve: rightReserve,
+                    bossLift: bossLift,
+                  ),
+                ),
 
                 // Optional on-screen d-pad (settings-driven, snapshotted).
                 if (_dPadEnabled)
@@ -802,7 +831,10 @@ class _GameplayScreenState extends State<GameplayScreen>
                         DPadPosition.bottomRight => Alignment.bottomRight,
                       },
                       child: Padding(
-                        padding: const EdgeInsets.all(18),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: inset,
+                          vertical: cs(20),
+                        ),
                         child: GameDPad(
                           onDirection: (dir) =>
                               _game.setMoveDirection(Vector2(dir.dx, dir.dy)),
@@ -818,7 +850,10 @@ class _GameplayScreenState extends State<GameplayScreen>
                         ? Alignment.bottomLeft
                         : Alignment.bottomRight,
                     child: Padding(
-                      padding: const EdgeInsets.all(20),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: inset,
+                        vertical: cs(20),
+                      ),
                       child: _MissileButton(game: _game),
                     ),
                   ),
@@ -835,55 +870,21 @@ class _GameplayScreenState extends State<GameplayScreen>
                   },
                 ),
 
-                // Set-piece callout ("CANYON RUN") — small pulsing banner that
-                // never blocks input.
+                // Set-piece callout ("CANYON RUN") — small banner that never
+                // blocks input.
                 ValueListenableBuilder<String?>(
                   valueListenable: _game.calloutNotifier,
                   builder: (context, callout, _) {
                     if (callout == null) return const SizedBox.shrink();
                     return IgnorePointer(
-                      child: SafeArea(
-                        child: Align(
-                          alignment: const Alignment(0, -0.55),
-                          child: TweenAnimationBuilder<double>(
-                            key: ValueKey(callout),
-                            tween: Tween(begin: 0, end: 1),
-                            duration: const Duration(milliseconds: 320),
-                            curve: Curves.easeOutBack,
-                            builder: (_, t, child) => Opacity(
-                              opacity: t.clamp(0, 1),
-                              child: Transform.scale(
-                                scale: 0.8 + 0.2 * t,
-                                child: child,
-                              ),
-                            ),
-                            child: Text(
-                              callout,
-                              style: TextStyle(
-                                color: CosmoPalette.highlight,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 5,
-                                shadows: [
-                                  Shadow(
-                                    color: CosmoPalette.hostile.withValues(
-                                      alpha: 0.9,
-                                    ),
-                                    blurRadius: 16,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                      child: SafeArea(child: _Callout(text: callout)),
                     );
                   },
                 ),
 
-                // First-run tutorial prompt — a floating instruction banner at
+                // First-run tutorial prompt — a floating instruction caption at
                 // the top of the playfield. Input passes straight through to
-                // the game except for the Skip pill.
+                // the game except for the Skip button.
                 ValueListenableBuilder<TutorialPrompt?>(
                   valueListenable: _game.tutorialNotifier,
                   builder: (context, prompt, _) {
@@ -900,13 +901,24 @@ class _GameplayScreenState extends State<GameplayScreen>
                 // PILOT CERTIFIED celebration (tutorial completed) — pure
                 // flourish, never blocks input, auto-dismisses.
                 if (_showCertified)
-                  IgnorePointer(
-                    child: _CertifiedCelebration(coins: _tutorialRewardCoins),
+                  const IgnorePointer(
+                    child: _Flourish(
+                      icon: Symbols.military_tech_rounded,
+                      title: 'Pilot certified',
+                      coins: _tutorialRewardCoins,
+                    ),
                   ),
 
                 // REVIVED flourish after a paid continue — pure celebration,
                 // never blocks input, auto-dismisses.
-                if (_showRevived) const IgnorePointer(child: _ReviveFlourish()),
+                if (_showRevived)
+                  const IgnorePointer(
+                    child: _Flourish(
+                      icon: Symbols.rocket_launch_rounded,
+                      title: 'Revived',
+                      caption: '+1 SHIP',
+                    ),
+                  ),
 
                 ValueListenableBuilder<GamePhase>(
                   valueListenable: _game.phaseNotifier,
@@ -975,7 +987,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                           // *this instant* — that snapshot isn't reactive, so the
                           // button could otherwise never appear if the ad finished
                           // loading a beat later. The tap handles a not-yet-ready ad
-                          // (retry snackbar). Swaps to a confirmation once claimed.
+                          // (retry toast). Swaps to a confirmation once claimed.
                           canDoubleCoins:
                               _runCoinsEarned > 0 &&
                               GetIt.I<AdService>().adsEnabled &&
@@ -1013,288 +1025,214 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 }
 
-/// HUD skin for the glass frames — Command Cyan matches the cyan CosmoPalette
-/// hull so the overlay chrome and the gameplay read as one system.
-const GameTheme _hudSkin = GameTheme.classic;
+String _two(int v) => v.toString().padLeft(2, '0');
 
+/// Display names for the boss HP readout.
+String _bossName(BossType type) => switch (type) {
+  BossType.dreadnought => 'Iron Dreadnought',
+  BossType.hiveQueen => 'Hive Queen',
+  BossType.warMachine => 'War Machine',
+  BossType.leviathan => 'Leviathan',
+  BossType.mothership => 'Mothership',
+};
+
+/// The in-play HUD (Prism Noir s03), inset 28 (scaled) inside the landscape
+/// SafeArea:
+///   top-left     score (Syne 44) · L03 / W04 + KILLS mono, 200×2 hull bar,
+///                active power-up chips
+///   top-right    life pips (22×4) + 42px outlined pause, chain popup below
+///   bottom       boss name + % mono over a 3px prism HP bar (boss alive only)
+/// Only the pause button takes input; every readout ignores pointers so taps
+/// fall through to the playfield. Each frequently-changing readout listens
+/// to its own notifier inside a RepaintBoundary.
 class _Hud extends StatelessWidget {
-  const _Hud({required this.game});
+  const _Hud({
+    required this.game,
+    required this.bossLeftReserve,
+    required this.bossRightReserve,
+    required this.bossLift,
+  });
+
   final CosmoStrikeGame game;
+
+  /// Horizontal space kept clear of the boss bar for the bottom-corner
+  /// controls (missile button / d-pad).
+  final double bossLeftReserve;
+  final double bossRightReserve;
+
+  /// Extra lift when a bottom-center d-pad occupies the boss bar's lane.
+  final double bossLift;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(GameTokens.space12),
-      child: Column(
-        children: [
-          // Corner panels keep the central play field clear in landscape.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final cs = context.cs;
+    final inset = cs(CsSpace.hud);
+    return Stack(
+      children: [
+        Positioned(
+          left: inset,
+          top: cs(20),
+          child: IgnorePointer(child: _ScoreBlock(game: game)),
+        ),
+        Positioned(
+          right: inset,
+          top: cs(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // Top-left: score + level/wave.
-              GlassPanel(
-                theme: _hudSkin,
-                radius: GameTokens.radiusMd,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                // One horizontal strip — the HUD stays out of the ship's
-                // vertical flight lane (the playfield is short in landscape).
-                child: Row(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IgnorePointer(child: _LifePips(game: game)),
+                  SizedBox(width: cs(14)),
+                  CsIconButton(
+                    icon: Symbols.pause_rounded,
+                    tooltip: 'Pause',
+                    onPressed: game.pauseGame,
+                  ),
+                ],
+              ),
+              SizedBox(height: cs(14)),
+              IgnorePointer(child: _ChainPopup(game: game)),
+            ],
+          ),
+        ),
+        Positioned(
+          left: inset + bossLeftReserve,
+          right: inset + bossRightReserve,
+          bottom: cs(26) + bossLift,
+          child: IgnorePointer(child: _BossBar(game: game)),
+        ),
+      ],
+    );
+  }
+}
+
+/// Score + level/wave/kills meta (+ Time Attack clock) over the 200×2 hull
+/// energy bar, then the active timed-effect chips.
+class _ScoreBlock extends StatelessWidget {
+  const _ScoreBlock({required this.game});
+  final CosmoStrikeGame game;
+
+  static const LinearGradient _lowHull = LinearGradient(
+    colors: [CsColors.pink, CsColors.pink],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    final meta = t.mono(11, em: 0.12, color: CsColors.ink60, height: 1.2);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            RepaintBoundary(
+              child: ValueListenableBuilder<int>(
+                valueListenable: game.scoreNotifier,
+                builder: (_, score, _) =>
+                    Text('$score', maxLines: 1, style: t.hudScore),
+              ),
+            ),
+            SizedBox(width: cs(18)),
+            Padding(
+              padding: EdgeInsets.only(bottom: cs(3)),
+              child: RepaintBoundary(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ValueListenableBuilder<int>(
-                      valueListenable: game.scoreNotifier,
-                      builder: (_, score, _) => Text(
-                        '$score',
-                        style: const TextStyle(
-                          color: CosmoPalette.highlight,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
+                    ListenableBuilder(
+                      listenable: Listenable.merge([
+                        game.levelNotifier,
+                        game.waveNotifier,
+                      ]),
+                      builder: (_, _) => Text(
+                        'L${_two(game.levelNotifier.value)} / '
+                        'W${_two(game.waveNotifier.value)}',
+                        style: meta,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    ValueListenableBuilder<int>(
-                      valueListenable: game.levelNotifier,
-                      builder: (_, level, _) => ValueListenableBuilder<int>(
-                        valueListenable: game.waveNotifier,
-                        builder: (_, wave, _) => Text(
-                          'L$level · W$wave',
-                          style: const TextStyle(
-                            color: CosmoPalette.hull,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                    SizedBox(height: cs(4)),
                     // Kill tally — many daily directives are kill-based.
-                    // Rendered at 0 too so the panel never jumps.
                     ValueListenableBuilder<int>(
                       valueListenable: game.killsNotifier,
-                      builder: (_, kills, _) => Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.gps_fixed,
-                            size: 11,
-                            color: CosmoPalette.hullLight,
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            '$kills',
-                            style: const TextStyle(
-                              color: CosmoPalette.hullLight,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1,
+                      builder: (_, kills, _) =>
+                          Text('KILLS $kills', style: meta),
+                    ),
+                    // Time Attack countdown — hidden in modes without a clock.
+                    ValueListenableBuilder<int>(
+                      valueListenable: game.timeRemainingNotifier,
+                      builder: (_, secs, _) {
+                        if (secs < 0) return const SizedBox.shrink();
+                        final m = secs ~/ 60;
+                        final s = _two(secs % 60);
+                        return Padding(
+                          padding: EdgeInsets.only(top: cs(4)),
+                          child: Text(
+                            'TIME $m:$s',
+                            style: meta.copyWith(
+                              color: secs <= 30 ? CsColors.pink : CsColors.ink,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    // Kill-chain readout — appears from a 2-chain on,
-                    // pulses when the multiplier tier rises.
-                    ValueListenableBuilder<int>(
-                      valueListenable: game.combo.comboNotifier,
-                      builder: (_, chain, _) {
-                        if (chain < 2) return const SizedBox.shrink();
-                        return ValueListenableBuilder<int>(
-                          valueListenable: game.combo.multiplierNotifier,
-                          builder: (_, mult, _) =>
-                              TweenAnimationBuilder<double>(
-                                key: ValueKey(mult),
-                                tween: Tween(
-                                  begin: mult > 1 ? 1.35 : 1.0,
-                                  end: 1.0,
-                                ),
-                                duration: const Duration(milliseconds: 220),
-                                curve: Curves.easeOutBack,
-                                builder: (_, s, child) => Transform.scale(
-                                  scale: s,
-                                  alignment: Alignment.centerLeft,
-                                  child: child,
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.only(left: 12),
-                                  child: Text(
-                                    '×$mult · $chain CHAIN',
-                                    style: TextStyle(
-                                      color: mult >= 2
-                                          ? CosmoPalette.hostile
-                                          : CosmoPalette.hullLight,
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 1.1,
-                                    ),
-                                  ),
-                                ),
-                              ),
                         );
                       },
                     ),
                   ],
                 ),
               ),
-              // Time Attack countdown — hidden in modes without a clock.
-              ValueListenableBuilder<int>(
-                valueListenable: game.timeRemainingNotifier,
-                builder: (_, secs, _) {
-                  if (secs < 0) return const SizedBox.shrink();
-                  final m = secs ~/ 60;
-                  final s = (secs % 60).toString().padLeft(2, '0');
-                  final urgent = secs <= 30;
-                  return Padding(
-                    padding: const EdgeInsets.only(left: 10),
-                    child: GlassPanel(
-                      theme: _hudSkin,
-                      radius: GameTokens.radiusMd,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.timer,
-                            size: 16,
-                            color: urgent
-                                ? CosmoPalette.hostile
-                                : CosmoPalette.hull,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            '$m:$s',
-                            style: TextStyle(
-                              color: urgent
-                                  ? CosmoPalette.hostile
-                                  : CosmoPalette.highlight,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const Spacer(),
-              // Top-right: animated lives + pause.
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  GlassPanel(
-                    theme: _hudSkin,
-                    radius: GameTokens.radiusMd,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _LivesPanel(game: game),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: game.pauseGame,
-                          child: const Icon(
-                            Icons.pause_circle_outline,
-                            color: CosmoPalette.hull,
-                            size: 26,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: GameTokens.space8),
-          // Slim energy bar under the score panel (left-aligned, not full width).
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SizedBox(
-              width: 220,
-              child: ValueListenableBuilder<double>(
-                valueListenable: game.healthNotifier,
-                builder: (_, hp, _) => ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: hp,
-                    minHeight: 6,
-                    backgroundColor: CosmoPalette.bgHigh,
-                    valueColor: const AlwaysStoppedAnimation(
-                      CosmoPalette.energy,
-                    ),
-                  ),
-                ),
-              ),
             ),
+          ],
+        ),
+        SizedBox(height: cs(10)),
+        // Hull energy — the 200×2 line under the score; turns pink when low.
+        ValueListenableBuilder<double>(
+          valueListenable: game.healthNotifier,
+          builder: (_, hp, _) => CsProgressLine(
+            value: hp,
+            width: cs(200),
+            gradient: hp <= 0.3 ? _lowHull : CsGradients.progress,
           ),
-          const SizedBox(height: GameTokens.space8),
-          // Active timed-effect chips under the energy bar.
-          Align(
-            alignment: Alignment.centerLeft,
-            child: ValueListenableBuilder<List<ActiveEffectHud>>(
-              valueListenable: game.effectsNotifier,
-              builder: (_, effects, _) {
-                if (effects.isEmpty) return const SizedBox.shrink();
-                return Wrap(
-                  spacing: 6,
-                  children: [for (final e in effects) _EffectChip(effect: e)],
-                );
-              },
-            ),
-          ),
-          const Spacer(),
-          // Boss bar spans the bottom only while a boss is alive.
-          ValueListenableBuilder<double>(
-            valueListenable: game.bossHealthNotifier,
-            builder: (_, boss, _) {
-              if (boss < 0) return const SizedBox.shrink();
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: boss,
-                  minHeight: 9,
-                  backgroundColor: CosmoPalette.bgHigh,
-                  valueColor: const AlwaysStoppedAnimation(
-                    CosmoPalette.hostile,
-                  ),
-                ),
+        ),
+        SizedBox(height: cs(10)),
+        RepaintBoundary(
+          child: ValueListenableBuilder<List<ActiveEffectHud>>(
+            valueListenable: game.effectsNotifier,
+            builder: (_, effects, _) {
+              if (effects.isEmpty) return const SizedBox.shrink();
+              return Wrap(
+                spacing: cs(6),
+                runSpacing: cs(6),
+                children: [for (final e in effects) _EffectChip(effect: e)],
               );
             },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-/// The lives readout with a real death beat: when a ship is lost, the
-/// dying icon flares red and blows up in place, and a "SHIP DOWN" tag
-/// flashes under the panel — losing a life is never silent again.
-class _LivesPanel extends StatefulWidget {
-  const _LivesPanel({required this.game});
+/// Life pips: 22×4 bars, lit = ink, lost = 18% white. A lost life flashes
+/// pink and fades out in its slot, with a mono "SHIP DOWN" tag dropping in
+/// below — losing a life is never silent.
+class _LifePips extends StatefulWidget {
+  const _LifePips({required this.game});
   final CosmoStrikeGame game;
 
   @override
-  State<_LivesPanel> createState() => _LivesPanelState();
+  State<_LifePips> createState() => _LifePipsState();
 }
 
-class _LivesPanelState extends State<_LivesPanel> {
+class _LifePipsState extends State<_LifePips> {
   late int _shown;
   int _lossEvents = 0;
+
+  static const Color _lost = Color(0x2EFFFFFF);
 
   @override
   void initState() {
@@ -1320,136 +1258,235 @@ class _LivesPanelState extends State<_LivesPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final icons = List<Widget>.generate(
-      _shown.clamp(0, 6),
-      (i) => const Padding(
-        padding: EdgeInsets.only(right: 3),
-        child: Icon(Icons.flight, size: 16, color: CosmoPalette.hull),
-      ),
-    );
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ...icons,
-            // The dying ship: flares red, swells, and burns away where
-            // its icon used to sit.
-            if (_lossEvents > 0)
-              TweenAnimationBuilder<double>(
-                key: ValueKey(_lossEvents),
+    final cs = context.cs;
+    final total = math.max(widget.game.mode.runLives, _shown).clamp(1, 6);
+    final w = cs(22);
+    final h = cs(4).clamp(3.0, 6.0);
+
+    Widget pip(int i) {
+      final lit = i < _shown;
+      // The slot that just emptied flashes pink before settling dim.
+      if (!lit && i == _shown && _lossEvents > 0) {
+        return TweenAnimationBuilder<double>(
+          key: ValueKey(_lossEvents),
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 800),
+          curve: CsMotion.standard,
+          builder: (_, t, _) => Container(
+            width: w,
+            height: h,
+            color: Color.lerp(CsColors.pink, _lost, t),
+          ),
+        );
+      }
+      return AnimatedContainer(
+        duration: CsMotion.slow,
+        curve: CsMotion.standard,
+        width: w,
+        height: h,
+        color: lit ? CsColors.ink : _lost,
+      );
+    }
+
+    return RepaintBoundary(
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < total; i++) ...[
+                if (i > 0) SizedBox(width: cs(6)),
+                pip(i),
+              ],
+            ],
+          ),
+          if (_lossEvents > 0)
+            Positioned(
+              right: 0,
+              top: h + cs(8),
+              child: TweenAnimationBuilder<double>(
+                key: ValueKey(-_lossEvents),
                 tween: Tween(begin: 0, end: 1),
-                duration: const Duration(milliseconds: 800),
-                curve: Curves.easeOut,
-                builder: (_, t, _) {
-                  if (t >= 1) return const SizedBox.shrink();
+                duration: const Duration(milliseconds: 1400),
+                builder: (_, t, child) {
+                  // Pop in fast, hold, fade at the tail.
+                  final inT = (t * 6).clamp(0.0, 1.0);
+                  final outT = ((t - 0.75) * 4).clamp(0.0, 1.0);
+                  final alpha = inT * (1 - outT);
+                  if (alpha <= 0.01) return const SizedBox.shrink();
                   return Opacity(
-                    opacity: (1 - t).clamp(0, 1),
-                    child: Transform.scale(
-                      scale: 1 + t * 1.1,
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 3),
-                        child: Icon(
-                          Icons.flight,
-                          size: 16,
-                          color: Color.lerp(
-                            CosmoPalette.hostile,
-                            const Color(0xFFFFE3B3),
-                            t,
-                          ),
-                        ),
-                      ),
+                    opacity: alpha,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - inT) * -6),
+                      child: child,
                     ),
                   );
                 },
+                child: Text(
+                  'SHIP DOWN',
+                  maxLines: 1,
+                  style: cs.type.mono(10, em: 0.16, color: CsColors.pink),
+                ),
               ),
-          ],
-        ),
-        // "SHIP DOWN" tag dropping in under the panel.
-        if (_lossEvents > 0)
-          Positioned(
-            right: 0,
-            top: 22,
-            child: TweenAnimationBuilder<double>(
-              key: ValueKey(-_lossEvents),
-              tween: Tween(begin: 0, end: 1),
-              duration: const Duration(milliseconds: 1400),
-              builder: (_, t, _) {
-                // Pop in fast, hold, fade at the tail.
-                final inT = (t * 6).clamp(0.0, 1.0);
-                final outT = ((t - 0.75) * 4).clamp(0.0, 1.0);
-                final alpha = inT * (1 - outT);
-                if (alpha <= 0.01) return const SizedBox.shrink();
-                return Opacity(
-                  opacity: alpha,
-                  child: Transform.translate(
-                    offset: Offset(0, (1 - inT) * -6),
-                    child: Text(
-                      'SHIP DOWN',
-                      style: TextStyle(
-                        color: CosmoPalette.hostile,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.6,
-                        shadows: [
-                          Shadow(
-                            color: CosmoPalette.hostile.withValues(alpha: 0.8),
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
 
+/// Kill-chain popup: prism "×2" (ink at ×1) + mono "CHAIN 12". Appears from
+/// a 2-chain on and pops when the multiplier tier rises.
+class _ChainPopup extends StatelessWidget {
+  const _ChainPopup({required this.game});
+  final CosmoStrikeGame game;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    final multStyle = t.display(26, height: 1);
+    return RepaintBoundary(
+      child: ValueListenableBuilder<int>(
+        valueListenable: game.combo.comboNotifier,
+        builder: (_, chain, _) {
+          if (chain < 2) return const SizedBox.shrink();
+          return ValueListenableBuilder<int>(
+            valueListenable: game.combo.multiplierNotifier,
+            builder: (_, mult, _) => TweenAnimationBuilder<double>(
+              key: ValueKey(mult),
+              tween: Tween(begin: mult > 1 ? 1.3 : 1.0, end: 1.0),
+              duration: CsMotion.base,
+              curve: CsMotion.emphasis,
+              builder: (_, s, child) => Transform.scale(
+                scale: s,
+                alignment: Alignment.centerRight,
+                child: child,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  if (mult >= 2)
+                    CsPrismText('×$mult', style: multStyle)
+                  else
+                    Text('×$mult', style: multStyle),
+                  SizedBox(width: cs(10)),
+                  Text(
+                    'CHAIN $chain',
+                    style: t.mono(12, em: 0.1, color: CsColors.ink),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Boss name + HP % (mono) over a 3px prism HP bar — only while a boss is
+/// alive.
+class _BossBar extends StatelessWidget {
+  const _BossBar({required this.game});
+  final CosmoStrikeGame game;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final style = cs.type.mono(11, em: 0.14, color: const Color(0xA6F4F3F7));
+    return RepaintBoundary(
+      child: ValueListenableBuilder<double>(
+        valueListenable: game.bossHealthNotifier,
+        builder: (_, boss, _) {
+          if (boss < 0) return const SizedBox.shrink();
+          final hp = boss.clamp(0.0, 1.0);
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _bossName(game.level.boss.type).toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: style,
+                    ),
+                  ),
+                  SizedBox(width: cs(12)),
+                  Text('${(hp * 100).round()}%', style: style),
+                ],
+              ),
+              SizedBox(height: cs(8)),
+              CsProgressLine(
+                value: hp,
+                height: cs(3).clamp(2.0, 4.0),
+                gradient: CsGradients.prism,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Active timed power-up: glyph + a tiny 2px remaining-time line. Not
+/// tweened — the notifier already updates continuously.
 class _EffectChip extends StatelessWidget {
   const _EffectChip({required this.effect});
   final ActiveEffectHud effect;
 
   static const Map<String, IconData> _icons = {
-    'weapon': Icons.bolt,
-    'x2': Icons.close, // x glyph
-    'speed': Icons.speed,
-    'slowmo': Icons.slow_motion_video,
-    'magnet': Icons.attractions,
-    'ghost': Icons.blur_on,
-    'shield': Icons.shield, // post-revive protection window
+    'weapon': Symbols.bolt_rounded,
+    'x2': Symbols.close_rounded, // x glyph
+    'speed': Symbols.speed_rounded,
+    'slowmo': Symbols.slow_motion_video_rounded,
+    'magnet': Symbols.attractions_rounded,
+    'ghost': Symbols.blur_on_rounded,
+    'shield': Symbols.shield_rounded, // post-revive protection window
   };
+
+  static const ShapeDecoration _chip = ShapeDecoration(
+    color: Color(0xB30A0A0D),
+    shape: StadiumBorder(side: BorderSide(color: CsColors.hairline)),
+  );
 
   @override
   Widget build(BuildContext context) {
+    final cs = context.cs;
+    final barW = cs(26);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: CosmoPalette.bgHigh.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      padding: EdgeInsets.symmetric(horizontal: cs(9), vertical: cs(5)),
+      decoration: _chip,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            _icons[effect.id] ?? Icons.star,
-            size: 13,
-            color: CosmoPalette.hull,
+            _icons[effect.id] ?? Symbols.star_rounded,
+            size: cs(13),
+            color: CsColors.ink,
           ),
-          const SizedBox(width: 4),
+          SizedBox(width: cs(6)),
           SizedBox(
-            width: 26,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: LinearProgressIndicator(
-                value: effect.remaining01,
-                minHeight: 3,
-                backgroundColor: CosmoPalette.bgDeep,
-                valueColor: const AlwaysStoppedAnimation(CosmoPalette.energy),
+            width: barW,
+            height: 2,
+            child: ColoredBox(
+              color: CsColors.track,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: barW * effect.remaining01.clamp(0.0, 1.0),
+                  height: 2,
+                  child: const DecoratedBox(
+                    decoration: BoxDecoration(gradient: CsGradients.progress),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1459,156 +1496,146 @@ class _EffectChip extends StatelessWidget {
   }
 }
 
-/// Round special-weapon button with the live ammo badge.
+/// 72px missile button: near-black disc, rocket glyph + "×N" ammo count,
+/// ringed by the graze meter as a prism conic arc on a hairline track (a
+/// full ring converts to +1 missile).
 class _MissileButton extends StatelessWidget {
   const _MissileButton({required this.game});
   final CosmoStrikeGame game;
 
+  /// Visual size, scaled but kept a comfortable thumb target.
+  static double sizeFor(CsLayout cs) => cs(72).clamp(64.0, 96.0);
+
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<int>(
-      valueListenable: game.missileAmmoNotifier,
-      builder: (_, ammo, _) {
-        final enabled = ammo > 0;
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: game.fireMissile,
-          child: SizedBox(
-            width: 76,
-            height: 76,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Graze meter: a thin gold arc filling around the disc;
-                // a full ring converts to +1 missile.
-                ValueListenableBuilder<double>(
-                  valueListenable: game.combo.grazeNotifier,
-                  builder: (_, g, _) {
-                    if (g <= 0) return const SizedBox.shrink();
-                    return SizedBox(
-                      width: 72,
-                      height: 72,
-                      child: CircularProgressIndicator(
-                        value: g,
-                        strokeWidth: 3,
-                        backgroundColor: Colors.transparent,
-                        valueColor: const AlwaysStoppedAnimation(
-                          Color(0xFFFFD37B),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: CosmoPalette.bgHigh.withValues(
-                      alpha: enabled ? 0.55 : 0.3,
+    final cs = context.cs;
+    final size = sizeFor(cs);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: game.fireMissile,
+      child: RepaintBoundary(
+        child: SizedBox.square(
+          dimension: size,
+          child: ValueListenableBuilder<double>(
+            valueListenable: game.combo.grazeNotifier,
+            builder: (_, graze, child) => CsRingProgress(
+              value: graze,
+              size: size,
+              stroke: 2,
+              trackColor: CsColors.hairline,
+              fill: CsColors.bg,
+              child: child,
+            ),
+            child: ValueListenableBuilder<int>(
+              valueListenable: game.missileAmmoNotifier,
+              builder: (_, ammo, _) {
+                final c = ammo > 0 ? CsColors.ink : CsColors.ink30;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Symbols.rocket_rounded, size: size * 0.36, color: c),
+                    Text(
+                      '×$ammo',
+                      style: cs.type.mono(10, em: 0.04, color: c, height: 1.2),
                     ),
-                    boxShadow: enabled
-                        ? [
-                            BoxShadow(
-                              color: CosmoPalette.energy.withValues(alpha: 0.4),
-                              blurRadius: 16,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Icon(
-                    Icons.rocket,
-                    size: 30,
-                    color: enabled
-                        ? CosmoPalette.energy
-                        : CosmoPalette.hullDark.withValues(alpha: 0.6),
-                  ),
-                ),
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: enabled
-                          ? CosmoPalette.energy
-                          : CosmoPalette.bgHigh,
-                    ),
-                    child: Text(
-                      '$ammo',
-                      style: TextStyle(
-                        color: enabled
-                            ? CosmoPalette.bgDeep
-                            : CosmoPalette.hullDark,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
 
-/// Animated "LEVEL N — NAME" banner during the level intro phase.
+/// "LEVEL 03" mono + level name headline during the level intro phase.
 class _LevelIntroBanner extends StatelessWidget {
   const _LevelIntroBanner({required this.game});
   final CosmoStrikeGame game;
 
   @override
   Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
     return IgnorePointer(
       child: Center(
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 500),
-          curve: Curves.easeOutCubic,
-          builder: (context, t, child) => Opacity(
-            opacity: t,
+          duration: CsMotion.slow,
+          curve: CsMotion.standard,
+          builder: (context, v, child) => Opacity(
+            opacity: v,
             child: Transform.translate(
-              offset: Offset(0, 16 * (1 - t)),
+              offset: Offset(0, cs(16) * (1 - v)),
               child: child,
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ValueListenableBuilder<int>(
-                valueListenable: game.levelNotifier,
-                builder: (_, level, _) => Text(
-                  'LEVEL $level',
-                  style: const TextStyle(
-                    color: CosmoPalette.hull,
-                    fontSize: 34,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 6,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: cs(48)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ValueListenableBuilder<int>(
+                  valueListenable: game.levelNotifier,
+                  builder: (_, level, _) => CsLabel(
+                    'Level ${_two(level)} · ${game.mode.name}',
+                    color: CsColors.ink60,
+                    size: 12,
                   ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              ValueListenableBuilder<String>(
-                valueListenable: game.levelNameNotifier,
-                builder: (_, name, _) => Text(
-                  name,
-                  style: TextStyle(
-                    color: CosmoPalette.highlight.withValues(alpha: 0.85),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 3,
+                SizedBox(height: cs(10)),
+                ValueListenableBuilder<String>(
+                  valueListenable: game.levelNameNotifier,
+                  builder: (_, name, _) => FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      style: t.display(48, em: -0.04, height: 1),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Set-piece callout ("CANYON RUN"): a short pink danger rule over a Syne
+/// caption, popping in mid-upper playfield.
+class _Callout extends StatelessWidget {
+  const _Callout({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return Align(
+      alignment: const Alignment(0, -0.4),
+      child: TweenAnimationBuilder<double>(
+        key: ValueKey(text),
+        tween: Tween(begin: 0, end: 1),
+        duration: CsMotion.slow,
+        curve: CsMotion.emphasis,
+        builder: (_, v, child) => Opacity(
+          opacity: v.clamp(0.0, 1.0),
+          child: Transform.scale(scale: 0.9 + 0.1 * v, child: child),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: cs(28), height: 2, color: CsColors.pink),
+            SizedBox(height: cs(10)),
+            Text(
+              text.toUpperCase(),
+              maxLines: 1,
+              style: cs.type.display(24, em: 0.08, height: 1),
+            ),
+          ],
         ),
       ),
     );
@@ -1700,113 +1727,129 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
 
   @override
   Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+
+    // Primary continue path: premium → free revive; free → watch an ad
+    // (kept visible with a spinner while the ad loads, so the path is
+    // always discoverable).
+    final Widget primary;
+    if (widget.isPremium) {
+      primary = CsButton.primary(
+        label: 'Free revive',
+        icon: Symbols.workspace_premium_rounded,
+        expand: true,
+        onPressed: () => _resolve(widget.onFreeRevive),
+      );
+    } else if (widget.adReady) {
+      primary = CsButton.primary(
+        label: 'Watch ad — revive',
+        icon: Symbols.play_arrow_rounded,
+        expand: true,
+        onPressed: _watchAd,
+      );
+    } else {
+      primary = const CsButton.primary(
+        label: 'Watch ad — loading',
+        loading: true,
+        expand: true,
+      );
+    }
+
+    final status = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox.square(
+          dimension: cs(96),
+          child: CustomPaint(
+            painter: _CountdownPainter(_countdown, stroke: cs(3)),
+            child: Center(
+              child: AnimatedBuilder(
+                animation: _countdown,
+                builder: (_, _) => Text(
+                  '${(_seconds * (1 - _countdown.value)).ceil()}',
+                  style: t.display(34, height: 1),
+                ),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(height: cs(18)),
+        const CsLabel('Ship down', color: CsColors.pink),
+        SizedBox(height: cs(6)),
+        Text(
+          'Resume level ${widget.level}',
+          maxLines: 1,
+          style: t.display(36, em: -0.03, height: 1.05),
+        ),
+        SizedBox(height: cs(10)),
+        Text(
+          'SCORE ${widget.score}  ·  WAVE ${widget.wave}',
+          maxLines: 1,
+          style: t.mono(11, em: 0.12, color: CsColors.ink55),
+        ),
+      ],
+    );
+
+    final actions = SizedBox(
+      width: cs(280),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          primary,
+          SizedBox(height: cs(12)),
+          // Universal coin fallback.
+          CsButton.secondary(
+            label: widget.coinsEnough ? 'Revive' : 'Not enough coins',
+            expand: true,
+            trailing: const CsCoins(200, size: 11),
+            onPressed: widget.coinsEnough
+                ? () => _resolve(widget.onSpendCoins)
+                : null,
+          ),
+          SizedBox(height: cs(6)),
+          CsButton.text(
+            label: 'Give up',
+            expand: true,
+            onPressed: () => _resolve(widget.onGiveUp),
+          ),
+        ],
+      ),
+    );
+
     return Stack(
       children: [
         Positioned.fill(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () {},
-            child: Container(
-              color: const Color(0xFF05060F).withValues(alpha: 0.86),
-            ),
+            child: const ColoredBox(color: CsColors.scrim),
           ),
         ),
-        Center(
-          // Landscape card: status/countdown on the LEFT, the continue
-          // actions on the RIGHT — uses the wide-short viewport instead of
-          // stacking everything into a column that overflows. FittedBox is
-          // a safety net for very short screens.
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: GlassPanel(
-              theme: _hudSkin,
-              glow: true,
-              padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 26),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 230,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _countdownRing(),
-                        const SizedBox(height: 16),
-                        Text(
-                          'SHIP DOWN',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: CosmoPalette.hostile,
-                            fontSize: 30,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 3,
-                            shadows: [
-                              Shadow(
-                                color: CosmoPalette.hostile.withValues(
-                                  alpha: 0.6,
-                                ),
-                                blurRadius: 16,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Resume Level ${widget.level}\n'
-                          'Score ${widget.score}  •  Wave ${widget.wave}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: CosmoPalette.highlight,
-                            fontSize: 14,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
+        SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(cs(24)),
+            child: Center(
+              // Landscape: status/countdown LEFT, continue actions RIGHT.
+              // FittedBox is a safety net for very short screens.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    status,
+                    SizedBox(width: cs(48)),
+                    Container(
+                      width: 1,
+                      height: cs(170),
+                      color: CsColors.hairline,
                     ),
-                  ),
-                  const SizedBox(width: 28),
-                  Container(
-                    width: 1,
-                    height: 150,
-                    color: CosmoPalette.hull.withValues(alpha: 0.15),
-                  ),
-                  const SizedBox(width: 28),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Primary continue path: premium → free revive; free →
-                      // watch an ad (kept visible but disabled while the ad
-                      // loads, so the path is always discoverable).
-                      if (widget.isPremium)
-                        _OverlayButton(
-                          label: '✦ FREE REVIVE',
-                          onTap: () => _resolve(widget.onFreeRevive),
-                        )
-                      else if (widget.adReady)
-                        _OverlayButton(
-                          label: '▶ WATCH AD — REVIVE',
-                          onTap: _watchAd,
-                        )
-                      else
-                        _disabledButton('WATCH AD — LOADING…'),
-                      // Universal coin fallback.
-                      if (widget.coinsEnough)
-                        _OverlayButton(
-                          label: 'REVIVE  ·  200 COINS',
-                          onTap: () => _resolve(widget.onSpendCoins),
-                          secondary: true,
-                        )
-                      else
-                        _disabledButton('REVIVE  ·  NEED 200 COINS'),
-                      _OverlayButton(
-                        label: 'GIVE UP',
-                        onTap: () => _resolve(widget.onGiveUp),
-                        secondary: true,
-                      ),
-                    ],
-                  ),
-                ],
+                    SizedBox(width: cs(48)),
+                    actions,
+                  ],
+                ),
               ),
             ),
           ),
@@ -1814,165 +1857,137 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
       ],
     );
   }
-
-  Widget _countdownRing() {
-    return SizedBox(
-      width: 60,
-      height: 60,
-      child: AnimatedBuilder(
-        animation: _countdown,
-        builder: (_, _) => Stack(
-          alignment: Alignment.center,
-          children: [
-            CircularProgressIndicator(
-              value: 1 - _countdown.value,
-              strokeWidth: 4,
-              backgroundColor: CosmoPalette.bgHigh,
-              valueColor: const AlwaysStoppedAnimation(CosmoPalette.hostile),
-            ),
-            Text(
-              '${(_seconds * (1 - _countdown.value)).ceil()}',
-              style: const TextStyle(
-                color: CosmoPalette.highlight,
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// A dimmed, non-tappable button — keeps an option visible (ad still
-  /// loading, or not enough coins) so the path is discoverable, without
-  /// letting it fire.
-  Widget _disabledButton(String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Opacity(
-        opacity: 0.45,
-        child: AbsorbPointer(
-          child: SizedBox(
-            width: 240,
-            child: NeonButton(
-              label: label,
-              onPressed: () {},
-              theme: _hudSkin,
-              variant: NeonButtonVariant.outline,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
-/// First-run tutorial instruction banner: floats top-center over the
-/// playfield, borderless per the clean design (neon icon + text + glow).
-/// Everything except the SKIP pill ignores pointers so drag-steering
-/// works straight through it.
+/// Pink countdown arc on a hairline track; repaints straight off the
+/// animation (no widget rebuilds, no shader allocation).
+class _CountdownPainter extends CustomPainter {
+  _CountdownPainter(this.animation, {required this.stroke})
+    : super(repaint: animation);
+
+  final Animation<double> animation;
+  final double stroke;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.shortestSide / 2 - stroke / 2;
+    final track = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..color = CsColors.track;
+    canvas.drawCircle(c, r, track);
+    final left = 1 - animation.value;
+    if (left <= 0) return;
+    final arc = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round
+      ..color = CsColors.pink;
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r),
+      -math.pi / 2,
+      2 * math.pi * left,
+      false,
+      arc,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CountdownPainter old) =>
+      old.animation != animation || old.stroke != stroke;
+}
+
+/// First-run tutorial caption: a compact raised panel top-center (icon,
+/// Syne title, body) with a text-button SKIP under it. The panel ignores
+/// pointers so drag-steering and tap-to-fire work straight through it.
 class _TutorialBanner extends StatelessWidget {
   const _TutorialBanner({required this.prompt, required this.onSkip});
 
   final TutorialPrompt prompt;
   final VoidCallback onSkip;
 
+  static const ShapeDecoration _panel = ShapeDecoration(
+    color: Color(0xE6141419),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.all(Radius.circular(CsRadius.tile)),
+      side: BorderSide(color: CsColors.lineSubtle),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
     return Align(
-      alignment: const Alignment(0, -0.92),
-      child: TweenAnimationBuilder<double>(
-        key: ValueKey(prompt.title),
-        tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutBack,
-        builder: (_, t, child) => Opacity(
-          opacity: t.clamp(0, 1),
-          child: Transform.scale(scale: 0.85 + 0.15 * t, child: child),
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: EdgeInsets.only(top: cs(16)),
+        child: TweenAnimationBuilder<double>(
+          key: ValueKey(prompt.title),
+          tween: Tween(begin: 0, end: 1),
+          duration: CsMotion.slow,
+          curve: CsMotion.standard,
+          builder: (_, v, child) => Opacity(
+            opacity: v.clamp(0.0, 1.0),
+            child: Transform.translate(
+              offset: Offset(0, -cs(8) * (1 - v)),
+              child: child,
+            ),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               IgnorePointer(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          prompt.icon,
-                          size: 18,
-                          color: CosmoPalette.highlight,
-                          shadows: [
-                            Shadow(
-                              color: CosmoPalette.highlight.withValues(
-                                alpha: 0.8,
+                child: Container(
+                  constraints: BoxConstraints(maxWidth: cs(440)),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: cs(16),
+                    vertical: cs(12),
+                  ),
+                  decoration: _panel,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(prompt.icon, size: cs(20), color: CsColors.cyan),
+                      SizedBox(width: cs(12)),
+                      Flexible(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              prompt.title.toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: t.display(
+                                14,
+                                weight: FontWeight.w700,
+                                em: 0.1,
+                                height: 1.2,
                               ),
-                              blurRadius: 12,
+                            ),
+                            SizedBox(height: cs(4)),
+                            Text(
+                              prompt.body,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: t.body.copyWith(color: CsColors.ink70),
                             ),
                           ],
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          prompt.title,
-                          style: TextStyle(
-                            color: CosmoPalette.highlight,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 3,
-                            shadows: [
-                              Shadow(
-                                color: CosmoPalette.highlight.withValues(
-                                  alpha: 0.7,
-                                ),
-                                blurRadius: 14,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      prompt.body,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: CosmoPalette.hull,
-                        fontSize: 13.5,
-                        height: 1.35,
-                        fontWeight: FontWeight.w600,
-                        shadows: [
-                          Shadow(color: Color(0xCC05060F), blurRadius: 8),
-                        ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               if (prompt.showSkip) ...[
-                const SizedBox(height: 8),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onSkip,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 6,
-                    ),
-                    child: Text(
-                      'SKIP TUTORIAL',
-                      style: TextStyle(
-                        color: CosmoPalette.hull.withValues(alpha: 0.65),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.6,
-                      ),
-                    ),
-                  ),
+                SizedBox(height: cs(4)),
+                CsButton.text(
+                  label: 'Skip tutorial',
+                  size: CsButtonSize.small,
+                  onPressed: onSkip,
                 ),
               ],
             ],
@@ -1983,144 +1998,48 @@ class _TutorialBanner extends StatelessWidget {
   }
 }
 
-/// "PILOT CERTIFIED" tutorial-complete flourish: a gold banner with the
-/// coin payout that scales in, holds, and is removed by the screen after
-/// ~3 s. Pure celebration — wrapped in IgnorePointer by the caller.
-class _CertifiedCelebration extends StatelessWidget {
-  const _CertifiedCelebration({required this.coins});
+/// Celebration flourish (PILOT CERTIFIED / REVIVED): gold glyph, Syne
+/// headline and a coin or mono caption that scales in over the playfield;
+/// removed by the screen after a beat. Wrapped in IgnorePointer by the caller.
+class _Flourish extends StatelessWidget {
+  const _Flourish({
+    required this.icon,
+    required this.title,
+    this.coins,
+    this.caption,
+  });
 
-  final int coins;
+  final IconData icon;
+  final String title;
+  final int? coins;
+  final String? caption;
 
   @override
   Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
     return Align(
-      alignment: const Alignment(0, -0.45),
+      alignment: const Alignment(0, -0.4),
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 450),
-        curve: Curves.easeOutBack,
-        builder: (_, t, child) => Opacity(
-          opacity: t.clamp(0, 1),
-          child: Transform.scale(scale: 0.7 + 0.3 * t, child: child),
+        duration: CsMotion.slow,
+        curve: CsMotion.emphasis,
+        builder: (_, v, child) => Opacity(
+          opacity: v.clamp(0.0, 1.0),
+          child: Transform.scale(scale: 0.85 + 0.15 * v, child: child),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.military_tech,
-              size: 44,
-              color: Color(0xFFFFD37B),
-              shadows: [Shadow(color: Color(0xAAFFD37B), blurRadius: 22)],
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'PILOT CERTIFIED',
-              style: TextStyle(
-                color: Color(0xFFFFD37B),
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 5,
-                shadows: [Shadow(color: Color(0xAAFFD37B), blurRadius: 18)],
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '+$coins COINS',
-              style: const TextStyle(
-                color: CosmoPalette.hull,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 2.5,
-                shadows: [Shadow(color: Color(0xCC05060F), blurRadius: 8)],
-              ),
-            ),
+            Icon(icon, size: cs(40), color: CsColors.gold),
+            SizedBox(height: cs(8)),
+            Text(title, maxLines: 1, style: t.display(34, height: 1)),
+            SizedBox(height: cs(8)),
+            if (coins != null)
+              CsCoins(coins!, prefix: '+', suffix: ' COINS', size: 12)
+            else if (caption != null)
+              Text(caption!, style: t.mono(12, em: 0.14, color: CsColors.gold)),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// "REVIVED" continue flourish: a gold banner that scales in over the
-/// playfield right as the run resumes, removed by the screen after ~1.5 s.
-/// Pure celebration — wrapped in IgnorePointer by the caller.
-class _ReviveFlourish extends StatelessWidget {
-  const _ReviveFlourish();
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: const Alignment(0, -0.45),
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 450),
-        curve: Curves.easeOutBack,
-        builder: (_, t, child) => Opacity(
-          opacity: t.clamp(0, 1),
-          child: Transform.scale(scale: 0.7 + 0.3 * t, child: child),
-        ),
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.rocket_launch,
-              size: 40,
-              color: Color(0xFFFFD37B),
-              shadows: [Shadow(color: Color(0xAAFFD37B), blurRadius: 22)],
-            ),
-            SizedBox(height: 6),
-            Text(
-              'REVIVED',
-              style: TextStyle(
-                color: Color(0xFFFFD37B),
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 5,
-                shadows: [Shadow(color: Color(0xAAFFD37B), blurRadius: 18)],
-              ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              '+1 SHIP',
-              style: TextStyle(
-                color: CosmoPalette.hull,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 2.5,
-                shadows: [Shadow(color: Color(0xCC05060F), blurRadius: 8)],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OverlayButton extends StatelessWidget {
-  const _OverlayButton({
-    required this.label,
-    required this.onTap,
-    this.secondary = false,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final bool secondary;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: SizedBox(
-        width: 240,
-        child: NeonButton(
-          label: label,
-          onPressed: onTap,
-          theme: _hudSkin,
-          variant: secondary
-              ? NeonButtonVariant.outline
-              : NeonButtonVariant.solid,
         ),
       ),
     );
