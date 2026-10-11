@@ -208,6 +208,8 @@ class _GameplayScreenState extends State<GameplayScreen>
     // start, same as the control settings.
     final premium = context.read<PremiumCubit>().state;
     final themeState = context.read<ThemeCubit>().state;
+    // Pre-run best for the game-over NEW RECORD comparison.
+    _prevBestScore = settings.highScore;
     // Purchased colour themes tint gameplay only (menus stay Prism Noir):
     // ship stripe, thrust, shots and the battlefield washes.
     CosmoPalette.applyGameTheme(themeState.currentTheme);
@@ -283,6 +285,11 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// Drift (and enqueues sync) the moment the boss falls.
   void _handleLevelCleared(LevelRunResult result) {
     _persistedClears.add(result.stageId);
+    // The run total so far is a real score the moment a level is cleared —
+    // record it now so BEST is right even if the player quits from the
+    // level-clear screen (which never reaches game over).
+    // updateHighScore never lowers the stored value.
+    unawaited(_recordRunScore());
     // Re-warm the interstitial/rewarded the instant the boss falls — the
     // level-clear summary buys a few seconds of lead time before the player
     // taps Continue, so the ad is already loaded at the break instead of
@@ -321,9 +328,8 @@ class _GameplayScreenState extends State<GameplayScreen>
     GetIt.I<AdService>().preloadInterstitial();
     GetIt.I<AdService>().preloadRewarded();
     if (!mounted) return;
-    // The submit below overwrites the stored high score — capture the
-    // previous best first for the NEW RECORD comparison.
-    _prevBestScore = context.read<GameSettingsCubit>().state.highScore;
+    // _prevBestScore is the best from BEFORE this run (snapshotted when the
+    // run started) — level clears may already have raised the stored value.
     // Capture cubit references synchronously (no BuildContext across awaits).
     _submitRun(
       result,
@@ -566,6 +572,8 @@ class _GameplayScreenState extends State<GameplayScreen>
   void _persistAbandonedRun() {
     if (!_quitPersisted && _game.phase != GamePhase.gameOver) {
       _quitPersisted = true;
+      // Quitting keeps the points earned so far as a high-score candidate.
+      unawaited(_recordRunScore());
       final partial = _game.buildPartialResult();
       final pending = partial.levelResults
           .where((lr) => !lr.cleared || !_persistedClears.contains(lr.stageId))
@@ -579,6 +587,13 @@ class _GameplayScreenState extends State<GameplayScreen>
       }
       unawaited(_enqueueScore(partial, const Uuid().v4(), aborted: true));
     }
+  }
+
+  /// Offline-first high-score update from the live run total.
+  Future<void> _recordRunScore() async {
+    try {
+      await context.read<GameSettingsCubit>().updateHighScore(_game.scoreNotifier.value);
+    } catch (_) {}
   }
 
   void _quitToHome() {
