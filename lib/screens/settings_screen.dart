@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -229,7 +228,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         '${_two(_selectedSection + 1)} / ${_two(_kSections.length)}',
                       ),
                     ],
-                    bottomBar: const ShipBannerAd(),
                     body: CsSplit(
                       leftWidth: cs.isTablet ? 260 : 220,
                       left: _buildNavRail(),

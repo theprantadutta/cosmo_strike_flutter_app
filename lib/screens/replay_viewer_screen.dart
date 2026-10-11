@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/models/game_replay.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
@@ -100,7 +99,6 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
       trailing: [
         if (_replay != null) CsMeta(_replay!.formattedDuration, icon: Symbols.timer_rounded),
       ],
-      bottomBar: const ShipBannerAd(),
       body: _buildContent(context),
     );
   }

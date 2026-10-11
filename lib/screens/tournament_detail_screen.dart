@@ -6,7 +6,6 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/tournament/tournament
 import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/tournament_service.dart';
 import 'package:cosmo_strike_flutter_app/services/auth_service.dart';
@@ -177,7 +176,6 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   Widget build(BuildContext context) {
     return CsScaffold(
       title: _tournament == null ? 'Event' : 'Events · ${_tournament!.type.displayName}',
-      bottomBar: const ShipBannerAd(),
       trailing: [
         if (_tournament != null)
           CsIconButton(

@@ -77,7 +77,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     final cs = context.cs;
     return CsScaffold(
       title: 'Ranks',
-      bottomBar: const ShipBannerAd(),
       trailing: [
         ?_freshness(leaderboardState),
         CsIconButton(
@@ -90,6 +89,8 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
         ),
       ],
       body: CsSplit(
+        // Inline banner in the summary column (no full-width banners).
+        leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
         leftWidth: 270,
         gap: cs(40),
         left: _SideColumn(children: _buildLeft(authState, leaderboardState)),

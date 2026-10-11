@@ -3,18 +3,12 @@ import 'dart:ui' as ui;
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:flutter/material.dart';
 
-import '../../services/ads/ad_tuning.dart';
-import '../ads/banner_ad_widget.dart';
 
 /// Shared Prism Noir shell for the in-game overlays (pause / level clear /
 /// game over): a full-bleed scrim that swallows stray taps (optionally
 /// blurred — the pause scrim is the system's one sanctioned blur), soft
-/// colour washes, the top banner-ad strip, then landscape SafeArea + the
-/// scaled overlay padding around [child].
-///
-/// The banner reserves its height up front and the content lives in the
-/// Expanded below it, so a late ad load never shifts or overlaps the
-/// overlay. Remote kill switch via [AdTuning.overlayBannersEnabled].
+/// colour washes, then landscape SafeArea + the scaled overlay padding
+/// around [child]. (No banner strip: full-width banners were removed.)
 class GameplayOverlayFrame extends StatelessWidget {
   const GameplayOverlayFrame({
     super.key,
@@ -53,7 +47,6 @@ class GameplayOverlayFrame extends StatelessWidget {
         ),
         Column(
           children: [
-            if (AdTuning.overlayBannersEnabled) const ShipBannerAd(top: true),
             Expanded(
               child: SafeArea(
                 child: Padding(

@@ -7,7 +7,6 @@ import '../router/routes.dart';
 import '../services/audio_service.dart';
 import '../ui/cs.dart';
 import '../utils/campaign_catalog.dart';
-import '../widgets/ads/banner_ad_widget.dart';
 
 /// Campaign level select (Prism Noir, mock 06).
 ///
@@ -32,8 +31,9 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
   int? _selected;
   bool _autoSelected = false;
 
-  late final Stream<List<StageProgressRow>> _stream =
-      GetIt.I<AppDatabase>().stageProgressDao.watchAll();
+  late final Stream<List<StageProgressRow>> _stream = GetIt.I<AppDatabase>()
+      .stageProgressDao
+      .watchAll();
 
   void _launch(int level) {
     AudioService().playSound('button_click');
@@ -101,13 +101,14 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
         return CsScaffold(
           title: 'Campaign',
           washes: const [CsWash.violetTopRight],
-          bottomBar: const ShipBannerAd(),
           trailing: [
             CsMeta(
               '${_pad(totalStars)} / ${CampaignCatalog.totalStars}',
               icon: Symbols.star_rounded,
             ),
-            CsMeta('Cleared ${_pad(clearedCount)} / ${_pad(CampaignCatalog.totalLevels)}'),
+            CsMeta(
+              'Cleared ${_pad(clearedCount)} / ${_pad(CampaignCatalog.totalLevels)}',
+            ),
           ],
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -135,7 +136,9 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
                           trailingIcon: selUnlocked
                               ? Symbols.arrow_forward_rounded
                               : Symbols.lock_rounded,
-                          onPressed: selUnlocked ? () => _launch(selected) : null,
+                          onPressed: selUnlocked
+                              ? () => _launch(selected)
+                              : null,
                         ),
                       ),
                     ),
@@ -210,50 +213,67 @@ class _SectorList extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             for (var b = 0; b < CampaignCatalog.biomeIds.length; b++)
-              Builder(builder: (context) {
-                final first = b * per + 1;
-                var stars = 0;
-                for (var l = first; l < first + per; l++) {
-                  stars += byStage[l]?.stars ?? 0;
-                }
-                final distance = (b - selectedBiome).abs();
-                final opacity = distance == 0 ? 1.0 : (distance == 1 ? 0.3 : 0.15);
-                final isSel = distance == 0;
-                return CsPressable(
-                  onTap: () => onSelect(b),
-                  semanticLabel: CampaignCatalog.biomeNames[CampaignCatalog.biomeIds[b]],
-                  child: AnimatedOpacity(
-                    opacity: opacity,
-                    duration: CsMotion.base,
-                    curve: CsMotion.standard,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: cs(2)),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          SizedBox(
-                            width: cs(30),
-                            child: Text(_pad(b + 1),
-                                style: t.mono(11, color: isSel ? CsColors.ink55 : CsColors.ink)),
-                          ),
-                          Text(
-                            _titleCase(CampaignCatalog.biomeNames[CampaignCatalog.biomeIds[b]]!),
-                            maxLines: 1,
-                            style: nameStyle,
-                          ),
-                          SizedBox(width: cs(14)),
-                          Text(
-                            '$stars/${per * 3}',
-                            style: t.mono(11, em: 0.04, color: isSel ? CsColors.gold : CsColors.ink),
-                          ),
-                        ],
+              Builder(
+                builder: (context) {
+                  final first = b * per + 1;
+                  var stars = 0;
+                  for (var l = first; l < first + per; l++) {
+                    stars += byStage[l]?.stars ?? 0;
+                  }
+                  final distance = (b - selectedBiome).abs();
+                  final opacity = distance == 0
+                      ? 1.0
+                      : (distance == 1 ? 0.3 : 0.15);
+                  final isSel = distance == 0;
+                  return CsPressable(
+                    onTap: () => onSelect(b),
+                    semanticLabel:
+                        CampaignCatalog.biomeNames[CampaignCatalog.biomeIds[b]],
+                    child: AnimatedOpacity(
+                      opacity: opacity,
+                      duration: CsMotion.base,
+                      curve: CsMotion.standard,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: cs(2)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            SizedBox(
+                              width: cs(30),
+                              child: Text(
+                                _pad(b + 1),
+                                style: t.mono(
+                                  11,
+                                  color: isSel ? CsColors.ink55 : CsColors.ink,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              _titleCase(
+                                CampaignCatalog.biomeNames[CampaignCatalog
+                                    .biomeIds[b]]!,
+                              ),
+                              maxLines: 1,
+                              style: nameStyle,
+                            ),
+                            SizedBox(width: cs(14)),
+                            Text(
+                              '$stars/${per * 3}',
+                              style: t.mono(
+                                11,
+                                em: 0.04,
+                                color: isSel ? CsColors.gold : CsColors.ink,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                );
-              }),
+                  );
+                },
+              ),
           ],
         ),
       ),
@@ -295,49 +315,79 @@ class _LevelPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Expanded(
-          child: CsFitColumn(
-            alignment: Alignment.centerRight,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              SizedBox.square(
-                dimension: cs(cs.isTablet ? 132 : 100),
-                child: Opacity(
-                  opacity: unlocked ? 1 : 0.35,
-                  child: Image.asset('assets/images/bg/planet-prism.png', fit: BoxFit.contain),
-                ),
-              ),
-              SizedBox(height: cs(14)),
-              Text(
-                _titleCase(CampaignCatalog.levelNameFor(level)),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: t.display(22, em: -0.02, height: 1.1, color: unlocked ? CsColors.ink : CsColors.ink45),
-              ),
-              SizedBox(height: cs(8)),
-              CsStars(stars, size: 14),
-              SizedBox(height: cs(10)),
-              Text(metaLine, textAlign: TextAlign.right, maxLines: 1, overflow: TextOverflow.ellipsis, style: meta),
-              SizedBox(height: cs(6)),
-              if (unlocked) ...[
-                Text(
-                  'PAR ${_time(CampaignCatalog.parTimeSeconds(level))} · ${_thousands(CampaignCatalog.parScore(level))} PTS',
-                  textAlign: TextAlign.right,
-                  maxLines: 1,
-                  style: t.mono(10, color: CsColors.ink30),
-                ),
-                if (row?.clearedNoHit ?? false) ...[
+          child: LayoutBuilder(
+            builder: (context, box) {
+              // The planet takes whatever height the text doesn't need, so on
+              // short phones the level details stay full size instead of the
+              // whole column being scaled down to fit a fixed-size planet.
+              final planet = (box.maxHeight - cs(118)).clamp(
+                0.0,
+                cs(cs.isTablet ? 132 : 100),
+              );
+              return CsFitColumn(
+                alignment: Alignment.centerRight,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (planet >= cs(36)) ...[
+                    SizedBox.square(
+                      dimension: planet,
+                      child: Opacity(
+                        opacity: unlocked ? 1 : 0.35,
+                        child: Image.asset(
+                          'assets/images/bg/planet-prism.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: cs(14)),
+                  ],
+                  Text(
+                    _titleCase(CampaignCatalog.levelNameFor(level)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: t.display(
+                      22,
+                      em: -0.02,
+                      height: 1.1,
+                      color: unlocked ? CsColors.ink : CsColors.ink45,
+                    ),
+                  ),
+                  SizedBox(height: cs(8)),
+                  CsStars(stars, size: 14),
+                  SizedBox(height: cs(10)),
+                  Text(
+                    metaLine,
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: meta,
+                  ),
                   SizedBox(height: cs(6)),
-                  Text('NO-HIT CLEAR', style: t.mono(10, color: CsColors.mint)),
+                  if (unlocked) ...[
+                    Text(
+                      'PAR ${_time(CampaignCatalog.parTimeSeconds(level))} · ${_thousands(CampaignCatalog.parScore(level))} PTS',
+                      textAlign: TextAlign.right,
+                      maxLines: 1,
+                      style: t.mono(10, color: CsColors.ink30),
+                    ),
+                    if (row?.clearedNoHit ?? false) ...[
+                      SizedBox(height: cs(6)),
+                      Text(
+                        'NO-HIT CLEAR',
+                        style: t.mono(10, color: CsColors.mint),
+                      ),
+                    ],
+                  ] else
+                    Text(
+                      'CLEAR LEVEL ${_pad(level - 1)} TO UNLOCK',
+                      textAlign: TextAlign.right,
+                      maxLines: 1,
+                      style: t.mono(10, color: CsColors.pink),
+                    ),
                 ],
-              ] else
-                Text(
-                  'CLEAR LEVEL ${_pad(level - 1)} TO UNLOCK',
-                  textAlign: TextAlign.right,
-                  maxLines: 1,
-                  style: t.mono(10, color: CsColors.pink),
-                ),
-            ],
+              );
+            },
           ),
         ),
         SizedBox(height: cs(12)),
@@ -387,7 +437,9 @@ class _LevelRow extends StatelessWidget {
                   duration: CsMotion.base,
                   curve: CsMotion.standard,
                   height: b == selectedBiome ? 2 : 1,
-                  color: b == selectedBiome ? CsColors.ink60 : CsColors.hairline,
+                  color: b == selectedBiome
+                      ? CsColors.ink60
+                      : CsColors.hairline,
                 ),
                 SizedBox(height: cs(12)),
                 SizedBox(
@@ -449,12 +501,12 @@ class _LevelTile extends StatelessWidget {
     final state = current
         ? CsTileState.current
         : isSelected
-            ? CsTileState.selected
-            : !unlocked
-                ? CsTileState.locked
-                : cleared
-                    ? CsTileState.done
-                    : CsTileState.future;
+        ? CsTileState.selected
+        : !unlocked
+        ? CsTileState.locked
+        : cleared
+        ? CsTileState.done
+        : CsTileState.future;
 
     final numColor = !unlocked
         ? CsColors.ink25
@@ -464,11 +516,19 @@ class _LevelTile extends StatelessWidget {
     if (!unlocked) {
       foot = Icon(Symbols.lock_rounded, size: cs(16), color: CsColors.ink25);
     } else if (current) {
-      foot = Text('NEXT →', maxLines: 1, style: t.display(10, weight: FontWeight.w700, em: 0.12, height: 1));
+      foot = Text(
+        'NEXT →',
+        maxLines: 1,
+        style: t.display(10, weight: FontWeight.w700, em: 0.12, height: 1),
+      );
     } else if (cleared) {
       foot = CsStars(stars, size: 12);
     } else {
-      foot = Icon(Symbols.play_arrow_rounded, size: cs(16), color: CsColors.ink45);
+      foot = Icon(
+        Symbols.play_arrow_rounded,
+        size: cs(16),
+        color: CsColors.ink45,
+      );
     }
 
     return CsPressable(
@@ -483,8 +543,16 @@ class _LevelTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(_pad(level), maxLines: 1, style: t.mono(11, em: 0.04, color: numColor)),
-            FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.bottomLeft, child: foot),
+            Text(
+              _pad(level),
+              maxLines: 1,
+              style: t.mono(11, em: 0.04, color: numColor),
+            ),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.bottomLeft,
+              child: foot,
+            ),
           ],
         ),
       ),

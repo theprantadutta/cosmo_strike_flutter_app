@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
 /// How to play (Prism Noir): a section list on the LEFT styled like the
 /// store's category list (selected = 7% white fill + gold icon) with a
@@ -49,7 +48,6 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
           '${(_selected + 1).toString().padLeft(2, '0')} / ${_sections.length.toString().padLeft(2, '0')}',
         ),
       ],
-      bottomBar: const ShipBannerAd(),
       body: CsSplit(
         leftWidth: cs.isTablet ? 270 : 240,
         left: Column(

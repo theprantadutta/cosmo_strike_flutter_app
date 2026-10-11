@@ -10,6 +10,7 @@ import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
+import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
 /// The Daily tab of the challenges hub (ChallengesHubScreen owns the
 /// CsScaffold + tab chrome; this renders only the two-region body):
@@ -116,6 +117,8 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
     }
 
     return CsSplit(
+      // Inline banner in the summary column (no full-width banners).
+      leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
       left: ChallengeSummary(
         completed: state.completedCount,
         total: state.totalCount,

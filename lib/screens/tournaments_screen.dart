@@ -32,7 +32,6 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
 
     return CsScaffold(
       title: 'Events',
-      bottomBar: const ShipBannerAd(),
       trailing: [
         if (tournamentsState.isOffline)
           const CsMeta('Offline', icon: Symbols.cloud_off_rounded),
@@ -53,6 +52,8 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
         ),
       ],
       body: CsSplit(
+        // Inline banner in the summary column (no full-width banners).
+        leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
         leftWidth: 270,
         gap: cs(40),
         left: _SideColumn(children: _buildLeft(tournamentsState)),

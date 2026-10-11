@@ -52,10 +52,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             onPressed: _refreshStatistics,
           ),
         ],
-        bottomBar: const ShipBannerAd(),
         body: _isLoading
             ? const CsLoadingState(label: 'Loading statistics')
             : CsSplit(
+                // Inline banner in the summary column (no full-width banners).
+                leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
                 left: _buildSummary(context),
                 right: _buildSections(context),
               ),

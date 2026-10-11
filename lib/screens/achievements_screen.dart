@@ -49,8 +49,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
       title: 'Achievements',
       washes: const [CsWash.goldTopRight],
       trailing: [CsMeta('$unlocked / ${all.length} unlocked')],
-      bottomBar: const ShipBannerAd(),
       body: CsSplit(
+        // Inline banner in the summary column (no full-width banners).
+        leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
         left: _buildSummary(context),
         right: _buildGridColumn(context),
       ),

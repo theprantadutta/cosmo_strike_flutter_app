@@ -89,7 +89,6 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen> {
 
     return CsScaffold(
       title: 'Friend ranks',
-      bottomBar: const ShipBannerAd(),
       trailing: [
         CsIconButton(
           icon: Symbols.refresh_rounded,
@@ -101,6 +100,8 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen> {
         ),
       ],
       body: CsSplit(
+        // Inline banner in the summary column (no full-width banners).
+        leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
         leftWidth: 270,
         gap: cs(40),
         left: _SideColumn(children: _buildLeft(currentUid)),

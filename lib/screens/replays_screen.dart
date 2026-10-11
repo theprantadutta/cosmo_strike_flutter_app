@@ -99,10 +99,11 @@ class _ReplaysScreenState extends State<ReplaysScreen> {
       trailing: [
         if (!_isLoading && _replays.isNotEmpty) CsMeta('${_replays.length} saved'),
       ],
-      bottomBar: const ShipBannerAd(),
       // No refresh button: the screen subscribes to Drift's reactive
       // replay stream, so the list updates the instant a row changes.
       body: CsSplit(
+        // Inline banner in the summary column (no full-width banners).
+        leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
         left: _buildSummary(context),
         right: _isLoading ? const CsLoadingState(label: 'Loading replays') : _buildList(context),
       ),

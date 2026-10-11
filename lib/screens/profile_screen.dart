@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
@@ -77,7 +76,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 if (authState.isSignedIn && !authState.isLoading)
                   CsMeta(_accountType(authState), icon: _accountIcon(authState)),
               ],
-              bottomBar: const ShipBannerAd(),
               body: _buildBody(context, authState, themeState),
             );
           },

@@ -47,7 +47,6 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
 
     return CsScaffold(
       title: 'Friends',
-      bottomBar: const ShipBannerAd(),
       trailing: [
         ?_freshness(friendsState),
         CsIconButton(
@@ -60,6 +59,8 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         ),
       ],
       body: CsSplit(
+        // Inline banner in the summary column (no full-width banners).
+        leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
         gap: cs(40),
         // LEFT — tabs + search field (a TextField must not live inside a
         // FittedBox, so it sits outside the scaled summary), then the

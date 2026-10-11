@@ -26,7 +26,6 @@ import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/rewarded_action_button.dart';
 import 'package:cosmo_strike_flutter_app/widgets/credits_dialog.dart';
 import 'package:cosmo_strike_flutter_app/widgets/daily_bonus_popup.dart';
@@ -324,7 +323,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       children: [
         Scaffold(
           backgroundColor: CsColors.bg,
-          bottomNavigationBar: const ShipBannerAd(),
           body: CsBackground(
             stars: true,
             child: SafeArea(

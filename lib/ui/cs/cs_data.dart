@@ -48,12 +48,18 @@ class CsStatGrid extends StatelessWidget {
             for (var j = 0; j < columns; j++)
               Expanded(
                 child: j < slice.length
-                    ? Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(slice[j].value,
-                              maxLines: 1, style: t.display(valueSize, em: -0.01, height: 1.05, color: slice[j].color)),
+                    ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+                        // Stretch gives the FittedBox the cell width, so long
+                        // values (1,000,000+, "STABLE") scale down instead of
+                        // running into the next cell.
+                        Padding(
+                          padding: EdgeInsets.only(right: cs(10)),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(slice[j].value,
+                                maxLines: 1, style: t.display(valueSize, em: -0.01, height: 1.05, color: slice[j].color)),
+                          ),
                         ),
                         SizedBox(height: cs(4)),
                         Text(slice[j].label.toUpperCase(),

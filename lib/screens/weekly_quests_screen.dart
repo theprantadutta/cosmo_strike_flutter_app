@@ -8,6 +8,7 @@ import 'package:cosmo_strike_flutter_app/screens/daily_challenges_screen.dart'
 import 'package:cosmo_strike_flutter_app/services/weekly_quest_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
+import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
 /// The Weekly tab of the challenges hub (ChallengesHubScreen owns the
 /// CsScaffold + tab chrome; this renders only the two-region body).
@@ -66,6 +67,8 @@ class _WeeklyQuestsBodyState extends State<WeeklyQuestsBody> {
         final claimable = _service.claimableCount;
 
         return CsSplit(
+          // Inline banner in the summary column (no full-width banners).
+          leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
           left: ChallengeSummary(
             completed: _service.completedCount,
             total: quests.length,

@@ -18,7 +18,6 @@ import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 
 class StoreScreen extends StatefulWidget {
@@ -137,7 +136,6 @@ class _StoreScreenState extends State<StoreScreen>
                             ),
                           CsCoins(coinsState.balance.total, size: 12),
                         ],
-                        bottomBar: const ShipBannerAd(),
                         body: CsSplit(
                           leftWidth: 200,
                           gap: cs(38),

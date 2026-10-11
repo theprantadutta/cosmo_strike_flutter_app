@@ -7,7 +7,6 @@ import 'package:cosmo_strike_flutter_app/screens/daily_challenges_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/weekly_quests_screen.dart';
 import 'package:cosmo_strike_flutter_app/services/weekly_quest_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
 /// One hub for all recurring quests: DAILY | WEEKLY as a segmented control in
 /// the top bar of a single CsScaffold, with the active set's reset countdown
@@ -60,7 +59,6 @@ class _ChallengesHubScreenState extends ConsumerState<ChallengesHubScreen> {
 
         return CsScaffold(
           title: 'Challenges',
-          bottomBar: const ShipBannerAd(),
           trailing: [
             CsSegmented<int>(
               segments: {

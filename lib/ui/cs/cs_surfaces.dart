@@ -295,10 +295,15 @@ class CsSplit extends StatelessWidget {
     this.leftWidth,
     this.gap,
     this.leftFlex,
+    this.leftFooter,
   });
 
   final Widget left;
   final Widget right;
+
+  /// Pinned under [left] in the same column (e.g. an inline banner ad). The
+  /// summary above gets the remaining height; the footer may be zero-size.
+  final Widget? leftFooter;
 
   /// Design-frame width of the left column (scaled). Defaults to ~290.
   final double? leftWidth;
@@ -311,16 +316,22 @@ class CsSplit extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = context.cs;
     final g = gap ?? cs(44);
+    final leftCol = leftFooter == null
+        ? left
+        : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Expanded(child: left),
+            leftFooter!,
+          ]);
     if (leftFlex != null) {
       return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Expanded(flex: leftFlex!, child: left),
+        Expanded(flex: leftFlex!, child: leftCol),
         SizedBox(width: g),
         Expanded(flex: 10 - leftFlex!, child: right),
       ]);
     }
     final w = leftWidth == null ? cs.sideColumn : cs(leftWidth!);
     return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      SizedBox(width: w, child: left),
+      SizedBox(width: w, child: leftCol),
       SizedBox(width: g),
       Expanded(child: right),
     ]);

@@ -10,7 +10,6 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/battle_pass_c
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 
 /// Battle pass — Prism Noir mock 08.
@@ -143,7 +142,6 @@ class _BattlePassScreenState extends State<BattlePassScreen> {
             ),
           ],
           washes: const [CsWash.violetTopRight],
-          bottomBar: const ShipBannerAd(),
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
