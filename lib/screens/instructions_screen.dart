@@ -77,6 +77,8 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
               onPressed: () => context.pop(),
               label: 'Back to Game',
               icon: Symbols.arrow_back_rounded,
+              // Phones: the compact pill so the label never truncates.
+              size: cs.isTablet ? CsButtonSize.regular : CsButtonSize.small,
               expand: true,
             ),
           ],

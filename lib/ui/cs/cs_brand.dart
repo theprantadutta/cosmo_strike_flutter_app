@@ -11,7 +11,9 @@ class CsLogoMark extends StatelessWidget {
   Widget build(BuildContext context) {
     final d = context.cs(size);
     return Image.asset(
-      d < 48 ? 'assets/images/brand/logo-mark-prism-flat.png' : 'assets/images/brand/logo-mark-prism.png',
+      d < 48
+          ? 'assets/images/brand/logo-mark-prism-flat.png'
+          : 'assets/images/brand/logo-mark-prism.png',
       width: d,
       height: d,
       filterQuality: FilterQuality.medium,
@@ -29,22 +31,31 @@ class CsWordmark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final st = context.type.display(size, em: spacing, height: 1);
-    return Text.rich(
-      TextSpan(children: [
-        TextSpan(text: 'COSMO', style: st),
-        WidgetSpan(
-          alignment: PlaceholderAlignment.baseline,
-          baseline: TextBaseline.alphabetic,
-          child: ShaderMask(
-            blendMode: BlendMode.srcIn,
-            shaderCallback: (b) =>
-                const LinearGradient(colors: [CsColors.cyan, CsColors.pink]).createShader(Offset.zero & b.size),
-            child: Text('/', style: st.copyWith(color: Colors.white)),
-          ),
+    // Scales down as a unit in narrow slots rather than clipping "STRIKE".
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: 'COSMO', style: st),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.baseline,
+              baseline: TextBaseline.alphabetic,
+              child: ShaderMask(
+                blendMode: BlendMode.srcIn,
+                shaderCallback: (b) => const LinearGradient(
+                  colors: [CsColors.cyan, CsColors.pink],
+                ).createShader(Offset.zero & b.size),
+                child: Text('/', style: st.copyWith(color: Colors.white)),
+              ),
+            ),
+            TextSpan(text: 'STRIKE', style: st),
+          ],
         ),
-        TextSpan(text: 'STRIKE', style: st),
-      ]),
-      maxLines: 1,
+        maxLines: 1,
+        softWrap: false,
+      ),
     );
   }
 }
@@ -57,10 +68,13 @@ class CsLogoLockup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      CsLogoMark(size: markSize),
-      SizedBox(width: context.cs(10)),
-      CsWordmark(size: textSize),
-    ]);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CsLogoMark(size: markSize),
+        SizedBox(width: context.cs(10)),
+        CsWordmark(size: textSize),
+      ],
+    );
   }
 }
