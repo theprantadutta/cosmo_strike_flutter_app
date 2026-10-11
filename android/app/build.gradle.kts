@@ -22,8 +22,10 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.example.cosmo_strike_flutter_app"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Pinned above the Flutter defaults (compileSdk 36, NDK 28.2) to the
+    // latest stable Android 17 SDK and NDK.
+    compileSdk = 37
+    ndkVersion = "30.0.16248370"
 
     compileOptions {
         // Required by flutter_local_notifications.
@@ -38,7 +40,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 37
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -86,5 +88,5 @@ flutter {
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }

@@ -49,3 +49,14 @@
 
 # Keep annotations and generic signatures used by reflection-based libs.
 -keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod
+
+# OpenIAP billing stack (flutter_inapp_purchase). Billing classes are reached
+# reflectively across the plugin boundary and the plugin ships no consumer
+# rules, so R8 strips them in minified release builds — purchases then fail
+# only in release, never in debug.
+-keep class dev.hyo.** { *; }
+-keep class io.github.hyochan.** { *; }
+-keep class com.android.vending.billing.**
+-keep class com.android.billingclient.** { *; }
+-dontwarn dev.hyo.**
+-dontwarn io.github.hyochan.**

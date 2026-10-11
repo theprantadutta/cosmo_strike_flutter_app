@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter_inapp_purchase/flutter_inapp_purchase.dart';
 import 'package:get_it/get_it.dart';
-import 'package:in_app_purchase/in_app_purchase.dart';
-import 'package:in_app_purchase_android/in_app_purchase_android.dart';
-import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
 import 'analytics/analytics_facade.dart';
@@ -127,22 +125,54 @@ class ProductIds {
   ];
 
   static List<String> get subscriptionIds => [proMonthly, proYearly];
+
+  /// Every one-time product (consumable or not) — queried separately from
+  /// subscriptions, which the store fetches with a different product type.
+  static List<String> get inAppIds => allProductIds
+      .where((id) => !subscriptionIds.contains(id))
+      .toList();
 }
 
+/// In-app purchases over OpenIAP (`flutter_inapp_purchase`).
+///
+/// Replaces `in_app_purchase` + `in_app_purchase_android`. OpenIAP ships Play
+/// Billing 9.1.0 (required by Play from 2026-11-01) and StoreKit 2 on iOS.
+/// The client-side delivery model is unchanged — verify with the backend,
+/// deliver locally (optimistically on a transient failure, with an offline
+/// retry queue), dedupe by store transaction id — but OpenIAP differs from the
+/// old plugin in three ways this class has to absorb:
+///
+/// * **A purchase's result never comes back from the call.** It arrives on
+///   [FlutterInappPurchase.purchaseUpdatedListener], or as a failure (including
+///   a user cancel) on [FlutterInappPurchase.purchaseErrorListener]. Both are
+///   attached *before* `initConnection` so the first event of a session — a
+///   purchase completed while the app was dead — is not missed.
+/// * **Restore no longer replays onto the stream.** `restorePurchases` syncs and
+///   returns nothing; owned items are read back with `getAvailablePurchases`
+///   and fed through the same handler (see [restorePurchases]).
+/// * **An Android subscription purchase must name an offer token** — sending
+///   none is a developer error on the native side. See [_selectOffer].
 class PurchaseService {
   static final PurchaseService _instance = PurchaseService._internal();
   factory PurchaseService() => _instance;
   PurchaseService._internal();
 
-  final InAppPurchase _inAppPurchase = InAppPurchase.instance;
-  StreamSubscription<List<PurchaseDetails>>? _subscription;
+  final FlutterInappPurchase _iap = FlutterInappPurchase.instance;
+  StreamSubscription<Purchase>? _purchaseSubscription;
+  StreamSubscription<PurchaseError>? _errorSubscription;
 
   bool _isAvailable = false;
   bool _isInitialized = false;
-  List<ProductDetails> _products = [];
-  final List<PurchaseDetails> _purchases = [];
+  List<ProductCommon> _products = [];
+  final List<Purchase> _purchases = [];
   bool _purchasePending = false;
   String? _queryProductError;
+
+  /// Transactions currently being verified. The store re-delivers a purchase
+  /// until it is finished, and finishing waits on a backend round trip, so the
+  /// same transaction can arrive twice (stream + restore) while the first is
+  /// still in flight. Without this both would verify and deliver.
+  final Set<String> _inFlight = {};
 
   /// SharedPreferences key for persisted pending verifications.
   static const String _pendingVerificationsKey =
@@ -150,7 +180,7 @@ class PurchaseService {
 
   /// SharedPreferences key for delivered purchase IDs (deduplication).
   /// Prevents double-delivery if the app crashes between coin delivery
-  /// and completePurchase().
+  /// and finishTransaction().
   static const String _deliveredPurchaseIdsKey = 'delivered_purchase_ids';
 
   /// In-memory set of already-delivered purchase IDs.
@@ -158,8 +188,8 @@ class PurchaseService {
 
   // Getters
   bool get isAvailable => _isAvailable;
-  List<ProductDetails> get products => _products;
-  List<PurchaseDetails> get purchases => _purchases;
+  List<ProductCommon> get products => _products;
+  List<Purchase> get purchases => _purchases;
   bool get purchasePending => _purchasePending;
   String? get queryProductError => _queryProductError;
 
@@ -175,7 +205,7 @@ class PurchaseService {
   Future<void> retryLoadProducts() async {
     _queryProductError = null;
     if (!_isAvailable) {
-      _isAvailable = await _inAppPurchase.isAvailable();
+      _isAvailable = await _openConnection();
     }
     if (!_isAvailable) {
       _queryProductError = 'In-app purchases are not available on this device.';
@@ -187,8 +217,8 @@ class PurchaseService {
   // Stream controllers for UI updates
   final StreamController<bool> _purchasePendingController =
       StreamController<bool>.broadcast();
-  final StreamController<List<ProductDetails>> _productsController =
-      StreamController<List<ProductDetails>>.broadcast();
+  final StreamController<List<ProductCommon>> _productsController =
+      StreamController<List<ProductCommon>>.broadcast();
   final StreamController<String> _purchaseStatusController =
       StreamController<String>.broadcast();
 
@@ -220,7 +250,7 @@ class PurchaseService {
   }
 
   Stream<bool> get purchasePendingStream => _purchasePendingController.stream;
-  Stream<List<ProductDetails>> get productsStream => _productsController.stream;
+  Stream<List<ProductCommon>> get productsStream => _productsController.stream;
   Stream<String> get purchaseStatusStream => _purchaseStatusController.stream;
 
   /// Set user ID getter. Previously used for BackendService verification.
@@ -228,6 +258,17 @@ class PurchaseService {
   /// via JWT token, so this is retained only for backward compatibility.
   void setUserIdGetter(String? Function() getUserId) {
     // No-op: ApiService.verifyPurchase uses JWT for user identification
+  }
+
+  /// Open (or re-check) the billing connection. Bounded: a store that never
+  /// answers must not hold startup, and the game is fully usable without it.
+  Future<bool> _openConnection() async {
+    try {
+      return await _iap.initConnection().timeout(const Duration(seconds: 10));
+    } catch (e) {
+      AppLogger.error('Failed to open a billing connection', e);
+      return false;
+    }
   }
 
   Future<void> initialize() async {
@@ -242,18 +283,21 @@ class PurchaseService {
       // Load previously delivered purchase IDs for deduplication
       await _loadDeliveredPurchaseIds();
 
-      _isAvailable = await _inAppPurchase.isAvailable();
+      // Listeners go on BEFORE initConnection: a purchase completed in a
+      // previous session can be delivered as soon as the connection opens.
+      _purchaseSubscription = _iap.purchaseUpdatedListener.listen(
+        (purchase) => unawaited(_handlePurchase(purchase)),
+        onError: (error) => AppLogger.error('Purchase stream error', error),
+      );
+      _errorSubscription = _iap.purchaseErrorListener.listen(
+        _handlePurchaseError,
+      );
+
+      _isAvailable = await _openConnection();
       if (!_isAvailable) {
         AppLogger.error('In-app purchases not available on this device');
         return;
       }
-
-      // Listen to purchase updates
-      _subscription = _inAppPurchase.purchaseStream.listen(
-        _listenToPurchaseUpdated,
-        onDone: () => _subscription?.cancel(),
-        onError: (error) => AppLogger.error('Purchase stream error', error),
-      );
 
       await loadProducts().timeout(
         const Duration(seconds: 10),
@@ -263,13 +307,12 @@ class PurchaseService {
           );
         },
       );
-      // restorePurchases() intentionally NOT called here. Calling it at
-      // boot re-emits every existing Play Store purchase through the
-      // _listenToPurchaseUpdated listener, which then tries to verify
-      // each one against OUR backend — and the user isn't authenticated
-      // yet, so every verify call 401s and the purchases pile up in the
-      // pending-verification queue. Restore + pending-retry are now
-      // triggered by AuthCubit once it transitions to authenticated
+      // restorePurchases() intentionally NOT called here. Restoring at boot
+      // pushes every existing store purchase through _handlePurchase, which
+      // then tries to verify each one against OUR backend — and the user
+      // isn't authenticated yet, so every verify call 401s and the purchases
+      // pile up in the pending-verification queue. Restore + pending-retry
+      // are triggered by AuthCubit once it transitions to authenticated
       // (see PurchaseService.runPostAuthRestore below).
 
       AppLogger.info(
@@ -284,37 +327,45 @@ class PurchaseService {
     try {
       AppLogger.info('Loading products...');
 
-      final ProductDetailsResponse response = await _inAppPurchase
-          .queryProductDetails(ProductIds.allProductIds.toSet());
+      // One-time products and subscriptions are separate store queries.
+      final inApp = await _iap.fetchProducts<Product>(
+        skus: ProductIds.inAppIds,
+        type: ProductQueryType.InApp,
+      );
+      final subs = await _iap.fetchProducts<ProductSubscription>(
+        skus: ProductIds.subscriptionIds,
+        type: ProductQueryType.Subs,
+      );
 
-      if (response.notFoundIDs.isNotEmpty) {
-        AppLogger.warning('Products not found: ${response.notFoundIDs}');
+      _products = [...inApp, ...subs];
+      _queryProductError = null;
+
+      final notFound = ProductIds.allProductIds
+          .where((id) => !_products.any((p) => p.id == id))
+          .toList();
+      if (notFound.isNotEmpty) {
+        AppLogger.warning('Products not found: $notFound');
       }
 
-      if (response.error != null) {
-        _queryProductError = response.error!.message;
-        AppLogger.error('Error loading products: ${response.error!.message}');
-        return;
-      }
-
-      _products = response.productDetails;
       _productsController.add(_products);
 
       AppLogger.info('Loaded ${_products.length} products successfully');
     } catch (e) {
       AppLogger.error('Error loading products', e);
-      _queryProductError = e.toString();
+      _queryProductError = e is PurchaseError ? e.message : e.toString();
     }
   }
 
-  Future<bool> buyProduct(ProductDetails productDetails) async {
+  /// Ask the store to open its purchase sheet. A `true` return means the sheet
+  /// was requested, nothing more — the outcome arrives on the listeners.
+  Future<bool> buyProduct(ProductCommon product) async {
     if (!_isAvailable) {
       _purchaseStatusController.add('In-app purchases not available');
       return false;
     }
 
     try {
-      AppLogger.info('Initiating purchase for: ${productDetails.id}');
+      AppLogger.info('Initiating purchase for: ${product.id}');
       _purchasePending = true;
       _purchasePendingController.add(true);
 
@@ -322,221 +373,280 @@ class PurchaseService {
       // item_purchased / purchase_cancelled / purchase_failed, this gives
       // us the IAP-sheet abandonment rate.
       _analytics?.trackPurchaseInitiated(
-        productId: productDetails.id,
-        productType: _productTypeFor(productDetails.id),
+        productId: product.id,
+        productType: _productTypeFor(product.id),
       );
 
-      final PurchaseParam purchaseParam = _buildPurchaseParam(productDetails);
+      final request = product is ProductSubscription
+          ? _buildSubscriptionRequest(product)
+          : RequestPurchaseProps.inApp((
+              apple: Platform.isIOS
+                  ? RequestPurchaseIosProps(sku: product.id)
+                  : null,
+              google: Platform.isAndroid
+                  ? RequestPurchaseAndroidProps(skus: [product.id])
+                  : null,
+            ));
 
-      bool success;
-      if (ProductIds.consumableIds.contains(productDetails.id)) {
-        success = await _inAppPurchase.buyConsumable(
-          purchaseParam: purchaseParam,
-        );
-      } else {
-        success = await _inAppPurchase.buyNonConsumable(
-          purchaseParam: purchaseParam,
-        );
+      if (request == null) {
+        _failInitiation(product.id, 'no_offer');
+        return false;
       }
 
-      if (!success) {
-        _purchasePending = false;
-        _purchasePendingController.add(false);
-        _purchaseStatusController.add('Failed to initiate purchase');
-        _analytics?.trackPurchaseFailed(
-          productId: productDetails.id,
-          errorCode: 'init_returned_false',
-        );
-      }
-
-      return success;
+      await _iap.requestPurchase(request);
+      return true;
     } catch (e) {
       AppLogger.error('Error buying product', e);
       _purchasePending = false;
       _purchasePendingController.add(false);
       _purchaseStatusController.add('Purchase failed: ${e.toString()}');
       _analytics?.trackPurchaseFailed(
-        productId: productDetails.id,
+        productId: product.id,
         errorCode: 'exception',
       );
       return false;
     }
   }
 
-  /// Build the platform purchase param. For the two Pro subscriptions on
-  /// Android this checks whether the user already holds the OTHER Pro SKU
-  /// (from this session's purchase/restore stream) and, if so, buys via
-  /// Google's subscription-replacement flow with time proration — the old
-  /// sub is upgraded/downgraded instead of a SECOND concurrent subscription
-  /// being created (Google only blocks re-buying the SAME product, so a
-  /// plain param here double-bills). Plan cards are hidden for subscribers,
-  /// but stale local state (fresh reinstall pre-sync) can expose them.
-  PurchaseParam _buildPurchaseParam(ProductDetails productDetails) {
-    if (Platform.isAndroid &&
-        ProductIds.subscriptionIds.contains(productDetails.id)) {
-      final otherProId = productDetails.id == ProductIds.proMonthly
-          ? ProductIds.proYearly
-          : ProductIds.proMonthly;
-      GooglePlayPurchaseDetails? oldSub;
-      for (final p in _purchases) {
-        if (p.productID == otherProId && p is GooglePlayPurchaseDetails) {
-          oldSub = p;
-        }
-      }
-      if (oldSub != null) {
-        AppLogger.info(
-          'Buying ${productDetails.id} as a REPLACEMENT of $otherProId '
-          '(time-prorated) instead of a second concurrent subscription',
-        );
-        return GooglePlayPurchaseParam(
-          productDetails: productDetails,
-          changeSubscriptionParam: ChangeSubscriptionParam(
-            oldPurchaseDetails: oldSub,
-            replacementMode: ReplacementMode.withTimeProration,
-          ),
-        );
-      }
-    }
-    return PurchaseParam(productDetails: productDetails);
+  void _failInitiation(String productId, String errorCode) {
+    _purchasePending = false;
+    _purchasePendingController.add(false);
+    _purchaseStatusController.add('Failed to initiate purchase');
+    _analytics?.trackPurchaseFailed(productId: productId, errorCode: errorCode);
   }
 
-  Future<void> _listenToPurchaseUpdated(
-    List<PurchaseDetails> purchaseDetailsList,
-  ) async {
-    for (final PurchaseDetails purchaseDetails in purchaseDetailsList) {
-      if (purchaseDetails.status == PurchaseStatus.pending) {
+  /// Build the subscription request. On Android this checks whether the user
+  /// already holds the OTHER Pro SKU (from this session's purchase/restore
+  /// results) and, if so, buys via Google's subscription-replacement flow with
+  /// time proration — the old sub is upgraded/downgraded instead of a SECOND
+  /// concurrent subscription being created (Google only blocks re-buying the
+  /// SAME product, so a plain request here double-bills). Plan cards are
+  /// hidden for subscribers, but stale local state (fresh reinstall pre-sync)
+  /// can expose them.
+  ///
+  /// Returns null when an Android product has no purchasable offer.
+  RequestPurchaseProps? _buildSubscriptionRequest(ProductSubscription product) {
+    if (!Platform.isAndroid) {
+      return RequestPurchaseProps.subs((
+        apple: RequestSubscriptionIosProps(sku: product.id),
+        google: null,
+      ));
+    }
+
+    final offerToken = _selectOffer(
+      _subscriptionOffersOf(product),
+    )?.offerTokenAndroid;
+    if (offerToken == null) {
+      AppLogger.error('No purchasable offer for ${product.id}');
+      return null;
+    }
+
+    final otherProId = product.id == ProductIds.proMonthly
+        ? ProductIds.proYearly
+        : ProductIds.proMonthly;
+    PurchaseAndroid? oldSub;
+    for (final p in _purchases) {
+      if (p is PurchaseAndroid &&
+          p.productId == otherProId &&
+          p.purchaseToken != null) {
+        oldSub = p;
+      }
+    }
+    if (oldSub != null) {
+      AppLogger.info(
+        'Buying ${product.id} as a REPLACEMENT of $otherProId '
+        '(time-prorated) instead of a second concurrent subscription',
+      );
+    }
+
+    return RequestPurchaseProps.subs((
+      apple: null,
+      google: RequestSubscriptionAndroidProps(
+        skus: [product.id],
+        subscriptionOffers: [
+          AndroidSubscriptionOfferInput(sku: product.id, offerToken: offerToken),
+        ],
+        // A replacement needs both: the token names the purchase being
+        // replaced, the params name its product and the proration mode.
+        purchaseToken: oldSub?.purchaseToken,
+        subscriptionProductReplacementParams: oldSub == null
+            ? null
+            : SubscriptionProductReplacementParamsAndroid(
+                oldProductId: oldSub.productId,
+                replacementMode:
+                    SubscriptionReplacementModeAndroid.WithTimeProration,
+              ),
+      ),
+    ));
+  }
+
+  /// A store failure — a cancel, a network problem, an ineligible product.
+  /// Never a backend verdict.
+  void _handlePurchaseError(PurchaseError error) {
+    final productId = error.productId ?? 'unknown';
+    if (error.code == ErrorCode.UserCancelled) {
+      AppLogger.info('Purchase canceled by user: $productId');
+      _analytics?.trackPurchaseCancelled(productId: productId);
+    } else {
+      AppLogger.error('Purchase error: ${error.code}: ${error.message}');
+      _purchaseStatusController.add('Purchase failed');
+      _analytics?.trackPurchaseFailed(
+        productId: productId,
+        errorCode: error.code?.name ?? 'unknown',
+      );
+    }
+    _purchasePending = false;
+    _purchasePendingController.add(false);
+  }
+
+  /// A purchase arrived — from the stream, or from a restore.
+  Future<void> _handlePurchase(Purchase purchase) async {
+    switch (purchase.purchaseState) {
+      case PurchaseState.Pending:
+        // Deferred payment: nothing is delivered or finished until it clears.
         _purchaseStatusController.add('Purchase pending...');
-      } else {
-        if (purchaseDetails.status == PurchaseStatus.error) {
-          AppLogger.error('Purchase error: ${purchaseDetails.error}');
-          _purchaseStatusController.add('Purchase failed');
-          _analytics?.trackPurchaseFailed(
-            productId: purchaseDetails.productID,
-            errorCode: purchaseDetails.error?.code,
-          );
-        } else if (purchaseDetails.status == PurchaseStatus.canceled) {
-          AppLogger.info(
-            'Purchase canceled by user: ${purchaseDetails.productID}',
-          );
-          _analytics?.trackPurchaseCancelled(
-            productId: purchaseDetails.productID,
-          );
-        } else if (purchaseDetails.status == PurchaseStatus.purchased ||
-            purchaseDetails.status == PurchaseStatus.restored) {
-          // Deduplication: skip delivery if this purchase was already delivered
-          // (protects against double-credit if app crashes between delivery
-          // and completePurchase)
-          final purchaseId = purchaseDetails.purchaseID;
-          if (purchaseId != null &&
-              _deliveredPurchaseIds.contains(purchaseId)) {
-            AppLogger.info(
-              'Skipping already-delivered purchase: $purchaseId '
-              '(${purchaseDetails.productID})',
-            );
-          } else {
-            // Verify purchase with backend (via ApiService with JWT auth).
-            // Three outcomes — "couldn't reach the server" and "the server
-            // definitively said NO" must not be conflated:
-            //  * valid      → deliver.
-            //  * transient  → deliver optimistically + queue an offline
-            //                 retry (the purchase is real per Google's own
-            //                 client-side flow; only our backend is unsure).
-            //  * rejected   → do NOT deliver and do NOT queue. Google's
-            //                 server API says this purchase isn't valid.
-            //                 Not marked delivered either, so a later
-            //                 restore re-verifies in case the state heals.
-            final outcome = await _verifyWithBackend(purchaseDetails);
-            if (outcome == _VerifyOutcome.rejected) {
-              AppLogger.warning(
-                'Purchase definitively rejected by backend: '
-                '${purchaseDetails.productID} — not delivering',
-              );
-              _purchaseStatusController.add(
-                'Purchase could not be verified — contact support if you were charged',
-              );
-            } else {
-              if (outcome == _VerifyOutcome.valid) {
-                _purchases.add(purchaseDetails);
-                // Broadcast for PremiumCubit to handle content delivery
-                _purchaseStatusController.add(
-                  'purchase_completed:${purchaseDetails.productID}',
-                );
-                _purchaseStatusController.add('Purchase successful!');
-              } else {
-                // Transient — queue for offline retry
-                await _queuePendingVerification(purchaseDetails);
-                // Still deliver locally so the user isn't stuck
-                _purchases.add(purchaseDetails);
-                _purchaseStatusController.add(
-                  'purchase_completed:${purchaseDetails.productID}',
-                );
-                _purchaseStatusController.add(
-                  'Purchase delivered (backend sync pending)',
-                );
-              }
+        return;
 
-              // Mark as delivered AFTER broadcasting so PremiumCubit
-              // processes it
-              if (purchaseId != null) {
-                await _markAsDelivered(purchaseId);
-              }
-
-              // Funnel terminal event — fires once per fulfilled purchase
-              // (restored re-emissions are skipped above).
-              final productDetails = getProduct(purchaseDetails.productID);
-              _analytics?.trackItemPurchased(
-                itemId: purchaseDetails.productID,
-                itemType: _productTypeFor(purchaseDetails.productID),
-                price: productDetails?.price ?? 'unknown',
-              );
-            }
-          }
-        }
-
-        if (purchaseDetails.pendingCompletePurchase) {
-          await _inAppPurchase.completePurchase(purchaseDetails);
-        }
-
+      case PurchaseState.Unknown:
+        AppLogger.error('Purchase in an unknown state: ${purchase.productId}');
+        _purchaseStatusController.add('Purchase failed');
+        _analytics?.trackPurchaseFailed(
+          productId: purchase.productId,
+          errorCode: 'unknown_state',
+        );
         _purchasePending = false;
         _purchasePendingController.add(false);
+        return;
+
+      case PurchaseState.Purchased:
+        break;
+    }
+
+    final purchaseId = _purchaseIdOf(purchase);
+    if (!_inFlight.add(purchaseId)) {
+      AppLogger.info('Ignoring duplicate purchase update for $purchaseId');
+      return;
+    }
+
+    try {
+      // Deduplication: skip delivery if this purchase was already delivered
+      // (protects against double-credit if the app crashes between delivery
+      // and finishTransaction)
+      if (_deliveredPurchaseIds.contains(purchaseId)) {
+        AppLogger.info(
+          'Skipping already-delivered purchase: $purchaseId '
+          '(${purchase.productId})',
+        );
+        _rememberOwned(purchase);
+      } else {
+        // Verify purchase with backend (via ApiService with JWT auth).
+        // Three outcomes — "couldn't reach the server" and "the server
+        // definitively said NO" must not be conflated:
+        //  * valid      → deliver.
+        //  * transient  → deliver optimistically + queue an offline
+        //                 retry (the purchase is real per the store's own
+        //                 client-side flow; only our backend is unsure).
+        //  * rejected   → do NOT deliver and do NOT queue. The store's
+        //                 server API says this purchase isn't valid.
+        //                 Not marked delivered either, so a later
+        //                 restore re-verifies in case the state heals.
+        final outcome = await _verifyWithBackend(purchase);
+        if (outcome == _VerifyOutcome.rejected) {
+          AppLogger.warning(
+            'Purchase definitively rejected by backend: '
+            '${purchase.productId} — not delivering',
+          );
+          _purchaseStatusController.add(
+            'Purchase could not be verified — contact support if you were charged',
+          );
+        } else {
+          if (outcome == _VerifyOutcome.valid) {
+            _rememberOwned(purchase);
+            // Broadcast for PremiumCubit to handle content delivery
+            _purchaseStatusController.add(
+              'purchase_completed:${purchase.productId}',
+            );
+            _purchaseStatusController.add('Purchase successful!');
+          } else {
+            // Transient — queue for offline retry
+            await _queuePendingVerification(purchase);
+            // Still deliver locally so the user isn't stuck
+            _rememberOwned(purchase);
+            _purchaseStatusController.add(
+              'purchase_completed:${purchase.productId}',
+            );
+            _purchaseStatusController.add(
+              'Purchase delivered (backend sync pending)',
+            );
+          }
+
+          // Mark as delivered AFTER broadcasting so PremiumCubit
+          // processes it
+          await _markAsDelivered(purchaseId);
+
+          // Funnel terminal event — fires once per fulfilled purchase
+          // (already-delivered re-emissions are skipped above).
+          final product = getProduct(purchase.productId);
+          _analytics?.trackItemPurchased(
+            itemId: purchase.productId,
+            itemType: _productTypeFor(purchase.productId),
+            price: product?.displayPrice ?? 'unknown',
+          );
+        }
       }
+
+      await _finishPurchase(purchase);
+    } finally {
+      _inFlight.remove(purchaseId);
+    }
+
+    _purchasePending = false;
+    _purchasePendingController.add(false);
+  }
+
+  /// Track an owned purchase, replacing any earlier record of the same
+  /// product so a re-delivery does not duplicate it.
+  void _rememberOwned(Purchase purchase) {
+    _purchases.removeWhere((p) => _purchaseIdOf(p) == _purchaseIdOf(purchase));
+    _purchases.add(purchase);
+  }
+
+  /// Finish the transaction so the store stops re-delivering it: consumes
+  /// coin packs / tournament entries (making them re-buyable), acknowledges
+  /// everything else.
+  Future<void> _finishPurchase(Purchase purchase) async {
+    final consumable = ProductIds.consumableIds.contains(purchase.productId);
+    if (!consumable &&
+        purchase is PurchaseAndroid &&
+        purchase.isAcknowledgedAndroid == true) {
+      return;
+    }
+    try {
+      await _iap.finishTransaction(
+        purchase: purchase,
+        isConsumable: consumable,
+      );
+    } catch (e) {
+      // Unfinished purchases are re-delivered, and the delivered-set keeps a
+      // re-delivery from crediting twice, so this is safe to just log.
+      AppLogger.error('Failed to finish transaction', e);
     }
   }
 
   // ==================== Backend Verification (via ApiService) ====================
 
-  Future<_VerifyOutcome> _verifyWithBackend(
-    PurchaseDetails purchaseDetails,
-  ) async {
+  Future<_VerifyOutcome> _verifyWithBackend(Purchase purchase) async {
     try {
       final apiService = ApiService();
-
-      // Extract platform-specific data
-      String platform = 'unknown';
-      String receiptData = '';
-      String? purchaseToken;
-
-      if (purchaseDetails.verificationData.source == 'app_store') {
-        platform = 'ios';
-        receiptData = purchaseDetails.verificationData.serverVerificationData;
-      } else if (purchaseDetails.verificationData.source == 'google_play') {
-        platform = 'android';
-        receiptData = purchaseDetails.verificationData.serverVerificationData;
-        if (Platform.isAndroid &&
-            purchaseDetails is GooglePlayPurchaseDetails) {
-          purchaseToken = purchaseDetails.billingClientPurchase.purchaseToken;
-        } else {
-          purchaseToken = purchaseDetails.purchaseID;
-        }
-      }
+      final payload = _verificationPayloadOf(purchase);
 
       // Use ApiService (authenticated with JWT) instead of BackendService
       final result = await apiService.verifyPurchase(
-        platform: platform,
-        receiptData: receiptData,
-        productId: purchaseDetails.productID,
-        transactionId: purchaseDetails.purchaseID ?? '',
-        purchaseToken: purchaseToken,
+        platform: payload.platform,
+        receiptData: payload.receiptData,
+        productId: purchase.productId,
+        transactionId: payload.transactionId,
+        purchaseToken: payload.purchaseToken,
       );
 
       if (result != null && result['is_valid'] == true) {
@@ -545,8 +655,8 @@ class PurchaseService {
       }
 
       if (result != null) {
-        // HTTP 200 with is_valid=false — the server reached Google and
-        // Google says this purchase is not valid. Definitive.
+        // HTTP 200 with is_valid=false — the server reached the store and
+        // the store says this purchase is not valid. Definitive.
         AppLogger.error(
           'Backend definitively rejected purchase: ${result['message']}',
         );
@@ -566,40 +676,24 @@ class PurchaseService {
   // ==================== Offline Retry Queue ====================
 
   /// Persist a failed verification so it can be retried later.
-  Future<void> _queuePendingVerification(PurchaseDetails details) async {
+  Future<void> _queuePendingVerification(Purchase purchase) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final existing = prefs.getStringList(_pendingVerificationsKey) ?? [];
-
-      String? purchaseToken;
-      String platform = 'unknown';
-      String receiptData = '';
-
-      if (details.verificationData.source == 'app_store') {
-        platform = 'ios';
-        receiptData = details.verificationData.serverVerificationData;
-      } else if (details.verificationData.source == 'google_play') {
-        platform = 'android';
-        receiptData = details.verificationData.serverVerificationData;
-        if (Platform.isAndroid && details is GooglePlayPurchaseDetails) {
-          purchaseToken = details.billingClientPurchase.purchaseToken;
-        } else {
-          purchaseToken = details.purchaseID;
-        }
-      }
+      final payload = _verificationPayloadOf(purchase);
 
       final entry = jsonEncode({
-        'product_id': details.productID,
-        'transaction_id': details.purchaseID ?? '',
-        'platform': platform,
-        'receipt_data': receiptData,
-        'purchase_token': purchaseToken,
+        'product_id': purchase.productId,
+        'transaction_id': payload.transactionId,
+        'platform': payload.platform,
+        'receipt_data': payload.receiptData,
+        'purchase_token': payload.purchaseToken,
         'queued_at': DateTime.now().toIso8601String(),
       });
 
       existing.add(entry);
       await prefs.setStringList(_pendingVerificationsKey, existing);
-      AppLogger.info('Queued pending verification for ${details.productID}');
+      AppLogger.info('Queued pending verification for ${purchase.productId}');
     } catch (e) {
       AppLogger.error('Error queuing pending verification', e);
     }
@@ -644,7 +738,7 @@ class PurchaseService {
   /// Batch-verify items surface transient server states as `is_valid=false`
   /// with a recognizable message prefix (the single-verify endpoint returns
   /// non-2xx for the same states). These must stay in the retry queue;
-  /// anything else with `is_valid=false` is a definitive Google rejection.
+  /// anything else with `is_valid=false` is a definitive store rejection.
   /// The anonymous block is retryable too — it heals once the user signs in.
   static bool _isTransientVerifyMessage(Object? message) =>
       message is String &&
@@ -742,7 +836,7 @@ class PurchaseService {
                   coinPackVerified = true;
                 }
               } else if (_isTransientVerifyMessage(r['message'])) {
-                // Server couldn't reach Google / payment pending — keep
+                // Server couldn't reach the store / payment pending — keep
                 // retrying.
                 remaining.add(pending[i]);
               } else {
@@ -791,7 +885,7 @@ class PurchaseService {
             );
             if (_isCoinPack(entry['product_id'])) coinPackVerified = true;
           } else if (result != null) {
-            // HTTP 200 with is_valid=false — Google definitively rejected
+            // HTTP 200 with is_valid=false — the store definitively rejected
             // this purchase. Drop it instead of retrying forever. (Transient
             // server states come back as non-2xx → null → kept below.)
             AppLogger.warning(
@@ -835,7 +929,7 @@ class PurchaseService {
   }
 
   /// Record a purchase ID as delivered so it won't be double-credited
-  /// if the purchase stream re-emits it (e.g. after a crash).
+  /// if the store re-delivers it (e.g. after a crash).
   Future<void> _markAsDelivered(String purchaseId) async {
     _deliveredPurchaseIds.add(purchaseId);
     try {
@@ -859,11 +953,27 @@ class PurchaseService {
 
   // ==================== Restore & Product Queries ====================
 
+  /// Sync with the store and run everything the user owns back through
+  /// [_handlePurchase]. Under the old plugin a restore re-emitted onto the
+  /// purchase stream; OpenIAP's restore returns nothing, so owned items are
+  /// read back explicitly. The delivered-set makes re-handling them a no-op
+  /// for anything already credited.
   Future<void> restorePurchases() async {
     try {
       AppLogger.info('Restoring purchases...');
-      await _inAppPurchase.restorePurchases();
-      AppLogger.info('Purchases restored successfully');
+      if (!_isAvailable) {
+        _isAvailable = await _openConnection();
+        if (!_isAvailable) {
+          _purchaseStatusController.add('Failed to restore purchases');
+          return;
+        }
+      }
+      await _iap.restorePurchases();
+      final owned = await _iap.getAvailablePurchases();
+      for (final purchase in owned) {
+        await _handlePurchase(purchase);
+      }
+      AppLogger.info('Purchases restored successfully (${owned.length} owned)');
     } catch (e) {
       AppLogger.error('Error restoring purchases', e);
       _purchaseStatusController.add('Failed to restore purchases');
@@ -871,15 +981,15 @@ class PurchaseService {
   }
 
   /// One-shot post-authentication setup. Triggered from AuthCubit when it
-  /// transitions to authenticated. Re-emits the user's Play Store purchases
-  /// through the listener (which now has a valid JWT for backend verify)
-  /// AND drains any purchases that 401'd in a previous unauth session.
+  /// transitions to authenticated. Re-runs the user's store purchases through
+  /// the handler (which now has a valid JWT for backend verify) AND drains any
+  /// purchases that 401'd in a previous unauth session.
   /// Idempotent and safe to call multiple times.
   bool _postAuthRestoreDone = false;
   Future<void> runPostAuthRestore() async {
     if (_postAuthRestoreDone) {
       // Subsequent re-auths just drain the pending queue; no need to
-      // re-emit the whole Play Store inventory.
+      // re-process the whole store inventory.
       await retryPendingVerifications();
       return;
     }
@@ -897,45 +1007,49 @@ class PurchaseService {
     }
   }
 
-  ProductDetails? getProduct(String productId) {
-    try {
-      return _products.firstWhere((product) => product.id == productId);
-    } catch (e) {
-      return null;
+  ProductCommon? getProduct(String productId) {
+    for (final product in _products) {
+      if (product.id == productId) return product;
     }
+    return null;
   }
 
   /// Display price for a product, handling the Google Play **subscription**
-  /// quirk: a subscription's `ProductDetails.price` is derived from its first
-  /// base-plan / offer pricing phase, which reads as "Free" / $0 whenever a
-  /// base plan or free-trial phase is zero-priced — even though the real
-  /// recurring price exists in a later pricing phase. For Android subs we dig
-  /// out the recurring (non-zero) phase's formatted price; otherwise we use the
-  /// cross-platform `price` (correct for one-time products and iOS subs).
-  String? _displayPrice(ProductDetails? product) {
+  /// quirk: a subscription's `displayPrice` comes from its first pricing
+  /// phase, which reads as "Free" / $0 whenever a base plan or free-trial
+  /// phase is zero-priced — even though the real recurring price exists in a
+  /// later pricing phase. For Android subs we dig out the recurring (non-zero)
+  /// phase's formatted price; otherwise we use `displayPrice` (correct for
+  /// one-time products and iOS subs).
+  String? _displayPrice(ProductCommon? product) {
     if (product == null) return null;
-    final recurring = _androidSubscriptionRecurringPrice(product);
-    if (recurring != null && recurring.isNotEmpty) return recurring;
-    final price = product.price;
+    if (product is ProductSubscriptionAndroid) {
+      final recurring = _androidSubscriptionRecurringPrice(product);
+      if (recurring != null && recurring.isNotEmpty) return recurring;
+    }
+    final price = product.displayPrice;
     if (price.isEmpty) return null;
     return price;
   }
 
   /// The formatted price of the recurring (non-zero) pricing phase of an
-  /// Android subscription, or null if not applicable / not found.
-  String? _androidSubscriptionRecurringPrice(ProductDetails product) {
-    if (product is! GooglePlayProductDetails) return null;
-    final offers = product.productDetails.subscriptionOfferDetails;
-    if (offers == null || offers.isEmpty) return null;
+  /// Android subscription, or null if not found.
+  String? _androidSubscriptionRecurringPrice(
+    ProductSubscriptionAndroid product,
+  ) {
     // Skip free-trial / intro phases (priceAmountMicros == 0); the perpetual
     // recurring price is the last non-zero phase. Take it from the first offer
     // that has one (typically the base plan).
-    for (final offer in offers) {
-      PricingPhaseWrapper? recurring;
-      for (final phase in offer.pricingPhases) {
-        if (phase.priceAmountMicros > 0) recurring = phase;
+    for (final offer in product.subscriptionOffers) {
+      final phases = offer.pricingPhasesAndroid?.pricingPhaseList;
+      if (phases == null) continue;
+      String? recurring;
+      for (final phase in phases) {
+        if ((int.tryParse(phase.priceAmountMicros) ?? 0) > 0) {
+          recurring = phase.formattedPrice;
+        }
       }
-      if (recurring != null) return recurring.formattedPrice;
+      if (recurring != null) return recurring;
     }
     return null;
   }
@@ -962,30 +1076,115 @@ class PurchaseService {
   bool isPurchased(String productId) {
     return _purchases.any(
       (purchase) =>
-          purchase.productID == productId &&
-          purchase.status == PurchaseStatus.purchased,
+          purchase.productId == productId &&
+          purchase.purchaseState == PurchaseState.Purchased,
     );
   }
 
   bool hasActiveSubscription(String subscriptionId) {
     final purchase = _purchases
-        .where((p) => p.productID == subscriptionId)
+        .where((p) => p.productId == subscriptionId)
         .firstOrNull;
     if (purchase == null) return false;
 
-    return purchase.status == PurchaseStatus.purchased;
+    return purchase.purchaseState == PurchaseState.Purchased;
   }
 
   void dispose() {
-    _subscription?.cancel();
+    _purchaseSubscription?.cancel();
+    _errorSubscription?.cancel();
     _purchasePendingController.close();
     _productsController.close();
     _purchaseStatusController.close();
+    unawaited(_iap.endConnection().catchError((_) => false));
   }
+}
+
+/// The store transaction id used for delivery dedup and as the backend's
+/// `transaction_id`. Matches what the old plugin's `purchaseID` held — the
+/// Play order id / StoreKit transaction id — so delivered-ids persisted by
+/// earlier app versions still dedupe after the migration. Falls back to the
+/// purchase token, because a Play order id can be null (pending purchases).
+String _purchaseIdOf(Purchase purchase) {
+  final transactionId = switch (purchase) {
+    PurchaseAndroid(:final transactionId) => transactionId,
+    PurchaseIOS(:final transactionId) => transactionId,
+  };
+  if (transactionId != null && transactionId.isNotEmpty) return transactionId;
+  final token = purchase.purchaseToken;
+  if (token != null && token.isNotEmpty) return token;
+  return purchase.id;
+}
+
+/// The wire fields `/purchases/verify` has always taken. `purchaseToken` is
+/// the Play purchase token on Android and the StoreKit 2 signed transaction
+/// (JWS) on iOS — the same values the old plugin put in
+/// `serverVerificationData`, so the backend contract is unchanged.
+({
+  String platform,
+  String receiptData,
+  String? purchaseToken,
+  String transactionId,
+})
+_verificationPayloadOf(Purchase purchase) {
+  final token = purchase.purchaseToken ?? '';
+  final transactionId = switch (purchase) {
+    PurchaseAndroid(:final transactionId) => transactionId,
+    PurchaseIOS(:final transactionId) => transactionId,
+  };
+  return switch (purchase) {
+    PurchaseAndroid() => (
+      platform: 'android',
+      receiptData: token,
+      purchaseToken: token.isEmpty ? null : token,
+      transactionId: transactionId ?? '',
+    ),
+    PurchaseIOS() => (
+      platform: 'ios',
+      receiptData: token,
+      purchaseToken: null,
+      transactionId: transactionId ?? '',
+    ),
+  };
+}
+
+/// The offers on a subscription product, whichever platform it came from.
+List<SubscriptionOffer> _subscriptionOffersOf(ProductSubscription product) =>
+    switch (product) {
+      ProductSubscriptionAndroid(:final subscriptionOffers) =>
+        subscriptionOffers,
+      ProductSubscriptionIOS(:final subscriptionOffers) =>
+        subscriptionOffers ?? const [],
+    };
+
+/// Picks the Play offer to buy: an introductory (free/discounted-trial) offer
+/// if the user is eligible — Play only returns offers they are eligible for —
+/// otherwise the base plan, otherwise whatever is first.
+SubscriptionOffer? _selectOffer(List<SubscriptionOffer> offers) {
+  if (offers.isEmpty) return null;
+
+  for (final offer in offers) {
+    final phases = offer.pricingPhasesAndroid?.pricingPhaseList ?? const [];
+    // recurrenceMode 1 = infinite recurring, i.e. a base plan, not an intro.
+    if (phases.any(
+      (p) => (int.tryParse(p.priceAmountMicros) ?? -1) == 0 &&
+          p.recurrenceMode != 1,
+    )) {
+      return offer;
+    }
+  }
+
+  for (final offer in offers) {
+    final basePlanId = offer.basePlanIdAndroid;
+    if (basePlanId != null && basePlanId == offer.id) return offer;
+  }
+
+  return offers.first;
 }
 
 /// Outcome of a backend purchase verification. [transient] means the answer
 /// is unknown (network / server unreachable / payment pending / not signed
 /// in) — deliver optimistically and retry. [rejected] means the server
-/// reached Google and Google says the purchase is invalid — never deliver.
+/// reached the store and the store says the purchase is invalid — never
+/// deliver.
 enum _VerifyOutcome { valid, rejected, transient }

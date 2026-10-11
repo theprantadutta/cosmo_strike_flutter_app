@@ -3,10 +3,14 @@
          relying on library-manifest merges. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- appCategory="game" exempts the sensorLandscape lock below from the
+         Android 16+ (targetSdk 36+) large-screen rule that otherwise ignores
+         orientation restrictions on tablets and foldables. -->
     <application
         android:label="Cosmo Strike"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
+        android:appCategory="game"
         android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".MainActivity"

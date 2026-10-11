@@ -917,10 +917,10 @@ class PremiumCubit extends Cubit<PremiumState> {
     return purchases
         .map(
           (p) => {
-            'productId': p.productID,
-            'purchaseId': p.purchaseID,
-            'transactionDate': p.transactionDate,
-            'status': p.status.toString(),
+            'productId': p.productId,
+            'purchaseId': p.id,
+            'transactionDate': p.transactionDate.toInt().toString(),
+            'status': p.purchaseState.toString(),
           },
         )
         .toList();

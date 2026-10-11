@@ -12,6 +12,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' as riverpod;
+import 'package:material_ui/material_ui.dart' as material_ui;
 import 'package:provider/provider.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
@@ -461,6 +462,13 @@ class _CosmoStrikeAppState extends State<CosmoStrikeApp>
               title: 'Cosmo Strike',
               debugShowCheckedModeBanner: false,
               routerConfig: appRouter,
+              // go_router 18 pulls in package:material_ui / cupertino_ui,
+              // whose widgets look up their *own* MaterialLocalizations and
+              // CupertinoLocalizations types — distinct from the
+              // flutter/material defaults MaterialApp supplies. Without these
+              // they throw "No MaterialLocalizations found" at runtime.
+              localizationsDelegates:
+                  material_ui.GlobalMaterialLocalizations.delegates,
               theme: ThemeData(
                 brightness: Brightness.dark,
                 scaffoldBackgroundColor:
