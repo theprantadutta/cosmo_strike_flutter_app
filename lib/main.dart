@@ -274,10 +274,10 @@ void main() async {
   }
 
   if (_initSucceeded) {
-    // Safety net: the splash is normally lifted by LoadingScreen.initState.
+    // Safety net: the splash is normally lifted by LoadingScreen as it routes.
     // If the first screen somehow never mounts, lift it anyway after a few
     // seconds so the app can never appear permanently frozen on the splash.
-    Future.delayed(const Duration(seconds: 6), FlutterNativeSplash.remove);
+    Future.delayed(const Duration(seconds: 15), FlutterNativeSplash.remove);
     runApp(const riverpod.ProviderScope(child: CosmoStrikeApp()));
   } else {
     // Critical init failed — remove the splash (otherwise it stays on top

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
@@ -20,7 +19,6 @@ import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 class LoadingScreen extends StatefulWidget {
   const LoadingScreen({super.key});
@@ -31,64 +29,20 @@ class LoadingScreen extends StatefulWidget {
 
 class _LoadingScreenState extends State<LoadingScreen>
     with TickerProviderStateMixin {
-  /// One timeline for the whole entrance; see [_SplashStage].
-  late final AnimationController _intro;
-
-  String _currentTask = 'Initializing Cosmo Strike...';
-  double _progress = 0.0;
   bool _hasError = false;
   String _errorMessage = '';
   bool _showRetryButton = false;
-
-  final Random _random = Random();
-
-  // Rotating "Did you know?" tips shown in the center while loading.
-  Timer? _tipTimer;
-  int _tipIndex = 0;
-  static const List<String> _tips = [
-    'Read the wave ahead — enemies telegraph where they\'ll strike next.',
-    'Bonus Pickups are worth more points, but they disappear fast. Grab them quick!',
-    'Destroyed? Watch a quick ad or spend coins to revive and keep your score.',
-    'Chain kills without a break to build a combo multiplier.',
-    'Pinned down? Slip to the screen edge to buy yourself a moment.',
-    'Daily challenges and weekly quests stack up coins fast.',
-    'Cosmo Strike Pro removes all ads and doubles your coin rewards.',
-    'Time Attack: three minutes on the clock — score as fast as you can.',
-    'Power-ups stack: arm a shield before charging a tight gap.',
-    'Switch themes, skins, and engine trails anytime in the store for a fresh look.',
-  ];
 
   @override
   void initState() {
     super.initState();
 
-    // Hide the Splash Screen after initialization
-    FlutterNativeSplash.remove();
-
-    // Frame 0 is pixel-identical to the native splash; the timeline then
-    // lifts the mark and brings everything else into place.
-    _intro = AnimationController(vsync: this, duration: _SplashStage.duration)
-      ..forward();
-
-    // Seed a random starting tip so it's not always the same on every launch,
-    // then rotate through them with a gentle fade while loading.
-    _tipIndex = _random.nextInt(_tips.length);
-    _tipTimer = Timer.periodic(const Duration(milliseconds: 3500), (_) {
-      if (!mounted) return;
-      setState(() => _tipIndex = (_tipIndex + 1) % _tips.length);
-    });
-
+    // The NATIVE splash stays up for the whole startup (preserved in main);
+    // it is lifted in [_liftSplash] right as we route to the first screen.
     // Start the initialization process
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeApp();
     });
-  }
-
-  @override
-  void dispose() {
-    _tipTimer?.cancel();
-    _intro.dispose();
-    super.dispose();
   }
 
   Future<void> _initializeApp() async {
@@ -189,7 +143,7 @@ class _LoadingScreenState extends State<LoadingScreen>
           if (!mounted) {
             return;
           }
-          await _introDone();
+          await _liftSplash();
           if (!mounted) return;
           context.go(AppRoutes.firstTimeAuth);
           return;
@@ -201,7 +155,7 @@ class _LoadingScreenState extends State<LoadingScreen>
       final policyAccepted = await PrivacyPolicy.isCurrentVersionAccepted();
       if (!policyAccepted) {
         if (!mounted) return;
-        await _introDone();
+        await _liftSplash();
         if (!mounted) return;
         context.go(AppRoutes.privacyConsent);
         return;
@@ -219,7 +173,7 @@ class _LoadingScreenState extends State<LoadingScreen>
 
       // Navigation to Home Screen with smooth transition (returning users)
       if (mounted) {
-        await _introDone();
+        await _liftSplash();
         if (!mounted) return;
         context.go(AppRoutes.home);
       }
@@ -408,10 +362,10 @@ class _LoadingScreenState extends State<LoadingScreen>
     }
   }
 
-  /// Never cut the entrance off mid-flight on a fast launch.
-  Future<void> _introDone() async {
-    if (_intro.isCompleted) return;
-    await _intro.forward().orCancel.catchError((_) {});
+  /// Lift the native splash just before the first real screen appears.
+  /// Removal is idempotent (main's safety net may already have done it).
+  Future<void> _liftSplash() async {
+    FlutterNativeSplash.remove();
   }
 
   Future<void> _updateProgress(
@@ -419,18 +373,12 @@ class _LoadingScreenState extends State<LoadingScreen>
     String message,
     String subMessage,
   ) async {
-    if (!mounted) return;
-
-    setState(() {
-      _progress = progress;
-      _currentTask = message;
-    });
-
-    // Minimal delay for UI update (reduced from 50ms)
-    await Future.delayed(const Duration(milliseconds: 16)); // ~1 frame
+    // Startup runs under the native splash, so progress is only logged.
+    AppLogger.lifecycle('Startup ${(progress * 100).round()}% — $message');
   }
 
   void _handleError(String error) {
+    FlutterNativeSplash.remove();
     if (!mounted) return;
 
     setState(() {
@@ -445,8 +393,6 @@ class _LoadingScreenState extends State<LoadingScreen>
       _hasError = false;
       _errorMessage = '';
       _showRetryButton = false;
-      _progress = 0.0;
-      _currentTask = 'Retrying initialization...';
     });
 
     await _initializeApp();
@@ -454,21 +400,15 @@ class _LoadingScreenState extends State<LoadingScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Normally hidden under the native splash. If the splash is lifted before
+    // init finishes (main's safety net), this draws the same mark + wordmark
+    // in the same place, so nothing visibly changes; a quiet loading line
+    // fades in under it.
     return Scaffold(
       backgroundColor: CsColors.bg,
-      body: AnimatedSwitcher(
-        duration: CsMotion.slow,
-        child: _hasError
-            ? SafeArea(child: _buildErrorView())
-            : _SplashStage(
-                key: const ValueKey('loading'),
-                intro: _intro,
-                progress: _progress,
-                status: _currentTask.replaceAll('...', '').replaceAll('…', ''),
-                tip: _tips[_tipIndex],
-                tipKey: _tipIndex,
-              ),
-      ),
+      body: _hasError
+          ? SafeArea(child: _buildErrorView())
+          : const _NativeSplashMirror(),
     );
   }
 
@@ -489,240 +429,46 @@ class _LoadingScreenState extends State<LoadingScreen>
   }
 }
 
-/// The animated splash.
-///
-/// Frame 0 matches the native splash exactly: the same
-/// `splash-mark.png` (256dp box, 120dp rocket) centred on the same #0A0A0D,
-/// with nothing else drawn — so the native → Flutter hand-off is invisible.
-/// The timeline then lifts and settles the mark, blooms a soft prism wash
-/// behind it, rises the COSMO/STRIKE letters in a stagger, draws the prism
-/// slash and progress line, and finally fades in the status, tip, stars and
-/// footer.
-class _SplashStage extends StatelessWidget {
-  const _SplashStage({
-    super.key,
-    required this.intro,
-    required this.progress,
-    required this.status,
-    required this.tip,
-    required this.tipKey,
-  });
-
-  static const duration = Duration(milliseconds: 1700);
-
-  /// Native splash geometry (see flutter_native_splash.yaml).
-  static const _markBox = 256.0;
-  static const _rocket = 120.0;
-
-  final AnimationController intro;
-  final double progress;
-  final String status;
-  final String tip;
-  final int tipKey;
-
-  static double _seg(
-    double t,
-    double a,
-    double b, [
-    Curve c = CsMotion.standard,
-  ]) => c.transform(((t - a) / (b - a)).clamp(0.0, 1.0));
+/// Pixel-matches flutter_native_splash's layout: the 256dp splash mark centred
+/// on the screen and the 200x80dp branding centred at the bottom.
+class _NativeSplashMirror extends StatelessWidget {
+  const _NativeSplashMirror();
 
   @override
   Widget build(BuildContext context) {
-    final cs = context.cs;
-    final t = cs.type;
-    return LayoutBuilder(
-      builder: (context, box) {
-        final w = box.maxWidth, h = box.maxHeight;
-
-        // Final composition: mark, wordmark, line, status, tip — centred as a
-        // group. Sizes scale with the device; the mark never grows past the
-        // native size so the lift reads as "settling", not zooming.
-        final endScale = (cs.s * 0.92).clamp(0.62, 1.0);
-        final rocketEnd = _rocket * endScale;
-        final below = cs(26) + cs(22) + 2 + cs(18) + cs(14) + cs(14) + cs(34);
-        final group = rocketEnd + cs(24) + below;
-        final rocketEndCy = (h - group) / 2 + rocketEnd / 2;
-        final belowTop = rocketEndCy + rocketEnd / 2 + cs(24);
-
-        return AnimatedBuilder(
-          animation: intro,
-          builder: (context, _) {
-            final v = intro.value;
-            final lift = _seg(v, 0.08, 0.52);
-            final scale = 1 + (endScale - 1) * lift;
-            final cy = h / 2 + (rocketEndCy - h / 2) * lift;
-            final bloom = _seg(v, 0.18, 0.75);
-            final late = _seg(v, 0.68, 1.0);
-
-            return Stack(
-              children: [
-                // Washes + stars arrive with the bloom; frame 0 is flat #0A0A0D.
-                Positioned.fill(
-                  child: Opacity(
-                    opacity: bloom,
-                    child: const CsBackground(
-                      stars: true,
-                      washes: [
-                        CsWash.violetCenter,
-                        CsWash.cyanBottomLeft,
-                        CsWash.pinkBottomRight,
-                      ],
-                    ),
-                  ),
-                ),
-                // The mark: same image + size as the native splash at frame 0.
-                Positioned(
-                  left: w / 2 - _markBox * scale / 2,
-                  top: cy - _markBox * scale / 2,
-                  width: _markBox * scale,
-                  height: _markBox * scale,
-                  child: Image.asset(
-                    'assets/images/brand/splash-mark.png',
-                    fit: BoxFit.contain,
-                    filterQuality: FilterQuality.medium,
-                    gaplessPlayback: true,
-                  ),
-                ),
-                // Everything that falls into place under the mark.
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: belowTop,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _StaggeredWordmark(value: v),
-                      SizedBox(height: cs(22)),
-                      Opacity(
-                        opacity: _seg(v, 0.58, 0.8),
-                        child: SizedBox(
-                          width: cs(180) * _seg(v, 0.58, 0.9),
-                          child: CsProgressLine(
-                            value: progress,
-                            gradient: CsGradients.prism,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: cs(18)),
-                      Opacity(
-                        opacity: late,
-                        child: AnimatedSwitcher(
-                          duration: CsMotion.base,
-                          child: Text(
-                            status.toUpperCase(),
-                            key: ValueKey(status),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: t.mono(10, em: 0.2, color: CsColors.ink55),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: cs(14)),
-                      Opacity(
-                        opacity: late,
-                        child: SizedBox(
-                          width: cs(440),
-                          height: cs(34),
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 500),
-                            child: Text(
-                              tip,
-                              key: ValueKey<int>(tipKey),
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: t.body.copyWith(color: CsColors.ink30),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: MediaQuery.paddingOf(context).bottom + cs(18),
-                  child: Opacity(
-                    opacity: late,
-                    child: FutureBuilder<PackageInfo>(
-                      future: PackageInfo.fromPlatform(),
-                      builder: (context, snap) {
-                        final ver = snap.data?.version;
-                        return Text(
-                          [
-                            if (ver != null) 'v$ver',
-                            'Developed by Pranta Dutta',
-                          ].join(' · ').toUpperCase(),
-                          textAlign: TextAlign.center,
-                          style: t.mono(10, color: CsColors.ink30),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-/// COSMO/STRIKE with each letter rising 10px and fading in on a 25ms
-/// stagger; the prism slash draws in last.
-class _StaggeredWordmark extends StatelessWidget {
-  const _StaggeredWordmark({required this.value});
-  final double value;
-
-  static const _letters = 'COSMO/STRIKE';
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = context.cs;
-    final st = context.type.display(26, em: 0.2, height: 1);
-    final rise = cs(10);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    return Stack(
       children: [
-        for (var i = 0; i < _letters.length; i++)
-          Builder(
-            builder: (context) {
-              final start = 0.3 + i * 0.022;
-              final p = _SplashStage._seg(
-                value,
-                start,
-                start + 0.24,
-                Curves.easeOutCubic,
-              );
-              final ch = _letters[i];
-              if (ch == '/') {
-                final draw = _SplashStage._seg(value, 0.5, 0.74);
-                return Opacity(
-                  opacity: draw,
-                  child: Transform.scale(
-                    scaleY: draw,
-                    child: CsPrismText(
-                      '/',
-                      style: st,
-                      gradient: const LinearGradient(
-                        colors: [CsColors.cyan, CsColors.pink],
-                      ),
-                    ),
-                  ),
-                );
-              }
-              return Opacity(
-                opacity: p,
-                child: Transform.translate(
-                  offset: Offset(0, rise * (1 - p)),
-                  child: Text(ch, style: st),
-                ),
-              );
-            },
+        Center(
+          child: Image.asset(
+            'assets/images/brand/splash-mark.png',
+            width: 256,
+            height: 256,
+            gaplessPlayback: true,
           ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 24 + bottom,
+          child: Center(
+            child: Image.asset(
+              'assets/images/brand/splash-branding.png',
+              width: 200,
+              height: 80,
+            ),
+          ),
+        ),
+        Align(
+          alignment: const Alignment(0, 0.42),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 600),
+            curve: const Interval(0.5, 1),
+            builder: (_, v, child) => Opacity(opacity: v, child: child),
+            child: const CsLoadingLine(width: 120),
+          ),
+        ),
       ],
     );
   }

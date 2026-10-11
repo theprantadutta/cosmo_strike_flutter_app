@@ -1,17 +1,16 @@
-# Native splash — the prism rocket alone on the Prism Noir ground.
+# Native splash — the ONLY splash. The prism rocket centred on #0A0A0D with
+# the COSMO/STRIKE wordmark as branding at the bottom.
 #
-# Seamless hand-off (same approach as the ai-persona app): the native splash
-# and the first frame of the Flutter splash (LoadingScreen) draw the SAME
-# image (assets/images/brand/splash-mark.png) at the SAME size, centred on the
-# same #0A0A0D, so removing the native splash is invisible; then the Flutter
-# splash animates everything else into place.
+# Like the ai-persona app: main() calls FlutterNativeSplash.preserve() and the
+# native splash stays up for the whole startup; LoadingScreen does the init
+# work invisibly underneath and removes the splash right as it routes to the
+# first real screen. There is no separate animated Flutter splash.
 #
 # Sizes fail silently here — keep them exact if you replace a file:
-#  - image: 1024x1024 at 4x → 256dp; the rocket's bbox is 480px → 120dp.
-#  - android_12.image: 1152x1152 at 4x → 288dp; same 480px rocket, every
-#    pixel (glow included) inside the centred 768px circle Android 12 crops to.
-#  - No branding slot: Android 12 places it at a fixed bottom position we
-#    can't match from Flutter, so the wordmark arrives in the Flutter splash.
+#  - image: 1024x1024 at 4x → 256dp box, 120dp rocket.
+#  - android_12.image: 1152x1152 with everything inside the centred 768px
+#    circle (Android 12 crops to it).
+#  - branding: EXACTLY 800x320 (200x80dp), wordmark composed inside it.
 # Regenerate with: dart run flutter_native_splash:create
 # ⚠️ The create command rewrites AndroidManifest.xml and STRIPS
 #    android:screenOrientation="sensorLandscape" from MainActivity —
@@ -21,11 +20,17 @@ flutter_native_splash:
   color_dark: "#0A0A0D"
   image: assets/branding/splash-logo-1024.png
   image_dark: assets/branding/splash-logo-1024.png
+  branding: assets/branding/splash-branding-800x320.png
+  branding_dark: assets/branding/splash-branding-800x320.png
+  branding_mode: bottom
+  branding_bottom_padding: 24
   android_12:
     color: "#0A0A0D"
     color_dark: "#0A0A0D"
     image: assets/branding/android12-splash-icon-1152.png
     image_dark: assets/branding/android12-splash-icon-1152.png
+    branding: assets/branding/splash-branding-800x320.png
+    branding_dark: assets/branding/splash-branding-800x320.png
   fullscreen: true
   android: true
   ios: true
