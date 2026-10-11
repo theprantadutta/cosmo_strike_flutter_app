@@ -74,7 +74,12 @@ class CsProgressLine extends StatelessWidget {
     this.gradient = CsGradients.progress,
     this.trackColor = CsColors.track,
     this.width,
+    this.animate = true,
   });
+
+  /// Set false when [value] is already driven per frame (e.g. by an
+  /// AnimationController) so the line tracks it exactly.
+  final bool animate;
 
   /// Pass [CsGradients.complete] for a finished (mint) bar, [CsGradients.prism]
   /// for boss HP / hero bars.
@@ -94,7 +99,7 @@ class CsProgressLine extends StatelessWidget {
         decoration: BoxDecoration(color: trackColor),
         child: TweenAnimationBuilder<double>(
           tween: Tween(end: v),
-          duration: CsMotion.slow,
+          duration: animate ? CsMotion.slow : Duration.zero,
           curve: CsMotion.standard,
           builder: (_, t, _) => FractionallySizedBox(
             alignment: Alignment.centerLeft,
