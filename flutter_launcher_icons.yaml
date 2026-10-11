@@ -1,16 +1,18 @@
-# Launcher icons — sources live in assets/icon/ (NOT bundled into the app).
-# Brand mark: Material rocket_launch glyph in neon cyan (#22D3EE) on the
-# deep-space background (#05060F).
+# Launcher icons — Prism Noir rocket mark. Sources live in assets/branding/
+# (NOT bundled into the app).
 # Regenerate with: dart run flutter_launcher_icons
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/icon/icon.png"
+  image_path: "assets/branding/icon-1024-master.png"
   min_sdk_android: 21
-  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
-  adaptive_icon_background: "#05060F"
-  adaptive_icon_monochrome: "assets/icon/icon_monochrome.png"
+  adaptive_icon_foreground: "assets/branding/ic_launcher_foreground-1024.png"
+  adaptive_icon_background: "assets/branding/ic_launcher_background-1024.png"
+  adaptive_icon_monochrome: "assets/branding/ic_launcher_monochrome-1024.png"
   remove_alpha_ios: true
-  background_color_ios: "#05060F"
-  image_path_ios_dark_transparent: "assets/icon/icon_dark.png"
-  desaturate_tinted_to_grayscale_ios: true
+  background_color_ios: "#0A0A0D"
+  web:
+    generate: true
+    image_path: "assets/branding/icon-512.png"
+    background_color: "#0A0A0D"
+    theme_color: "#0A0A0D"

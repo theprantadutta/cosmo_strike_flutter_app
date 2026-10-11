@@ -89,7 +89,7 @@ class NotificationService {
 
   Future<void> _initializeLocalNotifications() async {
     // Android initialization settings
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidInit = AndroidInitializationSettings('@drawable/ic_stat_notify');
 
     // iOS initialization settings
     const iosInit = DarwinInitializationSettings(
@@ -320,7 +320,7 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
       ticker: 'Cosmo Strike',
-      icon: '@mipmap/ic_launcher',
+      icon: '@drawable/ic_stat_notify',
       playSound: true,
       enableVibration: true,
     );

@@ -1,11 +1,23 @@
-# Native splash — deep-space color + the rocket mark + the crafted-by brand.
+# Native splash — near-black Prism Noir ground + the prism rocket mark.
+# Same ground in light and dark so the hand-off to the animated Flutter splash
+# (LoadingScreen) is seamless: native splash → identical colour → logo animates.
 # Regenerate with: dart run flutter_native_splash:create
 # ⚠️ The create command rewrites AndroidManifest.xml and STRIPS
 #    android:screenOrientation="sensorLandscape" from MainActivity —
 #    re-add it after every regeneration (see CLAUDE.md).
 flutter_native_splash:
-  color: "#05060F"
-  image: assets/icon/splash_logo.png
+  color: "#0A0A0D"
+  color_dark: "#0A0A0D"
+  image: assets/branding/splash-logo-1024.png
+  image_dark: assets/branding/splash-logo-1024.png
   android_12:
-    color: "#05060F"
-    image: assets/icon/splash_logo.png
+    color: "#0A0A0D"
+    color_dark: "#0A0A0D"
+    image: assets/branding/android12-splash-icon-1152.png
+    image_dark: assets/branding/android12-splash-icon-1152.png
+    branding: assets/branding/android12-branding-800x320.png
+    branding_dark: assets/branding/android12-branding-800x320.png
+  fullscreen: true
+  android: true
+  ios: true
+  web: false
