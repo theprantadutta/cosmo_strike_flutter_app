@@ -3,16 +3,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 
-/// Generic "watch an ad for X" card used by the rewarded placements (free
-/// power-up, bonus XP, …). Self-hides for Pro / when ads are disabled, disables
+/// Generic "watch an ad for X" row (secondary outlined pill) used by the
+/// rewarded placements (free power-up, bonus XP, …). Self-hides for Pro / when ads are disabled, disables
 /// itself when no ad is loaded or the daily cap is hit, and re-checks readiness
 /// live (1s ticker) so it enables the moment the rewarded ad finishes loading.
 ///
 /// [onWatch] performs the actual ad show + grant (typically
 /// `AdService.showRewardedCapped(...)`); the button just handles gating + UI.
 class RewardedActionButton extends StatefulWidget {
+  /// Kept for API compatibility; the button is always Prism Noir styled.
   final GameTheme theme;
   final IconData icon;
   final String label;
@@ -76,7 +78,8 @@ class _RewardedActionButtonState extends State<RewardedActionButton> {
     final ads = _ads;
     if (ads == null || !ads.adsEnabled) return const SizedBox.shrink();
 
-    final theme = widget.theme;
+    final cs = context.cs;
+    final t = cs.type;
     final enabled = _enabled(ads);
     final remaining =
         widget.capKey != null ? ads.dailyRemaining(widget.capKey!) : null;
@@ -86,53 +89,50 @@ class _RewardedActionButtonState extends State<RewardedActionButton> {
             ? 'Come back tomorrow for more'
             : 'No ad available right now');
 
+    // Secondary-pill styling: 1px outlined stadium, play glyph, Syne label
+    // with the cap status in mono beneath, the reward glyph trailing.
     return Opacity(
-      opacity: enabled ? 1 : 0.5,
-      child: GestureDetector(
-        onTap: enabled ? _onTap : null,
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                theme.accentColor.withValues(alpha: 0.18),
-                theme.foodColor.withValues(alpha: 0.10),
+      opacity: enabled ? 1 : 0.4,
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: cs(6)),
+        child: CsPressable(
+          onTap: enabled ? _onTap : null,
+          semanticLabel: widget.label,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: EdgeInsets.symmetric(horizontal: cs(18), vertical: cs(8)),
+            decoration: const ShapeDecoration(
+              shape: StadiumBorder(side: BorderSide(color: CsColors.lineStrong)),
+            ),
+            child: Row(
+              children: [
+                Icon(Symbols.play_circle_rounded, size: cs(22), color: CsColors.gold),
+                SizedBox(width: cs(12)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: t.display(13, weight: FontWeight.w700, em: 0.02, height: 1.2),
+                      ),
+                      SizedBox(height: cs(2)),
+                      Text(
+                        subtitle.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: t.mono(9.5, color: CsColors.ink45),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: cs(10)),
+                Icon(widget.icon, size: cs(20), color: CsColors.ink60),
               ],
             ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.accentColor.withValues(alpha: 0.4)),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.play_circle_fill, color: theme.accentColor, size: 28),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.label,
-                      style: TextStyle(
-                        color: theme.accentColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: theme.accentColor.withValues(alpha: 0.65),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(widget.icon,
-                  color: theme.accentColor.withValues(alpha: 0.9), size: 22),
-            ],
           ),
         ),
       ),
