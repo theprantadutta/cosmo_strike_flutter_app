@@ -34,7 +34,7 @@ class Wingman extends PositionComponent with HasGameReference<CosmoStrikeGame> {
     if (game.phase != GamePhase.playing) return;
     _cooldown -= dt;
     if (_cooldown <= 0) {
-      _cooldown = 0.34 * game.upgrades.fireCooldownScale;
+      _cooldown = 0.34 * game.fireCooldownScale;
       game.pools.playerBullet(
         spawn: position + Vector2(size.x / 2, 0),
         damage: 1 + game.upgrades.bonusDamage,

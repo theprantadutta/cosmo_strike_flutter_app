@@ -14,6 +14,7 @@ import 'package:cosmo_strike_flutter_app/screens/username_setup_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/friends_leaderboard_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/friends_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/gameplay_screen.dart';
+import 'package:cosmo_strike_flutter_app/screens/hangar_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/home_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/instructions_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/leaderboard_screen.dart';
@@ -248,6 +249,11 @@ GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
       path: AppRoutes.cosmetics,
       name: 'cosmetics',
       redirect: (context, state) => '${AppRoutes.store}?tab=3',
+    ),
+    GoRoute(
+      path: AppRoutes.hangar,
+      name: 'hangar',
+      pageBuilder: (context, state) => _zoomPage(state, const HangarScreen()),
     ),
     GoRoute(
       path: AppRoutes.battlePass,

@@ -35,6 +35,7 @@ import 'run_effects.dart';
 import 'run_upgrades.dart';
 import 'tutorial_director.dart';
 import 'tuning.dart';
+import 'hangar.dart';
 
 enum GamePhase {
   ready,
@@ -131,7 +132,12 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     this.selectedTrailId = 'none',
     this.trailEffectsEnabled = false,
     this.seed,
+    this.hangar = const HangarLoadout(),
   }) : _tutorialPending = tutorial;
+
+  /// Permanent progression for this run: Hangar upgrade levels + the
+  /// selected ship frame (starting upgrades and trade-offs).
+  final HangarLoadout hangar;
 
   /// Daily Run seed: gameplay randomness (spawns, drops, aim rolls, drafts)
   /// draws from a seeded stream so everyone gets the same layout today.
@@ -397,6 +403,13 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     final limit = mode.timeLimit;
     if (limit != null) timeRemainingNotifier.value = limit.inSeconds;
 
+    // Hangar loadout: the frame's starting upgrades + permanent bonuses.
+    for (final id in hangar.frame.startingUpgrades) {
+      upgrades.grant(id);
+    }
+    _syncUpgradeEffects();
+    missileAmmoNotifier.value += hangar.startMissiles;
+
     levelIndex = startLevel.clamp(1, LevelCatalog.count);
     GameAudio.gameStart();
     _startLevel(levelIndex);
@@ -592,8 +605,19 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// Apply a drafted upgrade for the rest of the run.
   void takeUpgrade(UpgradeId id) {
     upgrades.take(id);
+    _syncUpgradeEffects();
+  }
+
+  /// Fire-rate multiplier from run upgrades x Hangar x ship frame.
+  double get fireCooldownScale =>
+      upgrades.fireCooldownScale * hangar.fireCooldownScale;
+
+  /// Always-on power-up magnet radius (best of run upgrade / Hangar).
+  double get magnetRadius => math.max(upgrades.magnetRadius, hangar.magnetRadius);
+
+  void _syncUpgradeEffects() {
     combo.chainWindowBonus = upgrades.chainWindowBonus;
-    combo.grazeChargeScale = upgrades.grazeChargeScale;
+    combo.grazeChargeScale = upgrades.grazeChargeScale * hangar.grazeChargeScale;
     final have = children.whereType<Wingman>().length;
     for (var i = have; i < upgrades.wingmen; i++) {
       add(Wingman(index: i));
@@ -1071,7 +1095,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       _loseLife();
       return;
     }
-    player.health -= damage * upgrades.damageTakenScale;
+    player.health -= damage * upgrades.damageTakenScale * hangar.damageTakenScale;
     if (player.health <= 0 && player.consumeScoreShieldCharge()) {
       // Armed score shield: absorb the lethal hit instead of dying.
       player.health = 0.5;

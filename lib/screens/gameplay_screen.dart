@@ -35,6 +35,7 @@ import '../services/statistics_service.dart';
 import '../services/tournament_service.dart';
 import '../services/weekly_quest_service.dart';
 import '../services/haptic_service.dart';
+import '../services/hangar_service.dart';
 import '../services/walkthrough_service.dart';
 import '../ui/cs.dart';
 import '../ui/design/immersive.dart';
@@ -234,6 +235,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       onLevelCleared: _handleLevelCleared,
       mode: _mode,
       seed: _dailySeed,
+      hangar: HangarService.instance.loadout,
       startLevel: widget.startLevel,
       armedLoadoutKey: loadoutKey,
       screenShake: settings.screenShakeEnabled,
@@ -300,6 +302,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// Drift (and enqueues sync) the moment the boss falls.
   void _handleLevelCleared(LevelRunResult result) {
     _persistedClears.add(result.stageId);
+    unawaited(HangarService.instance.load()); // new ship frames may unlock
     // The run total so far is a real score the moment a level is cleared —
     // record it now so BEST is right even if the player quits from the
     // level-clear screen (which never reaches game over).

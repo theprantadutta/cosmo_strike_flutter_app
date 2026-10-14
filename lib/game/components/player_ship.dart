@@ -443,7 +443,7 @@ class PlayerShip extends PositionComponent
   void fire() {
     if (_fireCooldown > 0) return;
     final up = game.upgrades;
-    final cooldownScale = (speedBoosted ? 0.85 : 1.0) * up.fireCooldownScale;
+    final cooldownScale = (speedBoosted ? 0.85 : 1.0) * game.fireCooldownScale;
     final spawnNose = nose;
     final dmg = 1 + up.bonusDamage;
     if (game.overdriveActive) {

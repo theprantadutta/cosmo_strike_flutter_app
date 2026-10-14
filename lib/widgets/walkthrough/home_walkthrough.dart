@@ -12,7 +12,7 @@ class HomeWalkthrough {
   static final storeKey = GlobalKey();
   static final profileKey = GlobalKey();
   static final settingsKey = GlobalKey();
-  /// Cosmetics nav item (skins + trails).
+  /// Hangar nav item (permanent upgrades, ships, skins + trails).
   static final cosmeticsKey = GlobalKey();
 
   /// Get the list of walkthrough steps
@@ -80,10 +80,10 @@ class HomeWalkthrough {
       // Step 5: Cosmetics (nav rail, bottom row).
       WalkthroughStep(
         id: 'home_cosmetics',
-        title: 'Skins & Trails',
+        title: 'The Hangar',
         message:
-            'Customize your ship here. Skins change how it looks; trails '
-            'leave a glow behind it. Earn with coins or unlock with Pro.',
+            'Spend coins on permanent upgrades for every run, and fly new '
+            'ships as you clear the campaign. Skins & trails live here too.',
         targetKey: cosmeticsKey,
         position: TooltipPosition.above,
         icon: Symbols.palette_rounded,

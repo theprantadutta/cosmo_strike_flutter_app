@@ -16,6 +16,7 @@ import 'package:cosmo_strike_flutter_app/services/preferences_service.dart';
 import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
 import 'package:cosmo_strike_flutter_app/services/unified_user_service.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
+import 'package:cosmo_strike_flutter_app/services/hangar_service.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
@@ -366,6 +367,8 @@ class _LoadingScreenState extends State<LoadingScreen>
   /// Removal is idempotent (main's safety net may already have done it).
   Future<void> _liftSplash() async {
     FlutterNativeSplash.remove();
+    // Warm the Hangar loadout so the first run applies it.
+    unawaited(HangarService.instance.load());
   }
 
   Future<void> _updateProgress(

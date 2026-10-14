@@ -676,7 +676,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       item('EVENTS', () => context.push(AppRoutes.tournaments)),
       item('RANKS', () => context.push(AppRoutes.leaderboard)),
       item('FRIENDS', () => context.push(AppRoutes.friends)),
-      item('HANGAR', () => context.push(AppRoutes.cosmetics), key: HomeWalkthrough.cosmeticsKey),
+      item('HANGAR', () => context.push(AppRoutes.hangar), key: HomeWalkthrough.cosmeticsKey),
       item('AWARDS', () => context.push(AppRoutes.achievements)),
       item('STATS', () => context.push(AppRoutes.statistics)),
     ];

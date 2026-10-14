@@ -158,6 +158,13 @@ class RunUpgrades {
     history.add(id);
   }
 
+  /// Stack an upgrade that came with the ship frame (not a draft pick, so it
+  /// stays out of [history]); still counts toward the draft cap.
+  void grant(UpgradeId id) {
+    if (!canTake(id)) return;
+    _stacks[id] = stacks(id) + 1;
+  }
+
   void clear() {
     _stacks.clear();
     history.clear();
