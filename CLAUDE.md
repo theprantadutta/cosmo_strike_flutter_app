@@ -104,9 +104,24 @@ modifiers on top. Key pieces (all in `lib/game/`):
 - **Game-time spawning**: ScriptRunner is a plain Component — never use
   `Future.delayed` for spawns (wall-clock ignores `pauseEngine()` and breaks
   pause/revive).
-- **Combo + graze** (`combo_graze.dart`): kill chains drive a ×1-×4 score
-  multiplier (breaks on landed hits); bullets grazing the hull charge a
-  meter → +1 missile. Kill scoring goes through `game.addKillScore`.
+- **Combo + graze + Overdrive** (`combo_graze.dart`): kill chains drive a
+  ×1-×4 score multiplier (breaks on landed hits). Grazes score with the combo,
+  extend the chain and fill the Overdrive meter (formation wipes charge it
+  too); tapping a full meter = 5s piercing beam, ×2 score, bullet-vaporising
+  aura. Kill scoring goes through `game.addKillScore`.
+- **Pressure** (`intensity_director.dart`, `tuning.dart`): aimed-shot share and
+  bullet speed rise per level; clean flying raises fire rate/aim (hits ease it);
+  idling draws a sniper volley. The basic gun does NOT shoot bullets down (laser
+  and Overdrive do). ALL feel numbers live in `lib/game/tuning.dart`.
+- **Upgrade draft** (`run_upgrades.dart`, `widgets/gameplay/upgrade_draft_overlay.dart`):
+  pick 1 of 3 after every level clear; stacks for the run only.
+- **Hangar** (`hangar.dart`, `services/hangar_service.dart`, `screens/hangar_screen.dart`):
+  permanent coin upgrades stored as UnlockedItems type `hangar`
+  (`hangar_<stat>_<level>`, synced via the unlocked-item outbox) + ship frames
+  unlocked by campaign clears; applied at run start via `HangarLoadout`.
+- **Daily Run** (`services/daily_run_service.dart`): date-seeded `game.rng`
+  (shake uses its own RNG) attributed to today's backend "Daily Challenge"
+  tournament. Tournament runs play under the tournament's mode.
 - **Bosses** (`components/bosses/`): per-type multi-phase kits (BossBrain/
   BossPhase/BossAttack) — EVERY attack telegraphs and aim is captured at
   windup start; phase flips clear boss bullets + flash + hit-stop.
