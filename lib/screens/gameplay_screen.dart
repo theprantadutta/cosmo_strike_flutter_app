@@ -1838,7 +1838,7 @@ class _LevelIntroBanner extends StatelessWidget {
                 ValueListenableBuilder<int>(
                   valueListenable: game.levelNotifier,
                   builder: (_, level, _) => CsLabel(
-                    'Level ${_two(level)} · ${game.mode.name}',
+                    'Level ${_two(level)} · ${game.seed != null ? 'Daily run' : game.mode.name}',
                     color: CsColors.ink60,
                     size: 12,
                   ),

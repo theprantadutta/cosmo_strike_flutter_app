@@ -36,7 +36,8 @@ class DailyRunService {
     var found = pick(await service.getActiveTournaments());
     if (found == null) {
       try {
-        await service.refreshActive();
+        // Bounded: a slow or unreachable server must never stall the run.
+        await service.refreshActive().timeout(const Duration(seconds: 4));
         found = pick(await service.getActiveTournaments());
       } catch (e) {
         AppLogger.info('Daily run: tournament refresh failed ($e) — playing unattributed');
@@ -53,7 +54,10 @@ class DailyRunService {
     final tournament = await todaysTournament();
     var attributedId = tournament?.id;
     if (tournament != null && !tournament.isJoinedServer) {
-      final joined = await TournamentService().joinTournament(tournament.id);
+      final joined = await TournamentService()
+          .joinTournament(tournament.id)
+          .timeout(const Duration(seconds: 5), onTimeout: () => false)
+          .catchError((_) => false);
       if (!joined) attributedId = null;
     }
     contextCubit.enterDailyRun(

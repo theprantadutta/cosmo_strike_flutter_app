@@ -516,7 +516,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 CsButton.secondary(
                   label: 'Daily run',
                   icon: Symbols.event_rounded,
-                  onPressed: () => DailyRunService.launch(context),
+                  loading: _dailyLoading,
+                  onPressed: _dailyLoading ? null : _launchDailyRun,
                 ),
                 _buildLoadoutChip(theme),
                 CsButton.text(
@@ -531,6 +532,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         );
       },
     );
+  }
+
+  bool _dailyLoading = false;
+
+  Future<void> _launchDailyRun() async {
+    setState(() => _dailyLoading = true);
+    try {
+      await DailyRunService.launch(context);
+    } finally {
+      if (mounted) setState(() => _dailyLoading = false);
+    }
   }
 
   Future<void> _launch(BuildContext context) async {
