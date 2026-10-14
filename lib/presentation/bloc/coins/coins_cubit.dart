@@ -286,18 +286,19 @@ class CoinsCubit extends Cubit<CoinsState> {
   ///
   /// Called from [SyncEngine.maybeRunFirstSignInPull]'s brandNew branch
   /// — only for users the backend just minted (isNewUser == true).
-  /// Idempotent: skipped if Drift already shows any prior activity, so
+  /// Idempotent: skipped once a starting_bonus transaction exists, so
   /// double-invocation can't double-credit.
   Future<void> seedStartingBonus() async {
     final storageService = StorageService();
     if (!storageService.isInitialized) return;
     final row = await storageService.storeDao.getCoinBalanceRow();
     if (row == null) return;
-    if (row.balance > 0 || row.totalEarned > 0) {
-      AppLogger.info(
-        'CoinsCubit.seedStartingBonus skipped — Drift not virgin '
-        '(balance=${row.balance}, totalEarned=${row.totalEarned})',
-      );
+    // Once per account, not "only on an untouched wallet": a guest who
+    // already earned coins before signing up still gets the welcome 50.
+    final alreadyGranted = await storageService.storeDao
+        .earnedCoinsFromSourceSince('starting_bonus', DateTime(2000));
+    if (alreadyGranted > 0) {
+      AppLogger.info('CoinsCubit.seedStartingBonus skipped — already granted');
       return;
     }
 
