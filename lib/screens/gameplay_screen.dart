@@ -543,7 +543,9 @@ class _GameplayScreenState extends State<GameplayScreen>
           'stage_reached': r.stageReached,
           'wave_reached': r.waveReached,
           'bosses_killed': r.bossesKilled,
-          'game_mode': _gameModeName,
+          // Enum identifier: display labels ("Zen Mode") fail backend
+          // validation and the score was silently dropped.
+          'game_mode': _game.mode.wireName,
           'difficulty': 'Normal',
           'idempotency_key': idempotencyKey,
           'played_at': DateTime.now().toUtc().toIso8601String(),
