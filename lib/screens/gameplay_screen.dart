@@ -102,6 +102,8 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// Game mode name for this run (for the per-mode leaderboard tag). Captured
   /// at run start so the abandoned-run path doesn't need a live context.
   String _gameModeName = 'classic';
+  GameMode _mode = GameMode.classic;
+  int? _dailySeed;
 
   /// First-run tutorial: true when this run opened with the guided beats.
   bool _tutorialRun = false;
@@ -150,18 +152,22 @@ class _GameplayScreenState extends State<GameplayScreen>
     final settings = context.read<GameSettingsCubit>().state;
     _dPadEnabled = settings.dPadEnabled;
     _dPadPosition = settings.dPadPosition;
-    _gameModeName = settings.gameMode.name;
 
     // Capture the tournament context for this run (set by the tournament
-    // detail screen before launching). Held for the screen's lifetime so the
-    // game-over submit attributes the score to the right tournament.
+    // detail screen / Daily Run before launching). Held for the screen's
+    // lifetime so the game-over submit attributes the score to the right
+    // tournament.
     try {
       _tournamentContext = context.read<TournamentContextCubit>();
       _tournamentId = _tournamentContext?.state.tournamentId;
+      _dailySeed = _tournamentContext?.state.dailySeed;
     } catch (_) {
       _tournamentContext = null;
       _tournamentId = null;
     }
+    // A tournament plays under ITS rules, not the player's chosen mode.
+    _mode = _tournamentContext?.state.mode?.toGameMode() ?? settings.gameMode;
+    _gameModeName = _mode.name;
 
     // The debrief shows only THIS run's achievement unlocks and challenge
     // deltas — reset/snapshot both at run start.
@@ -226,7 +232,8 @@ class _GameplayScreenState extends State<GameplayScreen>
     _game = CosmoStrikeGame(
       onGameOver: _handleGameOver,
       onLevelCleared: _handleLevelCleared,
-      mode: settings.gameMode,
+      mode: _mode,
+      seed: _dailySeed,
       startLevel: widget.startLevel,
       armedLoadoutKey: loadoutKey,
       screenShake: settings.screenShakeEnabled,
@@ -423,7 +430,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     // Feed the run into daily challenges + achievements — the debrief
     // panels watch both and update live as these land. Kills ride the
     // legacy FoodEaten wire type (the kills -> foodEaten challenge mapping).
-    final modeName = settings.state.gameMode.name;
+    final modeName = _mode.name;
     unawaited(
       DailyChallengeService().updateProgressBatch([
         (type: ChallengeType.score, value: r.score, gameMode: null),

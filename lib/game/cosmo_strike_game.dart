@@ -130,7 +130,12 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     this.selectedSkinId = 'classic',
     this.selectedTrailId = 'none',
     this.trailEffectsEnabled = false,
+    this.seed,
   }) : _tutorialPending = tutorial;
+
+  /// Daily Run seed: gameplay randomness (spawns, drops, aim rolls, drafts)
+  /// draws from a seeded stream so everyone gets the same layout today.
+  final int? seed;
 
   /// Called once when the run ends (out of lives / time / VICTORY). The
   /// screen persists campaign progress + submits the score.
@@ -182,7 +187,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// Effects' setting, ThemeCubit.trailSystemEnabled).
   final bool trailEffectsEnabled;
 
-  final math.Random rng = math.Random();
+  late final math.Random rng = seed == null ? math.Random() : math.Random(seed);
+
+  /// Cosmetic randomness (screen shake) — separate so the shake setting
+  /// never shifts the gameplay stream.
+  final math.Random _fxRng = math.Random();
 
   late PlayerShip player;
   late Starfield _starfield;
@@ -677,8 +686,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       } else {
         final falloff = _shakeTime / _shakeDuration;
         _shakeOffset.setValues(
-          (rng.nextDouble() * 2 - 1) * _shakeIntensity * falloff,
-          (rng.nextDouble() * 2 - 1) * _shakeIntensity * falloff,
+          (_fxRng.nextDouble() * 2 - 1) * _shakeIntensity * falloff,
+          (_fxRng.nextDouble() * 2 - 1) * _shakeIntensity * falloff,
         );
       }
     }

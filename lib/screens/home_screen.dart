@@ -17,6 +17,7 @@ import 'package:cosmo_strike_flutter_app/data/database/app_database.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/providers/daily_challenges_provider.dart';
 import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
+import 'package:cosmo_strike_flutter_app/services/daily_run_service.dart';
 import 'package:cosmo_strike_flutter_app/services/share_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/walkthrough_service.dart';
@@ -510,6 +511,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   label: 'Launch',
                   trailingIcon: Symbols.arrow_forward_rounded,
                   onPressed: () => _launch(context),
+                ),
+                // Daily Run: today's seeded run, scored on the daily board.
+                CsButton.secondary(
+                  label: 'Daily run',
+                  icon: Symbols.event_rounded,
+                  onPressed: () => DailyRunService.launch(context),
                 ),
                 _buildLoadoutChip(theme),
                 CsButton.text(

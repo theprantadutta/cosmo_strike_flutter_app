@@ -159,6 +159,8 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
         context.select<GameSettingsCubit, GameMode>((c) => c.state.gameMode);
     final activeMode = tournamentMode?.toGameMode() ?? settingsMode;
     final isOverride = activeMode != settingsMode;
+    final isDaily =
+        context.select<TournamentContextCubit, bool>((c) => c.state.isDailyRun);
     final dPadEnabled =
         context.select<GameSettingsCubit, bool>((c) => c.state.dPadEnabled);
     final highScore =
@@ -181,7 +183,7 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
               child: _Entrance(
                 child: CsFitColumn(
                   alignment: Alignment.centerLeft,
-                  children: _buildMission(activeMode, isOverride, dPadEnabled),
+                  children: _buildMission(activeMode, isOverride, dPadEnabled, daily: isDaily),
                 ),
               ),
             ),
@@ -204,17 +206,19 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
 
   // ---- LEFT: level + mode ----
 
-  List<Widget> _buildMission(GameMode mode, bool isOverride, bool dPad) {
+  List<Widget> _buildMission(GameMode mode, bool isOverride, bool dPad, {bool daily = false}) {
     final cs = context.cs;
     final t = cs.type;
     final level = widget.startLevel;
     final accent = isOverride ? CsColors.gold : CsColors.ink55;
     return [
       Text(
-        'LEVEL ${level.toString().padLeft(2, '0')} / ${CampaignCatalog.biomeNameFor(level)}',
+        daily
+            ? 'DAILY RUN · SAME SKY FOR EVERY PILOT TODAY'
+            : 'LEVEL ${level.toString().padLeft(2, '0')} / ${CampaignCatalog.biomeNameFor(level)}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: t.mono(11, em: 0.16, color: CsColors.ink55),
+        style: t.mono(11, em: 0.16, color: daily ? CsColors.gold : CsColors.ink55),
       ),
       SizedBox(height: cs(16)),
       FittedBox(

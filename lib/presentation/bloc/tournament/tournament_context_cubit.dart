@@ -15,12 +15,17 @@ class TournamentContextState extends Equatable {
   final String? tournamentId;
   final TournamentGameMode? mode;
 
-  const TournamentContextState({this.tournamentId, this.mode});
+  /// Set for a Daily Run: seeds the game's RNG so everyone flies the same
+  /// spawn layout today. Can be set without a tournament (offline daily run).
+  final int? dailySeed;
+
+  const TournamentContextState({this.tournamentId, this.mode, this.dailySeed});
 
   bool get isTournamentMode => tournamentId != null;
+  bool get isDailyRun => dailySeed != null;
 
   @override
-  List<Object?> get props => [tournamentId, mode];
+  List<Object?> get props => [tournamentId, mode, dailySeed];
 }
 
 class TournamentContextCubit extends Cubit<TournamentContextState> {
@@ -28,6 +33,11 @@ class TournamentContextCubit extends Cubit<TournamentContextState> {
 
   void enterTournament(String tournamentId, TournamentGameMode mode) =>
       emit(TournamentContextState(tournamentId: tournamentId, mode: mode));
+
+  /// Arm a Daily Run (today's seed), attributed to [tournamentId] when the
+  /// daily tournament is known and joined.
+  void enterDailyRun({required int seed, String? tournamentId, TournamentGameMode? mode}) =>
+      emit(TournamentContextState(tournamentId: tournamentId, mode: mode, dailySeed: seed));
 
   void exitTournament() => emit(const TournamentContextState());
 }
