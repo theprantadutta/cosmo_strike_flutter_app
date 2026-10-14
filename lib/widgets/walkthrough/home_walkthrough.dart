@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/walkthrough/walkthrough_step.dart';
 
 /// Defines the walkthrough steps for the home screen
@@ -11,7 +12,7 @@ class HomeWalkthrough {
   static final storeKey = GlobalKey();
   static final profileKey = GlobalKey();
   static final settingsKey = GlobalKey();
-  /// Cosmetics nav item (skins + trails).
+  /// Hangar nav item (permanent upgrades, ships, skins + trails).
   static final cosmeticsKey = GlobalKey();
 
   /// Get the list of walkthrough steps
@@ -29,7 +30,7 @@ class HomeWalkthrough {
             'blast through enemy waves, and take down the stage boss.',
         targetKey: playButtonKey,
         position: TooltipPosition.left,
-        icon: Icons.rocket_launch,
+        icon: Symbols.rocket_launch_rounded,
         spotlightPadding: 8,
         spotlightBorderRadius: 24,
       ),
@@ -43,7 +44,7 @@ class HomeWalkthrough {
             'Spend them in the store!',
         targetKey: coinsKey,
         position: TooltipPosition.below,
-        icon: Icons.monetization_on,
+        icon: Symbols.paid_rounded,
         spotlightPadding: 8,
         spotlightBorderRadius: 20,
       ),
@@ -57,7 +58,7 @@ class HomeWalkthrough {
             'Three fresh ones every day!',
         targetKey: dailyChallengesKey,
         position: TooltipPosition.below,
-        icon: Icons.calendar_today,
+        icon: Symbols.calendar_today_rounded,
         spotlightPadding: 6,
         spotlightBorderRadius: 18,
       ),
@@ -71,7 +72,7 @@ class HomeWalkthrough {
             'Go Pro for 2× coins, no ads, and every premium cosmetic.',
         targetKey: storeKey,
         position: TooltipPosition.above,
-        icon: Icons.store,
+        icon: Symbols.storefront_rounded,
         spotlightPadding: 6,
         spotlightBorderRadius: 14,
       ),
@@ -79,13 +80,13 @@ class HomeWalkthrough {
       // Step 5: Cosmetics (nav rail, bottom row).
       WalkthroughStep(
         id: 'home_cosmetics',
-        title: 'Skins & Trails',
+        title: 'The Hangar',
         message:
-            'Customize your ship here. Skins change how it looks; trails '
-            'leave a glow behind it. Earn with coins or unlock with Pro.',
+            'Spend coins on permanent upgrades for every run, and fly new '
+            'ships as you clear the campaign. Skins & trails live here too.',
         targetKey: cosmeticsKey,
         position: TooltipPosition.above,
-        icon: Icons.palette,
+        icon: Symbols.palette_rounded,
         spotlightPadding: 6,
         spotlightBorderRadius: 14,
       ),
@@ -99,7 +100,7 @@ class HomeWalkthrough {
             'your progress safe across devices.',
         targetKey: profileKey,
         position: TooltipPosition.below,
-        icon: Icons.account_circle,
+        icon: Symbols.account_circle_rounded,
         spotlightPadding: 8,
         spotlightBorderRadius: 20,
       ),
@@ -113,7 +114,7 @@ class HomeWalkthrough {
             'tune everything to your liking.',
         targetKey: settingsKey,
         position: TooltipPosition.below,
-        icon: Icons.settings,
+        icon: Symbols.settings_rounded,
         spotlightPadding: 8,
         spotlightBorderRadius: 20,
         actionLabel: 'Start Playing!',

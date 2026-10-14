@@ -1,15 +1,20 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
+import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/providers/leaderboard_provider.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
+import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
+
+/// The boards on this screen. [friends] is not a local board: it opens the
+/// dedicated friends leaderboard screen.
+enum _Board { global, weekly, friends }
 
 class LeaderboardScreen extends ConsumerStatefulWidget {
   const LeaderboardScreen({super.key});
@@ -18,32 +23,26 @@ class LeaderboardScreen extends ConsumerStatefulWidget {
   ConsumerState<LeaderboardScreen> createState() => _LeaderboardScreenState();
 }
 
-class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
+  _Board _board = _Board.global;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(_onTabChanged);
     // Calculate user rank once data is loaded
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _calculateUserRank();
     });
   }
 
-  void _onTabChanged() {
-    if (!_tabController.indexIsChanging) return;
-    final type = _tabController.index == 0 ? 'global' : 'weekly';
-    getIt<AnalyticsFacade>().trackLeaderboardViewed(type);
-  }
-
-  @override
-  void dispose() {
-    _tabController.removeListener(_onTabChanged);
-    _tabController.dispose();
-    super.dispose();
+  void _selectBoard(_Board board) {
+    if (board == _Board.friends) {
+      context.push(AppRoutes.friendsLeaderboard);
+      return;
+    }
+    if (board == _board) return;
+    setState(() => _board = board);
+    getIt<AnalyticsFacade>().trackLeaderboardViewed(board == _Board.weekly ? 'weekly' : 'global');
   }
 
   void _calculateUserRank() {
@@ -61,13 +60,12 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
     await ref.read(combinedLeaderboardProvider.notifier).refresh();
   }
 
+  bool get _weekly => _board == _Board.weekly;
+
   @override
   Widget build(BuildContext context) {
-    // Watch the leaderboard state from Riverpod
     final leaderboardState = ref.watch(combinedLeaderboardProvider);
-    final themeState = context.watch<ThemeCubit>().state;
     final authState = context.watch<AuthCubit>().state;
-    final theme = themeState.currentTheme;
 
     // Update user rank when global leaderboard loads
     ref.listen<CombinedLeaderboardState>(combinedLeaderboardProvider, (prev, next) {
@@ -76,253 +74,53 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
       }
     });
 
-    return CommandScaffold(
-      theme: theme,
-      title: 'Leaderboards',
-      bottomBar: const ShipBannerAd(),
-      bodyPadding: EdgeInsets.zero,
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // LEFT — section rail + board telemetry (subtitle, cache
-            // freshness, the signed-in player's rank). Never scrolls:
-            // rendered at natural size and scaled down.
-            Expanded(
-              flex: 3,
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: SizedBox(
-                    width: 230,
-                    child: _buildLeftPanel(theme, authState, leaderboardState),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 20),
-            // RIGHT — the selected board's entries (swipeable).
-            Expanded(
-              flex: 7,
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildGlobalLeaderboard(theme, authState, leaderboardState),
-                  _buildWeeklyLeaderboard(theme, authState, leaderboardState),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Themed loading state matching the other data screens — a centered
-  /// spinner over a 'Loading…' label so users perceive the network fetch
-  /// as work-in-progress rather than an empty/broken screen.
-  Widget _buildLoadingState(GameTheme theme, String label) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(theme.accentColor),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            label,
-            style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 16,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Vertical, borderless section rail + board telemetry for the left
-  /// region. Driven by the existing [_tabController] so taps and
-  /// TabBarView swipes stay in sync.
-  Widget _buildLeftPanel(
-    GameTheme theme,
-    AuthState authState,
-    CombinedLeaderboardState leaderboardState,
-  ) {
-    const items = [
-      (Icons.public, 'Global'),
-      (Icons.calendar_today, 'Weekly'),
-    ];
-
-    return AnimatedBuilder(
-      animation: _tabController,
-      builder: (context, _) {
-        final userRank = leaderboardState.userRank;
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < items.length; i++)
-              _buildNavItem(theme, i, items[i].$1, items[i].$2),
-            const SizedBox(height: 6),
-
-            // Subtitle explaining what the active board ranks by — without
-            // this, "Global vs Weekly" doesn't tell players whether the
-            // metric is score / coins / XP / something else.
-            _buildSubtitle(theme),
-            const SizedBox(height: 8),
-
-            // Cache freshness chip — surfaces when the Drift cache for
-            // the active board was last refreshed from the server so
-            // the user knows if they're looking at stale data (offline,
-            // or a recent disconnect).
-            _buildStalenessChip(theme, leaderboardState),
-
-            // The signed-in player's own standing on the board.
-            if (authState.isSignedIn && userRank != null) ...[
-              const SizedBox(height: 12),
-              _buildUserRankCard(authState, theme, userRank),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildNavItem(GameTheme theme, int i, IconData icon, String label) {
-    final selected = _tabController.index == i;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _tabController.animateTo(i),
-      // No background at all — selection reads purely through the neon icon,
-      // brighter text, and a small glowing indicator dot.
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: selected ? theme.neonPrimary : theme.textMuted,
-            ),
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? theme.textPrimary : theme.textMuted,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const Spacer(),
-            if (selected)
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: theme.neonPrimary,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.neonPrimary.withValues(alpha: 0.7),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Tells the player exactly what metric the active tab is ranking on,
-  /// so "Global vs Weekly" isn't ambiguous between high score / coins / XP.
-  /// Mirrors what the backend handlers do: GetGlobalLeaderboardQueryHandler
-  /// orders by aggregated max(Score.ScoreValue) lifetime; the weekly one
-  /// scopes scores to `CreatedAt >= startOfWeek` (Sunday).
-  Widget _buildSubtitle(GameTheme theme) {
-    final isWeekly = _tabController.index == 1;
-    final icon = isWeekly ? Icons.calendar_today : Icons.public;
-    final text = isWeekly
-        ? 'Ranked by your best single-game score this week (resets Sunday)'
-        : 'Ranked by your highest single-game score ever';
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: Icon(icon, color: theme.textMuted, size: 12),
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 11,
-            ),
-          ),
+    final cs = context.cs;
+    return CsScaffold(
+      title: 'Ranks',
+      trailing: [
+        ?_freshness(leaderboardState),
+        CsIconButton(
+          icon: Symbols.refresh_rounded,
+          size: 36,
+          bordered: false,
+          color: CsColors.ink60,
+          tooltip: 'Refresh',
+          onPressed: _weekly ? _loadWeeklyLeaderboard : _loadGlobalLeaderboard,
         ),
       ],
+      body: CsSplit(
+        // Inline banner in the summary column (no full-width banners).
+        leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
+        leftWidth: 270,
+        gap: cs(40),
+        left: _SideColumn(children: _buildLeft(authState, leaderboardState)),
+        right: AnimatedSwitcher(
+          duration: CsMotion.base,
+          switchInCurve: CsMotion.standard,
+          child: KeyedSubtree(
+            key: ValueKey(_board),
+            child: _weekly
+                ? _buildWeeklyLeaderboard(authState, leaderboardState)
+                : _buildGlobalLeaderboard(authState, leaderboardState),
+          ),
+        ),
+      ),
     );
   }
 
-  /// Tiny inline chip reading "Updated 3m ago · tap to refresh" for the
-  /// active board. The Drift cache survives offline launches, so this
-  /// is the user's signal for "is what I'm looking at stale?". Tap
-  /// triggers a forced refresh.
-  Widget _buildStalenessChip(
-    GameTheme theme,
-    CombinedLeaderboardState state,
-  ) {
-    final isWeekly = _tabController.index == 1;
-    final ts =
-        isWeekly ? state.weeklyLastRefreshedAt : state.globalLastRefreshedAt;
-    final hasData = isWeekly
-        ? state.weeklyEntries.isNotEmpty
-        : state.globalEntries.isNotEmpty;
-    // No chip until the cache has at least once been populated. A
-    // brand-new install hitting an offline state would just look
-    // confusing with a "Never updated" label.
-    if (ts == null && !hasData) return const SizedBox.shrink();
-
+  /// "UPDATED 3M AGO" for the active board — the Drift cache survives
+  /// offline launches, so this tells the player whether the list is stale.
+  /// Tap forces a refresh. Hidden until the cache has ever been populated.
+  Widget? _freshness(CombinedLeaderboardState state) {
+    final ts = _weekly ? state.weeklyLastRefreshedAt : state.globalLastRefreshedAt;
+    final hasData = _weekly ? state.weeklyEntries.isNotEmpty : state.globalEntries.isNotEmpty;
+    if (ts == null && !hasData) return null;
     final label = ts == null ? 'No cache yet' : 'Updated ${_relativeAge(ts)}';
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+    return Flexible(
+      child: CsPressable(
+        semanticLabel: '$label. Tap to refresh',
         onTap: () => ref.read(combinedLeaderboardProvider.notifier).refresh(),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: theme.accentColor.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.refresh_rounded,
-                color: theme.accentColor.withValues(alpha: 0.7),
-                size: 12,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: TextStyle(
-                  color: theme.accentColor.withValues(alpha: 0.75),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
+        child: SizedBox(height: 44, child: Center(child: CsMeta(label))),
       ),
     );
   }
@@ -336,551 +134,146 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
     return '${diff.inDays}d ago';
   }
 
-  /// The signed-in player's own standing — borderless, no card chrome:
-  /// a section label, the big "#n" rank value, then muted detail rows.
-  Widget _buildUserRankCard(AuthState authState, GameTheme theme, Map<String, dynamic> userRank) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'YOUR RANK',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.8,
-              color: theme.accentColor,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundImage: authState.photoURL != null
-                    ? NetworkImage(authState.photoURL!)
-                    : null,
-                onBackgroundImageError: authState.photoURL != null
-                    ? (e, s) {}
-                    : null,
-                backgroundColor: theme.primaryColor,
-                child: authState.photoURL == null
-                    ? Icon(Icons.person, color: theme.backgroundColor, size: 18)
-                    : null,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '#${userRank['rank']}',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: theme.textPrimary,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    Text(
-                      authState.publicLabel,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: theme.textMuted,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Score: ${authState.highScore}',
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.textMuted,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'Top ${userRank['percentile']}%',
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.textMuted,
-            ),
-          ),
-        ],
+  List<Widget> _buildLeft(AuthState authState, CombinedLeaderboardState state) {
+    final cs = context.cs;
+    final t = cs.type;
+    final entries = _weekly ? state.weeklyEntries : state.globalEntries;
+    final uid = authState.isSignedIn ? authState.userId : null;
+    final index = uid == null ? -1 : entries.indexWhere((e) => e['uid'] == uid);
+
+    final Widget rankBlock;
+    if (index >= 0) {
+      final rank = index + 1;
+      final score = (entries[index]['highScore'] ?? 0) as int;
+      final top = math.max(1, (rank / entries.length * 100).ceil());
+      rankBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        const CsLabel('Your rank'),
+        SizedBox(height: cs(4)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: CsPrismText('#$rank', style: t.scoreGiant.copyWith(height: 1.05)),
+        ),
+        SizedBox(height: cs(6)),
+        Text(
+          '${_formatThousands(score)} PTS · TOP $top%',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: t.mono(12, em: 0.06, color: CsColors.ink60),
+        ),
+      ]);
+    } else {
+      rankBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        const CsLabel('Your rank'),
+        SizedBox(height: cs(4)),
+        Text('#—', style: t.scoreGiant.copyWith(height: 1.05, color: CsColors.ink25)),
+        SizedBox(height: cs(6)),
+        Text(
+          authState.isSignedIn ? 'NOT ON THIS BOARD YET' : 'SIGN IN TO GET RANKED',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: t.mono(12, em: 0.06, color: CsColors.ink45),
+        ),
+      ]);
+    }
+
+    // What the active board ranks by. Mirrors the backend handlers: global =
+    // lifetime max single-run score; weekly = scores since Sunday.
+    final caption = _weekly
+        ? 'Ranked by best single-run score this week. Resets Sunday.'
+        : 'Ranked by highest single-run score.';
+
+    return [
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: CsSegmented<_Board>(
+          segments: const {_Board.global: 'Global', _Board.weekly: 'Weekly', _Board.friends: 'Friends'},
+          selected: _board,
+          onChanged: _selectBoard,
+        ),
       ),
-    );
+      SizedBox(height: cs(22)),
+      rankBlock,
+      SizedBox(height: cs(22)),
+      Text(caption, style: t.display(12, weight: FontWeight.w400, em: 0, height: 1.4, color: CsColors.ink45)),
+      const Spacer(),
+    ];
   }
 
-  Widget _buildGlobalLeaderboard(GameTheme theme, AuthState authState, CombinedLeaderboardState leaderboardState) {
-    if (leaderboardState.isLoadingGlobal) {
-      return _buildLoadingState(theme, 'Loading global leaderboard...');
+  Widget _buildGlobalLeaderboard(AuthState authState, CombinedLeaderboardState state) {
+    if (state.isLoadingGlobal) {
+      return const CsLoadingState(label: 'Loading global leaderboard');
     }
-
-    if (leaderboardState.globalError != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: theme.accentColor.withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              leaderboardState.globalError!,
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 16),
-            NeonButton(
-              onPressed: _loadGlobalLeaderboard,
-              label: 'Retry',
-              icon: Icons.refresh,
-              theme: theme,
-            ),
-          ],
-        ),
+    if (state.globalError != null) {
+      return CsEmptyState.error(
+        title: "Couldn't load the leaderboard",
+        message: state.globalError,
+        action: CsButton.secondary(label: 'Retry', icon: Symbols.refresh_rounded, onPressed: _loadGlobalLeaderboard),
       );
     }
-
-    if (leaderboardState.globalEntries.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.emoji_events_outlined,
-              size: 64,
-              color: theme.accentColor.withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No scores yet',
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Be the first to set a high score!',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
+    if (state.globalEntries.isEmpty) {
+      return const CsEmptyState(
+        icon: Symbols.emoji_events_rounded,
+        title: 'No scores yet',
+        message: 'Be the first to set a high score!',
       );
     }
+    return _buildList(state.globalEntries, authState, _loadGlobalLeaderboard);
+  }
 
+  Widget _buildWeeklyLeaderboard(AuthState authState, CombinedLeaderboardState state) {
+    if (state.isLoadingWeekly) {
+      return const CsLoadingState(label: 'Loading weekly leaderboard');
+    }
+    if (state.weeklyError != null) {
+      return CsEmptyState.error(
+        title: "Couldn't load the leaderboard",
+        message: state.weeklyError,
+        action: CsButton.secondary(label: 'Retry', icon: Symbols.refresh_rounded, onPressed: _loadWeeklyLeaderboard),
+      );
+    }
+    if (state.weeklyEntries.isEmpty) {
+      return const CsEmptyState(
+        icon: Symbols.calendar_today_rounded,
+        title: 'No weekly scores yet',
+        message: 'Play this week to appear here!',
+      );
+    }
+    return _buildList(state.weeklyEntries, authState, _loadWeeklyLeaderboard);
+  }
+
+  Widget _buildList(List<Map<String, dynamic>> entries, AuthState authState, Future<void> Function() onRefresh) {
     return RefreshIndicator(
-      onRefresh: _loadGlobalLeaderboard,
+      onRefresh: onRefresh,
+      color: CsColors.ink,
+      backgroundColor: CsColors.raised,
       child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: leaderboardState.globalEntries.length,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        itemCount: entries.length,
         itemBuilder: (context, index) {
-          final player = leaderboardState.globalEntries[index];
+          final player = entries[index];
           final isCurrentUser =
-              authState.isSignedIn &&
-              authState.userId != null &&
-              player['uid'] == authState.userId;
-
-          return _buildLeaderboardItem(index + 1, player, theme, isCurrentUser)
-              .gameListItem(index);
+              authState.isSignedIn && authState.userId != null && player['uid'] == authState.userId;
+          // Prefer the stable username over the display name, which can be
+          // missing for anonymous users and changes with the Google profile.
+          final name = (player['username'] ?? player['displayName'] ?? 'Anonymous') as String;
+          return _RankRow(
+            rank: index + 1,
+            name: name,
+            photoUrl: player['photoURL'] as String?,
+            subtitle: _formatRuns((player['totalGamesPlayed'] ?? 0) as int),
+            score: _formatThousands((player['highScore'] ?? 0) as int),
+            isYou: isCurrentUser,
+            isGuest: player['isAnonymous'] == true,
+          );
         },
       ),
     );
   }
 
-  Widget _buildWeeklyLeaderboard(GameTheme theme, AuthState authState, CombinedLeaderboardState leaderboardState) {
-    if (leaderboardState.isLoadingWeekly) {
-      return _buildLoadingState(theme, 'Loading weekly leaderboard...');
-    }
-
-    if (leaderboardState.weeklyError != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: theme.accentColor.withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              leaderboardState.weeklyError!,
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 16),
-            NeonButton(
-              onPressed: _loadWeeklyLeaderboard,
-              label: 'Retry',
-              icon: Icons.refresh,
-              theme: theme,
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (leaderboardState.weeklyEntries.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.calendar_today_outlined,
-              size: 64,
-              color: theme.accentColor.withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No weekly scores yet',
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Play this week to appear here!',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadWeeklyLeaderboard,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: leaderboardState.weeklyEntries.length,
-        itemBuilder: (context, index) {
-          final player = leaderboardState.weeklyEntries[index];
-          final isCurrentUser =
-              authState.isSignedIn &&
-              authState.userId != null &&
-              player['uid'] == authState.userId;
-
-          return _buildLeaderboardItem(index + 1, player, theme, isCurrentUser)
-              .gameListItem(index);
-        },
-      ),
-    );
-  }
-
-  Widget _buildLeaderboardItem(
-    int rank,
-    Map<String, dynamic> player,
-    GameTheme theme,
-    bool isCurrentUser,
-  ) {
-    // Top-3 podium styling lives on the small rank disc (gold / silver /
-    // bronze gradient + glow) — rows themselves float transparently on
-    // the starfield. Only the signed-in player's row keeps a single faint
-    // accent tint so they always know which row is theirs.
-    final podium = _podiumStyle(rank);
-    final isPodium = podium != null;
-
-    final score = (player['highScore'] ?? 0) as int;
-    final gamesPlayed = (player['totalGamesPlayed'] ?? 0) as int;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: isCurrentUser
-          ? BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
-            )
-          : null,
-      child: Row(
-        children: [
-          // Rank chip — medal for top 3, pill with "#N" for the rest.
-          _buildRankWidget(rank, podium, theme),
-
-          const SizedBox(width: 10),
-
-          // Avatar with subtle metallic ring for podium positions.
-          Container(
-            padding: isPodium ? const EdgeInsets.all(2) : EdgeInsets.zero,
-            decoration: isPodium
-                ? BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [
-                        podium.color,
-                        podium.color.withValues(alpha: 0.5),
-                      ],
-                    ),
-                  )
-                : null,
-            child: CircleAvatar(
-              radius: 20,
-              backgroundImage: player['photoURL'] != null
-                  ? NetworkImage(player['photoURL']!)
-                  : null,
-              onBackgroundImageError: player['photoURL'] != null
-                  ? (e, s) {}
-                  : null,
-              backgroundColor: theme.primaryColor,
-              child: player['photoURL'] == null
-                  ? Icon(Icons.person, color: theme.backgroundColor, size: 20)
-                  : null,
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          // Name and details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      // Prefer the stable username (now backfilled for
-                      // every user post-Phase-1) over the display name,
-                      // which can be null/missing for anonymous users
-                      // and changes when the user updates their Google
-                      // profile.
-                      player['username'] ??
-                          player['displayName'] ??
-                          'Anonymous',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isCurrentUser
-                            ? theme.accentColor
-                            : theme.textPrimary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (player['isAnonymous'] == true) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'GUEST',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                    if (isCurrentUser) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.accentColor.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.person_pin,
-                              color: theme.accentColor,
-                              size: 12,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'YOU',
-                              style: TextStyle(
-                                color: theme.accentColor,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                Text(
-                  _formatGamesPlayed(gamesPlayed),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: theme.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Score — right-aligned, thousands-separated. Podium uses a
-          // gradient text effect via ShaderMask for a "scoreboard" feel.
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildScoreText(score, podium, isCurrentUser, theme),
-              const SizedBox(height: 2),
-              Text(
-                'pts',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: theme.textMuted,
-                  letterSpacing: 1.0,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Leaderboard row helpers
-  // ---------------------------------------------------------------------------
-
-  /// Returns gold / silver / bronze styling for the top 3, or null for the rest.
-  _PodiumStyle? _podiumStyle(int rank) {
-    switch (rank) {
-      case 1:
-        return const _PodiumStyle(
-          color: Color(0xFFFFD54F), // gold
-          icon: Icons.emoji_events,
-        );
-      case 2:
-        return _PodiumStyle(
-          color: Colors.grey.shade400, // silver
-          icon: Icons.workspace_premium,
-        );
-      case 3:
-        return _PodiumStyle(
-          color: const Color(0xFFCD7F32), // bronze
-          icon: Icons.workspace_premium,
-        );
-      default:
-        return null;
-    }
-  }
-
-  /// Rank widget — medal disc for top 3, pill chip with "#N" for the rest.
-  Widget _buildRankWidget(int rank, _PodiumStyle? podium, GameTheme theme) {
-    if (podium != null) {
-      return Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [podium.color, podium.color.withValues(alpha: 0.6)],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: podium.color.withValues(alpha: 0.55),
-              blurRadius: 8,
-            ),
-          ],
-        ),
-        child: Icon(podium.icon, color: Colors.white, size: 20),
-      );
-    }
-    return Container(
-      width: 36,
-      height: 36,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: theme.primaryColor.withValues(alpha: 0.16),
-      ),
-      child: Text(
-        '$rank',
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w800,
-          color: theme.accentColor,
-        ),
-      ),
-    );
-  }
-
-  /// Score text with thousands separator. Podium positions get a gradient
-  /// ShaderMask in their medal color; the current user gets the accent
-  /// color; everyone else is plain white.
-  Widget _buildScoreText(
-    int score,
-    _PodiumStyle? podium,
-    bool isCurrentUser,
-    GameTheme theme,
-  ) {
-    final formatted = _formatThousands(score);
-    if (podium != null && !isCurrentUser) {
-      return ShaderMask(
-        shaderCallback: (bounds) => LinearGradient(
-          colors: [Colors.white, podium.color],
-        ).createShader(bounds),
-        child: Text(
-          formatted,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
-            color: Colors.white,
-            letterSpacing: -0.5,
-          ),
-        ),
-      );
-    }
-    return Text(
-      formatted,
-      style: TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.w900,
-        color: isCurrentUser ? theme.accentColor : theme.textPrimary,
-        letterSpacing: -0.5,
-      ),
-    );
-  }
-
-  /// "1 game played" / "12 games played" / "1,234 games played". The
-  /// thousand-separator handles backend-aggregated counts that can get big.
-  String _formatGamesPlayed(int count) {
-    final formatted = _formatThousands(count);
-    return count == 1 ? '$formatted game played' : '$formatted games played';
-  }
+  String _formatRuns(int count) => count == 1 ? '1 RUN' : '${_formatThousands(count)} RUNS';
 
   String _formatThousands(int n) {
     // Manual thousand-separator — saves pulling in `intl` just for this.
@@ -894,8 +287,145 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
   }
 }
 
-class _PodiumStyle {
-  final Color color;
-  final IconData icon;
-  const _PodiumStyle({required this.color, required this.icon});
+/// One leaderboard row: 0N mono rank · ringed avatar · name (+ YOU / GUEST
+/// chips) over a mono caption · Syne score.
+class _RankRow extends StatelessWidget {
+  const _RankRow({
+    required this.rank,
+    required this.name,
+    required this.subtitle,
+    required this.score,
+    this.photoUrl,
+    this.isYou = false,
+    this.isGuest = false,
+  });
+
+  final int rank;
+  final String name;
+  final String subtitle;
+  final String score;
+  final String? photoUrl;
+  final bool isYou;
+  final bool isGuest;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 48),
+      padding: EdgeInsets.symmetric(vertical: cs(12), horizontal: cs(4)),
+      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: CsColors.hairline))),
+      child: Row(children: [
+        SizedBox(
+          width: cs(34),
+          child: Text(
+            rank.toString().padLeft(2, '0'),
+            maxLines: 1,
+            style: t.mono(13, em: 0.04, color: isYou ? CsColors.ink : CsColors.ink55),
+          ),
+        ),
+        _Avatar(name: name, photoUrl: photoUrl, ring: _ringFor(rank, isYou), size: 40),
+        SizedBox(width: cs(16)),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle)),
+              if (isGuest) ...[SizedBox(width: cs(8)), const CsChip('Guest')],
+              if (isYou) ...[SizedBox(width: cs(8)), const CsChip('You', kind: CsChipKind.solid)],
+            ]),
+            SizedBox(height: cs(2)),
+            Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.mono(10, color: CsColors.ink45)),
+          ]),
+        ),
+        SizedBox(width: cs(12)),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: cs(140)),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(score, maxLines: 1, style: t.display(20, em: -0.01)),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Ring colours: you = prism, #1 gold, #2 silver, #3 bronze, others faint.
+List<Color>? _ringFor(int rank, bool isYou) {
+  if (isYou) return null;
+  return switch (rank) {
+    1 => const [CsColors.gold],
+    2 => const [CsColors.rank2],
+    3 => const [CsColors.rank3],
+    _ => const [Color(0x26FFFFFF)],
+  };
+}
+
+/// Like [CsAvatarRing] but takes a network URL (falls back to initials when
+/// it is missing or fails to load) and any ring colour (null = prism).
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.name, this.photoUrl, this.ring, this.size = 40});
+
+  final String name;
+  final String? photoUrl;
+  final List<Color>? ring;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final d = cs(size);
+    final initials = Center(
+      child: Text(
+        CsAvatarRing.initialsOf(name),
+        style: cs.type.display(size * 0.32, weight: FontWeight.w700, em: 0.02, height: 1),
+      ),
+    );
+    return SizedBox.square(
+      dimension: d,
+      child: CsPrismRing(
+        circle: true,
+        fill: CsColors.raised,
+        colors: ring,
+        child: ClipOval(
+          child: photoUrl == null
+              ? initials
+              : Image.network(
+                  photoUrl!,
+                  fit: BoxFit.cover,
+                  width: d,
+                  height: d,
+                  errorBuilder: (_, _, _) => initials,
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Side summary column that fills the available height (so `Spacer`s can
+/// push content apart on tall tablets) and scales DOWN instead of
+/// overflowing on short phones. Children must not contain LayoutBuilders or
+/// text fields (it measures intrinsic height).
+class _SideColumn extends StatelessWidget {
+  const _SideColumn({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.topLeft,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: c.maxWidth, maxWidth: c.maxWidth, minHeight: c.maxHeight),
+          child: IntrinsicHeight(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+          ),
+        ),
+      );
+    });
+  }
 }

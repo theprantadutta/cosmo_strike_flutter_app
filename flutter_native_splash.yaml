@@ -1,11 +1,37 @@
-# Native splash — deep-space color + the rocket mark + the crafted-by brand.
+# Native splash — the ONLY splash. The prism rocket centred on #0A0A0D with
+# the COSMO/STRIKE wordmark as branding at the bottom.
+#
+# Like the ai-persona app: main() calls FlutterNativeSplash.preserve() and the
+# native splash stays up for the whole startup; LoadingScreen does the init
+# work invisibly underneath and removes the splash right as it routes to the
+# first real screen. There is no separate animated Flutter splash.
+#
+# Sizes fail silently here — keep them exact if you replace a file:
+#  - image: 1024x1024 at 4x → 256dp box, 120dp rocket.
+#  - android_12.image: 1152x1152 with everything inside the centred 768px
+#    circle (Android 12 crops to it).
+#  - branding: EXACTLY 800x320 (200x80dp), wordmark composed inside it.
 # Regenerate with: dart run flutter_native_splash:create
 # ⚠️ The create command rewrites AndroidManifest.xml and STRIPS
 #    android:screenOrientation="sensorLandscape" from MainActivity —
 #    re-add it after every regeneration (see CLAUDE.md).
 flutter_native_splash:
-  color: "#05060F"
-  image: assets/icon/splash_logo.png
+  color: "#0A0A0D"
+  color_dark: "#0A0A0D"
+  image: assets/branding/splash-logo-1024.png
+  image_dark: assets/branding/splash-logo-1024.png
+  branding: assets/branding/splash-branding-800x320.png
+  branding_dark: assets/branding/splash-branding-800x320.png
+  branding_mode: bottom
+  branding_bottom_padding: 24
   android_12:
-    color: "#05060F"
-    image: assets/icon/splash_logo.png
+    color: "#0A0A0D"
+    color_dark: "#0A0A0D"
+    image: assets/branding/android12-splash-icon-1152.png
+    image_dark: assets/branding/android12-splash-icon-1152.png
+    branding: assets/branding/splash-branding-800x320.png
+    branding_dark: assets/branding/splash-branding-800x320.png
+  fullscreen: true
+  android: true
+  ios: true
+  web: false

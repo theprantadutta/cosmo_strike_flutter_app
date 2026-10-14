@@ -1,36 +1,33 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/game/game_assets.dart';
 import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cubit.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/tournament/tournament_context_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
 import 'package:cosmo_strike_flutter_app/services/progression_service.dart';
 import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/utils/campaign_catalog.dart';
 
-/// Pre-game loading screen shown between the Home Play tap and the Game screen.
+/// Pre-game loading screen shown between level select / Home LAUNCH and the
+/// Game screen.
 ///
 /// Its job is two-fold:
-///   1. Give the player a beautiful 3-second buffer with tips, animations,
-///      and a progress bar so the jump into gameplay feels deliberate.
+///   1. Give the player a 3-second buffer with the mission title, a progress
+///      line and tips so the jump into gameplay feels deliberate.
 ///   2. Opportunistically warm up gameplay dependencies that are cheap and
 ///      idempotent — audio (already preloaded in main; this just touches the
 ///      singleton), and a decode of the gameplay sprite atlas.
 ///
-/// Visually it mirrors the app's INITIAL loading screen: a clean, borderless
-/// landscape two-region layout — brand + the mode you're launching into on the
-/// LEFT, live launch status (rotating beacon, slim neon progress bar, your
-/// record, a rotating pro-tip) on the RIGHT. No glass boxes; definition comes
-/// from neon glow, slim bars, and the cyan/magenta accents.
+/// Prism Noir interstitial: LEFT = "LEVEL 03 / ASTEROID BELT" + the level
+/// name set huge with a prism tail, then the mode you're launching into and
+/// your control scheme. RIGHT = live status, prism progress line, your record
+/// (pilot level / best / games) and a rotating pro tip.
 ///
 /// When the timer completes, the screen does a `pushReplacement` to
 /// `AppRoutes.game` so back navigation from the game returns to Home, not
@@ -46,16 +43,16 @@ class PreGameLoadingScreen extends StatefulWidget {
 }
 
 class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   // Total time the loader is on screen.
   static const Duration _loadDuration = Duration(milliseconds: 3000);
   // How often the tip rotates.
   static const Duration _tipRotation = Duration(milliseconds: 1400);
 
-  /// Stage milestones — each step drives the progress bar and the
-  /// status label. Pairs are (fractional progress, status label).
-  /// The progress controller advances linearly across the full duration;
-  /// the label is picked by finding the largest stage we've crossed.
+  /// Stage milestones — each step drives the status label. Pairs are
+  /// (fractional progress, status label). The progress controller advances
+  /// linearly across the full duration; the label is picked by finding the
+  /// largest stage we've crossed.
   static const List<_Stage> _stages = [
     _Stage(0.00, 'Initializing flight systems...'),
     _Stage(0.18, 'Calibrating controls...'),
@@ -82,13 +79,8 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
   ];
 
   late final AnimationController _progressController;
-  late final AnimationController _logoController;
-  late final AnimationController _pulseController;
-  late final AnimationController _particleController;
-  late final AnimationController _shimmerController;
 
   final Random _random = Random();
-  final List<_LoadingParticle> _particles = [];
 
   int _tipIndex = 0;
   bool _navigated = false;
@@ -104,27 +96,6 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
         if (status == AnimationStatus.completed) _goToGame();
       });
 
-    _logoController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
-
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
-
-    _particleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 4000),
-    )..repeat();
-
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1300),
-    )..repeat();
-
-    _seedParticles();
     _tipIndex = _random.nextInt(_tips.length);
 
     // Cycle tips while the progress bar fills.
@@ -147,21 +118,6 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
     });
   }
 
-  void _seedParticles() {
-    _particles.clear();
-    for (int i = 0; i < 28; i++) {
-      _particles.add(
-        _LoadingParticle(
-          x: _random.nextDouble(),
-          y: _random.nextDouble(),
-          speed: 0.15 + _random.nextDouble() * 0.35,
-          size: 1.5 + _random.nextDouble() * 3.5,
-          opacity: 0.25 + _random.nextDouble() * 0.45,
-        ),
-      );
-    }
-  }
-
   void _scheduleTipRotation() {
     Future.delayed(_tipRotation, () {
       if (!mounted || _navigated) return;
@@ -181,10 +137,6 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
   @override
   void dispose() {
     _progressController.dispose();
-    _logoController.dispose();
-    _pulseController.dispose();
-    _particleController.dispose();
-    _shimmerController.dispose();
     super.dispose();
   }
 
@@ -199,554 +151,221 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ThemeCubit, ThemeState>(
-      builder: (context, themeState) {
-        final theme = themeState.currentTheme;
-        // Active mode = the player's settings choice unless a tournament
-        // override is staged on the context (set before they tapped Play).
-        final tournamentMode = context
-            .select<TournamentContextCubit, TournamentGameMode?>(
-                (c) => c.state.mode);
-        final settingsMode = context
-            .select<GameSettingsCubit, GameMode>((c) => c.state.gameMode);
-        final activeMode = tournamentMode?.toGameMode() ?? settingsMode;
-        final isOverride = activeMode != settingsMode;
-        final dPadEnabled = context
-            .select<GameSettingsCubit, bool>((c) => c.state.dPadEnabled);
-        final highScore = context
-            .select<GameSettingsCubit, int>((c) => c.state.highScore);
+    // Active mode = the player's settings choice unless a tournament
+    // override is staged on the context (set before they tapped Play).
+    final tournamentMode = context
+        .select<TournamentContextCubit, TournamentGameMode?>((c) => c.state.mode);
+    final settingsMode =
+        context.select<GameSettingsCubit, GameMode>((c) => c.state.gameMode);
+    final activeMode = tournamentMode?.toGameMode() ?? settingsMode;
+    final isOverride = activeMode != settingsMode;
+    final isDaily =
+        context.select<TournamentContextCubit, bool>((c) => c.state.isDailyRun);
+    final dPadEnabled =
+        context.select<GameSettingsCubit, bool>((c) => c.state.dPadEnabled);
+    final highScore =
+        context.select<GameSettingsCubit, int>((c) => c.state.highScore);
 
-        return PopScope(
-          // Allow Android back to bail out to Home — there's no game state
-          // to protect yet. _navigated guards against double navigation.
-          canPop: true,
-          child: CommandScaffold(
-            theme: theme,
-            showTopBar: false,
-            bodyPadding: EdgeInsets.zero,
-            body: Stack(
-              children: [
-                // Themed particles streaming upward behind everything.
-                _ParticleLayer(
-                  controller: _particleController,
-                  particles: _particles,
-                  theme: theme,
+    final cs = context.cs;
+    return PopScope(
+      // Allow Android back to bail out to Home — there's no game state
+      // to protect yet. _navigated guards against double navigation.
+      canPop: true,
+      child: CsScaffold(
+        showTopBar: false,
+        stars: true,
+        washes: const [CsWash.violetTopRight, CsWash.cyanBottomLeft],
+        body: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 6,
+              child: _Entrance(
+                child: CsFitColumn(
+                  alignment: Alignment.centerLeft,
+                  children: _buildMission(activeMode, isOverride, dPadEnabled, daily: isDaily),
                 ),
-                SafeArea(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      // Landscape phones report a short height — treat
-                      // < 340 as "compact" so nothing clips.
-                      final isSmall = constraints.maxHeight < 340;
-                      return Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          30,
-                          isSmall ? 8 : 16,
-                          30,
-                          isSmall ? 8 : 16,
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            // LEFT — brand + the mode you're launching into.
-                            Expanded(
-                              flex: 5,
-                              child: Center(
-                                child: SingleChildScrollView(
-                                  primary: false,
-                                  child: _buildBrand(
-                                    theme,
-                                    activeMode,
-                                    isOverride,
-                                    dPadEnabled,
-                                    isSmall,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 30),
-                            // RIGHT — live launch status, progress, record, tip.
-                            Expanded(
-                              flex: 6,
-                              child: Center(
-                                child: SingleChildScrollView(
-                                  primary: false,
-                                  child: _buildStatus(theme, highScore, isSmall),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ---- LEFT: brand + mode ----
-
-  Widget _buildBrand(
-    GameTheme theme,
-    GameMode mode,
-    bool isOverride,
-    bool dPad,
-    bool isSmall,
-  ) {
-    final markSize = isSmall ? 58.0 : 74.0;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _beaconLabel(theme, 'PREPARING LAUNCH'),
-        SizedBox(height: isSmall ? 10 : 16),
-        // Brand mark — the rocket glyph in neon, glow + breathing + shimmer,
-        // exactly the language of the initial loading screen.
-        AnimatedBuilder(
-          animation: _logoController,
-          builder: (context, child) {
-            final pulse = 1.0 + sin(_logoController.value * 2 * pi) * 0.04;
-            return Transform.scale(scale: pulse, child: child);
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              boxShadow: [
-                BoxShadow(
-                  color: theme.accentColor.withValues(alpha: 0.3),
-                  blurRadius: 32,
-                  spreadRadius: 4,
-                ),
-              ],
-            ),
-            child: Icon(
-              Icons.rocket_launch,
-              size: markSize,
-              color: theme.accentColor,
-            ),
-          ),
-        )
-            .animate(onPlay: (c) => c.repeat(reverse: true))
-            .shimmer(
-              duration: 2500.ms,
-              color: theme.accentColor.withValues(alpha: 0.25),
-            ),
-        SizedBox(height: isSmall ? 8 : 12),
-        // Gradient wordmark — matches the home / loader brand.
-        ShaderMask(
-          shaderCallback: (b) => LinearGradient(
-            colors: [theme.neonPrimary, theme.neonSecondary],
-          ).createShader(b),
-          child: Text(
-            'COSMO STRIKE',
-            maxLines: 1,
-            style: TextStyle(
-              fontSize: isSmall ? 22 : 26,
-              fontWeight: FontWeight.w900,
-              color: Colors.white, // base for ShaderMask
-              letterSpacing: 3,
-            ),
-          ),
-        ),
-        SizedBox(height: isSmall ? 14 : 20),
-        _buildModeHero(theme, mode, isOverride),
-        SizedBox(height: isSmall ? 12 : 16),
-        _buildControlChip(theme, dPad),
-      ],
-    ).gameEntrance();
-  }
-
-  /// Pulsing beacon dot + an uppercase HUD label — the same idiom the
-  /// loader / home use for live status.
-  Widget _beaconLabel(GameTheme theme, String text) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AnimatedBuilder(
-          animation: _pulseController,
-          builder: (context, _) {
-            final t = _pulseController.value;
-            return Container(
-              width: 9,
-              height: 9,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: theme.foodColor,
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.foodColor.withValues(alpha: 0.4 + 0.4 * t),
-                    blurRadius: 6 + 6 * t,
-                    spreadRadius: 0.5 + t,
-                  ),
-                ],
               ),
-            );
-          },
+            ),
+            SizedBox(width: cs(44)),
+            Expanded(
+              flex: 4,
+              child: _Entrance(
+                delay: 0.25,
+                child: CsFitColumn(
+                  alignment: Alignment.centerLeft,
+                  children: _buildStatus(highScore),
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: theme.accentColor.withValues(alpha: 0.85),
-            letterSpacing: 2.4,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  /// The mode you're about to play — a neon icon disc + label/name/desc.
-  /// Borderless: a glowing tinted disc carries it, no panel box.
-  Widget _buildModeHero(GameTheme theme, GameMode mode, bool isOverride) {
-    final accent = isOverride ? const Color(0xFFFFC857) : theme.neonSecondary;
-    return Row(
-      children: [
-        Container(
-          width: 52,
-          height: 52,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: accent.withValues(alpha: 0.14),
-            boxShadow: softGlow(accent, intensity: 0.55),
-          ),
-          child: Text(mode.icon, style: const TextStyle(fontSize: 24)),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
+  // ---- LEFT: level + mode ----
+
+  List<Widget> _buildMission(GameMode mode, bool isOverride, bool dPad, {bool daily = false}) {
+    final cs = context.cs;
+    final t = cs.type;
+    final level = widget.startLevel;
+    final accent = isOverride ? CsColors.gold : CsColors.ink55;
+    return [
+      Text(
+        daily
+            ? 'DAILY RUN · SAME SKY FOR EVERY PILOT TODAY'
+            : 'LEVEL ${level.toString().padLeft(2, '0')} / ${CampaignCatalog.biomeNameFor(level)}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: t.mono(11, em: 0.16, color: daily ? CsColors.gold : CsColors.ink55),
+      ),
+      SizedBox(height: cs(16)),
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: _PrismTailTitle(name: _titleCase(CampaignCatalog.levelNameFor(level))),
+      ),
+      SizedBox(height: cs(26)),
+      const CsHairline(),
+      SizedBox(height: cs(16)),
+      // The mode you're about to play.
+      Row(
+        children: [
+          CsIconDisc(CsIcons.mode(mode), size: 40, color: isOverride ? CsColors.gold : CsColors.ink),
+          SizedBox(width: cs(14)),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
                   Flexible(
                     child: Text(
                       isOverride ? 'TOURNAMENT MODE' : 'GAME MODE',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: accent.withValues(alpha: 0.85),
-                        letterSpacing: 1.6,
-                      ),
+                      style: t.mono(10, color: accent),
                     ),
                   ),
                   if (isOverride) ...[
-                    const SizedBox(width: 6),
-                    Icon(Icons.emoji_events_rounded, size: 12, color: accent),
+                    SizedBox(width: cs(6)),
+                    Icon(Symbols.trophy_rounded, size: cs(13), color: CsColors.gold),
                   ],
-                ],
-              ),
-              const SizedBox(height: 3),
-              Text(
-                mode.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: theme.textPrimary,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                mode.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  height: 1.3,
-                  color: theme.textMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildControlChip(GameTheme theme, bool dPad) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.accentColor.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(GameTokens.radiusPill),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            dPad ? Icons.gamepad_rounded : Icons.swipe_rounded,
-            size: 16,
-            color: theme.accentColor,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            dPad ? 'D-Pad Controls' : 'Swipe Controls',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: theme.accentColor,
-              letterSpacing: 0.5,
+                ]),
+                SizedBox(height: cs(4)),
+                Text(mode.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
+                SizedBox(height: cs(3)),
+                Text(mode.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.body),
+              ],
             ),
           ),
         ],
       ),
-    );
+      SizedBox(height: cs(14)),
+      CsChip(
+        dPad ? 'D-Pad controls' : 'Swipe controls',
+        icon: dPad ? Symbols.gamepad_rounded : Symbols.swipe_rounded,
+        size: 10,
+      ),
+    ];
   }
 
   // ---- RIGHT: live status + progress + record + tip ----
 
-  Widget _buildStatus(GameTheme theme, int highScore, bool isSmall) {
-    final level = ProgressionService().level;
+  List<Widget> _buildStatus(int highScore) {
+    final cs = context.cs;
+    final t = cs.type;
+    final pilotLevel = ProgressionService().level;
     final games = StatisticsService().statistics.totalGamesPlayed;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Rotating status line driven by the progress controller.
-        AnimatedBuilder(
-          animation: _progressController,
-          builder: (context, _) =>
-              _buildStatusLine(theme, _statusFor(_progressController.value)),
-        ),
-        SizedBox(height: isSmall ? 12 : 18),
-        _buildProgressBar(theme),
-        SizedBox(height: isSmall ? 16 : 24),
-        _buildStatsRow(theme, level, highScore, games),
-        SizedBox(height: isSmall ? 16 : 24),
-        _buildTip(theme, isSmall),
-      ],
-    ).gameEntrance(delay: 120.ms);
-  }
-
-  Widget _buildStatusLine(GameTheme theme, String label) {
-    return Row(
-      children: [
-        AnimatedBuilder(
-          animation: _pulseController,
-          builder: (context, _) {
-            final t = _pulseController.value;
-            return Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: theme.accentColor,
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.accentColor.withValues(alpha: 0.4 + 0.4 * t),
-                    blurRadius: 4 + 4 * t,
-                    spreadRadius: 0.5 + t,
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: theme.textPrimary,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProgressBar(GameTheme theme) {
-    return AnimatedBuilder(
-      animation: _progressController,
-      builder: (context, _) {
-        final p = _progressController.value;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Slim neon bar — borderless track per the clean design.
-            ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: SizedBox(
-                height: 6,
-                child: LayoutBuilder(
-                  builder: (context, c) {
-                    final w = c.maxWidth;
-                    return Stack(
-                      children: [
-                        Container(color: Colors.white.withValues(alpha: 0.08)),
-                        FractionallySizedBox(
-                          widthFactor: p.clamp(0.0, 1.0),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  theme.accentColor,
-                                  theme.foodColor,
-                                  theme.accentColor,
-                                ],
-                                stops: const [0.0, 0.5, 1.0],
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: theme.foodColor.withValues(alpha: 0.45),
-                                  blurRadius: 8,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // Sliding shimmer streak across the bar.
-                        AnimatedBuilder(
-                          animation: _shimmerController,
-                          builder: (context, _) => Positioned(
-                            left: _shimmerController.value * w - 45,
-                            top: 0,
-                            bottom: 0,
-                            child: IgnorePointer(
-                              child: Container(
-                                width: 45,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.white.withValues(alpha: 0.0),
-                                      Colors.white.withValues(alpha: 0.35),
-                                      Colors.white.withValues(alpha: 0.0),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'PREPARING',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: theme.textMuted,
-                    letterSpacing: 1.6,
+    return [
+      AnimatedBuilder(
+        animation: _progressController,
+        builder: (context, _) {
+          final p = _progressController.value;
+          final status = _statusFor(p).replaceAll('...', '').toUpperCase();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(children: [
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: CsMotion.base,
+                    layoutBuilder: (current, previous) => Stack(
+                      alignment: Alignment.centerLeft,
+                      children: [...previous, ?current],
+                    ),
+                    child: Text(
+                      status,
+                      key: ValueKey(status),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.mono(11, em: 0.16, color: CsColors.ink),
+                    ),
                   ),
                 ),
+                SizedBox(width: cs(12)),
                 Text(
-                  '${(p * 100).round()}%',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    color: theme.accentColor,
+                  '${(p * 100).round().toString().padLeft(2, '0')}%',
+                  style: t.mono(11, color: CsColors.ink55).copyWith(
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
+              ]),
+              SizedBox(height: cs(12)),
+              CsProgressLine(value: p, gradient: CsGradients.prism, animate: false),
+            ],
+          );
+        },
+      ),
+      SizedBox(height: cs(22)),
+      CsStatGrid(
+        columns: 3,
+        valueSize: 20,
+        stats: [
+          CsStat(pilotLevel.toString().padLeft(2, '0'), 'Pilot LV'),
+          CsStat(_compactNumber(highScore), 'Best'),
+          CsStat(_compactNumber(games), 'Games'),
+        ],
+      ),
+      SizedBox(height: cs(20)),
+      Row(children: [
+        Icon(Symbols.lightbulb_rounded, size: cs(14), color: CsColors.gold),
+        SizedBox(width: cs(8)),
+        const CsLabel('Pro tip'),
+      ]),
+      SizedBox(height: cs(8)),
+      // Rotating tip with a short fade; fixed height stops jumps.
+      SizedBox(
+        height: cs(40),
+        child: AnimatedSwitcher(
+          duration: CsMotion.slow,
+          switchInCurve: CsMotion.standard,
+          switchOutCurve: CsMotion.standard,
+          layoutBuilder: (current, previous) => Stack(
+            alignment: Alignment.topLeft,
+            children: [...previous, ?current],
+          ),
+          child: Text(
+            _tips[_tipIndex],
+            key: ValueKey<int>(_tipIndex),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: t.body,
+          ),
+        ),
+      ),
+    ];
   }
 
-  /// Your record — three compact stats, borderless with hairline dividers.
-  Widget _buildStatsRow(GameTheme theme, int level, int best, int games) {
-    return Row(
-      children: [
-        Expanded(
-          child: _statTile(
-            theme,
-            Icons.military_tech_rounded,
-            '$level',
-            'LEVEL',
-          ),
-        ),
-        _statDivider(theme),
-        Expanded(
-          child: _statTile(
-            theme,
-            Icons.emoji_events_rounded,
-            _compactNumber(best),
-            'BEST',
-          ),
-        ),
-        _statDivider(theme),
-        Expanded(
-          child: _statTile(
-            theme,
-            Icons.sports_esports_rounded,
-            _compactNumber(games),
-            'GAMES',
-          ),
-        ),
-      ],
-    );
-  }
+  static String _titleCase(String s) => s
+      .toLowerCase()
+      .split(' ')
+      .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+      .join(' ');
 
-  Widget _statDivider(GameTheme theme) {
-    return Container(
-      width: 1,
-      height: 34,
-      color: theme.accentColor.withValues(alpha: 0.18),
-    );
-  }
-
-  Widget _statTile(
-    GameTheme theme,
-    IconData icon,
-    String value,
-    String label,
-  ) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 18, color: theme.foodColor.withValues(alpha: 0.95)),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
-            color: theme.primaryColor,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-            color: theme.accentColor.withValues(alpha: 0.7),
-            letterSpacing: 1.4,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// 1234 -> "1.2K", 1500000 -> "1.5M". Keeps the tiles from overflowing on
+  /// 1234 -> "1.2K", 1500000 -> "1.5M". Keeps the stats from overflowing on
   /// big lifetime numbers.
   String _compactNumber(int n) {
     if (n < 1000) return '$n';
@@ -757,68 +376,6 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
     final v = (n / 1000000);
     return '${v.toStringAsFixed(v >= 100 ? 0 : 1)}M';
   }
-
-  Widget _buildTip(GameTheme theme, bool isSmall) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          children: [
-            Icon(
-              Icons.lightbulb_rounded,
-              size: 15,
-              color: theme.foodColor,
-            )
-                .animate(onPlay: (c) => c.repeat(reverse: true))
-                .fadeIn(duration: 900.ms)
-                .then()
-                .fade(begin: 1.0, end: 0.5, duration: 900.ms),
-            const SizedBox(width: 8),
-            Text(
-              'PRO TIP',
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                color: theme.accentColor.withValues(alpha: 0.85),
-                letterSpacing: 1.8,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        // Rotating tip with a smooth fade/slide; fixed height stops jumps.
-        SizedBox(
-          height: isSmall ? 44 : 52,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 450),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) {
-              final slide = Tween<Offset>(
-                begin: const Offset(0.0, 0.18),
-                end: Offset.zero,
-              ).animate(animation);
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(position: slide, child: child),
-              );
-            },
-            child: Text(
-              _tips[_tipIndex],
-              key: ValueKey<int>(_tipIndex),
-              style: TextStyle(
-                fontSize: 13.5,
-                height: 1.35,
-                color: theme.primaryColor.withValues(alpha: 0.92),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 class _Stage {
@@ -827,88 +384,58 @@ class _Stage {
   const _Stage(this.threshold, this.label);
 }
 
-class _LoadingParticle {
-  double x;
-  double y;
-  final double speed;
-  final double size;
-  final double opacity;
-
-  _LoadingParticle({
-    required this.x,
-    required this.y,
-    required this.speed,
-    required this.size,
-    required this.opacity,
-  });
-}
-
-class _ParticleLayer extends StatelessWidget {
-  final AnimationController controller;
-  final List<_LoadingParticle> particles;
-  final GameTheme theme;
-
-  const _ParticleLayer({
-    required this.controller,
-    required this.particles,
-    required this.theme,
-  });
+/// One-shot fade + 12px rise (no looping effects). [delay] is a fraction of
+/// the 600ms run.
+class _Entrance extends StatelessWidget {
+  const _Entrance({required this.child, this.delay = 0});
+  final Widget child;
+  final double delay;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        return CustomPaint(
-          painter: _ParticlePainter(
-            particles: particles,
-            t: controller.value,
-            accent: theme.accentColor,
-            food: theme.foodColor,
-          ),
-          size: Size.infinite,
-        );
-      },
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: CsMotion.countUp,
+      curve: Interval(delay, 1, curve: CsMotion.standard),
+      builder: (_, v, c) => Opacity(
+        opacity: v,
+        child: Transform.translate(offset: Offset(0, 12 * (1 - v)), child: c),
+      ),
+      child: child,
     );
   }
 }
 
-class _ParticlePainter extends CustomPainter {
-  final List<_LoadingParticle> particles;
-  final double t;
-  final Color accent;
-  final Color food;
-
-  _ParticlePainter({
-    required this.particles,
-    required this.t,
-    required this.accent,
-    required this.food,
-  });
+/// Two-line hero name: all but the last word on line 1, the last word on
+/// line 2 with its second half in prism ("Iron / Dread·nought") — the same
+/// treatment as the home hero.
+class _PrismTailTitle extends StatelessWidget {
+  const _PrismTailTitle({required this.name});
+  final String name;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..style = PaintingStyle.fill;
-    final rng = Random();
-
-    for (int i = 0; i < particles.length; i++) {
-      final p = particles[i];
-      p.y -= p.speed * 0.008;
-      if (p.y < -0.05) {
-        p.y = 1.05;
-        p.x = rng.nextDouble();
-      }
-
-      // Alternate particle tint between accent and food so the field
-      // reads as belonging to the active theme without feeling flat.
-      paint.color = (i.isEven ? accent : food)
-          .withValues(alpha: p.opacity * 0.55);
-
-      final pos = Offset(p.x * size.width, p.y * size.height);
-      canvas.drawCircle(pos, p.size, paint);
-    }
+  Widget build(BuildContext context) {
+    final st = context.type.hero;
+    final words = name.split(' ');
+    final last = words.removeLast();
+    final cut = (last.length / 2).floor().clamp(1, last.length - 1);
+    final line2a = last.length > 1 ? last.substring(0, cut) : last;
+    final line2b = last.length > 1 ? last.substring(cut) : '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (words.isNotEmpty) Text(words.join(' '), maxLines: 1, style: st),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(line2a, maxLines: 1, style: st),
+            if (line2b.isNotEmpty) CsPrismText(line2b, style: st, maxLines: 1),
+          ],
+        ),
+      ],
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant _ParticlePainter old) => true;
 }

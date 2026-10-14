@@ -1,161 +1,118 @@
+import 'dart:ui' as ui;
+
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:flutter/material.dart';
 
-import '../../game/cosmo_palette.dart';
-import '../../ui/design.dart';
-import '../../utils/constants.dart';
 
-/// Shared borderless building blocks for the pause / game-over overlays.
-/// Per the clean Command-HUD direction these float straight on the dimmed
-/// battlefield — definition comes from neon icon discs, slim bars, glow
-/// and spacing, never outlines or panels.
-
-/// One run-telemetry stat: neon icon disc + big value + tiny label.
-class RunStatTile extends StatelessWidget {
-  const RunStatTile({
+/// Shared Prism Noir shell for the in-game overlays (pause / level clear /
+/// game over): a full-bleed scrim that swallows stray taps (optionally
+/// blurred — the pause scrim is the system's one sanctioned blur), soft
+/// colour washes, then landscape SafeArea + the scaled overlay padding
+/// around [child]. (No banner strip: full-width banners were removed.)
+class GameplayOverlayFrame extends StatelessWidget {
+  const GameplayOverlayFrame({
     super.key,
-    required this.icon,
-    required this.value,
-    required this.label,
-    this.accent,
-    this.width = 158,
+    required this.child,
+    this.scrim = CsColors.scrim,
+    this.blur = false,
+    this.washes = const [],
   });
 
-  final IconData icon;
-  final String value;
-  final String label;
-  final Color? accent;
+  final Widget child;
 
-  /// Tile width — the game-over grid packs a tighter 3-column layout.
-  final double width;
+  /// Scrim colour over the frozen battlefield (82% near-black by default).
+  final Color scrim;
+
+  /// Blur the battlefield behind the scrim (pause only).
+  final bool blur;
+  final List<CsWash> washes;
+
+  static final ui.ImageFilter _blur = ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10);
 
   @override
   Widget build(BuildContext context) {
-    final color = accent ?? CosmoPalette.hull;
-    return SizedBox(
-      width: width,
+    final cs = context.cs;
+    Widget backdrop = CsBackground(color: scrim, washes: washes);
+    if (blur) {
+      backdrop = ClipRect(child: BackdropFilter(filter: _blur, child: backdrop));
+    }
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {},
+            child: backdrop,
+          ),
+        ),
+        Column(
+          children: [
+            Expanded(
+              child: SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(cs(36), cs(26), cs(36), cs(24)),
+                  child: child,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// The overlays' two-region landscape body: the hero/summary column on the
+/// left (wider) and a list column on the right, separated by a scaled gap.
+class OverlaySplit extends StatelessWidget {
+  const OverlaySplit({super.key, required this.left, required this.right});
+
+  final Widget left;
+  final Widget right;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(flex: 50, child: left),
+        SizedBox(width: cs(cs.isCompact ? 32 : 56)),
+        Expanded(flex: 35, child: right),
+      ],
+    );
+  }
+}
+
+/// A left-aligned action row that scales down (never overflows) on the
+/// narrowest phones.
+class OverlayActions extends StatelessWidget {
+  const OverlayActions({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final gap = context.cs(12);
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withValues(alpha: 0.12),
-              boxShadow: softGlow(color, intensity: 0.45),
-            ),
-            child: Icon(icon, size: 17, color: color),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: CosmoPalette.highlight,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: CosmoPalette.hull.withValues(alpha: 0.7),
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) SizedBox(width: gap),
+            children[i],
+          ],
         ],
       ),
     );
   }
 }
 
-/// Small uppercase section heading for the overlay panels.
-class SectionHeader extends StatelessWidget {
-  const SectionHeader(this.text, {super.key, this.accent});
-
-  final String text;
-  final Color? accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text.toUpperCase(),
-      style: TextStyle(
-        color: (accent ?? CosmoPalette.hull).withValues(alpha: 0.85),
-        fontSize: 11,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 2,
-      ),
-    );
-  }
-}
-
-/// Slim 6px progress bar matching the HUD energy bar language.
-class SlimBar extends StatelessWidget {
-  const SlimBar({
-    super.key,
-    required this.value,
-    this.color = CosmoPalette.energy,
-    this.height = 6,
-  });
-
-  final double value;
-  final Color color;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(height / 2),
-      child: LinearProgressIndicator(
-        value: value.clamp(0.0, 1.0),
-        minHeight: height,
-        backgroundColor: CosmoPalette.bgHigh,
-        valueColor: AlwaysStoppedAnimation(color),
-      ),
-    );
-  }
-}
-
-/// Overlay action button — NeonButton at a fixed 44px so the button row
-/// stays comfortable on short landscape phones.
-class OverlayActionButton extends StatelessWidget {
-  const OverlayActionButton({
-    super.key,
-    required this.label,
-    required this.onTap,
-    this.variant = NeonButtonVariant.solid,
-    this.expand = true,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final NeonButtonVariant variant;
-  final bool expand;
-
-  @override
-  Widget build(BuildContext context) {
-    return NeonButton(
-      label: label,
-      onPressed: onTap,
-      theme: GameTheme.classic,
-      variant: variant,
-      height: 44,
-      expand: expand,
-    );
-  }
+/// "m:ss" for run / level clocks.
+String formatRunTime(int seconds) {
+  final m = seconds ~/ 60;
+  final s = (seconds % 60).toString().padLeft(2, '0');
+  return '$m:$s';
 }

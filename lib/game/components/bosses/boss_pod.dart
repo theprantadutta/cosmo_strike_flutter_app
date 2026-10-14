@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 import 'package:flame/flame.dart';
 import 'package:flutter/painting.dart';
 
+import '../../cosmo_palette.dart';
 import '../../cosmo_strike_game.dart';
 import '../../game_assets.dart';
 import '../../game_audio.dart';
@@ -43,6 +44,8 @@ class BossPod extends PositionComponent
   static final Paint _flashPaint = Paint()
     ..colorFilter =
         const ColorFilter.mode(Color(0xB8FFFFFF), BlendMode.srcATop);
+
+  final Paint _heatPaint = Paint();
 
   static const double orbitRadius = 96;
   static const double orbitOmega = 0.9;
@@ -99,13 +102,9 @@ class BossPod extends PositionComponent
     final hpFrac = (_hp / _maxHp).clamp(0.0, 1.0);
     final pulse = 0.5 + 0.5 * math.sin(_age * 6);
     final c = Offset(size.x / 2, size.y / 2);
-    canvas.drawCircle(
-      c,
-      size.x * 0.55,
-      Paint()
-        ..color = const Color(0xFFFF2D78)
-            .withValues(alpha: (0.10 + 0.16 * (1 - hpFrac)) * pulse),
-    );
+    _heatPaint.color = CosmoPalette.pink
+        .withValues(alpha: (0.10 + 0.16 * (1 - hpFrac)) * pulse);
+    canvas.drawCircle(c, size.x * 0.55, _heatPaint);
     _sprite.render(
       canvas,
       size: size,

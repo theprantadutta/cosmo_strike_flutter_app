@@ -26,6 +26,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/tournament/tournament
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/battle_pass_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
+import 'package:cosmo_strike_flutter_app/theme/cosmo_theme.dart';
 import 'package:cosmo_strike_flutter_app/router/app_router.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_route_observer.dart';
@@ -44,7 +45,6 @@ import 'package:cosmo_strike_flutter_app/ui/design/immersive.dart';
 import 'package:cosmo_strike_flutter_app/services/unified_user_service.dart';
 import 'package:cosmo_strike_flutter_app/services/walkthrough_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
-import 'package:cosmo_strike_flutter_app/utils/typography.dart';
 // import 'package:cosmo_strike_flutter_app/utils/performance_monitor.dart'; // temporarily disabled
 
 import 'firebase_options.dart';
@@ -274,10 +274,10 @@ void main() async {
   }
 
   if (_initSucceeded) {
-    // Safety net: the splash is normally lifted by LoadingScreen.initState.
+    // Safety net: the splash is normally lifted by LoadingScreen as it routes.
     // If the first screen somehow never mounts, lift it anyway after a few
     // seconds so the app can never appear permanently frozen on the splash.
-    Future.delayed(const Duration(seconds: 6), FlutterNativeSplash.remove);
+    Future.delayed(const Duration(seconds: 15), FlutterNativeSplash.remove);
     runApp(const riverpod.ProviderScope(child: CosmoStrikeApp()));
   } else {
     // Critical init failed — remove the splash (otherwise it stays on top
@@ -286,32 +286,34 @@ void main() async {
     FlutterNativeSplash.remove();
     runApp(
       MaterialApp(
+        theme: buildCosmoTheme(),
+        debugShowCheckedModeBanner: false,
         home: Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: CsColors.bg,
           body: Center(
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 64),
+                  const Icon(Icons.error_outline_rounded, color: CsColors.pink, size: 40),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'Failed to start Cosmo Strike',
-                    style: TextStyle(color: Colors.white, fontSize: 18),
+                    style: const CsType(1).display(24),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Please restart the app. If this persists, try reinstalling.',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                    style: const CsType(1).body,
                     textAlign: TextAlign.center,
                   ),
                   if (_initError != null) ...[
                     const SizedBox(height: 16),
                     Text(
                       _initError!,
-                      style: TextStyle(color: Colors.red[300], fontSize: 12),
+                      style: const CsType(1).mono(11, color: CsColors.pink, em: 0.02),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -469,16 +471,23 @@ class _CosmoStrikeAppState extends State<CosmoStrikeApp>
               // they throw "No MaterialLocalizations found" at runtime.
               localizationsDelegates:
                   material_ui.GlobalMaterialLocalizations.delegates,
-              theme: ThemeData(
-                brightness: Brightness.dark,
-                scaffoldBackgroundColor:
-                    themeState.currentTheme.backgroundColor,
-                visualDensity: VisualDensity.adaptivePlatformDensity,
-                useMaterial3: false,
-                textTheme: GameTypography.createTextTheme(
-                  color: themeState.currentTheme.accentColor,
-                ),
-              ),
+              // Prism Noir: one look for every menu. Purchased color themes
+              // (ThemeCubit) now tint gameplay only — see cosmo_palette.dart.
+              theme: buildCosmoTheme(),
+              darkTheme: buildCosmoTheme(),
+              themeMode: ThemeMode.dark,
+              // Landscape layouts are tuned to the type scale; allow a little
+              // system font scaling for legibility but cap it so headlines
+              // and HUD numbers never blow out of their rows.
+              builder: (context, child) {
+                final mq = MediaQuery.of(context);
+                return MediaQuery(
+                  data: mq.copyWith(
+                    textScaler: mq.textScaler.clamp(minScaleFactor: 1.0, maxScaleFactor: 1.15),
+                  ),
+                  child: child ?? const SizedBox.shrink(),
+                );
+              },
               // The first-sign-in cloud-restore overlay is mounted on the
               // three screens the restore can possibly be active on
               // (LoadingScreen / FirstTimeAuthScreen / EmailAuthScreen),

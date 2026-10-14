@@ -3,9 +3,10 @@ import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flutter/painting.dart';
 
+import '../cosmo_palette.dart';
 import '../cosmo_strike_game.dart';
 
-const Color _warnColor = Color(0xFFFF2D78);
+const Color _warnColor = CosmoPalette.pink;
 
 double _pulse(double age, {double hz = 7}) =>
     0.35 + 0.45 * (0.5 + 0.5 * math.sin(age * hz));
@@ -25,6 +26,11 @@ class EdgeWarningMarker extends PositionComponent
   final double life;
   final double _y;
   double _age = 0;
+  final Paint _paint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 3
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
 
   @override
   void update(double dt) {
@@ -36,11 +42,7 @@ class EdgeWarningMarker extends PositionComponent
   void render(Canvas canvas) {
     final x = fromLeft ? 16.0 : game.size.x - 16.0;
     final dir = fromLeft ? 1.0 : -1.0;
-    final paint = Paint()
-      ..color = _warnColor.withValues(alpha: _pulse(_age))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5
-      ..strokeCap = StrokeCap.round;
+    final paint = _paint..color = _warnColor.withValues(alpha: _pulse(_age));
     // Two chevrons pointing into the field.
     for (var k = 0; k < 2; k++) {
       final cx = x + dir * k * 14;
@@ -145,7 +147,7 @@ class SafeGapMarker extends PositionComponent
     this.life = 1.4,
   }) : super(priority: 55);
 
-  static const Color _safeColor = Color(0xFF7CFC9A);
+  static const Color _safeColor = CosmoPalette.mint;
 
   final double centerY;
   final double bandHeight;

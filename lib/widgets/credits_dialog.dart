@@ -1,284 +1,114 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// "About / Credits" dialog for Cosmo Strike. Reached from the home top bar's
 /// about tool (and the Settings screen).
 ///
-/// Clean Command-HUD styling for the wide landscape viewport: a two-region
-/// sheet — brand identity on the LEFT, credits on the RIGHT — on a dark
-/// surface framed purely by neon glow. No borders anywhere.
+/// Prism Noir [CsDialog]: brand lockup + version on the left, credits as
+/// hairline rows on the right. [theme] is kept for API compatibility; menus
+/// are always Prism Noir, so it no longer tints the dialog.
 Future<void> showCreditsDialog(BuildContext context, GameTheme theme) async {
   final currentYear = DateTime.now().year;
   final packageInfo = await PackageInfo.fromPlatform();
   if (!context.mounted) return;
 
-  showDialog(
-    context: context,
-    builder: (BuildContext dialogContext) {
-      return Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Color.alphaBlend(
-                theme.primaryColor.withValues(alpha: 0.06),
-                theme.backgroundColor,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.accentColor.withValues(alpha: 0.22),
-                  blurRadius: 28,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 18),
-            child: Stack(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // LEFT — brand identity.
-                    Expanded(
-                      flex: 5,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              gradient: RadialGradient(
-                                colors: [
-                                  theme.primaryColor.withValues(alpha: 0.22),
-                                  Colors.transparent,
-                                ],
-                              ),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: theme.accentColor
-                                      .withValues(alpha: 0.30),
-                                  blurRadius: 20,
-                                  spreadRadius: -2,
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.all(8),
-                            // The official brand mark — same rocket glyph as
-                            // the loading screen and home. (The PNG never
-                            // shipped; this also fixes the broken-image box
-                            // this dialog used to render.)
-                            child: Icon(
-                              Icons.rocket_launch,
-                              color: theme.accentColor,
-                              size: 42,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          ShaderMask(
-                            shaderCallback: (bounds) => LinearGradient(
-                              colors: [
-                                theme.primaryColor,
-                                theme.accentColor,
-                              ],
-                            ).createShader(bounds),
-                            child: const Text(
-                              'COSMO STRIKE',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 19,
-                                letterSpacing: 2,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            'A premium space shooter experience.',
-                            style: TextStyle(
-                              color: theme.textMuted,
-                              fontSize: 11.5,
-                              fontStyle: FontStyle.italic,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  theme.accentColor.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'v${packageInfo.version} · build ${packageInfo.buildNumber}',
-                              style: TextStyle(
-                                color: theme.textMuted,
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    // RIGHT — credits.
-                    Expanded(
-                      flex: 6,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'CRAFTED BY',
-                            style: TextStyle(
-                              color: theme.accentColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.8,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Pranta Dutta',
-                            style: TextStyle(
-                              color: theme.textPrimary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          InkWell(
-                            onTap: () async {
-                              final url = Uri.parse('https://pranta.dev');
-                              if (await canLaunchUrl(url)) {
-                                await launchUrl(
-                                  url,
-                                  mode: LaunchMode.externalApplication,
-                                );
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.primaryColor
-                                    .withValues(alpha: 0.16),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.language_rounded,
-                                    color: theme.accentColor,
-                                    size: 13,
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    'pranta.dev',
-                                    style: TextStyle(
-                                      color: theme.accentColor,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Icon(
-                                    Icons.open_in_new_rounded,
-                                    color: theme.accentColor
-                                        .withValues(alpha: 0.8),
-                                    size: 11,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'POWERED BY',
-                            style: TextStyle(
-                              color: theme.accentColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.8,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.local_fire_department_rounded,
-                                color: Colors.orange.shade400,
-                                size: 14,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                'Flame Game Engine',
-                                style: TextStyle(
-                                  color: theme.textMuted,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            '© $currentYear Pranta Dutta · All rights reserved',
-                            style: TextStyle(
-                              color: theme.textMuted.withValues(alpha: 0.7),
-                              fontSize: 10,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                // Close — floats over the top-right corner.
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: InkResponse(
-                    onTap: () => Navigator.of(dialogContext).pop(),
-                    radius: 20,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: theme.accentColor.withValues(alpha: 0.10),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.close_rounded,
-                        color: theme.accentColor.withValues(alpha: 0.8),
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+  await showCsDialog<void>(
+    context,
+    builder: (dialogContext) => CsDialog(
+      maxWidth: 600,
+      content: _CreditsBody(
+        version: 'v${packageInfo.version} · build ${packageInfo.buildNumber}',
+        year: currentYear,
+      ),
+      actions: [
+        CsButton.secondary(
+          label: 'Close',
+          onPressed: () => Navigator.of(dialogContext).pop(),
         ),
-      );
-    },
+      ],
+    ),
   );
+}
+
+Future<void> _openSite() async {
+  final url = Uri.parse('https://pranta.dev');
+  if (await canLaunchUrl(url)) {
+    await launchUrl(url, mode: LaunchMode.externalApplication);
+  }
+}
+
+class _CreditsBody extends StatelessWidget {
+  const _CreditsBody({required this.version, required this.year});
+  final String version;
+  final int year;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+
+    final brand = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const CsLogoMark(size: 64),
+        SizedBox(height: cs(14)),
+        const CsWordmark(size: 18),
+        SizedBox(height: cs(8)),
+        Text('A premium space shooter experience.', style: t.body),
+        SizedBox(height: cs(14)),
+        CsChip(version),
+      ],
+    );
+
+    final credits = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const CsLabel('Crafted by'),
+        CsListRow(
+          title: 'Pranta Dutta',
+          subtitle: 'pranta.dev',
+          leading: const CsIconDisc(Symbols.language_rounded, size: 34),
+          trailing: Icon(Symbols.open_in_new_rounded, size: cs(18), color: CsColors.ink55),
+          onTap: _openSite,
+        ),
+        SizedBox(height: cs(14)),
+        const CsLabel('Powered by'),
+        CsListRow(
+          title: 'Flame Game Engine',
+          subtitle: 'Flutter + Flame',
+          leading: const CsIconDisc(Symbols.local_fire_department_rounded, size: 34, color: CsColors.gold),
+        ),
+        SizedBox(height: cs(14)),
+        Text(
+          '© $year Pranta Dutta · All rights reserved'.toUpperCase(),
+          style: t.micro,
+        ),
+      ],
+    );
+
+    if (cs.isCompact) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [brand, SizedBox(height: cs(18)), credits],
+      );
+    }
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(flex: 5, child: brand),
+          SizedBox(width: cs(20)),
+          const CsHairline(vertical: true),
+          SizedBox(width: cs(20)),
+          Expanded(flex: 6, child: credits),
+        ],
+      ),
+    );
+  }
 }

@@ -34,6 +34,7 @@ abstract class AppRoutes {
   static const String store = '/store';
   static const String premiumBenefits = '/premium-benefits';
   static const String cosmetics = '/cosmetics';
+  static const String hangar = '/hangar';
   static const String battlePass = '/battle-pass';
 
   // Other features

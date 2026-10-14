@@ -166,7 +166,8 @@ class EnemyShip extends PositionComponent
 
     _fireTimer -= dt;
     if (_fireTimer <= 0 && position.x < game.size.x) {
-      _fireTimer = _fireInterval;
+      // Adaptive pressure tightens the interval when the player cruises.
+      _fireTimer = _fireInterval / game.fireIntensity;
       if (type.fireStyle == EnemyFireStyle.burst3) {
         _burstShotsLeft = 3;
         _burstTimer = 0;
@@ -181,12 +182,16 @@ class EnemyShip extends PositionComponent
     final aimed = type.fireStyle == EnemyFireStyle.aimed ||
         type.fireStyle == EnemyFireStyle.burst3 ||
         pattern == EnemyPattern.tracking ||
-        pattern == EnemyPattern.dive;
+        pattern == EnemyPattern.dive ||
+        // Straight shooters aim a share of their shots (rises with level
+        // and adaptive pressure) so no row is ever permanently safe.
+        game.rng.nextDouble() < game.aimedChance;
+    final speedScale = game.enemyBulletSpeedScale;
     if (aimed) {
       final dir = (game.player.position - position)..normalize();
-      velocity = dir * 220;
+      velocity = dir * 220 * speedScale;
     } else {
-      velocity = Vector2(-240, 0);
+      velocity = Vector2(-240 * speedScale, 0);
     }
     game.pools.enemyBullet(spawn: position.clone(), velocity: velocity);
   }

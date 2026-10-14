@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import 'package:go_router/go_router.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 
 /// Data class for daily bonus reward
@@ -81,8 +80,11 @@ class DailyBonusStatus {
   ];
 }
 
-/// A popup dialog for daily login bonus
+/// The daily login bonus dialog (Prism Noir CsDialog): a 7-day streak row of
+/// tiles (claimed = mint check, today = prism ring, upcoming = faint), today's
+/// reward in gold mono, CLAIM (white) + optional CLAIM 2× via rewarded ad.
 class DailyBonusPopup extends StatefulWidget {
+  /// Kept for API compatibility; the dialog is always Prism Noir styled.
   final GameTheme theme;
   final DailyBonusStatus status;
   final Future<void> Function() onClaim;
@@ -114,32 +116,35 @@ class DailyBonusPopup extends StatefulWidget {
     required Future<bool> Function() onClaim,
     Future<void> Function()? onClaimDoubled,
   }) async {
-    await showDialog(
-      context: context,
+    await showCsDialog<void>(
+      context,
       barrierDismissible: false,
-      barrierColor: Colors.black.withValues(alpha: 0.85),
       builder: (dialogContext) {
+        void close() {
+          if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+        }
+
         return DailyBonusPopup(
           theme: theme,
           status: status,
           isLoading: false, // Never show loading - instant feedback
           onClaim: () async {
             // Await the claim BEFORE dismissing the dialog so the
-            // Drift write + sync-outbox enqueue lands before
-            // showDialog resolves. Previously the popup closed first
-            // and the claim ran in the background — a fast remount of
-            // home in that window could re-trigger the popup because
-            // the Drift gate hadn't been flipped yet.
+            // Drift write + sync-outbox enqueue lands before the dialog
+            // future resolves. Previously the popup closed first and the
+            // claim ran in the background — a fast remount of home in that
+            // window could re-trigger the popup because the Drift gate
+            // hadn't been flipped yet.
             await onClaim();
-            if (dialogContext.mounted) dialogContext.pop();
+            close();
           },
           onClaimDoubled: onClaimDoubled == null
               ? null
               : () async {
                   await onClaimDoubled();
-                  if (dialogContext.mounted) dialogContext.pop();
+                  close();
                 },
-          onClose: () => dialogContext.pop(),
+          onClose: close,
         );
       },
     );
@@ -149,10 +154,7 @@ class DailyBonusPopup extends StatefulWidget {
   State<DailyBonusPopup> createState() => _DailyBonusPopupState();
 }
 
-class _DailyBonusPopupState extends State<DailyBonusPopup>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _shimmerController;
-
+class _DailyBonusPopupState extends State<DailyBonusPopup> {
   // Guards against a fast double-tap firing the claim (and crediting the
   // reward) twice before the dialog pops. We deliberately don't flip to a
   // loading spinner here — the popup is meant to feel instant — we just
@@ -182,540 +184,177 @@ class _DailyBonusPopupState extends State<DailyBonusPopup>
   }
 
   @override
-  void initState() {
-    super.initState();
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _shimmerController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final todayReward = widget.status.todayReward;
-    final currentDay = widget.status.currentStreak > 0
-        ? widget.status.currentStreak
-        : 1;
+    final cs = context.cs;
+    final t = cs.type;
+    final status = widget.status;
+    final todayReward = status.todayReward;
+    final currentDay = status.currentStreak > 0 ? status.currentStreak : 1;
+    final busy = widget.isLoading || _isClaiming;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child:
-          Container(
-            constraints: const BoxConstraints(maxWidth: 520),
-            // Borderless per the clean design — the skin's neon glow frames it.
-            decoration: BoxDecoration(
-              color: widget.theme.backgroundColor,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: widget.theme.glow.withValues(alpha: 0.35),
-                  blurRadius: 30,
-                  spreadRadius: 5,
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Compact header (icon + title + streak on one row).
-                _buildHeader(),
-
-                // Week progress
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildWeekProgress(currentDay),
-                ),
-
-                const SizedBox(height: 8),
-
-                // Today's reward
-                if (todayReward != null) _buildTodayReward(todayReward),
-
-                const SizedBox(height: 10),
-
-                // Claim button
-                _buildClaimButton(),
-
-                // Close button (if can't claim)
-                if (!widget.status.canClaim) _buildCloseButton(),
-
-                const SizedBox(height: 10),
-              ],
-            ),
-          ).animate().scale(
-            begin: const Offset(0.8, 0.8),
-            end: const Offset(1, 1),
-            duration: 300.ms,
-            curve: Curves.easeOutBack,
-          ),
-    );
-  }
-
-  Widget _buildHeader() {
-    // Borderless, no banner fill — the gift disc and typography carry it.
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 12, 10, 6),
-      child: Row(
+    return CsDialog(
+      maxWidth: 600,
+      titleWidget: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Gift disc on the skin's neon ramp, with animation (compact).
-          Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      widget.theme.neonPrimary,
-                      widget.theme.neonSecondary,
-                    ],
-                  ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.theme.glow.withValues(alpha: 0.5),
-                      blurRadius: 16,
-                      spreadRadius: 3,
-                    ),
-                  ],
-                ),
-                child: const Text('🎁', style: TextStyle(fontSize: 26)),
-              )
-              .animate(onPlay: (controller) => controller.repeat(reverse: true))
-              .scale(
-                begin: const Offset(1, 1),
-                end: const Offset(1.1, 1.1),
-                duration: 1000.ms,
-              ),
-
-          const SizedBox(width: 12),
-
-          // Title + subtitle.
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                Text('DAILY BONUS', style: t.mono(11, em: .16)),
+                SizedBox(height: cs(6)),
                 Text(
-                  'Daily Bonus',
-                  style: TextStyle(
-                    color: widget.theme.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  widget.status.canClaim
-                      ? 'Claim your daily reward!'
-                      : 'Come back tomorrow!',
-                  style: TextStyle(
-                    color: widget.theme.textMuted,
-                    fontSize: 12,
-                  ),
+                  status.canClaim ? 'Claim your daily reward!' : 'Come back tomorrow!',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.display(24, em: -0.03, height: 1.05),
                 ),
               ],
             ),
           ),
-
-          // Streak chip.
-          if (widget.status.currentStreak > 1) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              // Borderless neon tint.
-              decoration: BoxDecoration(
-                color: widget.theme.neonSecondary.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('🔥', style: TextStyle(fontSize: 13)),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${widget.status.currentStreak} day streak!',
-                    style: TextStyle(
-                      color: widget.theme.neonSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+          if (status.currentStreak > 1) ...[
+            SizedBox(width: cs(10)),
+            Padding(
+              padding: EdgeInsets.only(top: cs(12)),
+              child: CsChip(
+                '${status.currentStreak} day streak',
+                kind: CsChipKind.pink,
+                icon: Symbols.local_fire_department_rounded,
               ),
             ),
           ],
-
-          const SizedBox(width: 8),
-
-          // Close button.
-          GestureDetector(
-            onTap: widget.onClose,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: widget.theme.backgroundColor.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.close,
-                color: widget.theme.accentColor.withValues(alpha: 0.7),
-                size: 18,
-              ),
-            ),
+          SizedBox(width: cs(4)),
+          CsIconButton(
+            icon: Symbols.close_rounded,
+            size: 34,
+            bordered: false,
+            color: CsColors.ink60,
+            tooltip: 'Close',
+            onPressed: widget.onClose,
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildWeekProgress(int currentDay) {
-    return Column(
-      children: [
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: List.generate(7, (index) {
-            final day = index + 1;
-            final reward = widget.status.weekRewards.length > index
-                ? widget.status.weekRewards[index]
-                : DailyBonusReward(day: day, coins: 10 + (day * 5));
-
-            final isClaimed = reward.claimed;
-            final isToday = day == currentDay;
-            final isFuture = day > currentDay;
-
-            return Expanded(
-              child: _buildDayCircle(
-                day: day,
-                coins: reward.coins,
-                hasBonus: reward.bonusItem != null,
-                isClaimed: isClaimed,
-                isToday: isToday,
-                isFuture: isFuture,
-              ),
-            );
-          }),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDayCircle({
-    required int day,
-    required int coins,
-    required bool hasBonus,
-    required bool isClaimed,
-    required bool isToday,
-    required bool isFuture,
-  }) {
-    // Borderless per the clean design — day state reads via tint + glow:
-    // claimed = green (app-wide success colour) tint + check, today = the
-    // skin's neon tint + glow + pulse, upcoming = faint glass tint.
-    Color bgColor;
-    Widget icon;
-
-    if (isClaimed) {
-      bgColor = Colors.green.withValues(alpha: 0.22);
-      icon = const Icon(Icons.check, color: Colors.green, size: 16);
-    } else if (isToday) {
-      bgColor = widget.theme.neonPrimary.withValues(alpha: 0.22);
-      icon = Text('🎁', style: TextStyle(fontSize: hasBonus ? 14 : 12));
-    } else {
-      bgColor = widget.theme.surfaceGlass;
-      icon = Text(
-        hasBonus ? '⭐' : '🪙',
-        style: const TextStyle(fontSize: 12),
-      );
-    }
-
-    Widget circle = Container(
-      width: 30,
-      height: 30,
-      decoration: BoxDecoration(
-        color: bgColor,
-        shape: BoxShape.circle,
-        boxShadow: isToday
-            ? [
-                BoxShadow(
-                  color: widget.theme.glow.withValues(alpha: 0.5),
-                  blurRadius: 10,
-                  spreadRadius: 1,
-                ),
-              ]
-            : null,
-      ),
-      child: Center(child: icon),
-    );
-
-    if (isToday && widget.status.canClaim) {
-      circle = circle
-          .animate(onPlay: (c) => c.repeat(reverse: true))
-          .scale(
-            begin: const Offset(1, 1),
-            end: const Offset(1.1, 1.1),
-            duration: 800.ms,
-          );
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        circle,
-        const SizedBox(height: 4),
-        Text(
-          'D$day',
-          style: TextStyle(
-            color: isToday
-                ? widget.theme.neonPrimary
-                : widget.theme.textMuted
-                    .withValues(alpha: isFuture ? 0.55 : 1.0),
-            fontSize: 10,
-            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTodayReward(DailyBonusReward reward) {
-    // Fully transparent — the reward pills alone carry the emphasis.
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            "Today's Reward",
-            style: TextStyle(
-              color: widget.theme.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 10,
-              runSpacing: 6,
-              children: [
-                // Coins
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('🪙', style: TextStyle(fontSize: 18)),
-                      const SizedBox(width: 6),
-                      Text(
-                        '+${reward.coins}',
-                        style: const TextStyle(
-                          color: Colors.amber,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Bonus item if any
-                if (reward.bonusItem != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    // Borderless neon tint.
-                    decoration: BoxDecoration(
-                      color: widget.theme.neonSecondary
-                          .withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('🎁', style: TextStyle(fontSize: 14)),
-                        const SizedBox(width: 6),
-                        Text(
-                          reward.bonusItem!,
-                          style: TextStyle(
-                            color: widget.theme.neonSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2, end: 0);
-  }
-
-  Widget _buildClaimButton() {
-    if (!widget.status.canClaim) {
-      // Borderless muted state chip on the skin's glass tint.
-      return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        decoration: BoxDecoration(
-          color: widget.theme.surfaceGlass,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.access_time,
-              color: widget.theme.textMuted,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Already claimed today',
-              style: TextStyle(
-                color: widget.theme.textMuted,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final claimButton = GestureDetector(
-      onTap: (widget.isLoading || _isClaiming) ? null : _handleClaim,
-      // CTA pill on the skin's neon ramp — same language as the mode
-      // picker's START PLAYING pill: glow only, dark lettering, no border.
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        height: 44,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              widget.theme.neonPrimary,
-              widget.theme.neonSecondary,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [
-            BoxShadow(
-              color: widget.theme.neonPrimary.withValues(alpha: 0.35),
-              blurRadius: 14,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: widget.isLoading
-            ? const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  color: Color(0xFF03040A),
-                  strokeWidth: 2,
-                ),
-              )
-            : const Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('🎉', style: TextStyle(fontSize: 18)),
-                  SizedBox(width: 8),
-                  Text(
-                    'CLAIM REWARD',
-                    style: TextStyle(
-                      color: Color(0xFF03040A),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-      ),
-    );
-
-    Widget animate(Widget w) =>
-        w.animate(delay: 300.ms).fadeIn().scale(begin: const Offset(0.9, 0.9));
-
-    // No ad option → just the normal claim button.
-    if (widget.onClaimDoubled == null) return animate(claimButton);
-
-    // Ad available → claim button + a "claim and double via ad" option.
-    return animate(
-      Column(
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          claimButton,
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: (widget.isLoading || _isClaiming)
-                ? null
-                : _handleClaimDoubled,
-            // Borderless neon tint — the secondary action.
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 11),
-              decoration: BoxDecoration(
-                color: widget.theme.neonPrimary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.play_circle_fill,
-                      color: widget.theme.neonPrimary, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'CLAIM 2× — WATCH AD',
-                    style: TextStyle(
-                      color: widget.theme.neonPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _WeekRow(status: status, currentDay: currentDay),
+          SizedBox(height: cs(16)),
+          if (todayReward != null) _TodayReward(reward: todayReward),
+          if (!status.canClaim) ...[
+            SizedBox(height: cs(10)),
+            const CsMeta('Already claimed today', icon: Symbols.schedule_rounded),
+          ],
         ],
       ),
+      actions: status.canClaim
+          ? [
+              if (widget.onClaimDoubled != null)
+                CsButton.secondary(
+                  label: 'Claim 2× · watch ad',
+                  icon: Symbols.play_circle_rounded,
+                  onPressed: busy ? null : _handleClaimDoubled,
+                ),
+              CsButton.primary(
+                label: 'Claim reward',
+                icon: Symbols.redeem_rounded,
+                loading: widget.isLoading,
+                onPressed: busy ? null : _handleClaim,
+              ),
+            ]
+          : [CsButton.text(label: 'Close', onPressed: widget.onClose)],
     );
   }
+}
 
-  Widget _buildCloseButton() {
-    return TextButton(
-      onPressed: widget.onClose,
-      child: Text(
-        'Close',
-        style: TextStyle(
-          color: widget.theme.textMuted,
-          fontSize: 14,
+/// The 7-day streak as a row of tiles: claimed = done + mint check, today =
+/// prism ring, everything else = faint future tile.
+class _WeekRow extends StatelessWidget {
+  const _WeekRow({required this.status, required this.currentDay});
+  final DailyBonusStatus status;
+  final int currentDay;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    final tiles = <Widget>[];
+    for (var index = 0; index < 7; index++) {
+      final day = index + 1;
+      final reward = status.weekRewards.length > index
+          ? status.weekRewards[index]
+          : DailyBonusReward(day: day, coins: 10 + (day * 5));
+      final isClaimed = reward.claimed;
+      final isToday = day == currentDay;
+
+      final CsTileState state = isClaimed
+          ? CsTileState.done
+          : (isToday ? CsTileState.current : CsTileState.future);
+
+      final Widget glyph = isClaimed
+          ? Icon(Symbols.check_circle_rounded, size: cs(18), color: CsColors.mint)
+          : (reward.bonusItem != null
+              ? Icon(Symbols.redeem_rounded, size: cs(18), color: CsColors.gold)
+              : Image.asset('assets/images/ui/coin.png', width: cs(18), height: cs(18)));
+
+      tiles.add(Expanded(
+        child: CsTile(
+          state: state,
+          rotateRing: isToday && status.canClaim,
+          padding: EdgeInsets.symmetric(vertical: cs(9), horizontal: cs(2)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'D$day',
+                maxLines: 1,
+                style: t.mono(9, color: isToday ? CsColors.ink : CsColors.ink45, em: 0.12),
+              ),
+              SizedBox(height: cs(6)),
+              glyph,
+              SizedBox(height: cs(6)),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  '${reward.coins}',
+                  maxLines: 1,
+                  style: t.mono(
+                    10.5,
+                    weight: FontWeight.w600,
+                    em: 0.04,
+                    color: isClaimed ? CsColors.ink45 : CsColors.gold,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
+      ));
+      if (index < 6) tiles.add(SizedBox(width: cs(6)));
+    }
+    return Row(children: tiles);
+  }
+}
+
+/// "TODAY'S REWARD" caption + gold coins (+ bonus item chip).
+class _TodayReward extends StatelessWidget {
+  const _TodayReward({required this.reward});
+  final DailyBonusReward reward;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: cs(14),
+      runSpacing: cs(8),
+      children: [
+        const CsLabel("Today's reward"),
+        CsCoins(reward.coins, prefix: '+', size: 14),
+        if (reward.bonusItem != null)
+          CsChip(reward.bonusItem!, kind: CsChipKind.gold, icon: Symbols.redeem_rounded, size: 10),
+      ],
     );
   }
 }

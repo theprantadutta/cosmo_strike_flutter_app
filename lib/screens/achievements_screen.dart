@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cosmo_strike_flutter_app/models/achievement.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/achievement_service.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
+
+enum _AwardFilter { all, unlocked, locked }
 
 class AchievementsScreen extends StatefulWidget {
   const AchievementsScreen({super.key});
@@ -15,22 +13,19 @@ class AchievementsScreen extends StatefulWidget {
   State<AchievementsScreen> createState() => _AchievementsScreenState();
 }
 
-class _AchievementsScreenState extends State<AchievementsScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _AchievementsScreenState extends State<AchievementsScreen> {
   final AchievementService _achievementService = AchievementService();
+  _AwardFilter _filter = _AwardFilter.all;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
     _achievementService.addListener(_onAchievementsChanged);
   }
 
   @override
   void dispose() {
     _achievementService.removeListener(_onAchievementsChanged);
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -40,512 +35,277 @@ class _AchievementsScreenState extends State<AchievementsScreen>
     }
   }
 
+  List<Achievement> get _visible => switch (_filter) {
+        _AwardFilter.all => _achievementService.achievements,
+        _AwardFilter.unlocked => _achievementService.getUnlockedAchievements(),
+        _AwardFilter.locked => _achievementService.getLockedAchievements(),
+      };
+
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ThemeCubit, ThemeState>(
-      builder: (context, themeState) {
-        final theme = themeState.currentTheme;
-        return _buildContent(context, theme);
-      },
-    );
-  }
-
-  Widget _buildContent(BuildContext context, GameTheme theme) {
-    return CommandScaffold(
-      theme: theme,
+    final all = _achievementService.achievements;
+    final unlocked = all.where((a) => a.isUnlocked).length;
+    return CsScaffold(
       title: 'Achievements',
-      bottomBar: const ShipBannerAd(),
-      bodyPadding: EdgeInsets.zero,
-      // Landscape command deck: LEFT = completion ring + section rail,
-      // RIGHT = the achievement lists. Both float borderless on the
-      // starfield per the clean design.
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              flex: 3,
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: SizedBox(
-                    width: 230,
-                    child: _buildLeftPanel(theme),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 20),
-            Expanded(
-              flex: 7,
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildAchievementsList(
-                    _achievementService.achievements,
-                    theme,
-                  ),
-                  _buildAchievementsList(
-                    _achievementService.getUnlockedAchievements(),
-                    theme,
-                  ),
-                  _buildAchievementsList(
-                    _achievementService.getLockedAchievements(),
-                    theme,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+      washes: const [CsWash.goldTopRight],
+      trailing: [CsMeta('$unlocked / ${all.length} unlocked')],
+      body: CsSplit(
+        // Inline banner in the summary column (no full-width banners).
+        leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
+        left: _buildSummary(context),
+        right: _buildGridColumn(context),
       ),
     );
   }
 
-  /// LEFT panel: gold completion ring + claimed/pending readout + the
-  /// All/Unlocked/Locked rail (no-background, glowing-dot selection).
+  /// LEFT: completion ring + claimed/pending readout + points.
   /// Stat counts use the same logic as the dashboard's AchievementsGrid.
-  Widget _buildLeftPanel(GameTheme theme) {
+  Widget _buildSummary(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
     final all = _achievementService.achievements;
     final total = all.length;
     final unlocked = all.where((a) => a.isUnlocked).length;
     final claimed = all.where((a) => a.rewardClaimed).length;
     final pending = all.where((a) => !a.isUnlocked).length;
-    final completionPercentage = _achievementService.completionPercentage;
-    final completionPct = (completionPercentage * 100).round();
+    final completion = _achievementService.completionPercentage;
+    final pct = (completion * 100).round();
+    final points = _achievementService.totalAchievementPoints;
 
-    return AnimatedBuilder(
-      animation: _tabController,
-      builder: (context, _) => Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: SizedBox(
-              width: 96,
-              height: 96,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 96,
-                    height: 96,
-                    child: CircularProgressIndicator(
-                      value: completionPercentage,
-                      strokeWidth: 7,
-                      strokeCap: StrokeCap.round,
-                      backgroundColor: Colors.white.withValues(alpha: 0.08),
-                      valueColor: const AlwaysStoppedAnimation(Colors.amber),
-                    ),
-                  ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '$completionPct%',
-                        style: TextStyle(
-                          color: theme.textPrimary,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 22,
-                        ),
-                      ),
-                      Text(
-                        '$unlocked of $total',
-                        style:
-                            TextStyle(color: theme.textMuted, fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Center(
-            child: Text(
-              'COMPLETION',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 2,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Center(
-            child: Text(
-              '$claimed claimed · $pending pending',
-              style: TextStyle(color: theme.textMuted, fontSize: 11),
-            ),
-          ),
-          const SizedBox(height: 14),
-          _buildNavItem(theme, 0, Icons.apps, 'All', total),
-          _buildNavItem(theme, 1, Icons.emoji_events, 'Unlocked', unlocked),
-          _buildNavItem(theme, 2, Icons.lock_outline, 'Locked', pending),
-        ],
-      ),
-    ).gameEntrance();
+    return CsFitColumn(
+      alignment: Alignment.centerLeft,
+      children: [
+        CsRingProgress(
+          value: completion,
+          size: cs(cs.isTablet ? 150 : 128),
+          stroke: 3,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('$unlocked/$total', maxLines: 1, style: t.display(28, em: -0.03, height: 1)),
+            SizedBox(height: cs(4)),
+            Text('UNLOCKED', style: t.micro),
+          ]),
+        ),
+        SizedBox(height: cs(22)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text('Your awards', maxLines: 1, style: t.display(36, em: -0.04, height: 1)),
+        ),
+        SizedBox(height: cs(10)),
+        Text('$pct% COMPLETE', style: t.mono(11, color: CsColors.ink)),
+        SizedBox(height: cs(6)),
+        Text('$claimed CLAIMED · $pending PENDING', style: t.label),
+        SizedBox(height: cs(6)),
+        Text('$points PTS', style: t.mono(11, color: CsColors.gold)),
+      ],
+    );
   }
 
-  Widget _buildNavItem(
-    GameTheme theme,
-    int i,
-    IconData icon,
-    String label,
-    int count,
-  ) {
-    final selected = _tabController.index == i;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _tabController.animateTo(i),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: selected ? theme.neonPrimary : theme.textMuted,
+  Widget _buildGridColumn(BuildContext context) {
+    final cs = context.cs;
+    final all = _achievementService.achievements;
+    final unlocked = all.where((a) => a.isUnlocked).length;
+    final locked = all.where((a) => !a.isUnlocked).length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: CsSegmented<_AwardFilter>(
+              segments: {
+                _AwardFilter.all: 'All ${all.length}',
+                _AwardFilter.unlocked: 'Unlocked $unlocked',
+                _AwardFilter.locked: 'Locked $locked',
+              },
+              selected: _filter,
+              onChanged: (f) => setState(() => _filter = f),
             ),
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? theme.textPrimary : theme.textMuted,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: theme.accentColor.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '$count',
-                style: TextStyle(
-                  color: theme.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            if (selected) ...[
-              const SizedBox(width: 8),
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: theme.neonPrimary,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.neonPrimary.withValues(alpha: 0.7),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
+          ),
         ),
+        SizedBox(height: cs(14)),
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: CsMotion.base,
+            switchInCurve: CsMotion.standard,
+            child: KeyedSubtree(key: ValueKey(_filter), child: _buildGrid(context, _visible)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGrid(BuildContext context, List<Achievement> achievements) {
+    final cs = context.cs;
+    if (achievements.isEmpty) {
+      return const CsEmptyState(
+        icon: Symbols.workspace_premium_rounded,
+        title: 'No achievements here',
+        compact: true,
+      );
+    }
+    final columns = cs.isTablet ? 4 : (cs.size.width < 700 ? 2 : 3);
+    return GridView.builder(
+      padding: EdgeInsets.only(bottom: cs(12)),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        mainAxisSpacing: cs(10),
+        crossAxisSpacing: cs(10),
+        mainAxisExtent: cs(150),
+      ),
+      itemCount: achievements.length,
+      itemBuilder: (context, i) => _AwardTile(
+        achievement: achievements[i],
+        onTap: () => _showDetail(achievements[i]),
       ),
     );
   }
 
-  Widget _buildAchievementsList(
-    List<Achievement> achievements,
-    GameTheme theme,
-  ) {
-    if (achievements.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.workspace_premium_outlined,
-              size: 64,
-              color: theme.primaryColor.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No achievements here',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: achievements.length,
-      itemBuilder: (context, index) {
-        final achievement = achievements[index];
-
-        return _buildAchievementCard(achievement, theme)
-            .gameListItem(index);
+  void _showDetail(Achievement a) {
+    final progress = a.progressPercentage;
+    showCsDialog<void>(
+      context,
+      builder: (ctx) {
+        final cs = ctx.cs;
+        final t = cs.type;
+        return CsDialog(
+          icon: a.icon,
+          iconColor: a.isUnlocked ? CsColors.gold : CsColors.ink45,
+          eyebrow: '${a.rarityName} · ${a.points} pts',
+          title: a.title,
+          message: a.description,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!a.isUnlocked) ...[
+                CsProgressLine(value: progress),
+                SizedBox(height: cs(8)),
+                Text('${a.currentProgress} / ${a.targetValue}', style: t.label),
+                SizedBox(height: cs(14)),
+              ],
+              Row(children: [
+                Text('+${a.xpReward} XP', style: t.mono(12, color: CsColors.xp)),
+                SizedBox(width: cs(16)),
+                CsCoins('+${a.coinReward}', size: 12, suffix: ' COINS'),
+              ]),
+              if (a.isUnlocked) ...[
+                SizedBox(height: cs(14)),
+                Text(
+                  [
+                    if (a.unlockedAt != null) 'UNLOCKED ${_formatDate(a.unlockedAt!).toUpperCase()}' else 'UNLOCKED',
+                    a.rewardClaimed ? 'REWARD CLAIMED' : 'REWARD PENDING',
+                  ].join(' · '),
+                  style: t.mono(11, color: a.rewardClaimed ? CsColors.mint : CsColors.gold),
+                ),
+              ],
+            ],
+          ),
+          actions: [CsButton.secondary(label: 'Close', onPressed: () => Navigator.of(ctx).pop())],
+        );
       },
     );
   }
+}
 
-  Widget _buildAchievementCard(Achievement achievement, GameTheme theme) {
-    final isUnlocked = achievement.isUnlocked;
-    final progress = achievement.progressPercentage;
+/// One award in the grid. done = unlocked & claimed, current (prism) =
+/// unlocked with reward still pending, future = in progress, locked = 0%.
+class _AwardTile extends StatelessWidget {
+  const _AwardTile({required this.achievement, required this.onTap});
+  final Achievement achievement;
+  final VoidCallback onTap;
 
-    // Fully transparent row per the clean design — the rarity-coloured icon
-    // disc, badges, and reward pills carry the card.
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                // Achievement Icon
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isUnlocked
-                        ? achievement.rarityColor
-                        : Colors.grey.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: isUnlocked
-                        ? [
-                            BoxShadow(
-                              color: achievement.rarityColor
-                                  .withValues(alpha: 0.35),
-                              blurRadius: 12,
-                              spreadRadius: -2,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Icon(
-                    achievement.icon,
-                    color: isUnlocked ? Colors.white : theme.textMuted,
-                    size: 24,
-                  ),
-                ),
+  @override
+  Widget build(BuildContext context) {
+    final a = achievement;
+    final cs = context.cs;
+    final t = cs.type;
+    final progress = a.progressPercentage;
+    final state = a.isUnlocked
+        ? (a.rewardClaimed ? CsTileState.done : CsTileState.current)
+        : (progress > 0 ? CsTileState.future : CsTileState.locked);
+    final locked = state == CsTileState.locked;
 
-                const SizedBox(width: 16),
+    final Widget status;
+    if (a.isUnlocked) {
+      status = Text(
+        a.rewardClaimed ? 'CLAIMED' : 'REWARD PENDING',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: t.mono(9, color: a.rewardClaimed ? CsColors.mint : CsColors.gold),
+      );
+    } else if (progress > 0) {
+      status = Row(children: [
+        Expanded(child: CsProgressLine(value: progress)),
+        SizedBox(width: cs(8)),
+        Text('${a.currentProgress}/${a.targetValue}', maxLines: 1, style: t.micro),
+      ]);
+    } else {
+      status = Row(children: [
+        Icon(Symbols.lock_rounded, size: cs(11), color: CsColors.ink45),
+        SizedBox(width: cs(4)),
+        Text('LOCKED', style: t.micro),
+      ]);
+    }
 
-                // Achievement Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              achievement.title,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: isUnlocked
-                                    ? theme.textPrimary
-                                    : theme.textMuted,
-                              ),
-                            ),
-                          ),
-
-                          // Rarity Badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: achievement.rarityColor.withValues(
-                                alpha: 0.2,
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              achievement.rarityName.toUpperCase(),
-                              style: TextStyle(
-                                color: achievement.rarityColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 4),
-
-                      Text(
-                        achievement.description,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: theme.textMuted,
-                        ),
-                      ),
-
-                      if (!isUnlocked && progress > 0) ...[
-                        const SizedBox(height: 8),
-
-                        // Progress Bar
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                                child: FractionallySizedBox(
-                                  alignment: Alignment.centerLeft,
-                                  widthFactor: progress,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: theme.accentColor,
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(width: 8),
-
-                            Text(
-                              '${achievement.currentProgress}/${achievement.targetValue}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: theme.textMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 16),
-
-                // Rewards and Status
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (isUnlocked) ...[
-                      Icon(
-                        achievement.rewardClaimed
-                            ? Icons.check_circle
-                            : Icons.hourglass_top,
-                        color: achievement.rewardClaimed
-                            ? Colors.green
-                            : Colors.amber,
-                        size: 20,
-                      ),
-                      const SizedBox(height: 4),
-                    ],
-
-                    // XP badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.lightBlueAccent.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '+${achievement.xpReward} XP',
-                        style: const TextStyle(
-                          color: Colors.lightBlueAccent,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    // Coin badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '+${achievement.coinReward} coins',
-                        style: const TextStyle(
-                          color: Colors.amber,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Icon(a.icon, size: cs(22), color: a.isUnlocked ? CsColors.gold : CsColors.ink60),
+          const Spacer(),
+          Flexible(
+            flex: 4,
+            child: Text(
+              a.rarityName.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: t.micro,
             ),
-
-            // Unlock Date
-            if (isUnlocked && achievement.unlockedAt != null) ...[
-              const SizedBox(height: 12),
-
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.access_time,
-                      size: 16,
-                      color: Colors.green.withValues(alpha: 0.8),
-                    ),
-                    const SizedBox(width: 8),
-
-                    Text(
-                      'Unlocked ${_formatDate(achievement.unlockedAt!)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.green.withValues(alpha: 0.8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
+          ),
+        ]),
+        SizedBox(height: cs(10)),
+        Expanded(
+          child: Text(
+            a.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: t.display(15, weight: FontWeight.w700, em: 0, height: 1.15),
+          ),
         ),
+        status,
+        SizedBox(height: cs(8)),
+        Row(children: [
+          Text('+${a.xpReward} XP', maxLines: 1, style: t.mono(9, color: CsColors.xp)),
+          SizedBox(width: cs(10)),
+          Flexible(child: CsCoins('+${a.coinReward}', size: 9)),
+        ]),
+      ],
+    );
+
+    return CsTile(
+      state: state,
+      onTap: onTap,
+      padding: EdgeInsets.all(cs(12)),
+      child: locked ? Opacity(opacity: 0.4, child: content) : content,
     );
   }
+}
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
+String _formatDate(DateTime date) {
+  final now = DateTime.now();
+  final difference = now.difference(date);
 
-    if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return 'just now';
-    }
+  if (difference.inDays > 0) {
+    return '${difference.inDays}d ago';
+  } else if (difference.inHours > 0) {
+    return '${difference.inHours}h ago';
+  } else if (difference.inMinutes > 0) {
+    return '${difference.inMinutes}m ago';
+  } else {
+    return 'just now';
   }
 }

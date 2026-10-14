@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/widgets/walkthrough/walkthrough_step.dart';
 import 'package:cosmo_strike_flutter_app/widgets/walkthrough/walkthrough_tooltip.dart';
 
-/// Full-screen overlay with spotlight effect for walkthroughs
+/// Full-screen walkthrough overlay: the Prism Noir scrim with a rounded
+/// cut-out around the target (outlined by a single hairline) and the step
+/// card positioned next to it.
 class WalkthroughOverlay extends StatefulWidget {
   /// The current walkthrough step
   final WalkthroughStep step;
 
-  /// Current theme for styling
+  /// Kept for API compatibility (menus are always Prism Noir).
   final GameTheme theme;
 
   /// Callback when Next is tapped
@@ -52,12 +54,12 @@ class _WalkthroughOverlayState extends State<WalkthroughOverlay>
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: CsMotion.slow,
       vsync: this,
     );
     _fadeAnimation = CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeOut,
+      curve: CsMotion.standard,
     );
     _animationController.forward();
 
@@ -120,60 +122,65 @@ class _WalkthroughOverlayState extends State<WalkthroughOverlay>
         opacity: _fadeAnimation,
         child: Stack(
           children: [
-            // Semi-transparent overlay with spotlight cutout
+            // Scrim with spotlight cut-out
             CustomPaint(
               size: screenSize,
               painter: _SpotlightPainter(
                 targetRect: _targetRect,
-                overlayColor: Colors.black.withValues(alpha: 0.85),
-                glowColor: widget.theme.accentColor,
+                overlayColor: CsColors.scrim,
+                ringColor: CsColors.lineStrong,
                 borderRadius: widget.step.spotlightBorderRadius,
               ),
             ),
 
             // Positioned tooltip
-            _buildTooltip(screenSize),
+            _buildTooltip(context, screenSize),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTooltip(Size screenSize) {
-    final tooltipWidget = WalkthroughTooltip(
-      step: widget.step,
-      theme: widget.theme,
-      onNext: widget.onNext,
-      onSkip: widget.onSkip,
-      currentStepIndex: widget.currentStepIndex,
-      totalSteps: widget.totalSteps,
-      isLastStep: widget.currentStepIndex == widget.totalSteps - 1,
-      isAwaitingInput: widget.isAwaitingInput,
-    ).animate().scale(
-          begin: const Offset(0.8, 0.8),
-          end: const Offset(1.0, 1.0),
-          duration: 300.ms,
-          curve: Curves.easeOutBack,
-        );
+  Widget _buildTooltip(BuildContext context, Size screenSize) {
+    final cs = context.cs;
+    final tooltipWidget = ScaleTransition(
+      scale: Tween(begin: .97, end: 1.0).animate(_fadeAnimation),
+      child: WalkthroughTooltip(
+        step: widget.step,
+        theme: widget.theme,
+        onNext: widget.onNext,
+        onSkip: widget.onSkip,
+        currentStepIndex: widget.currentStepIndex,
+        totalSteps: widget.totalSteps,
+        isLastStep: widget.currentStepIndex == widget.totalSteps - 1,
+        isAwaitingInput: widget.isAwaitingInput,
+      ),
+    );
+
+    final maxWidth = cs(320);
 
     // If no target, center the tooltip
     if (_targetRect == null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: tooltipWidget,
+          padding: EdgeInsets.all(cs(24)),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: tooltipWidget,
+          ),
         ),
       );
     }
 
     // Calculate tooltip position based on step position preference
-    return _positionTooltip(screenSize, tooltipWidget);
+    return _positionTooltip(context, screenSize, tooltipWidget, maxWidth);
   }
 
-  Widget _positionTooltip(Size screenSize, Widget tooltip) {
+  Widget _positionTooltip(
+      BuildContext context, Size screenSize, Widget tooltip, double tooltipMaxWidth) {
+    final cs = context.cs;
     final rect = _targetRect!;
-    const tooltipMargin = 16.0;
-    const tooltipMaxWidth = 320.0;
+    final tooltipMargin = cs(16);
 
     // Calculate available space in each direction
     final spaceAbove = rect.top;
@@ -188,8 +195,8 @@ class _WalkthroughOverlayState extends State<WalkthroughOverlay>
     // In the short landscape viewport a tall target (e.g. the launch bay)
     // can have NO room above or below — fall through to the sides, then
     // centre, so the tooltip never renders clipped offscreen.
-    const minSpace = 150.0;
-    const minSideSpace = tooltipMaxWidth + tooltipMargin * 2;
+    final minSpace = cs(190);
+    final minSideSpace = tooltipMaxWidth + tooltipMargin * 2;
     if (effectivePosition == TooltipPosition.below && spaceBelow < minSpace) {
       effectivePosition = TooltipPosition.above;
     }
@@ -197,8 +204,7 @@ class _WalkthroughOverlayState extends State<WalkthroughOverlay>
       effectivePosition =
           spaceBelow >= minSpace ? TooltipPosition.below : TooltipPosition.left;
     }
-    if (effectivePosition == TooltipPosition.left &&
-        spaceLeft < minSideSpace) {
+    if (effectivePosition == TooltipPosition.left && spaceLeft < minSideSpace) {
       effectivePosition = spaceRight >= minSideSpace
           ? TooltipPosition.right
           : TooltipPosition.center;
@@ -215,26 +221,28 @@ class _WalkthroughOverlayState extends State<WalkthroughOverlay>
     switch (effectivePosition) {
       case TooltipPosition.above:
         bottom = screenSize.height - rect.top + tooltipMargin;
-        left = _calculateHorizontalPosition(rect, screenSize, tooltipMaxWidth);
+        left = _calculateHorizontalPosition(context, rect, screenSize, tooltipMaxWidth);
         break;
       case TooltipPosition.below:
         top = rect.bottom + tooltipMargin;
-        left = _calculateHorizontalPosition(rect, screenSize, tooltipMaxWidth);
+        left = _calculateHorizontalPosition(context, rect, screenSize, tooltipMaxWidth);
         break;
       case TooltipPosition.left:
         right = screenSize.width - rect.left + tooltipMargin;
-        top = _calculateVerticalPosition(rect, screenSize);
+        top = _calculateVerticalPosition(context, rect, screenSize);
         break;
       case TooltipPosition.right:
         left = rect.right + tooltipMargin;
-        top = _calculateVerticalPosition(rect, screenSize);
+        top = _calculateVerticalPosition(context, rect, screenSize);
         break;
       case TooltipPosition.center:
-        // Center on screen
         return Center(
           child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: tooltip,
+            padding: EdgeInsets.all(cs(24)),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: tooltipMaxWidth),
+              child: tooltip,
+            ),
           ),
         );
     }
@@ -245,91 +253,66 @@ class _WalkthroughOverlayState extends State<WalkthroughOverlay>
       left: left,
       right: right,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: tooltipMaxWidth),
+        constraints: BoxConstraints(maxWidth: tooltipMaxWidth),
         child: tooltip,
       ),
     );
   }
 
   double _calculateHorizontalPosition(
-      Rect rect, Size screenSize, double tooltipMaxWidth) {
-    // Try to center tooltip under/over target
+      BuildContext context, Rect rect, Size screenSize, double tooltipMaxWidth) {
+    final edge = context.cs(16);
     final targetCenter = rect.left + rect.width / 2;
-    final tooltipHalf = tooltipMaxWidth / 2;
-
-    // Clamp to screen bounds with padding
-    final minLeft = 16.0;
-    final maxLeft = screenSize.width - tooltipMaxWidth - 16;
-
-    return (targetCenter - tooltipHalf).clamp(minLeft, maxLeft);
+    final minLeft = edge;
+    final maxLeft = (screenSize.width - tooltipMaxWidth - edge).clamp(minLeft, double.infinity);
+    return (targetCenter - tooltipMaxWidth / 2).clamp(minLeft, maxLeft);
   }
 
-  double _calculateVerticalPosition(Rect rect, Size screenSize) {
-    // Try to vertically center tooltip with target
+  double _calculateVerticalPosition(BuildContext context, Rect rect, Size screenSize) {
+    final cs = context.cs;
     final targetCenter = rect.top + rect.height / 2;
-    const estimatedTooltipHeight = 200.0;
+    final estimatedTooltipHeight = cs(200);
 
-    // Clamp to screen bounds with padding. The app is fullscreen-immersive
-    // landscape — no status bar to dodge.
-    const minTop = 16.0;
+    // Fullscreen-immersive landscape — no status bar to dodge.
+    final minTop = cs(16);
     final maxTop =
-        (screenSize.height - estimatedTooltipHeight - 16).clamp(minTop, 9999.0);
+        (screenSize.height - estimatedTooltipHeight - minTop).clamp(minTop, double.infinity);
 
     return (targetCenter - estimatedTooltipHeight / 2).clamp(minTop, maxTop);
   }
 }
 
-/// Custom painter for the spotlight effect
+/// Scrim with a rounded cut-out and a 1px hairline ring around it.
 class _SpotlightPainter extends CustomPainter {
   final Rect? targetRect;
   final Color overlayColor;
-  final Color glowColor;
+  final Color ringColor;
   final double borderRadius;
 
   _SpotlightPainter({
     this.targetRect,
     required this.overlayColor,
-    required this.glowColor,
+    required this.ringColor,
     required this.borderRadius,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = overlayColor;
-
-    // Create the full screen path
-    final fullScreen = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final fullScreen = Path()..addRect(Offset.zero & size);
 
     if (targetRect != null) {
-      // Create the cutout path
-      final cutout = Path()
-        ..addRRect(
-          RRect.fromRectAndRadius(targetRect!, Radius.circular(borderRadius)),
-        );
-
-      // Combine paths to create spotlight effect
-      final combinedPath = Path.combine(
-        PathOperation.difference,
-        fullScreen,
-        cutout,
-      );
-
-      canvas.drawPath(combinedPath, paint);
-
-      // Soft neon glow around the spotlight — no hard border strokes,
-      // per the clean borderless design.
-      final glowPaint = Paint()
-        ..color = glowColor.withValues(alpha: 0.45)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 10);
-
+      final rrect = RRect.fromRectAndRadius(targetRect!, Radius.circular(borderRadius));
+      final cutout = Path()..addRRect(rrect);
+      canvas.drawPath(Path.combine(PathOperation.difference, fullScreen, cutout), paint);
       canvas.drawRRect(
-        RRect.fromRectAndRadius(targetRect!, Radius.circular(borderRadius)),
-        glowPaint,
+        rrect,
+        Paint()
+          ..color = ringColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
       );
     } else {
-      // No target - just draw the overlay
       canvas.drawPath(fullScreen, paint);
     }
   }
@@ -338,7 +321,7 @@ class _SpotlightPainter extends CustomPainter {
   bool shouldRepaint(covariant _SpotlightPainter oldDelegate) {
     return oldDelegate.targetRect != targetRect ||
         oldDelegate.overlayColor != overlayColor ||
-        oldDelegate.glowColor != glowColor ||
+        oldDelegate.ringColor != ringColor ||
         oldDelegate.borderRadius != borderRadius;
   }
 }

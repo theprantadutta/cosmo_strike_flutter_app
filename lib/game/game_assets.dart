@@ -87,6 +87,11 @@ abstract final class GameAssets {
   /// 4 frames @ 96x96 (combo tier-up flourish).
   static const String comboBurstSheet = 'fx/combo_burst_sheet.png';
 
+  /// Transparent 1024x1024 star tiles for the 3-layer parallax background.
+  static const String starfieldFar = 'fx/starfield_far.png';
+  static const String starfieldMid = 'fx/starfield_mid.png';
+  static const String starfieldNear = 'fx/starfield_near.png';
+
   // ---- terrain (strips 1024x192, tileable horizontally; the _tall
   // variants are 1024x384 for squeezed tunnel/canyon corridors) ----
   static const String terrainAsteroidFloor =
@@ -166,6 +171,9 @@ abstract final class GameAssets {
     shieldBubble,
     warpFlashSheet,
     comboBurstSheet,
+    starfieldFar,
+    starfieldMid,
+    starfieldNear,
     terrainAsteroidFloor,
     terrainAsteroidCeiling,
     terrainCityFloor,
@@ -188,7 +196,7 @@ abstract final class GameAssets {
 
   /// Bulk-decode every gameplay sprite into the global [Flame.images]
   /// cache. Memoized — concurrent / repeated calls share one future.
-  /// Total decoded size ≈ 14 MB RGBA, fine to keep resident for the
+  /// Total decoded size ≈ 26 MB RGBA (incl. the three 1024² star tiles), fine to keep resident for the
   /// whole session.
   static Future<void> preload() {
     return _preloadFuture ??= () async {

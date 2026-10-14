@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 import 'package:flame/flame.dart';
 import 'package:flutter/painting.dart';
 
+import '../cosmo_palette.dart';
 import '../cosmo_strike_game.dart';
 import '../game_audio.dart';
 import '../levels/level_def.dart';
@@ -289,7 +290,7 @@ class Boss extends PositionComponent
         game.pools.scorePopup(
           position + Vector2(-size.x * 0.3, -size.y * 0.4),
           'SHIELDED',
-          color: const Color(0xFF9DB4FF),
+          color: CosmoPalette.violet,
         );
       }
       game.pools.hitSpark(position + Vector2(-size.x * 0.3, 0));
@@ -318,23 +319,27 @@ class Boss extends PositionComponent
     if (target != _phaseIndex) _enterPhase(target);
   }
 
+  /// Reused feedback paint (windup pulse / phase flash) — only its
+  /// immutable ColorFilter is swapped per frame.
+  final Paint _fxPaint = Paint();
+
   @override
   void render(Canvas canvas) {
     Paint? paint;
     if (_telegraphLeft > 0) {
-      // Windup: the hull pulses hot — an attack is coming.
+      // Windup: the hull pulses hot pink — an attack is coming.
       final pulse = 0.3 + 0.3 * (0.5 + 0.5 * math.sin(_age * 16));
-      paint = Paint()
-        ..colorFilter = ColorFilter.mode(
-          Color.fromRGBO(255, 64, 110, pulse),
-          BlendMode.srcATop,
-        );
+      _fxPaint.colorFilter = ColorFilter.mode(
+        CosmoPalette.pink.withValues(alpha: pulse),
+        BlendMode.srcATop,
+      );
+      paint = _fxPaint;
     } else if (_phaseFlash > 0) {
-      paint = Paint()
-        ..colorFilter = ColorFilter.mode(
-          Color.fromRGBO(255, 255, 255, (_phaseFlash / 0.4) * 0.8),
-          BlendMode.srcATop,
-        );
+      _fxPaint.colorFilter = ColorFilter.mode(
+        Color.fromRGBO(255, 255, 255, (_phaseFlash / 0.4) * 0.8),
+        BlendMode.srcATop,
+      );
+      paint = _fxPaint;
     }
     _sprite.render(canvas, size: size, overridePaint: paint);
   }

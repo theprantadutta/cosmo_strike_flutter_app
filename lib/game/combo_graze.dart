@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'tuning.dart';
+
 /// Kill-chain combo + bullet-graze state for a single run.
 ///
 /// Combo: every kill extends a chain; the chain decays to zero after
@@ -9,11 +11,12 @@ import 'package:flutter/foundation.dart';
 /// x1 -> x2 at 5, x3 at 10, x4 at 20.
 ///
 /// Graze: an enemy bullet passing close to the hull without hitting
-/// charges a meter; a full meter ([grazesPerMissile] grazes) converts to
-/// +1 missile. Playing dangerously = more score AND more ammo.
+/// charges the Overdrive meter ([GameTuning.grazesForOverdrive] grazes to
+/// fill) and keeps a live chain going a little longer. A full meter stays
+/// full until the player spends it. Playing dangerously = more score AND
+/// Overdrive.
 class ComboGrazeController {
   static const double chainWindow = 3.0;
-  static const int grazesPerMissile = 15;
 
   /// Current chain length.
   final ValueNotifier<int> comboNotifier = ValueNotifier(0);
@@ -21,14 +24,21 @@ class ComboGrazeController {
   /// Current score multiplier tier (1/2/3/4).
   final ValueNotifier<int> multiplierNotifier = ValueNotifier(1);
 
-  /// Graze meter fill, 0..1.
+  /// Overdrive meter fill, 0..1 (1 = ready to fire).
   final ValueNotifier<double> grazeNotifier = ValueNotifier(0);
+
+  bool get overdriveReady => grazeNotifier.value >= 1;
 
   int maxCombo = 0;
   int grazeCount = 0;
 
   double _decay = 0;
-  int _grazeMeter = 0;
+
+  /// Run-upgrade modifiers (Chain Link / Siphon).
+  double chainWindowBonus = 0;
+  double grazeChargeScale = 1;
+
+  double get _window => chainWindow + chainWindowBonus;
 
   int get multiplier => multiplierNotifier.value;
   int get chain => comboNotifier.value;
@@ -46,7 +56,7 @@ class ComboGrazeController {
     final chain = comboNotifier.value + 1;
     comboNotifier.value = chain;
     if (chain > maxCombo) maxCombo = chain;
-    _decay = chainWindow;
+    _decay = _window;
     final tier = _tierFor(chain);
     if (tier != multiplierNotifier.value) {
       multiplierNotifier.value = tier;
@@ -62,18 +72,30 @@ class ComboGrazeController {
     _decay = 0;
   }
 
-  /// Registers a graze. Returns true when the meter just filled (caller
-  /// grants +1 missile).
+  /// Registers a graze. Returns true when the Overdrive meter just became
+  /// full (caller announces it).
   bool onGraze() {
     grazeCount++;
-    _grazeMeter++;
-    if (_grazeMeter >= grazesPerMissile) {
-      _grazeMeter = 0;
-      grazeNotifier.value = 0;
-      return true;
+    if (comboNotifier.value > 0) {
+      _decay = (_decay + GameTuning.grazeChainExtend).clamp(0, _window);
     }
-    grazeNotifier.value = _grazeMeter / grazesPerMissile;
-    return false;
+    return addCharge(grazeChargeScale / GameTuning.grazesForOverdrive);
+  }
+
+  /// Adds Overdrive charge (0..1 of the meter). Returns true when this
+  /// call filled it.
+  bool addCharge(double amount) {
+    if (overdriveReady) return false;
+    final next = (grazeNotifier.value + amount).clamp(0.0, 1.0);
+    grazeNotifier.value = next;
+    return next >= 1;
+  }
+
+  /// Spend a full meter. Returns false if it wasn't full.
+  bool consumeOverdrive() {
+    if (!overdriveReady) return false;
+    grazeNotifier.value = 0;
+    return true;
   }
 
   /// Tick the chain decay (sim time, only while playing).

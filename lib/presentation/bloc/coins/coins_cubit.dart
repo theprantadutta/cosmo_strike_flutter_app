@@ -386,6 +386,17 @@ class CoinsCubit extends Cubit<CoinsState> {
   List<DailyLoginBonus> _dailyBonusesFromRow(db.DailyBonusStateData? row) {
     final template = DailyLoginBonus.getWeeklyBonuses();
     if (row == null) return template;
+    // A broken streak (or a finished 7-day cycle) makes the next claim day 1
+    // again; the stored map still lists the OLD cycle's claims until that
+    // claim rewrites it, so show a fresh week instead of stale checkmarks.
+    final probe = CoinsState.initial().copyWith(
+      dailyBonusLastClaimUtcMs: row.lastClaimUtcMs,
+      dailyBonusLastClaimTzOffsetMinutes: row.lastClaimTzOffsetMinutes,
+      dailyBonusCurrentStreak: row.currentStreak,
+    );
+    if (!probe.wasDailyBonusClaimedToday && probe.nextClaimDay == 1) {
+      return template;
+    }
     Map<String, dynamic> claimedMap;
     try {
       claimedMap = json.decode(row.weeklyClaimsJson) as Map<String, dynamic>;

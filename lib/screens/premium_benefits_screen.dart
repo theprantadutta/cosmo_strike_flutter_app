@@ -2,14 +2,23 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_inapp_purchase/flutter_inapp_purchase.dart';
+
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
 
+/// "Cosmo Pro" paywall — Prism Noir mock 10 (Pro panel).
+///
+///   • LEFT: every Pro entitlement as a hairline list with Symbols icons
+///     (scrolls when it can't fit).
+///   • RIGHT: "Cosmo Pro" headline (Pro in prism), mono benefit line, two plan
+///     cards — Monthly (outlined, secondary SUBSCRIBE) and Yearly (prism ring,
+///     SAVE chip, the screen's white primary SUBSCRIBE) — and the
+///     "Cancel anytime · Restore purchases" footer.
+///   • Already Pro: the right side swaps to an active-state block.
 class PremiumBenefitsScreen extends StatefulWidget {
   const PremiumBenefitsScreen({super.key});
 
@@ -18,17 +27,20 @@ class PremiumBenefitsScreen extends StatefulWidget {
 }
 
 class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
+  /// Which plan the in-flight (or next) purchase is for.
   bool _isYearly = true;
 
   /// True from the Subscribe tap until the flow resolves: the Play sheet +
   /// backend verification take a few seconds during which nothing used to
-  /// change on screen. Drives the spinner CTA and disables the plan toggle.
+  /// change on screen. Drives the loading CTA and disables both plans.
   bool _subscribing = false;
 
   /// Set when the purchase stream reports success — keeps the "ACTIVATING
   /// PRO…" state up through the last verification moments (until hasPremium
   /// flips and the whole body swaps to Premium Active).
   bool _sawPurchaseSuccess = false;
+
+  bool _restoring = false;
 
   StreamSubscription<String>? _statusSub;
   StreamSubscription<bool>? _pendingSub;
@@ -89,461 +101,171 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
   Widget build(BuildContext context) {
     return BlocBuilder<PremiumCubit, PremiumState>(
       builder: (context, premiumState) {
-        return BlocBuilder<ThemeCubit, ThemeState>(
-          builder: (context, themeState) {
-            final theme = themeState.currentTheme;
-
-            return CommandScaffold(
-              theme: theme,
-              title: 'Cosmo Strike Pro',
-              bodyPadding: EdgeInsets.zero,
-              // Landscape command deck: LEFT = the complete purchase column
-              // (identity, plan toggle, price, CTAs), RIGHT = the feature
-              // list. Everything floats borderless on the starfield per the
-              // clean design; the old bottom-docked subscribe bar is gone.
-              body: premiumState.hasPremium
-                  ? Center(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: _buildPremiumActiveBlock(theme),
-                      ),
-                    )
-                  : Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            flex: 4,
-                            child: Center(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: SizedBox(
-                                  width: 280,
-                                  child: _buildPurchasePanel(
-                                    theme,
-                                    premiumState,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(flex: 6, child: _buildFeaturesList(theme)),
-                        ],
-                      ),
-                    ),
-            );
-          },
+        final cs = context.cs;
+        return CsScaffold(
+          title: 'Cosmo Strike Pro',
+          trailing: [
+            if (premiumState.hasPremium)
+              const CsMeta('Active', color: CsColors.mint, icon: Symbols.verified_rounded)
+            else
+              const CsMeta('Pro', color: CsColors.gold, icon: Symbols.diamond_rounded),
+          ],
+          washes: const [CsWash.violetTopRight, CsWash.goldTopRight],
+          body: CsSplit(
+            leftWidth: cs.isTablet ? 300 : 270,
+            gap: cs(36),
+            left: const _BenefitsList(),
+            right: premiumState.hasPremium
+                ? const _PremiumActiveBlock()
+                : _buildPurchasePanel(),
+          ),
         );
       },
     );
   }
 
-  /// Shown when the user already owns Pro — a borderless centered block.
-  Widget _buildPremiumActiveBlock(GameTheme theme) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+  /// "Save N%" for yearly vs 12× monthly from live store prices; null
+  /// (no chip) until both plans have loaded.
+  String? _yearlySavingsLabel(PurchaseService purchases) {
+    final pct = purchases.yearlySavingsPercent(ProductIds.proMonthly, ProductIds.proYearly);
+    return pct == null ? null : 'Save $pct%';
+  }
+
+  Widget _buildPurchasePanel() {
+    final cs = context.cs;
+    final t = cs.type;
+    final purchases = PurchaseService();
+    final monthlyPrice = purchases.getStorePriceOrDefault(ProductIds.proMonthly, 4.99);
+    final yearlyPrice = purchases.getStorePriceOrDefault(ProductIds.proYearly, 39.99);
+
+    final status = _subscribing
+        ? (_sawPurchaseSuccess ? 'Activating Pro…' : 'Connecting to Google Play…')
+        : null;
+
+    return CsFitColumn(
+      alignment: Alignment.centerLeft,
       children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [Colors.green, Colors.teal]),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.green.withValues(alpha: 0.4),
-                blurRadius: 16,
-                spreadRadius: 1,
+        CsHeadline(const ['Cosmo ', 'Pro'], prismIndex: 1, maxLines: 1, style: t.display(34, em: -0.03, height: 1)),
+        SizedBox(height: cs(8)),
+        Text(
+          'Premium pass track · No ads · 2× coins · Every premium skin, trail & theme',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: t.mono(11, em: 0.06, color: CsColors.ink55, height: 1.4),
+        ),
+        SizedBox(height: cs(18)),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _PlanCard(
+                  label: 'Monthly',
+                  price: monthlyPrice,
+                  cadence: '/mo',
+                  note: _trialLabel(ProductIds.proMonthly) ?? 'Billed monthly',
+                  noteIsTrial: _trialLabel(ProductIds.proMonthly) != null,
+                  featured: false,
+                  busy: _subscribing && !_isYearly,
+                  busyLabel: _sawPurchaseSuccess ? 'Activating…' : 'Connecting…',
+                  onSubscribe: _subscribing ? null : () => _subscribeTo(yearly: false),
+                ),
+              ),
+              SizedBox(width: cs(14)),
+              Expanded(
+                child: _PlanCard(
+                  label: 'Yearly',
+                  price: yearlyPrice,
+                  cadence: '/yr',
+                  note: _trialLabel(ProductIds.proYearly) ?? 'Billed yearly',
+                  noteIsTrial: _trialLabel(ProductIds.proYearly) != null,
+                  badge: _yearlySavingsLabel(purchases),
+                  featured: true,
+                  busy: _subscribing && _isYearly,
+                  busyLabel: _sawPurchaseSuccess ? 'Activating…' : 'Connecting…',
+                  onSubscribe: _subscribing ? null : () => _subscribeTo(yearly: true),
+                ),
               ),
             ],
           ),
-          child: const Icon(Icons.verified, color: Colors.white, size: 32),
         ),
-        const SizedBox(height: 16),
-        Text(
-          'Premium Active!',
-          style: TextStyle(
-            color: theme.textPrimary,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'You have access to all premium features',
-          style: TextStyle(color: theme.textMuted, fontSize: 14),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  /// LEFT column: Pro identity, plan toggle, live price readout, and the
-  /// purchase CTAs — fully borderless; only the diamond disc and the
-  /// subscribe pill carry color.
-  Widget _buildPurchasePanel(GameTheme theme, PremiumState premiumState) {
-    final productId = _isYearly ? ProductIds.proYearly : ProductIds.proMonthly;
-    final price = PurchaseService().getStorePriceOrDefault(
-      productId,
-      _isYearly ? 39.99 : 4.99,
-    );
-    final period = _isYearly ? '/year' : '/month';
-    final String? badge = _isYearly ? 'Save 33%' : null;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Identity — gradient diamond disc + wordmark, no boxed background.
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.purple.shade400, Colors.indigo.shade400],
-              ),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.purple.shade400.withValues(alpha: 0.4),
-                  blurRadius: 14,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: const Icon(Icons.diamond, color: Colors.white, size: 28),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Center(
-          child: Text(
-            'Cosmo Strike Pro',
-            style: TextStyle(
-              color: theme.textPrimary,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Center(
-          child: Text(
-            'Unlock everything the game has to offer',
-            style: TextStyle(color: theme.textMuted, fontSize: 12),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        // Monthly / Yearly toggle — borderless; selection reads via bright
-        // text and a glowing underline.
+        SizedBox(height: cs(14)),
         Row(
           children: [
-            Expanded(child: _buildToggleOption('Monthly', false, theme)),
-            Expanded(child: _buildToggleOption('Yearly', true, theme)),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // Live price readout for the selected plan.
-        Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                price,
-                style: TextStyle(
-                  color: theme.textPrimary,
-                  fontSize: 30,
-                  fontWeight: FontWeight.w900,
-                  height: 1.0,
-                ),
+            Flexible(
+              child: Text(
+                status ?? 'No commitment · Cancel anytime · Secure payment',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: t.mono(10, em: 0.04, color: status != null ? CsColors.cyan : CsColors.ink45),
               ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3, left: 2),
-                child: Text(
-                  period,
-                  style: TextStyle(color: theme.textMuted, fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 4),
-        // The badge line's height is ALWAYS reserved — Monthly has no badge,
-        // and conditionally omitting the row made the whole column jump when
-        // toggling plans.
-        SizedBox(
-          height: 16,
-          child: badge != null
-              ? Center(
+            ),
+            Text(' · ', style: t.mono(10, em: 0.04, color: CsColors.ink45)),
+            CsPressable(
+              onTap: _restoring || _subscribing ? null : _restorePurchases,
+              semanticLabel: 'Restore purchases',
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44),
+                child: Center(
+                  widthFactor: 1,
                   child: Text(
-                    badge,
-                    style: TextStyle(
-                      color: Colors.green.shade400,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    _restoring ? 'Restoring…' : 'Restore purchases',
+                    style: t.mono(10, em: 0.04, color: CsColors.ink70).copyWith(
+                      decoration: TextDecoration.underline,
+                      decorationColor: CsColors.ink30,
                     ),
                   ),
-                )
-              : null,
-        ),
-        const SizedBox(height: 14),
-
-        // Primary CTA — same gradient subscribe pill as the store: amber for
-        // the featured yearly plan, the neon ramp for monthly. Glow only.
-        // While the Play sheet / backend verification is in flight it turns
-        // into a spinner + progress label so the 2-3s gap never looks dead.
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _subscribing ? null : _subscribe,
-          child: Container(
-            height: 46,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: _subscribing
-                    ? [
-                        theme.surfaceGlass.withValues(alpha: 0.9),
-                        theme.surfaceGlass.withValues(alpha: 0.9),
-                      ]
-                    : _isYearly
-                    ? [Colors.amber, Colors.orange.shade400]
-                    : [theme.neonPrimary, theme.neonSecondary],
-              ),
-              borderRadius: BorderRadius.circular(23),
-              boxShadow: _subscribing
-                  ? const []
-                  : [
-                      BoxShadow(
-                        color: (_isYearly ? Colors.amber : theme.neonPrimary)
-                            .withValues(alpha: 0.35),
-                        blurRadius: 14,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-            ),
-            child: _subscribing
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(theme.neonPrimary),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        _sawPurchaseSuccess
-                            ? 'ACTIVATING PRO…'
-                            : 'CONNECTING TO GOOGLE PLAY…',
-                        style: TextStyle(
-                          color: theme.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ],
-                  )
-                : const Text(
-                    'SUBSCRIBE',
-                    style: TextStyle(
-                      color: Color(0xFF03040A),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Center(
-          child: Text(
-            'No commitment • Cancel anytime • Secure payment',
-            style: TextStyle(color: theme.textMuted, fontSize: 10.5),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildToggleOption(String label, bool isYearly, GameTheme theme) {
-    final isSelected = _isYearly == isYearly;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      // Locked while a purchase is in flight — switching plans mid-flow
-      // would desync the pending state from what Google is charging.
-      onTap: _subscribing ? null : () => setState(() => _isYearly = isYearly),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: isSelected ? theme.textPrimary : theme.textMuted,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 5),
-            // Glowing underline marks the selected plan — no box, no border.
-            Container(
-              width: 28,
-              height: 2.5,
-              decoration: BoxDecoration(
-                color: isSelected ? theme.neonPrimary : Colors.transparent,
-                borderRadius: BorderRadius.circular(2),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: theme.neonPrimary.withValues(alpha: 0.7),
-                          blurRadius: 8,
-                          spreadRadius: 0.5,
-                        ),
-                      ]
-                    : null,
+                ),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  /// RIGHT column: the entitlement list as transparent rows.
-  Widget _buildFeaturesList(GameTheme theme) {
-    // Honest list — every entry maps to an entitlement the server actually
-    // grants on Pro verify (VerifyPurchaseCommandHandler). The previous
-    // 'Exclusive Game Modes' line was a false promise (modes are uniformly
-    // free per project rules) and 'Premium Power-ups' / 'VIP Tournaments'
-    // were unimplemented — those are now real recurring bundles.
-    final features = [
-      _FeatureItem(
-        Icons.block,
-        'Remove All Ads',
-        'No banners, no interstitials — play completely ad-free, forever',
-      ),
-      _FeatureItem(
-        Icons.palette,
-        'All Premium Themes',
-        'Crystal, Cyberpunk, Space, Ocean, Desert, Forest',
-      ),
-      _FeatureItem(
-        Icons.rocket_launch,
-        'All Premium Ship Skins',
-        'Golden, Galaxy, Dragon, Electric, Fire, Ice & 5 more',
-      ),
-      _FeatureItem(
-        Icons.gradient,
-        'All Premium Trail Effects',
-        'Particle, Glow, Rainbow, Fire, Cosmic, Crystal & 5 more',
-      ),
-      _FeatureItem(
-        Icons.monetization_on,
-        '2x Coin Rewards',
-        'Double Star Coins from every run',
-      ),
-      // In-game spawn boosts implemented in food.dart (Food.generateRandom
-      // isPremium param) and game_cubit.dart (_trySpawnPowerUp). Backed by
-      // the snapshot of PremiumCubit.hasPremium at game start.
-      _FeatureItem(
-        Icons.auto_awesome,
-        'Lucky Magnet — More Power-Ups',
-        '+50% chance to spawn the rare 50-point power-up in every run',
-      ),
-      _FeatureItem(
-        Icons.bolt,
-        'More In-Game Power-ups',
-        '+30% spawn rate for in-game power-ups during gameplay',
-      ),
-      _FeatureItem(
-        Icons.flash_on,
-        'Premium Power-up Bundle',
-        '5× Warp Escape, Ghost Mode, Orb Magnet, Last Stand & Invincibility every billing cycle',
-      ),
-      _FeatureItem(
-        Icons.emoji_events,
-        'Tournament Entries',
-        '1× Bronze + 1× Silver + 1× Gold tournament entry every billing cycle',
-      ),
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      children: [
-        Text(
-          'PREMIUM INCLUDES',
-          style: TextStyle(
-            color: theme.accentColor,
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.8,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ...features.map((feature) => _buildFeatureRow(feature, theme)),
       ],
     );
   }
 
-  Widget _buildFeatureRow(_FeatureItem feature, GameTheme theme) {
-    // Fully transparent row per the clean design.
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: theme.accentColor.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(feature.icon, color: theme.accentColor, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  feature.title,
-                  style: TextStyle(
-                    color: theme.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  feature.description,
-                  style: TextStyle(color: theme.textMuted, fontSize: 12.5),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  /// Free-trial line for a plan, read from the store's subscription offers
+  /// (Play only returns offers the user is eligible for). Display only — the
+  /// purchase flow picks the offer itself.
+  String? _trialLabel(String productId) {
+    final product = PurchaseService().getProduct(productId);
+    if (product is! ProductSubscriptionAndroid) return null;
+    for (final offer in product.subscriptionOffers) {
+      final phases = offer.pricingPhasesAndroid?.pricingPhaseList ?? const [];
+      for (final p in phases) {
+        if ((int.tryParse(p.priceAmountMicros) ?? -1) == 0 && p.recurrenceMode != 1) {
+          final period = _isoPeriod(p.billingPeriod);
+          return period == null ? 'Free trial' : '$period free trial';
+        }
+      }
+    }
+    return null;
+  }
+
+  /// "P3D" → "3-day", "P1W" → "7-day", "P1M" → "1-month".
+  static String? _isoPeriod(String iso) {
+    final m = RegExp(r'^P(\d+)([DWMY])$').firstMatch(iso);
+    if (m == null) return null;
+    var n = int.parse(m.group(1)!);
+    var unit = m.group(2)!;
+    if (unit == 'W') {
+      n *= 7;
+      unit = 'D';
+    }
+    final word = switch (unit) { 'D' => 'day', 'M' => 'month', _ => 'year' };
+    return '$n-$word';
+  }
+
+  void _subscribeTo({required bool yearly}) {
+    setState(() => _isYearly = yearly);
+    _subscribe();
   }
 
   /// Real subscription purchase — opens the Google Play sheet.
   ///
-  /// When the product can't be purchased we no longer show a single opaque
-  /// "not available" toast. We distinguish the actual cause so the user knows
-  /// what to do, and offer a Retry when the store query simply hasn't
-  /// completed.
+  /// When the product can't be purchased we distinguish the actual cause so
+  /// the user knows what to do, and offer a Retry when the store query simply
+  /// hasn't completed.
   Future<void> _subscribe() async {
     // Anonymous (guest) users can't purchase — the backend rejects the
     // verify (ANONYMOUS_ACCOUNT_PURCHASE_BLOCKED), which would leave a paid
@@ -582,7 +304,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
         purchaseService.queryProductError != null) {
       _showSubscribeIssue(
         'The store is still loading. Please check your connection and retry.',
-        actionLabel: 'RETRY',
+        actionLabel: 'Retry',
         onAction: () async {
           await purchaseService.retryLoadProducts();
           if (mounted) setState(() {});
@@ -598,31 +320,248 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     );
   }
 
-  /// Shows a subscription problem as a snackbar, optionally with a single
-  /// recovery action (e.g. Retry). Uses the muted neutral surface rather than
-  /// an alarming red — these are recoverable states, not crashes.
+  /// Restore — same flow as Settings: guests must link an account first
+  /// (anonymous verifies are rejected server-side); results arrive
+  /// asynchronously on the purchase stream.
+  Future<void> _restorePurchases() async {
+    final user = context.read<AuthCubit>().state.user;
+    if (user == null || user.isAnonymous) {
+      await showAccountUpgradeSheet(context);
+      return;
+    }
+    if (!mounted) return;
+
+    setState(() => _restoring = true);
+    showCsToast(context, 'Restoring purchases…', icon: Symbols.restore_rounded);
+    try {
+      await PurchaseService().restorePurchases();
+      if (mounted) {
+        showCsToast(
+          context,
+          'Restore requested — any purchases will appear in a moment.',
+          kind: CsToastKind.success,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        showCsToast(context, 'Failed to restore purchases. Please try again.', kind: CsToastKind.error);
+      }
+    } finally {
+      if (mounted) setState(() => _restoring = false);
+    }
+  }
+
+  /// Subscription problems are recoverable states, not crashes: a neutral
+  /// toast, or a small dialog when there's a recovery action (Retry).
   void _showSubscribeIssue(
     String message, {
     String? actionLabel,
     Future<void> Function()? onAction,
   }) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 5),
-        action: (actionLabel != null && onAction != null)
-            ? SnackBarAction(label: actionLabel, onPressed: () => onAction())
-            : null,
+    if (actionLabel == null || onAction == null) {
+      showCsToast(context, message, duration: const Duration(seconds: 5));
+      return;
+    }
+    showCsDialog<void>(
+      context,
+      builder: (ctx) => CsDialog(
+        eyebrow: 'Store',
+        title: 'Store unavailable',
+        message: message,
+        icon: Symbols.cloud_off_rounded,
+        iconColor: CsColors.ink45,
+        actions: [
+          CsButton.text(label: 'Close', onPressed: () => Navigator.of(ctx).pop()),
+          CsButton.secondary(
+            label: actionLabel,
+            icon: Symbols.refresh_rounded,
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              onAction();
+            },
+          ),
+        ],
       ),
     );
   }
 }
 
-class _FeatureItem {
+/// One plan card. Monthly = outlined tile + secondary button; Yearly
+/// (featured) = prism ring + SAVE chip + white primary button.
+class _PlanCard extends StatelessWidget {
+  const _PlanCard({
+    required this.label,
+    required this.price,
+    required this.cadence,
+    required this.note,
+    required this.noteIsTrial,
+    required this.featured,
+    required this.busy,
+    required this.busyLabel,
+    required this.onSubscribe,
+    this.badge,
+  });
+
+  final String label;
+  final String price;
+  final String cadence;
+  final String note;
+  final bool noteIsTrial;
+  final bool featured;
+  final bool busy;
+  final String busyLabel;
+  final VoidCallback? onSubscribe;
+  final String? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(children: [
+          Expanded(child: CsLabel(label, color: CsColors.ink55)),
+          if (badge != null) CsChip(badge!, kind: CsChipKind.gold, size: 10),
+        ]),
+        SizedBox(height: cs(8)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(text: price, style: t.display(34, em: -0.02, height: 1.05)),
+              TextSpan(text: ' $cadence', style: t.mono(12, color: CsColors.ink45, em: 0.02)),
+            ]),
+            maxLines: 1,
+          ),
+        ),
+        SizedBox(height: cs(8)),
+        Text(
+          note,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: t.mono(11, em: 0.02, color: noteIsTrial ? CsColors.mint : CsColors.ink45),
+        ),
+        const Spacer(),
+        SizedBox(height: cs(14)),
+        featured
+            ? CsButton.primary(
+                label: busy ? busyLabel : 'Subscribe',
+                loading: busy,
+                expand: true,
+                onPressed: onSubscribe,
+              )
+            : CsButton.secondary(
+                label: busy ? busyLabel : 'Subscribe',
+                loading: busy,
+                expand: true,
+                onPressed: onSubscribe,
+              ),
+      ],
+    );
+
+    if (featured) {
+      return CsPrismRing(
+        radius: CsRadius.card,
+        fill: CsColors.raised,
+        padding: EdgeInsets.all(cs(18.5)),
+        child: body,
+      );
+    }
+    return CsTile(
+      state: CsTileState.done,
+      radius: CsRadius.card,
+      padding: EdgeInsets.all(cs(20)),
+      child: body,
+    );
+  }
+}
+
+class _Benefit {
+  const _Benefit(this.icon, this.title, this.description);
   final IconData icon;
   final String title;
   final String description;
+}
 
-  _FeatureItem(this.icon, this.title, this.description);
+/// Honest list — every entry maps to an entitlement the server actually
+/// grants on Pro verify (VerifyPurchaseCommandHandler) or a client-side Pro
+/// gate (spawn boosts snapshot PremiumCubit.hasPremium at game start).
+const _benefits = [
+  _Benefit(Symbols.block_rounded, 'Remove all ads',
+      'No banners, no interstitials — play completely ad-free, forever'),
+  _Benefit(Symbols.palette_rounded, 'All premium themes',
+      'Crystal, Cyberpunk, Space, Ocean, Desert, Forest'),
+  _Benefit(Symbols.rocket_rounded, 'All premium ship skins',
+      'Golden, Galaxy, Dragon, Electric, Fire, Ice & 5 more'),
+  _Benefit(Symbols.auto_awesome_rounded, 'All premium trail effects',
+      'Particle, Glow, Rainbow, Fire, Cosmic, Crystal & 5 more'),
+  _Benefit(Symbols.paid_rounded, '2× coin rewards', 'Double Star Coins from every run'),
+  _Benefit(Symbols.stars_rounded, 'Lucky Magnet — more power-ups',
+      '+50% chance to spawn the rare 50-point power-up in every run'),
+  _Benefit(Symbols.bolt_rounded, 'More in-game power-ups',
+      '+30% spawn rate for in-game power-ups during gameplay'),
+  _Benefit(Symbols.inventory_2_rounded, 'Premium power-up bundle',
+      '5× Warp Escape, Ghost Mode, Orb Magnet, Last Stand & Invincibility every billing cycle'),
+  _Benefit(Symbols.emoji_events_rounded, 'Tournament entries',
+      '1× Bronze + 1× Silver + 1× Gold tournament entry every billing cycle'),
+];
+
+class _BenefitsList extends StatelessWidget {
+  const _BenefitsList();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const CsLabel('Pro includes', color: CsColors.gold),
+        SizedBox(height: cs(6)),
+        Expanded(
+          child: ListView.builder(
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.only(bottom: cs(8)),
+            itemCount: _benefits.length,
+            itemBuilder: (context, i) {
+              final b = _benefits[i];
+              return CsListRow(
+                leading: CsIconDisc(b.icon, size: 34, color: CsColors.gold),
+                title: b.title,
+                subtitle: b.description,
+                padding: EdgeInsets.symmetric(vertical: cs(10), horizontal: cs(2)),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Shown when the user already owns Pro.
+class _PremiumActiveBlock extends StatelessWidget {
+  const _PremiumActiveBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    return CsFitColumn(
+      alignment: Alignment.centerLeft,
+      children: [
+        Icon(Symbols.verified_rounded, size: cs(34), color: CsColors.mint),
+        SizedBox(height: cs(14)),
+        CsHeadline(const ['Premium ', 'active'], prismIndex: 1, maxLines: 1, style: t.display(34, em: -0.03, height: 1)),
+        SizedBox(height: cs(10)),
+        Text('You have access to all premium features', style: t.body),
+        SizedBox(height: cs(14)),
+        const CsChip('Pro', kind: CsChipKind.gold, icon: Symbols.diamond_rounded),
+      ],
+    );
+  }
 }

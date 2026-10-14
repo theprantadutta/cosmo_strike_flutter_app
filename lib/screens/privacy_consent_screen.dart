@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/privacy_policy.dart';
 
 /// Re-consent gate shown to EXISTING (already-onboarded) users when the
@@ -12,6 +10,9 @@ import 'package:cosmo_strike_flutter_app/utils/privacy_policy.dart';
 /// accept the policy inside [FirstTimeAuthScreen]; this screen handles the
 /// "policy updated, please review again" case for returning users and then
 /// sends them home. Back navigation is blocked so acceptance can't be skipped.
+///
+/// Layout: brand + headline on the left; on the right the scrollable policy
+/// in a subtle bordered panel with the consent checkbox + CONTINUE under it.
 class PrivacyConsentScreen extends StatefulWidget {
   const PrivacyConsentScreen({super.key});
 
@@ -49,145 +50,118 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<ThemeCubit>().state.currentTheme;
-    final isSmall = MediaQuery.of(context).size.height < 800;
+    final cs = context.cs;
+    final t = cs.type;
+
+    final left = CsFitColumn(
+      alignment: Alignment.centerLeft,
+      children: [
+        const CsLogoMark(size: 40),
+        SizedBox(height: cs(26)),
+        CsLabel('Privacy · v${PrivacyPolicy.currentPrivacyPolicyVersion}'),
+        SizedBox(height: cs(10)),
+        CsHeadline(const ['Policy\n', 'updated.'], prismIndex: 1, style: t.title),
+        SizedBox(height: cs(14)),
+        Text(
+          'Please review the updated Privacy Policy and accept it to continue.',
+          style: t.body,
+        ),
+      ],
+    );
+
+    final policy = DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(CsRadius.card),
+        border: Border.all(color: CsColors.lineSubtle),
+      ),
+      child: _content.isEmpty
+          ? const CsLoadingState(label: 'Loading policy')
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(CsRadius.card),
+              child: Scrollbar(
+                child: SingleChildScrollView(
+                  primary: true,
+                  padding: EdgeInsets.all(cs(22)),
+                  child: Text(
+                    _content,
+                    style: t.body.copyWith(color: CsColors.ink70, height: 1.55),
+                  ),
+                ),
+              ),
+            ),
+    );
+
+    final right = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: policy),
+        SizedBox(height: cs(14)),
+        Row(
+          children: [
+            Expanded(
+              child: _ConsentCheck(
+                value: _accepted,
+                label: 'I have read and agree to the updated Privacy Policy',
+                onChanged: (v) => setState(() => _accepted = v),
+              ),
+            ),
+            SizedBox(width: cs(16)),
+            CsButton.primary(
+              label: 'Continue',
+              icon: Symbols.check_circle_rounded,
+              onPressed: _accepted ? _accept : null,
+            ),
+          ],
+        ),
+      ],
+    );
 
     return PopScope(
       // Block back-out — the user must accept the updated policy to proceed.
       canPop: false,
-      child: CommandScaffold(
-        theme: theme,
+      child: CsScaffold(
         showTopBar: false,
-        body: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        washes: const [CsWash.cyanLeft],
+        body: CsSplit(
+          leftWidth: cs.isTablet ? 340 : 300,
+          left: left,
+          right: right,
+        ),
+      ),
+    );
+  }
+}
+
+/// Theme checkbox + label; the whole row is the tap target.
+class _ConsentCheck extends StatelessWidget {
+  const _ConsentCheck({required this.value, required this.label, required this.onChanged});
+  final bool value;
+  final String label;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return CsPressable(
+      scale: 0.99,
+      onTap: () => onChanged(!value),
+      semanticLabel: label,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Row(
           children: [
-            // LEFT — the updated policy, large and scrollable.
-            Expanded(
-              flex: 6,
-              child: GlassPanel(
-                theme: theme,
-                width: double.infinity,
-                child: _content.isEmpty
-                    ? Center(
-                        child: CircularProgressIndicator(
-                          color: theme.accentColor,
-                        ),
-                      )
-                    : SingleChildScrollView(
-                        primary: false,
-                        child: Text(
-                          _content,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: isSmall ? 12 : 14,
-                            height: 1.5,
-                          ),
-                        ),
-                      ),
+            SizedBox.square(
+              dimension: 32,
+              child: Checkbox(
+                value: value,
+                onChanged: (v) => onChanged(v ?? false),
               ),
             ),
-
-            const SizedBox(width: 16),
-
-            // RIGHT — title + accept controls, centered.
+            SizedBox(width: cs(10)),
             Expanded(
-              flex: 4,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Header
-                  GlassPanel(
-                    theme: theme,
-                    glow: true,
-                    width: double.infinity,
-                    padding: EdgeInsets.all(isSmall ? 16 : 20),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: theme.accentColor.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(Icons.privacy_tip_outlined,
-                              color: theme.accentColor, size: 28),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Privacy Policy Updated',
-                                style: TextStyle(
-                                  color: theme.accentColor,
-                                  fontSize: isSmall ? 20 : 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                'Version ${PrivacyPolicy.currentPrivacyPolicyVersion} · please review and accept to continue',
-                                style: TextStyle(
-                                  color: theme.accentColor.withValues(alpha: 0.7),
-                                  fontSize: isSmall ? 12 : 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Acceptance checkbox
-                  GlassPanel(
-                    theme: theme,
-                    radius: GameTokens.radiusMd,
-                    width: double.infinity,
-                    child: Row(
-                      children: [
-                        Transform.scale(
-                          scale: 1.2,
-                          child: Checkbox(
-                            value: _accepted,
-                            onChanged: (v) =>
-                                setState(() => _accepted = v ?? false),
-                            activeColor: theme.accentColor,
-                            checkColor: Colors.white,
-                            side: BorderSide(
-                              color: theme.accentColor.withValues(alpha: 0.6),
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'I have read and agree to the updated Privacy Policy',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: isSmall ? 14 : 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Continue button
-                  NeonButton(
-                    onPressed: _accepted ? _accept : null,
-                    label: 'Continue',
-                    icon: Icons.check_circle_outline,
-                    theme: theme,
-                    expand: true,
-                  ),
-                ],
+              child: Text(
+                label,
+                style: cs.type.display(13, weight: FontWeight.w600, em: 0, height: 1.3, color: CsColors.ink),
               ),
             ),
           ],

@@ -1,16 +1,12 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
 class StatisticsScreen extends StatefulWidget {
@@ -36,7 +32,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   Map<String, dynamic> get _displayStats => _appCache.statistics ?? {};
   Map<String, dynamic> get _performanceTrends => _appCache.performanceTrends ?? {};
   Map<String, dynamic> get _playPatterns => _appCache.playPatterns ?? {};
-  // Data is already loaded - no loading state needed
   bool get _isLoading => !_appCache.isFullyLoaded;
 
   @override
@@ -46,897 +41,257 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     // leaving the user staring at the snapshot captured at first paint.
     return ListenableBuilder(
       listenable: _appCache,
-      builder: (context, _) => BlocBuilder<ThemeCubit, ThemeState>(
-      builder: (context, state) {
-        final theme = state.currentTheme;
-
-        return CommandScaffold(
-          theme: theme,
-          title: 'Statistics',
-          bottomBar: const ShipBannerAd(),
-          bodyPadding: EdgeInsets.zero,
-          actions: [
-            IconButton(
-              onPressed: _refreshStatistics,
-              icon: Icon(
-                Icons.refresh,
-                color: theme.accentColor.withValues(alpha: 0.8),
-                size: 22,
-              ),
-            ),
-          ],
-          body: _isLoading
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          theme.accentColor,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Loading Statistics...',
-                        style: TextStyle(
-                          color: theme.textMuted,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              // Landscape command deck: LEFT = hero telemetry + actions,
-              // RIGHT = the scrollable stat sections. Both float borderless
-              // on the starfield per the clean design.
-              : Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: Center(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: SizedBox(
-                              width: 230,
-                              child: _buildLeftPanel(theme),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        flex: 7,
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Column(
-                            children: [
-                              _buildPerformanceOverview(theme),
-                              const SizedBox(height: 20),
-                              _buildGameActivity(theme),
-                              const SizedBox(height: 20),
-                              _buildConsumptionStats(theme),
-                              const SizedBox(height: 20),
-                              _buildPerformanceTrends(theme),
-                              const SizedBox(height: 20),
-                              _buildPlayPatterns(theme),
-                              const SizedBox(height: 20),
-                              _buildAchievementProgress(theme),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-        );
-      },
-    ),
-    );
-  }
-
-  Widget _buildPerformanceOverview(GameTheme theme) {
-    return _buildStatSection(
-      title: 'Performance Overview',
-      icon: Icons.trending_up,
-      theme: theme,
-      // One wide row of four — the landscape viewport has the width for it.
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                'High Score',
-                '${_displayStats['highScore'] ?? 0}',
-                Icons.emoji_events,
-                Colors.amber,
-                theme,
-              ),
-            ),
-            Expanded(
-              child: _buildStatCard(
-                'Total Games',
-                '${_displayStats['totalGames'] ?? 0}',
-                Icons.games,
-                theme.accentColor,
-                theme,
-              ),
-            ),
-            Expanded(
-              child: _buildStatCard(
-                'Average Score',
-                '${_displayStats['averageScore'] ?? 0}',
-                Icons.trending_up,
-                Colors.green,
-                theme,
-              ),
-            ),
-            Expanded(
-              child: _buildStatCard(
-                'Win Streak',
-                '${_displayStats['winStreak'] ?? 0}',
-                Icons.local_fire_department,
-                Colors.orange,
-                theme,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGameActivity(GameTheme theme) {
-    return _buildStatSection(
-      title: 'Game Activity',
-      icon: Icons.schedule,
-      theme: theme,
-      // One wide row of four.
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                'Play Time',
-                '${_displayStats['totalPlayTime'] ?? '0s'}',
-                Icons.access_time,
-                Colors.blue,
-                theme,
-              ),
-            ),
-            Expanded(
-              child: _buildStatCard(
-                'Longest Game',
-                '${_displayStats['longestSurvival'] ?? '0s'}',
-                Icons.timer,
-                Colors.purple,
-                theme,
-              ),
-            ),
-            Expanded(
-              child: _buildStatCard(
-                'Highest Stage',
-                '${_displayStats['highestStage'] ?? 0}',
-                Icons.military_tech,
-                Colors.indigo,
-                theme,
-              ),
-            ),
-            Expanded(
-              child: _buildStatCard(
-                'Furthest Wave',
-                '${_displayStats['highestWave'] ?? 0}',
-                Icons.waves,
-                Colors.pink,
-                theme,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildConsumptionStats(GameTheme theme) {
-    return _buildStatSection(
-      title: 'Combat Record',
-      icon: Icons.military_tech,
-      theme: theme,
-      child: Column(
-        children: [
-          IntrinsicHeight(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    'Enemies Destroyed',
-                    '${_displayStats['enemiesKilled'] ?? 0}',
-                    Icons.rocket_launch,
-                    Colors.red,
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatCard(
-                    'Bosses Defeated',
-                    '${_displayStats['bossesKilled'] ?? 0}',
-                    Icons.dangerous,
-                    Colors.deepOrange,
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatCard(
-                    'Stages Cleared',
-                    '${_displayStats['stagesCleared'] ?? 0}',
-                    Icons.flag,
-                    Colors.green,
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatCard(
-                    'Best Combo',
-                    '${_displayStats['bestCombo'] ?? 0}',
-                    Icons.bolt,
-                    Colors.yellow,
-                    theme,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          IntrinsicHeight(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    'Victories',
-                    '${_displayStats['victories'] ?? 0}',
-                    Icons.emoji_events,
-                    Colors.amber,
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatCard(
-                    'No-Hit Clears',
-                    '${_displayStats['noHitClears'] ?? 0}',
-                    Icons.shield,
-                    Colors.cyan,
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatCard(
-                    'Survival Rate',
-                    '${_displayStats['survivalRate'] ?? '0%'}',
-                    Icons.favorite,
-                    Colors.pinkAccent,
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatCard(
-                    'Best Streak',
-                    '${_displayStats['longestStreak'] ?? 0}',
-                    Icons.local_fire_department,
-                    Colors.orange,
-                    theme,
-                  ),
-                ),
-              ],
-            ),
+      builder: (context, _) => CsScaffold(
+        title: 'Statistics',
+        washes: const [CsWash.cyanLeft],
+        trailing: [
+          CsIconButton(
+            icon: Symbols.refresh_rounded,
+            tooltip: 'Refresh',
+            size: 36,
+            onPressed: _refreshStatistics,
           ),
         ],
+        body: _isLoading
+            ? const CsLoadingState(label: 'Loading statistics')
+            : CsSplit(
+                // Inline banner in the summary column (no full-width banners).
+                leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
+                left: _buildSummary(context),
+                right: _buildSections(context),
+              ),
       ),
     );
   }
 
-  Widget _buildPerformanceTrends(GameTheme theme) {
-    final recentScores =
-        (_performanceTrends['recentScores'] as List<int>?) ?? [];
-    final trend = _performanceTrends['trend'] as String? ?? 'stable';
+  // ── LEFT ───────────────────────────────────────────────────────────────
 
-    return _buildStatSection(
-      title: 'Performance Trends',
-      icon: Icons.show_chart,
-      theme: theme,
-      child: Column(
-        children: [
-          // One wide row of four trend cells.
-          IntrinsicHeight(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildTrendCard(
-                    'Overall Trend',
-                    trend,
-                    _getTrendIcon(trend),
-                    _getTrendColor(trend),
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatCard(
-                    'Recent Average',
-                    '${_performanceTrends['averageRecentScore'] ?? 0}',
-                    Icons.analytics,
-                    Colors.cyan,
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatCard(
-                    'Best Recent',
-                    '${_performanceTrends['bestRecentScore'] ?? 0}',
-                    Icons.star_outline,
-                    Colors.amber,
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatCard(
-                    'Consistency',
-                    _calculateConsistencyRating(recentScores),
-                    Icons.equalizer,
-                    Colors.purple,
-                    theme,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          if (recentScores.isNotEmpty) ...[
-            const SizedBox(height: 16),
-
-            // Enhanced Chart Container
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Progress (Last ${recentScores.length} Games)',
-                        style: TextStyle(
-                          color: theme.textMuted,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getTrendColor(trend).withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          trend.toUpperCase(),
-                          style: TextStyle(
-                            color: _getTrendColor(trend),
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Enhanced Chart with Trend Line
-                  SizedBox(
-                    height: 80,
-                    child: _buildEnhancedTrendChart(recentScores, theme, trend),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Chart Legend
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildLegendItem('Scores', theme.accentColor, theme),
-                      const SizedBox(width: 16),
-                      _buildLegendItem(
-                        'Trend Line',
-                        _getTrendColor(trend),
-                        theme,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Performance Insights
-            _buildPerformanceInsights(recentScores, trend, theme),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlayPatterns(GameTheme theme) {
-    final dailyPlayTime =
-        (_playPatterns['dailyPlayTime'] as Map<String, int>?) ?? {};
-
-    return _buildStatSection(
-      title: 'Play Patterns (Last 7 Days)',
-      icon: Icons.calendar_today,
-      theme: theme,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Weekly Time',
-                  _formatPlayTime(_playPatterns['totalWeeklyTime'] ?? 0),
-                  Icons.schedule,
-                  Colors.green,
-                  theme,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Most Active Day',
-                  '${_playPatterns['mostActiveDay'] ?? 'None'}',
-                  Icons.star,
-                  Colors.orange,
-                  theme,
-                ),
-              ),
-            ],
-          ),
-
-          if (dailyPlayTime.isNotEmpty) ...[
-            const SizedBox(height: 16),
-
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Daily Activity',
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  SizedBox(
-                    height: 60,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.vertical, // or horizontal if needed
-                      child: _buildDailyActivityChart(dailyPlayTime, theme),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAchievementProgress(GameTheme theme) {
-    return _buildStatSection(
-      title: 'Achievement Progress',
-      icon: Icons.emoji_events,
-      theme: theme,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.amber.withValues(alpha: 0.12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.amber.withValues(alpha: 0.35),
-                    blurRadius: 14,
-                    spreadRadius: -2,
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  Center(
-                    child: CircularProgressIndicator(
-                      // The display value comes through as 'X%' (a string).
-                      // Strip the percent sign, parse, default to 0, THEN
-                      // divide by 100 so the indicator (which expects 0.0–1.0)
-                      // shows the right fill. The previous expression
-                      // missed parentheses and ended up passing the raw
-                      // 0–100 number, which the indicator clamps to 1.0 —
-                      // a full ring at any non-zero progress.
-                      value:
-                          ((double.tryParse(
-                                    _displayStats['achievementProgress']
-                                            ?.toString()
-                                            .replaceAll('%', '') ??
-                                        '0',
-                                  ) ??
-                                  0) /
-                              100)
-                              .clamp(0.0, 1.0),
-                      strokeWidth: 4,
-                      backgroundColor: Colors.amber.withValues(alpha: 0.3),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        Colors.amber,
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: Icon(
-                      Icons.military_tech,
-                      color: Colors.amber,
-                      size: 24,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(width: 16),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Achievement Progress',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textPrimary,
-                    ),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  Text(
-                    '${_displayStats['achievementProgress'] ?? '0%'} Complete',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: theme.textMuted,
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  GestureDetector(
-                    onTap: () => context.push(AppRoutes.achievements),
-                    child: Text(
-                      'View All Achievements →',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.amber,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// LEFT panel: hero high-score readout + compact telemetry rows + the
-  /// stacked action buttons. Rendered at natural size inside a
-  /// FittedBox(scaleDown) so it never scrolls in the short viewport.
-  Widget _buildLeftPanel(GameTheme theme) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+  /// Hero high score + compact telemetry + the stacked actions. Rendered at
+  /// natural size and scaled down so it never scrolls.
+  Widget _buildSummary(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    return CsFitColumn(
+      alignment: Alignment.centerLeft,
       children: [
-        Center(
-          child: Text(
-            'HIGH SCORE',
-            style: TextStyle(
-              color: theme.accentColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.8,
-            ),
-          ),
+        const CsLabel('High score'),
+        SizedBox(height: cs(8)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text('${_displayStats['highScore'] ?? 0}', maxLines: 1, style: t.scoreGiant),
         ),
-        const SizedBox(height: 6),
-        Center(
-          child: Text(
-            '${_displayStats['highScore'] ?? 0}',
-            style: TextStyle(
-              color: theme.textPrimary,
-              fontSize: 34,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildTelemetryRow(
-          theme,
-          Icons.games,
-          'Games Played',
-          '${_displayStats['totalGames'] ?? 0}',
-        ),
-        const SizedBox(height: 6),
-        _buildTelemetryRow(
-          theme,
-          Icons.access_time,
-          'Play Time',
-          '${_displayStats['totalPlayTime'] ?? '0s'}',
-        ),
-        const SizedBox(height: 16),
-        NeonButton(
+        SizedBox(height: cs(16)),
+        const CsHairline(),
+        _telemetryRow(context, 'Games played', '${_displayStats['totalGames'] ?? 0}'),
+        const CsHairline(),
+        _telemetryRow(context, 'Play time', '${_displayStats['totalPlayTime'] ?? '0s'}'),
+        const CsHairline(),
+        SizedBox(height: cs(22)),
+        CsButton.primary(
+          label: 'View achievements',
+          icon: Symbols.emoji_events_rounded,
+          expand: true,
           onPressed: () => context.push(AppRoutes.achievements),
-          label: 'View Achievements',
-          icon: Icons.emoji_events,
-          theme: theme,
-          expand: true,
         ),
-        const SizedBox(height: 8),
-        NeonButton(
-          onPressed: () => context.push(AppRoutes.replays),
+        SizedBox(height: cs(10)),
+        CsButton.secondary(
           label: 'Replays',
-          icon: Icons.video_library,
-          theme: theme,
-          variant: NeonButtonVariant.outline,
+          icon: Symbols.movie_rounded,
           expand: true,
+          onPressed: () => context.push(AppRoutes.replays),
         ),
-        const SizedBox(height: 8),
-        NeonButton(
+        SizedBox(height: cs(6)),
+        CsButton.text(
+          label: 'Reset statistics',
+          icon: Symbols.restart_alt_rounded,
           onPressed: _showResetDialog,
-          label: 'Reset Statistics',
-          icon: Icons.refresh,
-          theme: theme,
-          variant: NeonButtonVariant.ghost,
-          expand: true,
-        ),
-      ],
-    ).gameEntrance();
-  }
-
-  Widget _buildTelemetryRow(
-    GameTheme theme,
-    IconData icon,
-    String label,
-    String value,
-  ) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, size: 14, color: theme.textMuted),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(color: theme.textMuted, fontSize: 12),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          value,
-          style: TextStyle(
-            color: theme.textPrimary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
         ),
       ],
     );
   }
 
-  Widget _buildStatSection({
-    required String title,
-    required IconData icon,
-    required GameTheme theme,
-    required Widget child,
-  }) {
-    // Borderless section: uppercase HUD label floating straight on the
-    // starfield — no glass panel, no outlines.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _telemetryRow(BuildContext context, String label, String value) {
+    final cs = context.cs;
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: cs(10)),
+      child: Row(children: [
+        Expanded(child: CsLabel(label)),
+        Text(value, maxLines: 1, style: cs.type.mono(12, color: CsColors.ink, weight: FontWeight.w600)),
+      ]),
+    );
+  }
+
+  // ── RIGHT ──────────────────────────────────────────────────────────────
+
+  Widget _buildSections(BuildContext context) {
+    final cs = context.cs;
+    final cols = cs.size.width < 700 ? 2 : 4;
+    final recentScores = (_performanceTrends['recentScores'] as List<int>?) ?? [];
+    final trend = _performanceTrends['trend'] as String? ?? 'stable';
+    final dailyPlayTime = (_playPatterns['dailyPlayTime'] as Map<String, int>?) ?? {};
+
+    return ListView(
+      padding: EdgeInsets.only(bottom: cs(16)),
       children: [
-        Row(
-          children: [
-            Icon(icon, color: theme.accentColor, size: 15),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                title.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.8,
-                  color: theme.accentColor,
+        const _Section('Performance overview'),
+        CsStatGrid(columns: cols, valueSize: 22, stats: [
+          CsStat('${_displayStats['highScore'] ?? 0}', 'High score'),
+          CsStat('${_displayStats['totalGames'] ?? 0}', 'Total games'),
+          CsStat('${_displayStats['averageScore'] ?? 0}', 'Average score'),
+          CsStat('${_displayStats['winStreak'] ?? 0}', 'Win streak'),
+        ]),
+        const _Section('Game activity'),
+        CsStatGrid(columns: cols, valueSize: 22, stats: [
+          CsStat('${_displayStats['totalPlayTime'] ?? '0s'}', 'Play time'),
+          CsStat('${_displayStats['longestSurvival'] ?? '0s'}', 'Longest game'),
+          CsStat('${_displayStats['highestStage'] ?? 0}', 'Highest stage'),
+          CsStat('${_displayStats['highestWave'] ?? 0}', 'Furthest wave'),
+        ]),
+        const _Section('Combat record'),
+        CsStatGrid(columns: cols, valueSize: 22, stats: [
+          CsStat('${_displayStats['enemiesKilled'] ?? 0}', 'Enemies destroyed', color: CsColors.pink),
+          CsStat('${_displayStats['bossesKilled'] ?? 0}', 'Bosses defeated'),
+          CsStat('${_displayStats['stagesCleared'] ?? 0}', 'Stages cleared'),
+          CsStat('${_displayStats['bestCombo'] ?? 0}', 'Best combo'),
+          CsStat('${_displayStats['victories'] ?? 0}', 'Victories', color: CsColors.mint),
+          CsStat('${_displayStats['noHitClears'] ?? 0}', 'No-hit clears'),
+          CsStat('${_displayStats['survivalRate'] ?? '0%'}', 'Survival rate'),
+          CsStat('${_displayStats['longestStreak'] ?? 0}', 'Best streak'),
+        ]),
+        _Section('Performance trends', trailing: _trendChip(trend)),
+        CsStatGrid(columns: cols, valueSize: 22, stats: [
+          CsStat(trend.toUpperCase(), 'Overall trend', color: _trendColor(trend)),
+          CsStat('${_performanceTrends['averageRecentScore'] ?? 0}', 'Recent average'),
+          CsStat('${_performanceTrends['bestRecentScore'] ?? 0}', 'Best recent'),
+          CsStat(_calculateConsistencyRating(recentScores), 'Consistency'),
+        ]),
+        if (recentScores.isNotEmpty) ...[
+          SizedBox(height: cs(16)),
+          Row(children: [
+            Expanded(child: CsLabel('Progress · last ${recentScores.length} games', size: 10)),
+            _legend(context, 'Scores', CsColors.ink25),
+            SizedBox(width: cs(14)),
+            _legend(context, 'Trend', CsColors.cyan),
+          ]),
+          SizedBox(height: cs(12)),
+          SizedBox(
+            height: cs(cs.isTablet ? 120 : 90),
+            child: _buildTrendChart(recentScores, trend),
+          ),
+          SizedBox(height: cs(16)),
+          _buildInsights(context, recentScores, trend),
+        ],
+        const _Section('Play patterns · last 7 days'),
+        CsStatGrid(columns: 2, valueSize: 22, stats: [
+          CsStat(_formatPlayTime(_playPatterns['totalWeeklyTime'] ?? 0), 'Weekly time'),
+          CsStat('${_playPatterns['mostActiveDay'] ?? 'None'}', 'Most active day'),
+        ]),
+        if (dailyPlayTime.isNotEmpty) ...[
+          SizedBox(height: cs(16)),
+          const CsLabel('Daily activity', size: 10),
+          SizedBox(height: cs(12)),
+          SizedBox(height: cs(70), child: _buildDailyActivityChart(context, dailyPlayTime)),
+        ],
+        const _Section('Achievement progress'),
+        _buildAchievementProgress(context),
+      ],
+    );
+  }
+
+  Widget _trendChip(String trend) => switch (trend) {
+        'improving' => CsChip(trend, kind: CsChipKind.mint, icon: Symbols.trending_up_rounded),
+        'declining' => CsChip(trend, kind: CsChipKind.pink, icon: Symbols.trending_down_rounded),
+        _ => CsChip(trend, icon: Symbols.trending_flat_rounded),
+      };
+
+  Color _trendColor(String trend) => switch (trend) {
+        'improving' => CsColors.mint,
+        'declining' => CsColors.pink,
+        _ => CsColors.ink,
+      };
+
+  Widget _legend(BuildContext context, String label, Color color) {
+    final cs = context.cs;
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(width: cs(12), height: 2, color: color),
+      SizedBox(width: cs(6)),
+      Text(label.toUpperCase(), style: cs.type.micro),
+    ]);
+  }
+
+  Widget _buildAchievementProgress(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    // The display value comes through as 'X%' (a string). Strip the percent
+    // sign, parse, default to 0, THEN divide by 100 so the ring (0.0–1.0)
+    // shows the right fill.
+    final pct = ((double.tryParse(
+                  _displayStats['achievementProgress']?.toString().replaceAll('%', '') ?? '0',
+                ) ??
+                0) /
+            100)
+        .clamp(0.0, 1.0);
+    return Padding(
+      padding: EdgeInsets.only(top: cs(4)),
+      child: Row(children: [
+        CsRingProgress(
+          value: pct,
+          size: cs(64),
+          stroke: 2.5,
+          child: Icon(Symbols.military_tech_rounded, size: cs(24), color: CsColors.gold),
+        ),
+        SizedBox(width: cs(16)),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Achievement progress', maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
+            SizedBox(height: cs(4)),
+            Text('${_displayStats['achievementProgress'] ?? '0%'} COMPLETE', style: t.label),
+          ]),
+        ),
+        CsButton.text(
+          label: 'View all',
+          size: CsButtonSize.small,
+          trailingIcon: Symbols.arrow_forward_rounded,
+          onPressed: () => context.push(AppRoutes.achievements),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildDailyActivityChart(BuildContext context, Map<String, int> dailyData) {
+    final cs = context.cs;
+    final maxTime = dailyData.values.isNotEmpty ? dailyData.values.reduce((a, b) => a > b ? a : b) : 0;
+
+    return LayoutBuilder(builder: (context, c) {
+      final labelH = cs(16);
+      final barMax = (c.maxHeight - labelH - cs(6)).clamp(4.0, double.infinity);
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: dailyData.entries.map((entry) {
+          final time = entry.value;
+          final h = maxTime > 0 ? max(2.0, (time / maxTime) * barMax) : 2.0;
+          return Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  width: cs(6),
+                  height: h,
+                  color: time > 0 ? CsColors.cyan : CsColors.track,
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
+                SizedBox(height: cs(6)),
+                SizedBox(
+                  height: labelH,
+                  child: Text(entry.key.toUpperCase(), maxLines: 1, style: cs.type.micro),
+                ),
+              ],
             ),
-          ],
-        ),
-
-        const SizedBox(height: 12),
-
-        child,
-      ],
-    ).gameZoomIn();
-  }
-
-  Widget _buildStatCard(
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-    GameTheme theme,
-  ) {
-    // Fully transparent per the clean design — the coloured icon + value
-    // carry the cell, no fill.
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 26),
-
-          const SizedBox(height: 8),
-
-          Flexible(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: theme.textPrimary,
-              ),
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-          ),
-
-          const SizedBox(height: 4),
-
-          Flexible(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: theme.textMuted,
-              ),
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTrendCard(
-    String label,
-    String trend,
-    IconData icon,
-    Color color,
-    GameTheme theme,
-  ) {
-    // Fully transparent per the clean design.
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 26),
-
-          const SizedBox(height: 8),
-
-          Text(
-            trend.toUpperCase(),
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-
-          const SizedBox(height: 4),
-
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.textMuted,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDailyActivityChart(Map<String, int> dailyData, GameTheme theme) {
-    final maxTime = dailyData.values.isNotEmpty
-        ? dailyData.values.reduce((a, b) => a > b ? a : b)
-        : 0;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: dailyData.entries.map((entry) {
-        final day = entry.key;
-        final time = entry.value;
-        final height = maxTime > 0 ? (time / maxTime) * 40 : 8.0;
-
-        return Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Container(
-              width: 20,
-              height: height + 8,
-              decoration: BoxDecoration(
-                color: time > 0
-                    ? theme.accentColor.withValues(alpha: 0.7)
-                    : theme.accentColor.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              day,
-              style: TextStyle(
-                fontSize: 10,
-                color: theme.textMuted,
-              ),
-            ),
-          ],
-        );
-      }).toList(),
-    );
-  }
-
-  IconData _getTrendIcon(String trend) {
-    switch (trend) {
-      case 'improving':
-        return Icons.trending_up;
-      case 'declining':
-        return Icons.trending_down;
-      default:
-        return Icons.trending_flat;
-    }
-  }
-
-  Color _getTrendColor(String trend) {
-    switch (trend) {
-      case 'improving':
-        return Colors.green;
-      case 'declining':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
+          );
+        }).toList(),
+      );
+    });
   }
 
   String _formatPlayTime(int seconds) {
@@ -955,106 +310,72 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   void _showResetDialog() {
-    final theme = context.read<ThemeCubit>().state.currentTheme;
-    final muted = theme.accentColor.withValues(alpha: 0.8);
-
-    Widget bullet(String text) => Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.remove, size: 14, color: Colors.redAccent),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  text,
-                  style: TextStyle(color: muted, fontSize: 13, height: 1.3),
+    showCsDialog<void>(
+      context,
+      builder: (ctx) {
+        final cs = ctx.cs;
+        final t = cs.type;
+        Widget bullet(String text) => Padding(
+              padding: EdgeInsets.only(bottom: cs(6)),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Padding(
+                  padding: EdgeInsets.only(top: cs(2)),
+                  child: Icon(Symbols.remove_rounded, size: cs(14), color: CsColors.pink),
                 ),
-              ),
-            ],
-          ),
-        );
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: theme.backgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Text(
-          'Reset everything?',
-          style: TextStyle(color: theme.accentColor),
-        ),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(
+                SizedBox(width: cs(8)),
+                Expanded(child: Text(text, style: t.body)),
+              ]),
+            );
+        return CsDialog(
+          icon: Symbols.warning_rounded,
+          iconColor: CsColors.pink,
+          eyebrow: 'Danger zone',
+          title: 'Reset everything?',
+          maxWidth: 560,
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'This permanently deletes, on this device and the server:',
-                style: TextStyle(color: muted, fontSize: 13, height: 1.3),
-              ),
-              const SizedBox(height: 10),
+              Text('This permanently deletes, on this device and the server:', style: t.body),
+              SizedBox(height: cs(10)),
               bullet('All play statistics — games, enemies, bosses, stages, '
                   'combos, survival and win streaks'),
               bullet('Your high score, total score and total games'),
               bullet('Every leaderboard score (global, weekly and daily)'),
               bullet('Achievement progress and unlocks'),
               bullet('Daily-challenge progress'),
-              const SizedBox(height: 10),
-              Text(
-                'This cannot be undone.',
-                style: TextStyle(
-                  color: Colors.redAccent,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              SizedBox(height: cs(10)),
+              Text('THIS CANNOT BE UNDONE.', style: t.mono(11, color: CsColors.pink, weight: FontWeight.w600)),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: theme.accentColor.withValues(alpha: 0.7)),
+          actions: [
+            CsButton.text(label: 'Cancel', onPressed: () => Navigator.of(ctx).pop()),
+            _DangerButton(
+              label: 'Delete everything',
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                await _performReset();
+              },
             ),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await _performReset();
-            },
-            child: const Text(
-              'Delete everything',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 
   Future<void> _performReset() async {
-    final messenger = ScaffoldMessenger.of(context);
     final ok = await _statisticsService.resetStatistics();
     if (ok) {
       await _refreshStatistics();
     }
     if (!mounted) return;
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? 'Everything has been reset.'
-              : 'Couldn\'t reach the server. Connect to the internet and try '
-                  'again — nothing was changed.',
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
+    showCsToast(
+      context,
+      ok
+          ? 'Everything has been reset.'
+          : 'Couldn\'t reach the server. Connect to the internet and try '
+              'again — nothing was changed.',
+      kind: ok ? CsToastKind.success : CsToastKind.error,
     );
   }
 
@@ -1063,10 +384,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
     final average = scores.reduce((a, b) => a + b) / scores.length;
     final variance =
-        scores
-            .map((score) => (score - average) * (score - average))
-            .reduce((a, b) => a + b) /
-        scores.length;
+        scores.map((score) => (score - average) * (score - average)).reduce((a, b) => a + b) / scores.length;
     final standardDeviation = sqrt(variance);
     final coefficient = average > 0 ? standardDeviation / average : 0;
 
@@ -1076,114 +394,42 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return 'Poor';
   }
 
-  Widget _buildEnhancedTrendChart(
-    List<int> scores,
-    GameTheme theme,
-    String trend,
-  ) {
-    if (scores.isEmpty) return const Center(child: Text('No data'));
-
+  Widget _buildTrendChart(List<int> scores, String trend) {
     final maxScore = scores.reduce((a, b) => a > b ? a : b);
     final minScore = scores.reduce((a, b) => a < b ? a : b);
-
     return CustomPaint(
       painter: TrendChartPainter(
         scores: scores,
         maxScore: maxScore,
         minScore: minScore,
-        barColor: theme.accentColor,
-        trendColor: _getTrendColor(trend),
+        barColor: CsColors.ink25,
+        trendColor: CsColors.cyan,
         trend: trend,
       ),
-      child: Container(),
+      child: const SizedBox.expand(),
     );
   }
 
-  Widget _buildLegendItem(String label, Color color, GameTheme theme) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 12,
-          height: 3,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: theme.textMuted,
-            fontSize: 11,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPerformanceInsights(
-    List<int> scores,
-    String trend,
-    GameTheme theme,
-  ) {
+  Widget _buildInsights(BuildContext context, List<int> scores, String trend) {
+    final cs = context.cs;
     final insights = _generateInsights(scores, trend);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.lightbulb_outline,
-                color: theme.primaryColor,
-                size: 18,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CsMeta('Performance insights', icon: Symbols.lightbulb_rounded, iconColor: CsColors.gold, size: 10),
+        SizedBox(height: cs(10)),
+        for (final insight in insights)
+          Padding(
+            padding: EdgeInsets.only(bottom: cs(6)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(
+                padding: EdgeInsets.only(top: cs(7), right: cs(10)),
+                child: Container(width: cs(4), height: 1, color: CsColors.ink45),
               ),
-              const SizedBox(width: 8),
-              Text(
-                'Performance Insights',
-                style: TextStyle(
-                  color: theme.primaryColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+              Expanded(child: Text(insight, style: cs.type.body)),
+            ]),
           ),
-          const SizedBox(height: 12),
-          ...insights.map(
-            (insight) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 4,
-                    height: 4,
-                    margin: const EdgeInsets.only(top: 6, right: 8),
-                    decoration: BoxDecoration(
-                      color: theme.primaryColor.withValues(alpha: 0.6),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      insight,
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -1193,9 +439,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     if (scores.isEmpty) return ['Play more games to get performance insights!'];
 
     final average = scores.reduce((a, b) => a + b) / scores.length;
-    final recent = scores.length >= 3
-        ? scores.sublist(scores.length - 3)
-        : scores;
+    final recent = scores.length >= 3 ? scores.sublist(scores.length - 3) : scores;
     final recentAvg = recent.reduce((a, b) => a + b) / recent.length;
 
     if (trend == 'improving') {
@@ -1204,16 +448,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         insights.add('Your recent games are significantly above your average.');
       }
     } else if (trend == 'declining') {
-      insights.add(
-        'Your performance has declined recently. Consider practicing more.',
-      );
-      insights.add(
-        'Try focusing on avoiding collisions and planning your moves ahead.',
-      );
+      insights.add('Your performance has declined recently. Consider practicing more.');
+      insights.add('Try focusing on avoiding collisions and planning your moves ahead.');
     } else {
-      insights.add(
-        'Your performance is stable. Challenge yourself to improve!',
-      );
+      insights.add('Your performance is stable. Challenge yourself to improve!');
     }
 
     final maxScore = scores.reduce((a, b) => a > b ? a : b);
@@ -1225,9 +463,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     if (scores.length >= 5) {
       final lastFive = scores.sublist(scores.length - 5);
       if (lastFive.every((score) => score > average * 0.8)) {
-        insights.add(
-          'You\'re maintaining solid performance across recent games.',
-        );
+        insights.add('You\'re maintaining solid performance across recent games.');
       }
     }
 
@@ -1235,6 +471,53 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 }
 
+/// Mono section label preceded by a group gap (and an optional trailing chip).
+class _Section extends StatelessWidget {
+  const _Section(this.label, {this.trailing});
+  final String label;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return Padding(
+      padding: EdgeInsets.only(top: cs(22), bottom: cs(4)),
+      child: Row(children: [
+        Expanded(child: CsLabel(label)),
+        ?trailing,
+      ]),
+    );
+  }
+}
+
+/// Pink outlined pill for irreversible actions inside dialogs.
+class _DangerButton extends StatelessWidget {
+  const _DangerButton({required this.label, required this.onPressed});
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return CsPressable(
+      onTap: onPressed,
+      semanticLabel: label,
+      child: Container(
+        constraints: BoxConstraints(minHeight: cs(48).clamp(44.0, 64.0)),
+        padding: EdgeInsets.symmetric(horizontal: cs(24)),
+        alignment: Alignment.center,
+        decoration: ShapeDecoration(
+          color: CsColors.pink.withValues(alpha: .12),
+          shape: const StadiumBorder(side: BorderSide(color: CsColors.pink)),
+        ),
+        child: Text(label.toUpperCase(), maxLines: 1, style: cs.type.button.copyWith(color: CsColors.pink)),
+      ),
+    );
+  }
+}
+
+/// Thin-line score chart: 2px score ticks on the ink25 track + a 1.5px
+/// trend polyline with small dots. No fills under the curve.
 class TrendChartPainter extends CustomPainter {
   final List<int> scores;
   final int maxScore;
@@ -1256,73 +539,58 @@ class TrendChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (scores.isEmpty) return;
 
-    final barPaint = Paint()
-      ..color = barColor.withValues(alpha: 0.6)
-      ..style = PaintingStyle.fill;
+    // Baseline hairline.
+    canvas.drawLine(
+      Offset(0, size.height - 0.5),
+      Offset(size.width, size.height - 0.5),
+      Paint()
+        ..color = CsColors.hairline
+        ..strokeWidth = 1,
+    );
 
-    final trendPaint = Paint()
-      ..color = trendColor
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final barWidth = size.width / scores.length;
+    final slot = size.width / scores.length;
     final range = maxScore > minScore ? maxScore - minScore : 1;
+    double yFor(int score) => size.height - (((score - minScore) / range) * (size.height - 10) + 5);
 
-    // Draw bars
+    // Score ticks (2px columns).
+    final barPaint = Paint()..color = barColor;
+    final barW = min(2.0, slot * 0.5);
     for (int i = 0; i < scores.length; i++) {
-      final score = scores[i];
-      final normalizedHeight =
-          ((score - minScore) / range) * (size.height - 10) + 5;
-      final barHeight = normalizedHeight;
-
-      final rect = Rect.fromLTWH(
-        i * barWidth + barWidth * 0.1,
-        size.height - barHeight,
-        barWidth * 0.8,
-        barHeight,
-      );
-
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(2)),
-        barPaint,
-      );
+      final x = i * slot + slot * 0.5;
+      canvas.drawRect(Rect.fromLTRB(x - barW / 2, yFor(scores[i]), x + barW / 2, size.height), barPaint);
     }
 
-    // Draw trend line
     if (scores.length > 1) {
       final path = Path();
       for (int i = 0; i < scores.length; i++) {
-        final score = scores[i];
-        final x = i * barWidth + barWidth * 0.5;
-        final normalizedHeight =
-            ((score - minScore) / range) * (size.height - 10) + 5;
-        final y = size.height - normalizedHeight;
-
+        final x = i * slot + slot * 0.5;
+        final y = yFor(scores[i]);
         if (i == 0) {
           path.moveTo(x, y);
         } else {
           path.lineTo(x, y);
         }
       }
-      canvas.drawPath(path, trendPaint);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = trendColor
+          ..strokeWidth = 1.5
+          ..style = PaintingStyle.stroke
+          ..strokeJoin = StrokeJoin.round,
+      );
+    }
 
-      // Draw trend line points
-      final pointPaint = Paint()
-        ..color = trendColor
-        ..style = PaintingStyle.fill;
-
-      for (int i = 0; i < scores.length; i++) {
-        final score = scores[i];
-        final x = i * barWidth + barWidth * 0.5;
-        final normalizedHeight =
-            ((score - minScore) / range) * (size.height - 10) + 5;
-        final y = size.height - normalizedHeight;
-
-        canvas.drawCircle(Offset(x, y), 3, pointPaint);
-      }
+    final dot = Paint()..color = trendColor;
+    final bg = Paint()..color = CsColors.bg;
+    for (int i = 0; i < scores.length; i++) {
+      final c = Offset(i * slot + slot * 0.5, yFor(scores[i]));
+      canvas.drawCircle(c, 3, bg);
+      canvas.drawCircle(c, 2, dot);
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant TrendChartPainter old) =>
+      old.scores != scores || old.barColor != barColor || old.trendColor != trendColor;
 }

@@ -12,7 +12,7 @@ class ScorePopup extends PositionComponent {
     position.setValues(-9999, -9999);
   }
 
-  static const Color defaultColor = Color(0xFFB7F4FF);
+  static const Color defaultColor = Color(0xFFF4F3F7); // Prism ink
 
   bool active = false;
   String _text = '';
@@ -37,13 +37,16 @@ class ScorePopup extends PositionComponent {
     _life = duration;
     position.setFrom(at);
     _paint = TextPaint(
+      // Prism Noir: mono uppercase label, no glow — a crisp 1px dark
+      // drop keeps it legible over bright FX.
       style: TextStyle(
+        fontFamily: 'IBMPlexMono',
         color: color,
-        fontSize: 12.5,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.6,
-        shadows: [
-          Shadow(color: color.withValues(alpha: 0.85), blurRadius: 7),
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 1.2,
+        shadows: const [
+          Shadow(color: Color(0xE608080B), offset: Offset(0, 1)),
         ],
       ),
     );

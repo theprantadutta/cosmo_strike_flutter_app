@@ -18,8 +18,8 @@ abstract final class BiomeCatalog {
     ceilingAssetTall: GameAssets.terrainAsteroidCeilingTall,
     floorHeight: 56,
     ceilingHeight: 48,
-    bgColor: Color(0xFF05060F),
-    starTint: Color(0xFF9DC6FF),
+    bgColor: Color(0xFF08080B),
+    starTint: Color(0xFFDCD2FF),
     obstacles: [
       ObstacleSpec(
         asset: GameAssets.obstacleAsteroidSmall,
@@ -45,8 +45,8 @@ abstract final class BiomeCatalog {
     floorAsset: GameAssets.terrainCityFloor,
     floorAssetTall: GameAssets.terrainCityFloorTall,
     floorHeight: 60,
-    bgColor: Color(0xFF0A0613),
-    starTint: Color(0xFFE2A8FF),
+    bgColor: Color(0xFF08080B),
+    starTint: Color(0xFFFFD6F1),
     obstacles: [
       // Drifting debris over the ruined skyline.
       ObstacleSpec(
@@ -68,8 +68,8 @@ abstract final class BiomeCatalog {
     ceilingAssetTall: GameAssets.terrainHiveCeilingTall,
     floorHeight: 56,
     ceilingHeight: 52,
-    bgColor: Color(0xFF070D09),
-    starTint: Color(0xFFA8FFC2),
+    bgColor: Color(0xFF08080B),
+    starTint: Color(0xFFD2FFE6),
     obstacles: [
       // Indestructible organic spikes riding the hive floor.
       ObstacleSpec(
@@ -95,8 +95,8 @@ abstract final class BiomeCatalog {
     floorAsset: GameAssets.terrainCrystalFloor,
     floorAssetTall: GameAssets.terrainCrystalFloorTall,
     floorHeight: 58,
-    bgColor: Color(0xFF060B16),
-    starTint: Color(0xFFB8E8FF),
+    bgColor: Color(0xFF08080B),
+    starTint: Color(0xFFCCFBFF),
     obstacles: [
       ObstacleSpec(
         asset: GameAssets.obstacleCrystal,
@@ -153,21 +153,27 @@ abstract final class LevelCatalog {
         FormationEvent(
             0.8,
             FormationSpec(
-                shape: FormationShape.vWedge, type: EnemyType.dart, count: 5),
+                shape: FormationShape.vWedge,
+                type: EnemyType.dart,
+                count: 5,
+                y01: 0.68),
             countsAsSection: true),
         FormationEvent(4.5,
             FormationSpec.stream(EnemyType.wasp, count: 3, every: 0.7)),
+        // An aiming pair: the first shots in the game that follow you.
+        FormationEvent(2.0,
+            FormationSpec.stream(EnemyType.drone, count: 2, every: 1.0, y01: 0.35)),
         FormationEvent(
             1.2,
             FormationSpec(
                 shape: FormationShape.wallWithGap,
                 type: EnemyType.dart,
                 count: 7,
-                gap01: 0.5,
+                gap01: 0.28,
                 wipeDrop: PowerUpKind.shield),
             countsAsSection: true,
             waitForFieldClear: true),
-        DropEvent(2.5, PowerUpKind.weapon),
+        DropEvent(2.5, PowerUpKind.weapon, y01: 0.75),
         FormationEvent(
             2.0,
             FormationSpec(

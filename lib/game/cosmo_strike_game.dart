@@ -22,14 +22,20 @@ import 'components/power_up.dart';
 import 'components/ship_trail.dart';
 import 'components/starfield.dart';
 import 'components/terrain.dart';
+import 'components/wingman.dart';
+import 'cosmo_palette.dart';
 import 'game_assets.dart';
 import 'game_audio.dart';
+import 'intensity_director.dart';
 import 'levels/level_catalog.dart';
 import 'levels/level_def.dart';
 import 'levels/script_runner.dart';
 import 'pools.dart';
 import 'run_effects.dart';
+import 'run_upgrades.dart';
 import 'tutorial_director.dart';
+import 'tuning.dart';
+import 'hangar.dart';
 
 enum GamePhase {
   ready,
@@ -59,6 +65,7 @@ class GameResult {
     required this.levelResults,
     this.maxCombo = 0,
     this.grazeCount = 0,
+    this.upgrades = const [],
   });
 
   final int score;
@@ -89,6 +96,9 @@ class GameResult {
 
   /// Total bullet grazes of the run.
   final int grazeCount;
+
+  /// Upgrades drafted this run, in pick order (the run's "build").
+  final List<UpgradeId> upgrades;
 }
 
 /// One active timed effect for the HUD chip row.
@@ -121,7 +131,17 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     this.selectedSkinId = 'classic',
     this.selectedTrailId = 'none',
     this.trailEffectsEnabled = false,
+    this.seed,
+    this.hangar = const HangarLoadout(),
   }) : _tutorialPending = tutorial;
+
+  /// Permanent progression for this run: Hangar upgrade levels + the
+  /// selected ship frame (starting upgrades and trade-offs).
+  final HangarLoadout hangar;
+
+  /// Daily Run seed: gameplay randomness (spawns, drops, aim rolls, drafts)
+  /// draws from a seeded stream so everyone gets the same layout today.
+  final int? seed;
 
   /// Called once when the run ends (out of lives / time / VICTORY). The
   /// screen persists campaign progress + submits the score.
@@ -173,7 +193,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// Effects' setting, ThemeCubit.trailSystemEnabled).
   final bool trailEffectsEnabled;
 
-  final math.Random rng = math.Random();
+  late final math.Random rng = seed == null ? math.Random() : math.Random(seed);
+
+  /// Cosmetic randomness (screen shake) — separate so the shake setting
+  /// never shifts the gameplay stream.
+  final math.Random _fxRng = math.Random();
 
   late PlayerShip player;
   late Starfield _starfield;
@@ -212,6 +236,18 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   // Active first-run tutorial prompt; null = no banner. Only ever set
   // while [tutorial] is running.
   final ValueNotifier<TutorialPrompt?> tutorialNotifier = ValueNotifier(null);
+  // Overdrive time remaining as 0..1 (0 = not active).
+  final ValueNotifier<double> overdriveNotifier = ValueNotifier(0);
+  // True while the boss WARNING banner should show.
+  final ValueNotifier<bool> bossWarningNotifier = ValueNotifier(false);
+  // Bumped for a full-screen white flash (boss kill, Overdrive).
+  final ValueNotifier<int> flashNotifier = ValueNotifier(0);
+
+  /// Adaptive pressure + idle punish (see [IntensityDirector]).
+  final IntensityDirector director = IntensityDirector();
+
+  /// Upgrades drafted this run (pick 1 of 3 after every level clear).
+  final RunUpgrades upgrades = RunUpgrades();
 
   // Run state.
   int levelIndex = 1;
@@ -238,13 +274,29 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   double _multDuration = 10;
 
   // Slow-mo power-up state: enemies / enemy bullets / terrain multiply
-  // their dt by this.
-  double enemyTimeScale = 1;
+  // their dt by [enemyTimeScale] (Overdrive also slows them slightly).
+  double _slowmoScale = 1;
+  double get enemyTimeScale => math.min(
+      _slowmoScale, overdriveActive ? GameTuning.overdriveEnemyTimeScale : 1.0);
   double _slowmoTimer = 0;
   double _slowmoDuration = 6;
 
   // Missiles.
   double _missileCooldown = 0;
+
+  // Overdrive.
+  double _overdriveTimer = 0;
+  double _overdriveTotal = GameTuning.overdriveSeconds;
+  bool get overdriveActive => _overdriveTimer > 0;
+
+  // Thrill-pass feedback timers (real time).
+  double _slowMoTime = 0;
+  double _slowMoScale = 1;
+  double _zoomTime = 0;
+  static const double _zoomDuration = 0.35;
+  double _grazePopupCooldown = 0;
+  double _killHapticCooldown = 0;
+  double _sampleAccumulator = 0;
 
   // Effects HUD publish throttle.
   double _effectsAccumulator = 0;
@@ -320,7 +372,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   }
 
   @override
-  Color backgroundColor() => const Color(0xFF05060F);
+  Color backgroundColor() => CosmoPalette.bgDeep;
 
   @override
   Future<void> onLoad() async {
@@ -351,6 +403,13 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     final limit = mode.timeLimit;
     if (limit != null) timeRemainingNotifier.value = limit.inSeconds;
 
+    // Hangar loadout: the frame's starting upgrades + permanent bonuses.
+    for (final id in hangar.frame.startingUpgrades) {
+      upgrades.grant(id);
+    }
+    _syncUpgradeEffects();
+    missileAmmoNotifier.value += hangar.startMissiles;
+
     levelIndex = startLevel.clamp(1, LevelCatalog.count);
     GameAudio.gameStart();
     _startLevel(levelIndex);
@@ -367,6 +426,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     _levelStartScore = scoreNotifier.value;
     _levelClock = 0;
     _levelTookHit = false;
+
+    if (upgrades.shieldEachLevel) player.shielded = true;
+    if (upgrades.missilesPerLevel > 0) {
+      missileAmmoNotifier.value += upgrades.missilesPerLevel;
+    }
 
     _setupBiome();
 
@@ -477,6 +541,13 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// Called by the ScriptRunner's BossEvent (field already clear).
   void spawnBoss() {
     GameAudio.bossWarn();
+    bossWarningNotifier.value = true;
+    unawaited(HapticService().mediumImpact());
+    add(TimerComponent(
+      period: GameTuning.bossWarningSeconds,
+      removeOnFinish: true,
+      onTick: () => bossWarningNotifier.value = false,
+    ));
     add(Boss(
       def: level.boss,
       // BossDef.baseHp is per-level, but it grows far slower than the enemy
@@ -497,6 +568,12 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     final bossAt = Vector2(size.x * 0.78, size.y / 2);
     pools.scorePopup(bossAt + Vector2(0, -60), '+$awarded', scale: 1.4);
     hitStop(0.1);
+    // The kill lands in slow motion with a push-in and a white flash.
+    _slowMoTime = GameTuning.bossKillSlowMoSeconds;
+    _slowMoScale = GameTuning.bossKillSlowMoScale;
+    _zoomTime = _zoomDuration;
+    flashNotifier.value++;
+    unawaited(HapticService().heavyImpact());
     spawnBossExplosion(bossAt);
     GameAudio.bossDown();
     GameAudio.levelClear();
@@ -518,6 +595,32 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       _endRun(cleared: true);
     } else {
       phaseNotifier.value = GamePhase.levelClear;
+    }
+  }
+
+  /// Three distinct upgrades to offer after this level clear (empty when
+  /// everything is maxed).
+  List<UpgradeDef> rollDraft() => upgrades.draft(rng);
+
+  /// Apply a drafted upgrade for the rest of the run.
+  void takeUpgrade(UpgradeId id) {
+    upgrades.take(id);
+    _syncUpgradeEffects();
+  }
+
+  /// Fire-rate multiplier from run upgrades x Hangar x ship frame.
+  double get fireCooldownScale =>
+      upgrades.fireCooldownScale * hangar.fireCooldownScale;
+
+  /// Always-on power-up magnet radius (best of run upgrade / Hangar).
+  double get magnetRadius => math.max(upgrades.magnetRadius, hangar.magnetRadius);
+
+  void _syncUpgradeEffects() {
+    combo.chainWindowBonus = upgrades.chainWindowBonus;
+    combo.grazeChargeScale = upgrades.grazeChargeScale * hangar.grazeChargeScale;
+    final have = children.whereType<Wingman>().length;
+    for (var i = have; i < upgrades.wingmen; i++) {
+      add(Wingman(index: i));
     }
   }
 
@@ -559,16 +662,25 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   @override
   void render(Canvas canvas) {
+    // Zoom punch (boss kill): a quick 3.5% push-in that eases back out.
     // Whole-scene jitter: children are added directly to the game (no
-    // camera/world indirection), so the shake is a canvas translate.
-    if (_shakeOffset.x != 0 || _shakeOffset.y != 0) {
-      canvas.save();
-      canvas.translate(_shakeOffset.x, _shakeOffset.y);
+    // camera/world indirection), so both are canvas transforms.
+    final zoom = _zoomTime > 0;
+    final shaken = _shakeOffset.x != 0 || _shakeOffset.y != 0;
+    if (!zoom && !shaken) {
       super.render(canvas);
-      canvas.restore();
-    } else {
-      super.render(canvas);
+      return;
     }
+    canvas.save();
+    if (zoom) {
+      final z = 1 + 0.035 * math.sin(_zoomTime / _zoomDuration * math.pi);
+      canvas.translate(size.x / 2, size.y / 2);
+      canvas.scale(z);
+      canvas.translate(-size.x / 2, -size.y / 2);
+    }
+    if (shaken) canvas.translate(_shakeOffset.x, _shakeOffset.y);
+    super.render(canvas);
+    canvas.restore();
   }
 
   @override
@@ -581,7 +693,13 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     if (_hitStopTime > 0) {
       _hitStopTime -= realDt;
       simDt = realDt * _hitStopScale;
+    } else if (_slowMoTime > 0) {
+      _slowMoTime -= realDt;
+      simDt = realDt * _slowMoScale;
     }
+    if (_zoomTime > 0) _zoomTime -= realDt;
+    if (_grazePopupCooldown > 0) _grazePopupCooldown -= realDt;
+    if (_killHapticCooldown > 0) _killHapticCooldown -= realDt;
     super.update(simDt);
     if (_shakeTime > 0) {
       _shakeTime -= realDt;
@@ -592,8 +710,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       } else {
         final falloff = _shakeTime / _shakeDuration;
         _shakeOffset.setValues(
-          (rng.nextDouble() * 2 - 1) * _shakeIntensity * falloff,
-          (rng.nextDouble() * 2 - 1) * _shakeIntensity * falloff,
+          (_fxRng.nextDouble() * 2 - 1) * _shakeIntensity * falloff,
+          (_fxRng.nextDouble() * 2 - 1) * _shakeIntensity * falloff,
         );
       }
     }
@@ -610,10 +728,12 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       }
       if (_slowmoTimer > 0) {
         _slowmoTimer -= dt;
-        if (_slowmoTimer <= 0) enemyTimeScale = 1;
+        if (_slowmoTimer <= 0) _slowmoScale = 1;
       }
       if (_missileCooldown > 0) _missileCooldown -= dt;
       combo.update(dt);
+      _updateOverdrive(dt);
+      _updateDirector(dt);
 
       // Publish the active-effects chip row at ~4 Hz.
       _effectsAccumulator += dt;
@@ -684,6 +804,109 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     effectsNotifier.value = effects;
   }
 
+  // ---- Pressure (thrill pass) ----
+
+  /// Chance a straight-firing enemy aims this shot at the player.
+  double get aimedChance => _tutorialPending
+      ? 0
+      : (GameTuning.aimedChance(levelIndex) * director.intensity).clamp(0.0, 0.9);
+
+  /// Enemy bullet speed multiplier (level curve x adaptive pressure).
+  double get enemyBulletSpeedScale => _tutorialPending
+      ? 1
+      : GameTuning.enemyBulletSpeed(levelIndex) * director.bulletSpeedScale;
+
+  /// Enemy fire-rate multiplier from adaptive pressure.
+  double get fireIntensity => _tutorialPending ? 1 : director.intensity;
+
+  void _updateDirector(double dt) {
+    if (_tutorialPending || !mode.enemiesFire) return;
+    director.update(dt);
+    _sampleAccumulator += dt;
+    if (_sampleAccumulator >= 0.1) {
+      _sampleAccumulator = 0;
+      director.onPlayerPosition(player.position.x, player.position.y);
+    }
+    if (director.idle && _hasThreats && director.consumeVolley()) {
+      _sniperVolley();
+    }
+  }
+
+  bool get _hasThreats => children.any((c) => c is EnemyShip || c is Boss);
+
+  /// Idle punish: a telegraphed volley of aimed shots from off-screen right
+  /// at the ship's current row. Moving dodges it; standing still doesn't.
+  void _sniperVolley() {
+    final y = player.position.y;
+    final x = size.x - 6;
+    pools.scorePopup(Vector2(x - 26, y - 4), '!',
+        color: CosmoPalette.pink, scale: 1.8, duration: 0.45);
+    GameAudio.telegraph();
+    add(TimerComponent(
+      period: 0.45,
+      removeOnFinish: true,
+      onTick: () {
+        if (phase != GamePhase.playing) return;
+        final speed = 300 * enemyBulletSpeedScale;
+        const n = GameTuning.idleVolleyShots;
+        for (var i = 0; i < n; i++) {
+          final spawn = Vector2(x, y + (i - (n - 1) / 2) * 26);
+          final dir = (player.position - spawn)..normalize();
+          pools.enemyBullet(spawn: spawn, velocity: dir * speed);
+        }
+      },
+    ));
+  }
+
+  // ---- Overdrive ----
+
+  /// Add Overdrive charge (formation wipes etc.); announces a full meter.
+  void chargeOverdrive(double amount) {
+    if (combo.addCharge(amount)) _announceOverdriveReady();
+  }
+
+  void _announceOverdriveReady() {
+    pools.scorePopup(
+      player.position + Vector2(0, -34),
+      'OVERDRIVE READY',
+      color: CosmoPalette.cyan,
+      scale: 1.2,
+      duration: 1.0,
+    );
+    GameAudio.meterFull();
+    unawaited(HapticService().mediumImpact());
+  }
+
+  /// HUD button: spend a full meter for [GameTuning.overdriveSeconds] of
+  /// piercing beam, x2 score, a bullet-vaporising aura and slowed enemies.
+  void activateOverdrive() {
+    if (phase != GamePhase.playing || overdriveActive) return;
+    if (!combo.consumeOverdrive()) return;
+    _overdriveTotal = GameTuning.overdriveSeconds + upgrades.overdriveBonusSeconds;
+    _overdriveTimer = _overdriveTotal;
+    overdriveNotifier.value = 1;
+    pools.clearEnemyBulletsWithin(
+        player.position, GameTuning.overdriveShieldRadius * 2);
+    pools.scorePopup(player.position + Vector2(0, -34), 'OVERDRIVE',
+        color: CosmoPalette.gold, scale: 1.5, duration: 1.0);
+    flashNotifier.value++;
+    GameAudio.beamFire();
+    unawaited(HapticService().heavyImpact());
+    onOverdrive?.call();
+  }
+
+  /// Analytics hook (the screen wires it).
+  void Function()? onOverdrive;
+
+  void _updateOverdrive(double dt) {
+    if (_overdriveTimer <= 0) return;
+    _overdriveTimer -= dt;
+    overdriveNotifier.value =
+        (_overdriveTimer / _overdriveTotal).clamp(0.0, 1.0);
+    pools.clearEnemyBulletsWithin(
+        player.position, GameTuning.overdriveShieldRadius);
+  }
+
   // ---- Input from the gameplay screen ----
 
   /// Move the ship toward [target] (screen coordinates). The ship clamps
@@ -733,7 +956,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// Adds [points] (scaled by the x2 orb) and returns what was actually
   /// awarded, so callers can show the real number in a popup.
   int addScore(int points) {
-    final awarded = (points * scoreMultiplier).round();
+    final od = overdriveActive ? GameTuning.overdriveScoreMult : 1.0;
+    final awarded = (points * scoreMultiplier * od).round();
     scoreNotifier.value += awarded;
     return awarded;
   }
@@ -750,7 +974,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   }
 
   void applySlowmo(double seconds) {
-    enemyTimeScale = 0.5;
+    _slowmoScale = 0.5;
     _slowmoTimer = seconds;
     _slowmoDuration = seconds;
   }
@@ -766,7 +990,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       pools.scorePopup(
         enemy.position + Vector2(0, -42),
         '×${combo.multiplier} CHAIN',
-        color: const Color(0xFFFF7BD5),
+        color: CosmoPalette.violet,
         scale: 1.3,
         duration: 0.9,
       );
@@ -774,6 +998,22 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
           GameAssets.comboBurstSheet, 4, enemy.position, Vector2.all(54),
           fps: 18));
       GameAudio.comboUp();
+      unawaited(HapticService().mediumImpact());
+    }
+    final streak = GameTuning.streakCallouts[combo.chain];
+    if (streak != null) {
+      pools.scorePopup(
+        Vector2(size.x * 0.5, size.y * 0.32),
+        streak,
+        color: CosmoPalette.gold,
+        scale: 2.2,
+        duration: 1.2,
+      );
+      GameAudio.comboUp();
+      unawaited(HapticService().mediumImpact());
+    } else if (_killHapticCooldown <= 0) {
+      _killHapticCooldown = 0.12;
+      unawaited(HapticService().lightImpact());
     }
     // Heavy kills (tanky hulls) land with a micro hit-stop + bigger blast.
     final heavy = enemy.type.baseHp >= 4;
@@ -813,7 +1053,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       pools.scorePopup(
         player.position + Vector2(0, -30),
         'SHIELD DOWN',
-        color: const Color(0xFF7DE8FF),
+        color: CosmoPalette.cyan,
         duration: 0.8,
       );
       GameAudio.playerHit();
@@ -830,13 +1070,14 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       pools.scorePopup(
         player.position + Vector2(0, -30),
         'COMBO BREAK',
-        color: const Color(0xFFFF8A8A),
+        color: CosmoPalette.pink,
         scale: 1.15,
         duration: 0.8,
       );
       GameAudio.comboBreak();
     }
     combo.onPlayerDamaged();
+    director.onPlayerHit();
     GameAudio.playerHit();
     shake(intensity: 5, duration: 0.22);
     // Layered hit feedback that does NOT depend on the shake setting:
@@ -854,7 +1095,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       _loseLife();
       return;
     }
-    player.health -= damage;
+    player.health -= damage * upgrades.damageTakenScale * hangar.damageTakenScale;
     if (player.health <= 0 && player.consumeScoreShieldCharge()) {
       // Armed score shield: absorb the lethal hit instead of dying.
       player.health = 0.5;
@@ -870,23 +1111,18 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   }
 
   /// An enemy bullet slipped past the hull without connecting. Risk pays:
-  /// points + graze-meter charge; a full meter converts to +1 missile.
+  /// combo-scaled points, a longer chain and Overdrive charge.
   void onGraze(Vector2 at) {
     if (phase != GamePhase.playing) return;
-    addScore(15);
+    final awarded = addScore(GameTuning.grazePoints * combo.multiplier);
     pools.hitSpark(at);
     GameAudio.graze();
-    if (combo.onGraze()) {
-      missileAmmoNotifier.value += 1;
-      pools.scorePopup(
-        player.position + Vector2(0, -30),
-        'MISSILE +1',
-        color: const Color(0xFFFFD37B),
-        scale: 1.2,
-        duration: 0.9,
-      );
-      GameAudio.meterFull();
+    if (_grazePopupCooldown <= 0) {
+      _grazePopupCooldown = 0.18;
+      pools.scorePopup(player.position + Vector2(0, -26), 'CLOSE +$awarded',
+          color: CosmoPalette.cyan, duration: 0.6);
     }
+    if (combo.onGraze()) _announceOverdriveReady();
   }
 
   /// Player clipped a terrain band or obstacle. Fixed damage through the
@@ -1075,6 +1311,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       levelResults: results,
       maxCombo: combo.maxCombo,
       grazeCount: combo.grazeCount,
+      upgrades: List.of(upgrades.history),
     );
   }
 

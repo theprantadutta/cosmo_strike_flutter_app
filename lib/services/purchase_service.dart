@@ -1059,6 +1059,49 @@ class PurchaseService {
   String? getStorePrice(String productId) =>
       _displayPrice(getProduct(productId));
 
+  /// Numeric store price (in the store's currency) for a product, or null
+  /// if it hasn't loaded. Android subscriptions use the recurring (non-zero)
+  /// pricing phase, matching [getStorePrice].
+  double? getStorePriceValue(String productId) {
+    final product = getProduct(productId);
+    if (product == null) return null;
+    if (product is ProductSubscriptionAndroid) {
+      for (final offer in product.subscriptionOffers) {
+        final phases = offer.pricingPhasesAndroid?.pricingPhaseList;
+        if (phases == null) continue;
+        int? micros;
+        for (final phase in phases) {
+          final m = int.tryParse(phase.priceAmountMicros) ?? 0;
+          if (m > 0) micros = m;
+        }
+        if (micros != null) return micros / 1e6;
+      }
+    }
+    final price = product.price;
+    return (price != null && price > 0) ? price : null;
+  }
+
+  /// Store currency code for a loaded product (e.g. "BDT"), or null.
+  String? getStoreCurrency(String productId) => getProduct(productId)?.currency;
+
+  /// Whole-percent saving of paying [actual] instead of [full], or null when
+  /// either is unknown or there's no real saving. Rounded down so a badge
+  /// never overstates the discount.
+  static int? savingsPercent({required double? full, required double? actual}) {
+    if (full == null || actual == null || full <= 0 || actual <= 0) return null;
+    final pct = ((1 - actual / full) * 100).floor();
+    return pct >= 1 ? pct : null;
+  }
+
+  /// Yearly-vs-12×monthly saving from live store prices, or null if either
+  /// plan hasn't loaded or the currencies differ.
+  int? yearlySavingsPercent(String monthlyId, String yearlyId) {
+    final monthly = getStorePriceValue(monthlyId);
+    final yearly = getStorePriceValue(yearlyId);
+    if (getStoreCurrency(monthlyId) != getStoreCurrency(yearlyId)) return null;
+    return savingsPercent(full: monthly == null ? null : monthly * 12, actual: yearly);
+  }
+
   /// Get the store price, falling back to a formatted default.
   String getStorePriceOrDefault(String productId, double fallbackPrice) {
     return _displayPrice(getProduct(productId)) ??

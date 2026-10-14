@@ -588,6 +588,11 @@ enum GameMode {
   powerUpMadness,
   perfectGame;
 
+  /// The enum identifier (`speedChallenge`), which the backend's GameMode
+  /// enum parses case-insensitively. [name] is overridden with display
+  /// labels ("Speed Challenge") that the API rejects — never send it.
+  String get wireName => toString().split('.').last;
+
   String get name {
     switch (this) {
       case GameMode.classic:

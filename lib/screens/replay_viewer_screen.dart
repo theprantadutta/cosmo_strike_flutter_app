@@ -3,13 +3,9 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cosmo_strike_flutter_app/models/game_replay.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 
 class ReplayViewerScreen extends StatefulWidget {
   /// The replay ID for deep link support.
@@ -98,376 +94,224 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeState = context.watch<ThemeCubit>().state;
-    final theme = themeState.currentTheme;
-
-    return CommandScaffold(
-      theme: theme,
-      title: _replay != null
-          ? 'Replay: ${_replay!.playerName}'
-          : 'Loading Replay...',
-      bottomBar: const ShipBannerAd(),
-      bodyPadding: EdgeInsets.zero,
-      body: _buildContent(theme),
+    return CsScaffold(
+      title: _replay != null ? 'Replay · ${_replay!.playerName}' : 'Loading replay',
+      trailing: [
+        if (_replay != null) CsMeta(_replay!.formattedDuration, icon: Symbols.timer_rounded),
+      ],
+      body: _buildContent(context),
     );
   }
 
-  Widget _buildContent(GameTheme theme) {
+  Widget _buildContent(BuildContext context) {
     // Show loading state when fetching replay from deep link
     if (_isLoadingReplay) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(theme.accentColor),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Loading replay...',
-              style: TextStyle(
-                color: theme.accentColor.withValues(alpha: 0.8),
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-      );
+      return const CsLoadingState(label: 'Loading replay');
     }
 
     // Show error state
     if (_loadError != null || _replay == null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: theme.accentColor.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _loadError ?? 'Replay not found',
-              style: TextStyle(
-                color: theme.accentColor.withValues(alpha: 0.8),
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 24),
-            NeonButton(
-              onPressed: () => Navigator.of(context).pop(),
-              label: 'Go Back',
-              icon: Icons.arrow_back,
-              theme: theme,
-            ),
-          ],
+      return CsEmptyState.error(
+        title: _loadError ?? 'Replay not found',
+        action: CsButton.secondary(
+          label: 'Go back',
+          icon: Symbols.arrow_back_rounded,
+          onPressed: () => Navigator.of(context).pop(),
         ),
       );
     }
 
-    return Column(
-      children: [
-        // Game info header
-        _buildGameInfo(theme),
-
-        const SizedBox(height: 16),
-
-        // Game board
-        Expanded(child: Center(child: _buildGameBoard(theme))),
-
-        const SizedBox(height: 16),
-
-        // Playback controls
-        _buildPlaybackControls(theme),
-
-        const SizedBox(height: 16),
-      ],
+    return CsSplit(
+      leftFlex: 5,
+      left: CsFitColumn(
+        alignment: Alignment.centerLeft,
+        children: [
+          _buildGameInfo(context),
+          SizedBox(height: context.cs(18)),
+          _buildPlaybackControls(context),
+        ],
+      ),
+      right: Center(child: AspectRatio(aspectRatio: 1, child: _buildGameBoard(context))),
     );
   }
 
-  Widget _buildGameInfo(GameTheme theme) {
+  Widget _buildGameInfo(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
     final replay = _replay!;
     final frame = _currentFrame;
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: GlassPanel(
-      theme: theme,
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildInfoItem(
-                'Score',
-                frame?.score.toString() ?? '0',
-                Icons.star,
-              ),
-              _buildInfoItem(
-                'Level',
-                frame?.level.toString() ?? '1',
-                Icons.trending_up,
-              ),
-              _buildInfoItem(
-                'Frame',
-                '${_currentFrameIndex + 1}/${replay.totalFrames}',
-                Icons.movie,
-              ),
-              _buildInfoItem(
-                'Time',
-                replay.formattedDuration,
-                Icons.timer,
-              ),
-            ],
-          ),
-
-          // Reserve a fixed slot for the event chip so the surrounding
-          // card doesn't grow/shrink each time a frame has (or stops
-          // having) a `gameEvent`. AnimatedSwitcher fades the chip in
-          // and out within the fixed slot. Height = 12 (gap) + ~28
-          // (chip with v6 padding around a 12-px text line).
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 28,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              transitionBuilder: (child, animation) =>
-                  FadeTransition(opacity: animation, child: child),
-              child: frame?.gameEvent != null
-                  ? Container(
-                      key: ValueKey('event-${frame!.frameNumber}'),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: theme.accentColor.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        _formatGameEvent(frame.gameEvent!),
-                        style: TextStyle(
-                          color: theme.accentColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    )
-                  : const SizedBox.shrink(key: ValueKey('event-empty')),
-            ),
-          ),
-        ],
-      ),
-      ),
-    );
-  }
-
-  Widget _buildInfoItem(String label, String value, IconData icon) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: Colors.white.withValues(alpha: 0.7)),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
+        const CsLabel('Score'),
+        SizedBox(height: cs(6)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text('${frame?.score ?? 0}', maxLines: 1, style: t.hudScore),
         ),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.6),
-            fontSize: 10,
+        SizedBox(height: cs(12)),
+        CsStatGrid(
+          columns: 3,
+          valueSize: 18,
+          cellPadding: 10,
+          stats: [
+            CsStat('${frame?.level ?? 1}', 'Level'),
+            CsStat('${_currentFrameIndex + 1}/${replay.totalFrames}', 'Frame'),
+            CsStat(replay.formattedDuration, 'Time'),
+          ],
+        ),
+        // Reserve a fixed slot for the event chip so the column doesn't
+        // grow/shrink each time a frame has (or stops having) a
+        // `gameEvent`. AnimatedSwitcher fades the chip within the slot.
+        SizedBox(height: cs(10)),
+        SizedBox(
+          height: cs(24),
+          child: AnimatedSwitcher(
+            duration: CsMotion.base,
+            transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+            child: frame?.gameEvent != null
+                ? Align(
+                    key: ValueKey('event-${frame!.frameNumber}'),
+                    alignment: Alignment.centerLeft,
+                    child: _eventChip(frame.gameEvent!),
+                  )
+                : const SizedBox.shrink(key: ValueKey('event-empty')),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildGameBoard(GameTheme theme) {
+  Widget _buildGameBoard(BuildContext context) {
+    final cs = context.cs;
     final frame = _currentFrame;
-    if (frame == null) {
-      return Container(
-        width: 300,
-        height: 300,
-        decoration: BoxDecoration(
-          color: theme.backgroundColor.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: theme.primaryColor.withValues(alpha: 0.3)),
-        ),
-        child: const Center(
-          child: Text('No frame data', style: TextStyle(color: Colors.white)),
-        ),
-      );
-    }
 
     const boardWidth = 20;
     const boardHeight = 20;
     const cellSize = 12.0;
+    const side = boardWidth * cellSize + 2;
 
-    return Container(
-      width: boardWidth * cellSize + 2,
-      height: boardHeight * cellSize + 2,
-      decoration: BoxDecoration(
-        color: theme.backgroundColor.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.primaryColor.withValues(alpha: 0.5),
-          width: 2,
+    final Widget inner = frame == null
+        ? Center(child: Text('NO FRAME DATA', style: cs.type.micro))
+        : CustomPaint(
+            size: const Size(boardWidth * cellSize, boardHeight * cellSize),
+            painter: ReplayBoardPainter(frame: frame, cellSize: cellSize),
+          );
+
+    // Fill the available height; the board is painted at its native cell
+    // size and scaled as one unit.
+    return FittedBox(
+      fit: BoxFit.contain,
+      child: Container(
+        width: side,
+        height: side,
+        padding: const EdgeInsets.all(1),
+        decoration: BoxDecoration(
+          color: CsColors.bgGame,
+          borderRadius: BorderRadius.circular(CsRadius.tile / 2),
+          border: Border.all(color: CsColors.lineSubtle),
         ),
-      ),
-      child: CustomPaint(
-        painter: ReplayBoardPainter(
-          frame: frame,
-          theme: theme,
-          cellSize: cellSize,
-        ),
+        child: inner,
       ),
     );
   }
 
-  Widget _buildPlaybackControls(GameTheme theme) {
+  Widget _buildPlaybackControls(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
     final replay = _replay!;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: GlassPanel(
-      theme: theme,
-      child: Column(
-        children: [
-          // Progress slider
-          Row(
-            children: [
-              Text(
-                '${_currentFrameIndex + 1}',
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+    final atStart = _currentFrameIndex <= 0;
+    final atEnd = _currentFrameIndex >= replay.totalFrames - 1;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Scrubber (theme slider: 2px ink track, white thumb).
+        Row(
+          children: [
+            Text('${_currentFrameIndex + 1}', style: t.micro),
+            Expanded(
+              child: Slider(
+                value: _currentFrameIndex.toDouble(),
+                min: 0,
+                max: (replay.totalFrames - 1).toDouble(),
+                onChanged: (value) {
+                  setState(() {
+                    _currentFrameIndex = value.round();
+                  });
+                },
               ),
-              Expanded(
-                child: Slider(
-                  value: _currentFrameIndex.toDouble(),
-                  min: 0,
-                  max: (replay.totalFrames - 1).toDouble(),
-                  onChanged: (value) {
-                    setState(() {
-                      _currentFrameIndex = value.round();
-                    });
-                  },
-                  activeColor: theme.accentColor,
-                  inactiveColor: theme.primaryColor.withValues(alpha: 0.3),
-                ),
+            ),
+            Text('${replay.totalFrames}', style: t.micro),
+          ],
+        ),
+        SizedBox(height: cs(6)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            CsIconButton(
+              icon: Symbols.skip_previous_rounded,
+              tooltip: 'Previous frame',
+              bordered: false,
+              onPressed: atStart ? null : _previousFrame,
+            ),
+            CsIconButton(
+              icon: Symbols.chevron_left_rounded,
+              tooltip: 'Step back',
+              onPressed: atStart ? null : () => _seekFrames(-1),
+            ),
+            _PlayButton(playing: _isPlaying, onPressed: _togglePlayback),
+            CsIconButton(
+              icon: Symbols.chevron_right_rounded,
+              tooltip: 'Step forward',
+              onPressed: atEnd ? null : () => _seekFrames(1),
+            ),
+            CsIconButton(
+              icon: Symbols.skip_next_rounded,
+              tooltip: 'Next frame',
+              bordered: false,
+              onPressed: atEnd ? null : _nextFrame,
+            ),
+          ],
+        ),
+        SizedBox(height: cs(14)),
+        Row(children: [
+          const CsLabel('Speed', size: 10),
+          SizedBox(width: cs(12)),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: CsSegmented<double>(
+                segments: {0.25: '0.25×', 0.5: '0.5×', 1.0: '1×', 2.0: '2×', 4.0: '4×'},
+                selected: _playbackSpeed,
+                onChanged: (speed) {
+                  setState(() {
+                    _playbackSpeed = speed;
+                  });
+                  if (_isPlaying) {
+                    _startPlayback();
+                  }
+                },
               ),
-              Text(
-                replay.totalFrames.toString(),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-              ),
-            ],
+            ),
           ),
-
-          const SizedBox(height: 16),
-
-          // Control buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              // Previous frame
-              IconButton(
-                onPressed: _currentFrameIndex > 0 ? _previousFrame : null,
-                icon: const Icon(Icons.skip_previous),
-                color: theme.accentColor,
-              ),
-
-              // Step backward
-              IconButton(
-                onPressed: _currentFrameIndex > 0
-                    ? () => _seekFrames(-1)
-                    : null,
-                icon: const Icon(Icons.keyboard_arrow_left),
-                color: theme.primaryColor,
-              ),
-
-              // Play/Pause
-              IconButton(
-                onPressed: _togglePlayback,
-                icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
-                color: theme.accentColor,
-                iconSize: 32,
-              ),
-
-              // Step forward
-              IconButton(
-                onPressed: _currentFrameIndex < replay.totalFrames - 1
-                    ? () => _seekFrames(1)
-                    : null,
-                icon: const Icon(Icons.keyboard_arrow_right),
-                color: theme.primaryColor,
-              ),
-
-              // Next frame
-              IconButton(
-                onPressed: _currentFrameIndex < replay.totalFrames - 1
-                    ? _nextFrame
-                    : null,
-                icon: const Icon(Icons.skip_next),
-                color: theme.accentColor,
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Speed control
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'Speed: ',
-                style: TextStyle(color: Colors.white, fontSize: 14),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (double speed in [0.25, 0.5, 1.0, 2.0, 4.0])
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: ChoiceChip(
-                            label: Text('${speed}x'),
-                            selected: _playbackSpeed == speed,
-                            onSelected: (selected) {
-                              if (selected) {
-                                setState(() {
-                                  _playbackSpeed = speed;
-                                });
-                                if (_isPlaying) {
-                                  _startPlayback();
-                                }
-                              }
-                            },
-                            selectedColor: theme.accentColor.withValues(
-                              alpha: 0.3,
-                            ),
-                            backgroundColor: theme.primaryColor.withValues(
-                              alpha: 0.1,
-                            ),
-                            labelStyle: TextStyle(
-                              color: _playbackSpeed == speed
-                                  ? theme.accentColor
-                                  : Colors.white,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      ),
+        ]),
+      ],
     );
+  }
+
+  Widget _eventChip(Map<String, dynamic> event) {
+    final type = event['type'] as String;
+    final icon = switch (type) {
+      'food_consumed' => Symbols.explosion_rounded,
+      'power_up_collected' => Symbols.bolt_rounded,
+      _ => Symbols.info_rounded,
+    };
+    return CsChip(_formatGameEvent(event), icon: icon);
   }
 
   void _togglePlayback() {
@@ -547,23 +391,50 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
     final type = event['type'] as String;
     switch (type) {
       case 'food_consumed':
-        return '💥 Destroyed ${event['foodType']} enemy';
+        return 'Destroyed ${event['foodType']} enemy';
       case 'power_up_collected':
-        return '⚡ Collected ${event['powerUpType']} power-up';
+        return 'Collected ${event['powerUpType']} power-up';
       default:
         return event.toString();
     }
   }
 }
 
+/// White play / pause disc — the focal control of the viewer.
+class _PlayButton extends StatelessWidget {
+  const _PlayButton({required this.playing, required this.onPressed});
+  final bool playing;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = context.cs(56).clamp(48.0, 76.0);
+    return CsPressable(
+      onTap: onPressed,
+      semanticLabel: playing ? 'Pause' : 'Play',
+      child: Container(
+        width: d,
+        height: d,
+        decoration: const BoxDecoration(color: CsColors.ink, shape: BoxShape.circle),
+        alignment: Alignment.center,
+        child: Icon(
+          playing ? Symbols.pause_rounded : Symbols.play_arrow_rounded,
+          size: d * 0.5,
+          color: CsColors.onLight,
+        ),
+      ),
+    );
+  }
+}
+
+/// Paints one recorded frame: the ship (ink, head with dark "eyes"), the
+/// enemy target (pink — danger) and a power-up star (gold).
 class ReplayBoardPainter extends CustomPainter {
   final GameFrame frame;
-  final GameTheme theme;
   final double cellSize;
 
   ReplayBoardPainter({
     required this.frame,
-    required this.theme,
     required this.cellSize,
   });
 
@@ -571,15 +442,24 @@ class ReplayBoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint();
 
+    // Faint cell grid so positions read on the black board.
+    final grid = Paint()
+      ..color = CsColors.fill04
+      ..strokeWidth = 1;
+    for (double x = cellSize; x < size.width; x += cellSize) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
+    }
+    for (double y = cellSize; y < size.height; y += cellSize) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
+    }
+
     // Draw ship
     if (frame.shipPositions.isNotEmpty) {
       for (int i = 0; i < frame.shipPositions.length; i++) {
         final pos = frame.shipPositions[i];
         final isHead = i == 0;
 
-        paint.color = isHead
-            ? theme.shipColor
-            : theme.shipColor.withValues(alpha: 0.8);
+        paint.color = isHead ? CsColors.ink : CsColors.ink60;
 
         final rect = Rect.fromLTWH(
           pos[0] * cellSize + 1,
@@ -594,22 +474,15 @@ class ReplayBoardPainter extends CustomPainter {
         );
 
         if (isHead) {
-          // Draw eyes
-          paint.color = Colors.white;
-          final eyeSize = cellSize * 0.15;
+          paint.color = CsColors.bg;
+          final eyeSize = cellSize * 0.12;
           canvas.drawCircle(
-            Offset(
-              pos[0] * cellSize + cellSize * 0.3,
-              pos[1] * cellSize + cellSize * 0.3,
-            ),
+            Offset(pos[0] * cellSize + cellSize * 0.3, pos[1] * cellSize + cellSize * 0.3),
             eyeSize,
             paint,
           );
           canvas.drawCircle(
-            Offset(
-              pos[0] * cellSize + cellSize * 0.7,
-              pos[1] * cellSize + cellSize * 0.3,
-            ),
+            Offset(pos[0] * cellSize + cellSize * 0.7, pos[1] * cellSize + cellSize * 0.3),
             eyeSize,
             paint,
           );
@@ -617,9 +490,9 @@ class ReplayBoardPainter extends CustomPainter {
       }
     }
 
-    // Draw food
+    // Draw enemy target
     if (frame.foodPosition != null) {
-      paint.color = theme.foodColor;
+      paint.color = CsColors.pink;
       final pos = frame.foodPosition!;
       final rect = Rect.fromLTWH(
         pos[0] * cellSize + 1,
@@ -636,7 +509,7 @@ class ReplayBoardPainter extends CustomPainter {
 
     // Draw power-up
     if (frame.powerUpPosition != null) {
-      paint.color = theme.accentColor;
+      paint.color = CsColors.gold;
       final pos = frame.powerUpPosition!;
       final center = Offset(
         pos[0] * cellSize + cellSize / 2,
@@ -647,11 +520,9 @@ class ReplayBoardPainter extends CustomPainter {
       final path = Path();
       final radius = cellSize * 0.4;
       for (int i = 0; i < 5; i++) {
-        final angle = (i * 2 * 3.14159) / 5 - 3.14159 / 2;
-        final x =
-            center.dx + radius * 0.6 * (i % 2 == 0 ? 1 : 0.5) * math.cos(angle);
-        final y =
-            center.dy + radius * 0.6 * (i % 2 == 0 ? 1 : 0.5) * math.sin(angle);
+        final angle = (i * 2 * math.pi) / 5 - math.pi / 2;
+        final x = center.dx + radius * 0.6 * (i % 2 == 0 ? 1 : 0.5) * math.cos(angle);
+        final y = center.dy + radius * 0.6 * (i % 2 == 0 ? 1 : 0.5) * math.sin(angle);
         if (i == 0) {
           path.moveTo(x, y);
         } else {
@@ -664,5 +535,6 @@ class ReplayBoardPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant ReplayBoardPainter oldDelegate) =>
+      oldDelegate.frame != frame || oldDelegate.cellSize != cellSize;
 }

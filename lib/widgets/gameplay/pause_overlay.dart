@@ -1,23 +1,21 @@
 import 'dart:async';
 
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:flutter/material.dart';
 
-import '../../game/cosmo_palette.dart';
 import '../../game/cosmo_strike_game.dart';
 import '../../models/level_run_result.dart';
-import '../../services/ads/ad_tuning.dart';
 import '../../services/audio_service.dart';
 import '../../services/haptic_service.dart';
 import '../../services/storage_service.dart';
-import '../../ui/design.dart';
-import '../ads/banner_ad_widget.dart';
 import 'challenge_panel.dart';
 import 'run_stat_tiles.dart';
 
-/// The pause "mission console": a two-region landscape overlay on the
-/// dimmed, frozen battlefield. Left = live run telemetry + audio/haptic
-/// quick toggles + Resume/Restart/Quit; right = today's daily directives
-/// with inline claims.
+/// The pause overlay over the blurred, frozen battlefield (82% scrim +
+/// blur 10). Left = mono run meta, the "Paused" headline, a 3×2 run stat
+/// grid, SFX / MUSIC / HAPTICS toggle chips, the opt-in "+1 life" ad perk,
+/// and RESUME · RESTART · QUIT; right = today's daily directives with
+/// inline claims.
 ///
 /// The Flame engine is frozen while this is up, so the one-shot
 /// [CosmoStrikeGame.buildPartialResult] read in build is stable.
@@ -80,11 +78,11 @@ class _PauseOverlayState extends State<PauseOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
     final game = widget.game;
     final partial = game.buildPartialResult();
-    final firstClears = widget.outcomes.values
-        .where((o) => o.firstClear)
-        .length;
+    final firstClears = widget.outcomes.values.where((o) => o.firstClear).length;
     // Mirrors the _submitRun payout formula — an estimate because the
     // run isn't over yet.
     final coinsEst =
@@ -93,214 +91,103 @@ class _PauseOverlayState extends State<PauseOverlay> {
         partial.bossesKilled * 50 +
         partial.levelsCleared * 25 +
         firstClears * 75;
+    final level = game.levelNotifier.value.toString().padLeft(2, '0');
+    final meta = '${game.mode.name} · L$level — ${game.levelNameNotifier.value}';
 
-    return Stack(
+    final left = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Dimmed frozen battlefield — also swallows stray taps.
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {},
-            child: Container(
-              color: const Color(0xFF05060F).withValues(alpha: 0.72),
-            ),
+        Expanded(
+          child: CsFitColumn(
+            children: [
+              CsLabel(meta),
+              SizedBox(height: cs(6)),
+              Text('Paused', maxLines: 1, style: t.display(60, em: -0.04, height: 1)),
+              SizedBox(height: cs(18)),
+              CsStatGrid(
+                columns: 3,
+                stats: [
+                  CsStat('${partial.score}', 'Score'),
+                  CsStat('L${partial.stageReached}·W${partial.waveReached}', 'Level · Wave'),
+                  CsStat('${partial.enemiesKilled}', 'Kills'),
+                  CsStat('×${partial.maxCombo}', 'Max combo'),
+                  CsStat('${partial.grazeCount}', 'Grazes'),
+                  CsStat('$coinsEst', 'Coins (est.)', color: CsColors.gold),
+                ],
+              ),
+              SizedBox(height: cs(18)),
+              Wrap(
+                spacing: cs(10),
+                runSpacing: cs(10),
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const _QuickToggles(),
+                  // Opt-in rewarded perk: watch an ad → +1 life. Only
+                  // rendered when an ad is loaded and the daily cap isn't
+                  // hit, so it never shows as a dead button (and never for
+                  // Pro users, who can't watch ads).
+                  if (widget.lifeAdReady)
+                    CsButton.secondary(
+                      label: 'Watch ad · +1 life',
+                      icon: Symbols.favorite_rounded,
+                      size: CsButtonSize.small,
+                      onPressed: widget.onWatchAdForLife,
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
-        // Banner strip at the top of the console. This (plus the level-clear
-        // + game-over overlays) replaced the old always-on in-play banner;
-        // remote kill switch via AdTuning. ShipBannerAd reserves its height
-        // up front, and the console content lives in the Expanded below, so
-        // the banner never overlaps it and a late ad load never shifts it.
-        Column(
+        SizedBox(height: cs(16)),
+        OverlayActions(
           children: [
-            if (AdTuning.overlayBannersEnabled) const ShipBannerAd(top: true),
-            Expanded(
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: GameTokens.space24,
-                    vertical: GameTokens.space16,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // LEFT — telemetry console. Never scrolls: natural size
-                      // inside a FittedBox so short phones scale it down.
-                      Expanded(
-                        flex: 11,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerLeft,
-                                child: SizedBox(
-                                  width: 380,
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'PAUSED',
-                                        style: TextStyle(
-                                          color: CosmoPalette.hull,
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 4,
-                                          shadows: [
-                                            Shadow(
-                                              color: CosmoPalette.hull
-                                                  .withValues(alpha: 0.7),
-                                              blurRadius: 16,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '${game.mode.name.toUpperCase()} · '
-                                        'L${game.levelNotifier.value} — '
-                                        '${game.levelNameNotifier.value.toUpperCase()}',
-                                        style: TextStyle(
-                                          color: CosmoPalette.hull.withValues(
-                                            alpha: 0.75,
-                                          ),
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: 1.8,
-                                        ),
-                                      ),
-                                      const SizedBox(
-                                        height: GameTokens.space20,
-                                      ),
-                                      Wrap(
-                                        spacing: GameTokens.space16,
-                                        runSpacing: GameTokens.space12,
-                                        children: [
-                                          RunStatTile(
-                                            icon: Icons.score,
-                                            value: '${partial.score}',
-                                            label: 'SCORE',
-                                          ),
-                                          RunStatTile(
-                                            icon: Icons.flag,
-                                            value:
-                                                'L${partial.stageReached} · W${partial.waveReached}',
-                                            label: 'LEVEL · WAVE',
-                                          ),
-                                          RunStatTile(
-                                            icon: Icons.gps_fixed,
-                                            value: '${partial.enemiesKilled}',
-                                            label: 'KILLS',
-                                          ),
-                                          RunStatTile(
-                                            icon: Icons.bolt,
-                                            value: '×${partial.maxCombo}',
-                                            label: 'MAX COMBO',
-                                          ),
-                                          RunStatTile(
-                                            icon: Icons.shield_moon,
-                                            value: '${partial.grazeCount}',
-                                            label: 'GRAZES',
-                                          ),
-                                          RunStatTile(
-                                            icon: Icons.monetization_on,
-                                            value: '$coinsEst',
-                                            label: 'COINS (EST.)',
-                                            accent: const Color(0xFFFFD37B),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(
-                                        height: GameTokens.space20,
-                                      ),
-                                      _QuickToggles(),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // Opt-in rewarded perk: watch an ad → +1 life. Only
-                            // rendered when an ad is loaded and the daily cap isn't
-                            // hit, so it never shows as a dead button (and never for
-                            // Pro users, who can't watch ads).
-                            if (widget.lifeAdReady) ...[
-                              const SizedBox(height: GameTokens.space12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OverlayActionButton(
-                                  label: '▶ WATCH AD  ·  +1 LIFE',
-                                  onTap: widget.onWatchAdForLife,
-                                  variant: NeonButtonVariant.outline,
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: GameTokens.space12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OverlayActionButton(
-                                    label: 'RESUME',
-                                    onTap: widget.onResume,
-                                  ),
-                                ),
-                                const SizedBox(width: GameTokens.space8),
-                                Expanded(
-                                  child: OverlayActionButton(
-                                    label: _confirmRestart
-                                        ? 'CONFIRM?'
-                                        : 'RESTART',
-                                    onTap: _tapRestart,
-                                    variant: NeonButtonVariant.outline,
-                                  ),
-                                ),
-                                const SizedBox(width: GameTokens.space8),
-                                Expanded(
-                                  child: OverlayActionButton(
-                                    label: 'QUIT',
-                                    onTap: widget.onQuit,
-                                    variant: NeonButtonVariant.ghost,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: GameTokens.space24),
-                      // RIGHT — daily directives (the only scrollable).
-                      Expanded(
-                        flex: 9,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SectionHeader('DAILY DIRECTIVES'),
-                            const SizedBox(height: GameTokens.space12),
-                            Expanded(
-                              child: SingleChildScrollView(
-                                child: ChallengePanel(),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            CsButton.primary(
+              label: 'Resume',
+              icon: Symbols.play_arrow_rounded,
+              onPressed: widget.onResume,
             ),
+            CsButton.secondary(
+              label: _confirmRestart ? 'Confirm?' : 'Restart',
+              onPressed: _tapRestart,
+            ),
+            CsButton.text(label: 'Quit', onPressed: widget.onQuit),
           ],
         ),
       ],
     );
+
+    final right = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: CsLabel('Daily directives')),
+            SizedBox(width: cs(10)),
+            const ChallengeClaimAllButton(),
+          ],
+        ),
+        SizedBox(height: cs(8)),
+        const Expanded(
+          child: SingleChildScrollView(
+            physics: ClampingScrollPhysics(),
+            child: ChallengePanel(showClaimAll: false),
+          ),
+        ),
+      ],
+    );
+
+    return GameplayOverlayFrame(
+      blur: true,
+      child: OverlaySplit(left: left, right: right),
+    );
   }
 }
 
-/// Sound / music / haptics quick toggles — neon icon discs, lit when on,
-/// dimmed when off. Mirrors the settings screen's persistence exactly.
+/// SFX / MUSIC / HAPTICS quick toggle chips (off = 40% ink, 10% border).
+/// Mirrors the settings screen's persistence exactly.
 class _QuickToggles extends StatefulWidget {
+  const _QuickToggles();
+
   @override
   State<_QuickToggles> createState() => _QuickTogglesState();
 }
@@ -332,62 +219,33 @@ class _QuickTogglesState extends State<_QuickToggles> {
 
   @override
   Widget build(BuildContext context) {
+    final gap = context.cs(10);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _ToggleDisc(
-          icon: Icons.volume_up,
-          enabled: _sound,
-          onTap: _toggleSound,
+        CsToggleChip(
+          icon: Symbols.volume_up_rounded,
+          offIcon: Symbols.volume_off_rounded,
+          label: 'SFX',
+          value: _sound,
+          onChanged: (_) => _toggleSound(),
         ),
-        const SizedBox(width: GameTokens.space12),
-        _ToggleDisc(
-          icon: Icons.music_note,
-          enabled: _music,
-          onTap: _toggleMusic,
+        SizedBox(width: gap),
+        CsToggleChip(
+          icon: Symbols.music_note_rounded,
+          offIcon: Symbols.music_off_rounded,
+          label: 'Music',
+          value: _music,
+          onChanged: (_) => _toggleMusic(),
         ),
-        const SizedBox(width: GameTokens.space12),
-        _ToggleDisc(
-          icon: Icons.vibration,
-          enabled: _haptics,
-          onTap: _toggleHaptics,
+        SizedBox(width: gap),
+        CsToggleChip(
+          icon: Symbols.vibration_rounded,
+          label: 'Haptics',
+          value: _haptics,
+          onChanged: (_) => _toggleHaptics(),
         ),
       ],
-    );
-  }
-}
-
-class _ToggleDisc extends StatelessWidget {
-  const _ToggleDisc({
-    required this.icon,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Opacity(
-        opacity: enabled ? 1 : 0.35,
-        child: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: CosmoPalette.hull.withValues(alpha: enabled ? 0.14 : 0.06),
-            boxShadow: enabled
-                ? softGlow(CosmoPalette.hull, intensity: 0.6)
-                : null,
-          ),
-          child: Icon(icon, size: 20, color: CosmoPalette.hull),
-        ),
-      ),
     );
   }
 }

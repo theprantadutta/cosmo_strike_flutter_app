@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 import 'package:flame/flame.dart';
 import 'package:flutter/painting.dart';
 
+import '../cosmo_palette.dart';
 import '../cosmo_strike_game.dart';
 import '../game_assets.dart';
 import 'boss.dart';
@@ -34,6 +35,9 @@ class PlayerBullet extends PositionComponent
   /// Vertical drift for the spread fan.
   double driftY = 0;
 
+  /// Enemies this shot can still pass through (Piercing Rounds).
+  int pierceLeft = 0;
+
   late final RectangleHitbox _hitbox =
       RectangleHitbox(collisionType: CollisionType.inactive);
 
@@ -57,7 +61,9 @@ class PlayerBullet extends PositionComponent
     int damage = 1,
     bool heavy = false,
     double driftY = 0,
+    int pierce = 0,
   }) {
+    pierceLeft = pierce;
     this.speed = speed;
     this.damage = damage;
     this.heavy = heavy;
@@ -86,7 +92,8 @@ class PlayerBullet extends PositionComponent
   @override
   void render(Canvas canvas) {
     if (!active) return;
-    _sprite.render(canvas, size: size);
+    // Neutral-white streak art × the theme accent.
+    _sprite.render(canvas, size: size, overridePaint: CosmoPalette.accentTint);
   }
 
   @override
@@ -96,13 +103,17 @@ class PlayerBullet extends PositionComponent
     if (other is EnemyShip) {
       game.pools.hitSpark(position);
       other.takeDamage(damage);
-      deactivate();
+      if (pierceLeft > 0) {
+        pierceLeft--;
+      } else {
+        deactivate();
+      }
     } else if (other is EnemyBullet) {
-      // Intercept: shoot incoming fire out of the sky. Trades your shot
-      // for safety (+10 pts); the heavy laser pierces straight through.
-      // Regular shots pop on the first hit; boss energy bolts take a few
-      // hits (hitsRequired) and flash on each non-lethal one.
-      if (other.active && other.canBeShotDown) {
+      // Intercept: only HEAVY shots (laser tier, Overdrive) shoot incoming
+      // fire out of the sky (+10 pts). The regular gun passes through it,
+      // so dodging is the player's job. Regular shots pop on the first
+      // hit; boss energy bolts take a few hits (hitsRequired).
+      if (heavy && other.active && other.canBeShotDown) {
         game.pools.hitSpark(other.position);
         other.hitsTaken++;
         if (other.hitsTaken >= other.hitsRequired) {
@@ -111,7 +122,6 @@ class PlayerBullet extends PositionComponent
         } else {
           other.flashHit();
         }
-        if (!heavy) deactivate();
       }
     } else if (other is Boss) {
       game.pools.hitSpark(position);
@@ -253,12 +263,13 @@ class EnemyBullet extends PositionComponent
 
   // Graze ring: closer than the outer radius but not dead-center (a
   // straight hit is a hit, not a graze). Center-to-center, squared.
-  static const double _grazeOuter2 = 48 * 48;
+  static const double _grazeOuter = 48;
   static const double _grazeInner2 = 24 * 24;
 
   late final CircleHitbox _hitbox =
       CircleHitbox(collisionType: CollisionType.inactive);
 
+  static final Paint _hitFlashPaint = Paint();
   static Sprite? _enemySprite;
   static Sprite? _bossSprite;
   static Sprite? _mortarSprite;
@@ -321,7 +332,8 @@ class EnemyBullet extends PositionComponent
       final p = game.player;
       if (!p.ghosted && !p.isInvulnerable) {
         final d2 = position.distanceToSquared(p.position);
-        if (d2 < _grazeOuter2 && d2 > _grazeInner2) {
+        final outer = _grazeOuter * game.upgrades.grazeRangeScale;
+        if (d2 < outer * outer && d2 > _grazeInner2) {
           _grazed = true;
           game.onGraze(position.clone());
         }
@@ -358,10 +370,11 @@ class EnemyBullet extends PositionComponent
       canvas.scale(swell);
       canvas.translate(-size.x / 2, -size.y / 2);
       _sprite.render(canvas, size: size);
+      _hitFlashPaint.color = Color.fromRGBO(255, 255, 255, 0.55 * t);
       canvas.drawCircle(
         Offset(size.x / 2, size.y / 2),
         size.x / 2,
-        Paint()..color = Color.fromRGBO(255, 255, 255, 0.55 * t),
+        _hitFlashPaint,
       );
       canvas.restore();
       return;

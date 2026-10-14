@@ -1,18 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/models/game_replay.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
-import 'package:cosmo_strike_flutter_app/widgets/themed_loading.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+
+enum _ReplayTab { recent, best, crashes }
 
 class ReplaysScreen extends StatefulWidget {
   const ReplaysScreen({super.key});
@@ -21,25 +19,22 @@ class ReplaysScreen extends StatefulWidget {
   State<ReplaysScreen> createState() => _ReplaysScreenState();
 }
 
-class _ReplaysScreenState extends State<ReplaysScreen>
-    with SingleTickerProviderStateMixin {
+class _ReplaysScreenState extends State<ReplaysScreen> {
   final StorageService _storageService = StorageService();
   List<GameReplay> _replays = [];
   bool _isLoading = true;
-  late TabController _tabController;
+  _ReplayTab _tab = _ReplayTab.recent;
   StreamSubscription<List<GameReplay>>? _replaysSub;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
     _subscribeToReplays();
   }
 
   @override
   void dispose() {
     _replaysSub?.cancel();
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -94,325 +89,196 @@ class _ReplaysScreenState extends State<ReplaysScreen>
     return sorted;
   }
 
-  List<GameReplay> get _crashReplays =>
-      _replays.where((r) => r.crashReason != null).toList();
+  List<GameReplay> get _crashReplays => _replays.where((r) => r.crashReason != null).toList();
 
   @override
   Widget build(BuildContext context) {
-    final themeState = context.watch<ThemeCubit>().state;
-    final theme = themeState.currentTheme;
-
-    return CommandScaffold(
-      theme: theme,
-      title: 'Game Replays',
-      bottomBar: const ShipBannerAd(),
-      bodyPadding: EdgeInsets.zero,
-      actions: [
-        if (!_isLoading && _replays.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: HudChip(label: '${_replays.length}', theme: theme, dense: true),
-          ),
+    return CsScaffold(
+      title: 'Game replays',
+      washes: const [CsWash.violetTopRight],
+      trailing: [
+        if (!_isLoading && _replays.isNotEmpty) CsMeta('${_replays.length} saved'),
       ],
       // No refresh button: the screen subscribes to Drift's reactive
       // replay stream, so the list updates the instant a row changes.
-      body: Column(
-        children: [
-          _buildTabBar(theme),
-          Expanded(
-            child: _isLoading
-                ? ThemedLoading(theme: theme, label: 'Loading replays...')
-                : TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildReplayList(
-                          _recentReplays, 'No recent replays', theme),
-                      _buildReplayList(
-                        _highScoreReplays,
-                        'No high-score replays',
-                        theme,
-                      ),
-                      _buildReplayList(
-                          _crashReplays, 'No crash replays', theme),
-                    ],
-                  ),
+      body: CsSplit(
+        // Inline banner in the summary column (no full-width banners).
+        leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
+        left: _buildSummary(context),
+        right: _isLoading ? const CsLoadingState(label: 'Loading replays') : _buildList(context),
+      ),
+    );
+  }
+
+  Widget _buildSummary(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    final best = _replays.isEmpty
+        ? 0
+        : _replays.map((r) => r.finalScore).reduce((a, b) => a > b ? a : b);
+    return CsFitColumn(
+      alignment: Alignment.centerLeft,
+      children: [
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: CsSegmented<_ReplayTab>(
+            segments: const {
+              _ReplayTab.recent: 'Recent',
+              _ReplayTab.best: 'Best',
+              _ReplayTab.crashes: 'Crashes',
+            },
+            selected: _tab,
+            onChanged: (v) => setState(() => _tab = v),
           ),
-        ],
+        ),
+        SizedBox(height: cs(28)),
+        const CsLabel('Best replay'),
+        SizedBox(height: cs(8)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(_formatScore(best), maxLines: 1, style: t.display(64, em: -0.04, height: 0.95)),
+        ),
+        SizedBox(height: cs(12)),
+        Text(
+          '${_replays.length} SAVED · ${_crashReplays.length} CRASHES',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: t.label,
+        ),
+        SizedBox(height: cs(18)),
+        Text('Tap a run to watch it frame by frame.', style: t.body),
+      ],
+    );
+  }
+
+  Widget _buildList(BuildContext context) {
+    final (List<GameReplay> list, String empty) = switch (_tab) {
+      _ReplayTab.recent => (_recentReplays, 'No recent replays'),
+      _ReplayTab.best => (_highScoreReplays, 'No high-score replays'),
+      _ReplayTab.crashes => (_crashReplays, 'No crash replays'),
+    };
+    return AnimatedSwitcher(
+      duration: CsMotion.base,
+      switchInCurve: CsMotion.standard,
+      child: KeyedSubtree(
+        key: ValueKey(_tab),
+        child: list.isEmpty
+            ? CsEmptyState(
+                icon: Symbols.videocam_off_rounded,
+                title: empty,
+                message: 'Play some games to generate replays!',
+              )
+            : ListView.builder(
+                padding: EdgeInsets.only(bottom: context.cs(12)),
+                itemCount: list.length,
+                itemBuilder: (context, i) => _buildReplayRow(context, list[i], first: i == 0),
+              ),
       ),
     );
   }
 
-  Widget _buildTabBar(GameTheme theme) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      decoration: BoxDecoration(
-        color: theme.surfaceGlass,
-        borderRadius: GameTokens.brMd,
-        border: Border.all(color: theme.stroke),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicator: BoxDecoration(
-          color: theme.neonPrimary.withValues(alpha: 0.85),
-          borderRadius: GameTokens.brMd,
-        ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerColor: Colors.transparent,
-        labelColor: const Color(0xFF03040A),
-        unselectedLabelColor: theme.textMuted,
-        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-        tabs: const [
-          Tab(text: 'Recent'),
-          Tab(text: 'Best'),
-          Tab(text: 'Crashes'),
-        ],
-      ),
-    );
-  }
+  Widget _buildReplayRow(BuildContext context, GameReplay replay, {required bool first}) {
+    final cs = context.cs;
+    final t = cs.type;
+    final summary = replay.getSummary();
+    final crashed = replay.crashReason != null;
 
-  Widget _buildReplayList(
-    List<GameReplay> replays,
-    String emptyMessage,
-    GameTheme theme,
-  ) {
-    if (replays.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.videocam_off,
-              size: 80,
-              color: theme.primaryColor.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              emptyMessage,
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.white.withValues(alpha: 0.7),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Play some games to generate replays!',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white.withValues(alpha: 0.5),
-              ),
-            ),
-          ],
-        ),
-      );
+    void open() {
+      getIt<AnalyticsFacade>().trackReplayViewed();
+      context.push(AppRoutes.replayViewerPath(replay.id), extra: replay);
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: replays.length,
-      itemBuilder: (context, index) {
-        final replay = replays[index];
-        return _buildReplayCard(replay, theme);
-      },
-    );
-  }
+    final meta = [
+      _formatDate(replay.createdAt).toUpperCase(),
+      '${summary['duration']}',
+      '${summary['foodConsumed']} KILLS',
+      '${replay.totalFrames} FRAMES',
+      '${summary['powerUpsCollected']} PWR',
+    ].join(' · ');
 
-  Widget _buildReplayCard(GameReplay replay, GameTheme theme) {
-    final summary = replay.getSummary();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: HoloCard(
-        theme: theme,
-        onTap: () {
-          getIt<AnalyticsFacade>().trackReplayViewed();
-          context.push(AppRoutes.replayViewerPath(replay.id), extra: replay);
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-              // Header row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        replay.playerName,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        _formatDate(replay.createdAt),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: replay.crashReason != null
-                          ? Colors.red.withValues(alpha: 0.2)
-                          : Colors.green.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      summary['outcome'],
-                      style: TextStyle(
-                        color: replay.crashReason != null
-                            ? Colors.red
-                            : Colors.green,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 12),
-
-              // Score and stats
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatChip(
-                      'Score',
-                      replay.finalScore.toString(),
-                      Icons.stars,
-                      Colors.amber,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildStatChip(
-                      'Duration',
-                      summary['duration'],
-                      Icons.timer,
-                      Colors.blue,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildStatChip(
-                      'Kills',
-                      summary['foodConsumed'].toString(),
-                      Icons.fastfood,
-                      Colors.orange,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 8),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatChip(
-                      'Frames',
-                      replay.totalFrames.toString(),
-                      Icons.movie,
-                      Colors.purple,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildStatChip(
-                      'Best Stage',
-                      summary['maxLength'].toString(),
-                      Icons.straighten,
-                      Colors.green,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildStatChip(
-                      'Power-ups',
-                      summary['powerUpsCollected'].toString(),
-                      Icons.flash_on,
-                      Colors.yellow,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 12),
-
-              // Action buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: NeonButton(
-                      onPressed: () => context.push(
-                          AppRoutes.replayViewerPath(replay.id),
-                          extra: replay),
-                      label: 'Watch',
-                      icon: Icons.play_arrow,
-                      theme: theme,
-                      expand: true,
-                      height: 44,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () => _deleteReplay(replay),
-                    icon: const Icon(Icons.delete),
-                    color: Colors.red,
-                    iconSize: 20,
-                  ),
-                ],
-              ),
-            ],
+    return CsPressable(
+      onTap: open,
+      scale: 0.99,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 48),
+        padding: EdgeInsets.symmetric(vertical: cs(12)),
+        decoration: BoxDecoration(
+          border: Border(
+            top: first ? const BorderSide(color: CsColors.hairline) : BorderSide.none,
+            bottom: const BorderSide(color: CsColors.hairline),
           ),
         ),
-      );
-  }
-
-  Widget _buildStatChip(
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
+        child: Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _formatScore(replay.finalScore),
+                      maxLines: 1,
+                      style: t.display(24, em: -0.02, height: 1),
+                    ),
+                  ),
+                ),
+                SizedBox(width: cs(10)),
+                Flexible(
+                  flex: 2,
+                  child: Text(
+                    replay.playerName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.mono(10, color: CsColors.ink45),
+                  ),
+                ),
+              ]),
+              SizedBox(height: cs(6)),
+              Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.micro),
+              SizedBox(height: cs(8)),
+              Wrap(spacing: cs(6), runSpacing: cs(6), children: [
+                CsChip('${summary['outcome']}', kind: crashed ? CsChipKind.pink : CsChipKind.mint),
+                CsChip('Stage ${summary['maxLength']}'),
+                if (replay.gameMode.isNotEmpty) CsChip(_prettyMode(replay.gameMode)),
+              ]),
+            ]),
           ),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
-              fontSize: 10,
-            ),
+          SizedBox(width: cs(12)),
+          CsButton.secondary(
+            label: 'Watch',
+            icon: Symbols.play_arrow_rounded,
+            size: CsButtonSize.small,
+            onPressed: () => context.push(AppRoutes.replayViewerPath(replay.id), extra: replay),
           ),
-        ],
+          SizedBox(width: cs(4)),
+          CsIconButton(
+            icon: Symbols.delete_rounded,
+            bordered: false,
+            color: CsColors.pink,
+            size: 36,
+            tooltip: 'Delete replay',
+            onPressed: () => _deleteReplay(replay),
+          ),
+        ]),
       ),
     );
+  }
+
+  String _prettyMode(String raw) => raw
+      .replaceAllMapped(RegExp(r'([a-z])([A-Z])'), (m) => '${m[1]} ${m[2]}')
+      .replaceAll('_', ' ');
+
+  String _formatScore(int v) {
+    final s = v.abs().toString();
+    final b = StringBuffer(v < 0 ? '-' : '');
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) b.write(',');
+      b.write(s[i]);
+    }
+    return b.toString();
   }
 
   String _formatDate(DateTime date) {
@@ -434,39 +300,25 @@ class _ReplaysScreenState extends State<ReplaysScreen>
   }
 
   Future<void> _deleteReplay(GameReplay replay) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Replay'),
-        content: Text('Delete replay from ${_formatDate(replay.createdAt)}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showCsConfirm(
+      context,
+      eyebrow: 'Replays',
+      title: 'Delete replay?',
+      message: 'Delete replay from ${_formatDate(replay.createdAt)}?',
+      confirmLabel: 'Delete',
+      destructive: true,
     );
 
-    if (confirmed == true) {
+    if (confirmed) {
       try {
         // Drift watch re-emits automatically — no manual reload.
         await _storageService.deleteReplay(replay.id);
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Replay deleted')));
+          showCsToast(context, 'Replay deleted', kind: CsToastKind.success);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to delete replay')),
-          );
+          showCsToast(context, 'Failed to delete replay', kind: CsToastKind.error);
         }
       }
     }

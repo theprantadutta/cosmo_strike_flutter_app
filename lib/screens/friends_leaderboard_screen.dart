@@ -1,48 +1,33 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
-import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/models/user_profile.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/services/social_service.dart';
-import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/utils/game_animations.dart';
-import 'package:cosmo_strike_flutter_app/ui/design.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 
 class FriendsLeaderboardScreen extends StatefulWidget {
   const FriendsLeaderboardScreen({super.key});
 
   @override
-  State<FriendsLeaderboardScreen> createState() =>
-      _FriendsLeaderboardScreenState();
+  State<FriendsLeaderboardScreen> createState() => _FriendsLeaderboardScreenState();
 }
 
-class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen>
-    with SingleTickerProviderStateMixin {
+class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen> {
   final SocialService _socialService = SocialService();
   final AppDataCache _appCache = AppDataCache();
   List<UserProfile> _leaderboard = [];
   bool _isLoading = true;
-  late AnimationController _animationController;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
     _initializeLeaderboard();
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
   }
 
   void _initializeLeaderboard() {
@@ -56,7 +41,6 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen>
         _leaderboard = sortedFriends;
         _isLoading = false;
       });
-      _animationController.forward();
 
       // Refresh in background for latest data
       _refreshInBackground();
@@ -89,7 +73,6 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen>
           _leaderboard = leaderboard;
           _isLoading = false;
         });
-        _animationController.forward();
       }
     } catch (e) {
       if (mounted) {
@@ -100,548 +83,134 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ThemeCubit, ThemeState>(
-      builder: (context, state) {
-        final theme = state.currentTheme;
-        final authState = context.watch<AuthCubit>().state;
-        final currentUid = authState.isSignedIn ? authState.userId : null;
+    final authState = context.watch<AuthCubit>().state;
+    final currentUid = authState.isSignedIn ? authState.userId : null;
+    final cs = context.cs;
 
-        return CommandScaffold(
-          theme: theme,
-          title: 'Friends Leaderboard',
-          bottomBar: const ShipBannerAd(),
-          bodyPadding: EdgeInsets.zero,
-          actions: [
-            IconButton(
-              onPressed: _loadLeaderboard,
-              icon: Icon(
-                Icons.refresh,
-                color: theme.accentColor.withValues(alpha: 0.7),
-                size: 24,
-              ),
-            ),
-          ],
-          body: Column(
-            children: [
-              _buildSubtitle(theme),
-              Expanded(
-                child: _isLoading
-                    ? _buildLoadingIndicator(theme)
-                    : _buildLeaderboard(theme, currentUid),
-              ),
-            ],
+    return CsScaffold(
+      title: 'Friend ranks',
+      trailing: [
+        CsIconButton(
+          icon: Symbols.refresh_rounded,
+          size: 36,
+          bordered: false,
+          color: CsColors.ink60,
+          tooltip: 'Refresh',
+          onPressed: _loadLeaderboard,
+        ),
+      ],
+      body: CsSplit(
+        // Inline banner in the summary column (no full-width banners).
+        leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
+        leftWidth: 270,
+        gap: cs(40),
+        left: _SideColumn(children: _buildLeft(currentUid)),
+        right: _isLoading
+            ? const CsLoadingState(label: 'Loading leaderboard')
+            : _buildLeaderboard(currentUid),
+      ),
+    );
+  }
+
+  List<Widget> _buildLeft(String? currentUid) {
+    final cs = context.cs;
+    final t = cs.type;
+    final index = currentUid == null ? -1 : _leaderboard.indexWhere((u) => u.uid == currentUid);
+
+    final Widget hero;
+    if (index >= 0) {
+      final rank = index + 1;
+      final top = math.max(1, (rank / _leaderboard.length * 100).ceil());
+      hero = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        const CsLabel('Your rank'),
+        SizedBox(height: cs(4)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: CsPrismText('#$rank', style: t.scoreGiant.copyWith(height: 1.05)),
+        ),
+        SizedBox(height: cs(6)),
+        Text(
+          '${_formatThousands(_leaderboard[index].highScore)} PTS · TOP $top%',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: t.mono(12, em: 0.06, color: CsColors.ink60),
+        ),
+      ]);
+    } else {
+      hero = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        const CsLabel('Friends'),
+        SizedBox(height: cs(4)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            _isLoading ? '—' : '${_leaderboard.length}',
+            style: t.scoreGiant.copyWith(height: 1.05, color: _leaderboard.isEmpty ? CsColors.ink25 : CsColors.ink),
           ),
+        ),
+        SizedBox(height: cs(6)),
+        Text(
+          _leaderboard.length == 1 ? 'PILOT RANKED' : 'PILOTS RANKED',
+          maxLines: 1,
+          style: t.mono(12, em: 0.06, color: CsColors.ink60),
+        ),
+      ]);
+    }
+
+    return [
+      Text('Compete with your friends', style: t.display(26, em: -0.03, height: 1.05)),
+      SizedBox(height: cs(22)),
+      hero,
+      SizedBox(height: cs(22)),
+      Text(
+        'Ranked by highest single-run score.',
+        style: t.display(12, weight: FontWeight.w400, em: 0, height: 1.4, color: CsColors.ink45),
+      ),
+      const Spacer(),
+      SizedBox(height: cs(16)),
+      CsButton.secondary(
+        label: 'Add friends',
+        icon: Symbols.person_add_rounded,
+        size: CsButtonSize.small,
+        onPressed: () => context.push(AppRoutes.friends),
+      ),
+    ];
+  }
+
+  Widget _buildLeaderboard(String? currentUid) {
+    if (_leaderboard.isEmpty) {
+      return CsEmptyState(
+        icon: Symbols.group_rounded,
+        title: 'No Friends Yet',
+        message: 'Add friends to see your private leaderboard!',
+        action: CsButton.primary(
+          label: 'Add Friends',
+          icon: Symbols.person_add_rounded,
+          onPressed: () => context.push(AppRoutes.friends),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: _leaderboard.length,
+      itemBuilder: (context, index) {
+        final user = _leaderboard[index];
+        return _RankRow(
+          rank: index + 1,
+          name: user.publicLabel,
+          photoUrl: user.photoUrl,
+          games: _formatGames(user.totalGamesPlayed),
+          status: user.status,
+          score: _formatThousands(user.highScore),
+          isYou: currentUid != null && user.uid == currentUid,
         );
       },
     );
   }
 
-  Widget _buildSubtitle(GameTheme theme) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Align(
-        alignment: Alignment.center,
-        child: HudChip(
-          label: 'Compete with your friends',
-          icon: Icons.people,
-          theme: theme,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoadingIndicator(GameTheme theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(theme.accentColor),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Loading leaderboard...',
-            style: TextStyle(
-              color: theme.accentColor.withValues(alpha: 0.8),
-              fontSize: 16,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLeaderboard(GameTheme theme, String? currentUid) {
-    if (_leaderboard.isEmpty) {
-      return _buildEmptyState(theme);
-    }
-
-    return Column(
-      children: [
-        // Top 3 podium
-        if (_leaderboard.length >= 2) _buildPodium(theme, currentUid),
-
-        // Rest of the leaderboard
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            itemCount: _leaderboard.length > 3 ? _leaderboard.length - 3 : 0,
-            itemBuilder: (context, index) {
-              final actualIndex = index + 3; // Skip top 3
-              final user = _leaderboard[actualIndex];
-              final rank = actualIndex + 1;
-
-              return _buildLeaderboardCard(
-                user: user,
-                rank: rank,
-                theme: theme,
-                delay: (actualIndex * 100).ms,
-                isCurrentUser:
-                    currentUid != null && user.uid == currentUid,
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPodium(GameTheme theme, String? currentUid) {
-    return Container(
-      height: 200,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // 2nd place
-          if (_leaderboard.length >= 2)
-            Expanded(
-              child: _buildPodiumPlace(
-                user: _leaderboard[1],
-                rank: 2,
-                height: 120,
-                theme: theme,
-                delay: 200.ms,
-                isCurrentUser:
-                    currentUid != null && _leaderboard[1].uid == currentUid,
-              ),
-            ),
-
-          // 1st place
-          Expanded(
-            child: _buildPodiumPlace(
-              user: _leaderboard[0],
-              rank: 1,
-              height: 160,
-              theme: theme,
-              delay: 100.ms,
-              isCurrentUser:
-                  currentUid != null && _leaderboard[0].uid == currentUid,
-            ),
-          ),
-
-          // 3rd place
-          if (_leaderboard.length >= 3)
-            Expanded(
-              child: _buildPodiumPlace(
-                user: _leaderboard[2],
-                rank: 3,
-                height: 80,
-                theme: theme,
-                delay: 300.ms,
-                isCurrentUser:
-                    currentUid != null && _leaderboard[2].uid == currentUid,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPodiumPlace({
-    required UserProfile user,
-    required int rank,
-    required double height,
-    required GameTheme theme,
-    required Duration delay,
-    required bool isCurrentUser,
-  }) {
-    final colors = {
-      1: [Colors.amber, Colors.yellow],
-      2: [Colors.grey.shade400, Colors.grey.shade300],
-      3: [Colors.brown.shade400, Colors.brown.shade300],
-    };
-
-    final rankColors = colors[rank] ?? [Colors.grey, Colors.grey];
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        // User avatar — gets a glowing accent-color ring when this is the
-        // signed-in player, so they spot themselves on the podium instantly.
-        Container(
-          padding: isCurrentUser ? const EdgeInsets.all(3) : EdgeInsets.zero,
-          decoration: isCurrentUser
-              ? BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [
-                      theme.accentColor,
-                      theme.accentColor.withValues(alpha: 0.6),
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.accentColor.withValues(alpha: 0.55),
-                      blurRadius: 10,
-                    ),
-                  ],
-                )
-              : null,
-          child: CircleAvatar(
-            radius: rank == 1 ? 32 : 24,
-            backgroundColor: theme.accentColor.withValues(alpha: 0.2),
-            backgroundImage: user.photoUrl != null
-                ? NetworkImage(user.photoUrl!)
-                : null,
-            onBackgroundImageError: user.photoUrl != null ? (e, s) {} : null,
-            child: user.photoUrl == null
-                ? Text(
-                    user.publicLabel.isNotEmpty
-                        ? user.publicLabel[0].toUpperCase()
-                        : 'U',
-                    style: TextStyle(
-                      color: theme.accentColor,
-                      fontSize: rank == 1 ? 24 : 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                : null,
-          ),
-        ).gamePop(delay: delay),
-
-        const SizedBox(height: 8),
-
-        // Rank crown/medal
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: rankColors[0],
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: rankColors[0].withValues(alpha: 0.3),
-                blurRadius: 8,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: Icon(
-            rank == 1 ? Icons.emoji_events : Icons.military_tech,
-            color: Colors.white,
-            size: rank == 1 ? 20 : 16,
-          ),
-        ).gamePop(delay: delay + 100.ms),
-
-        const SizedBox(height: 4),
-
-        // User name — "YOU" chip below when the current user owns this slot.
-        Text(
-          user.publicLabel,
-          style: TextStyle(
-            color: isCurrentUser ? theme.accentColor : theme.accentColor,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ).gameEntrance(delay: delay + 200.ms),
-        if (isCurrentUser) ...[
-          const SizedBox(height: 2),
-          _buildYouChip(theme).gameEntrance(delay: delay + 250.ms),
-        ],
-
-        // Score — thousands-separated
-        Text(
-          _formatThousands(user.highScore),
-          style: TextStyle(
-            color: rankColors[0],
-            fontSize: rank == 1 ? 16 : 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ).gameEntrance(delay: delay + 300.ms),
-
-        const SizedBox(height: 8),
-
-        // Podium base
-        Container(
-          height: height,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: rankColors,
-            ),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-            boxShadow: [
-              BoxShadow(
-                color: rankColors[0].withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              '#$rank',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: rank == 1 ? 24 : 18,
-                fontWeight: FontWeight.bold,
-                shadows: [
-                  Shadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 4,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ).gameZoomIn(delay: delay),
-      ],
-    );
-  }
-
-  Widget _buildLeaderboardCard({
-    required UserProfile user,
-    required int rank,
-    required GameTheme theme,
-    required Duration delay,
-    required bool isCurrentUser,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        gradient: isCurrentUser
-            ? LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [
-                  theme.accentColor.withValues(alpha: 0.32),
-                  theme.accentColor.withValues(alpha: 0.16),
-                  theme.primaryColor.withValues(alpha: 0.18),
-                ],
-              )
-            : null,
-        color: isCurrentUser ? null : theme.surfaceGlass,
-        borderRadius: GameTokens.brMd,
-        border: Border.all(
-          color: isCurrentUser ? theme.accentColor : theme.stroke,
-          width: isCurrentUser ? 1.5 : 1.0,
-        ),
-        boxShadow: isCurrentUser
-            ? [
-                BoxShadow(
-                  color: theme.accentColor.withValues(alpha: 0.35),
-                  blurRadius: 14,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            // Rank number
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: theme.accentColor.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: theme.accentColor.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  '$rank',
-                  style: TextStyle(
-                    color: theme.accentColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 16),
-
-            // User avatar
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: theme.accentColor.withValues(alpha: 0.2),
-              backgroundImage: user.photoUrl != null
-                  ? NetworkImage(user.photoUrl!)
-                  : null,
-              onBackgroundImageError: user.photoUrl != null ? (e, s) {} : null,
-              child: user.photoUrl == null
-                  ? Text(
-                      user.publicLabel.isNotEmpty
-                          ? user.publicLabel[0].toUpperCase()
-                          : 'U',
-                      style: TextStyle(
-                        color: theme.accentColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
-            ),
-
-            const SizedBox(width: 16),
-
-            // User info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          user.publicLabel,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: theme.accentColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (isCurrentUser) ...[
-                        const SizedBox(width: 8),
-                        _buildYouChip(theme),
-                      ],
-                      const SizedBox(width: 6),
-                      Text(
-                        user.status.emoji,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.games,
-                        size: 14,
-                        color: theme.accentColor.withValues(alpha: 0.6),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _formatGamesPlayed(user.totalGamesPlayed),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: theme.accentColor.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Score — thousands-separated.
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.emoji_events, size: 16, color: Colors.amber),
-                    const SizedBox(width: 4),
-                    Text(
-                      _formatThousands(user.highScore),
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: theme.accentColor,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                  ],
-                ),
-                Text(
-                  'High Score',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: theme.accentColor.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    ).gameListItem(0);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Shared helpers — mirror the global leaderboard treatment so YOU chip,
-  // game-count pluralization, and number formatting stay consistent across
-  // both screens.
-  // ---------------------------------------------------------------------------
-
-  Widget _buildYouChip(GameTheme theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            theme.accentColor,
-            theme.accentColor.withValues(alpha: 0.75),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            color: theme.accentColor.withValues(alpha: 0.55),
-            blurRadius: 6,
-            spreadRadius: 0.5,
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.person_pin,
-            color: theme.backgroundColor,
-            size: 11,
-          ),
-          const SizedBox(width: 3),
-          Text(
-            'YOU',
-            style: TextStyle(
-              color: theme.backgroundColor,
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.8,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatGamesPlayed(int count) {
-    final formatted = _formatThousands(count);
-    return count == 1 ? '$formatted game' : '$formatted games';
-  }
+  String _formatGames(int count) => count == 1 ? '1 RUN' : '${_formatThousands(count)} RUNS';
 
   String _formatThousands(int n) {
     final s = n.toString();
@@ -652,44 +221,153 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen>
     }
     return buffer.toString();
   }
+}
 
-  Widget _buildEmptyState(GameTheme theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.people_outline,
-            size: 80,
-            color: theme.accentColor.withValues(alpha: 0.3),
+/// One leaderboard row: 0N mono rank · ringed avatar · name (+ YOU chip)
+/// over runs + presence · Syne score.
+class _RankRow extends StatelessWidget {
+  const _RankRow({
+    required this.rank,
+    required this.name,
+    required this.games,
+    required this.status,
+    required this.score,
+    this.photoUrl,
+    this.isYou = false,
+  });
+
+  final int rank;
+  final String name;
+  final String games;
+  final UserStatus status;
+  final String score;
+  final String? photoUrl;
+  final bool isYou;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    final statusColor = switch (status) {
+      UserStatus.online => CsColors.mint,
+      UserStatus.playing => CsColors.cyan,
+      UserStatus.offline => CsColors.ink45,
+    };
+    return Container(
+      constraints: const BoxConstraints(minHeight: 48),
+      padding: EdgeInsets.symmetric(vertical: cs(12), horizontal: cs(4)),
+      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: CsColors.hairline))),
+      child: Row(children: [
+        SizedBox(
+          width: cs(34),
+          child: Text(
+            rank.toString().padLeft(2, '0'),
+            maxLines: 1,
+            style: t.mono(13, em: 0.04, color: isYou ? CsColors.ink : CsColors.ink55),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'No Friends Yet',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: theme.accentColor.withValues(alpha: 0.7),
+        ),
+        _Avatar(name: name, photoUrl: photoUrl, ring: _ringFor(rank, isYou), size: 40),
+        SizedBox(width: cs(16)),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle)),
+              if (isYou) ...[SizedBox(width: cs(8)), const CsChip('You', kind: CsChipKind.solid)],
+            ]),
+            SizedBox(height: cs(2)),
+            Text.rich(
+              TextSpan(children: [
+                TextSpan(text: games),
+                const TextSpan(text: '  ·  '),
+                TextSpan(text: status.displayName.toUpperCase(), style: TextStyle(color: statusColor)),
+              ]),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: t.mono(10, color: CsColors.ink45),
             ),
+          ]),
+        ),
+        SizedBox(width: cs(12)),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: cs(140)),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(score, maxLines: 1, style: t.display(20, em: -0.01)),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Add friends to see your private leaderboard!',
-            style: TextStyle(
-              fontSize: 14,
-              color: theme.accentColor.withValues(alpha: 0.5),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 20),
-          NeonButton(
-            onPressed: () => context.push(AppRoutes.friends),
-            label: 'Add Friends',
-            icon: Icons.person_add,
-            theme: theme,
-          ),
-        ],
+        ),
+      ]),
+    );
+  }
+}
+
+/// Ring colours: you = prism, #1 gold, #2 silver, #3 bronze, others faint.
+List<Color>? _ringFor(int rank, bool isYou) {
+  if (isYou) return null;
+  return switch (rank) {
+    1 => const [CsColors.gold],
+    2 => const [CsColors.rank2],
+    3 => const [CsColors.rank3],
+    _ => const [Color(0x26FFFFFF)],
+  };
+}
+
+/// Like [CsAvatarRing] but takes a network URL (falls back to initials when
+/// it is missing or fails to load) and any ring colour (null = prism).
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.name, this.photoUrl, this.ring, this.size = 40});
+
+  final String name;
+  final String? photoUrl;
+  final List<Color>? ring;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final d = cs(size);
+    final initials = Center(
+      child: Text(
+        CsAvatarRing.initialsOf(name),
+        style: cs.type.display(size * 0.32, weight: FontWeight.w700, em: 0.02, height: 1),
       ),
     );
+    return SizedBox.square(
+      dimension: d,
+      child: CsPrismRing(
+        circle: true,
+        fill: CsColors.raised,
+        colors: ring,
+        child: ClipOval(
+          child: photoUrl == null
+              ? initials
+              : Image.network(photoUrl!, fit: BoxFit.cover, width: d, height: d, errorBuilder: (_, _, _) => initials),
+        ),
+      ),
+    );
+  }
+}
+
+/// Side summary column that fills the available height (so `Spacer`s can
+/// push content apart on tall tablets) and scales DOWN instead of
+/// overflowing on short phones.
+class _SideColumn extends StatelessWidget {
+  const _SideColumn({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.topLeft,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: c.maxWidth, maxWidth: c.maxWidth, minHeight: c.maxHeight),
+          child: IntrinsicHeight(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+          ),
+        ),
+      );
+    });
   }
 }

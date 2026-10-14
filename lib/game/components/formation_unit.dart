@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flame/components.dart';
-import 'package:flutter/painting.dart';
 
+import '../cosmo_palette.dart';
 import '../cosmo_strike_game.dart';
 import '../game_audio.dart';
 import '../levels/formation.dart';
@@ -10,6 +10,7 @@ import '../levels/level_def.dart';
 import 'enemy.dart';
 import 'power_up.dart';
 import 'telegraph.dart';
+import '../tuning.dart';
 
 /// Runtime controller for one [FormationSpec]: spawns the member ships,
 /// positions managed shapes as a unit every frame, and tracks the wipe
@@ -256,10 +257,11 @@ class Formation extends Component with HasGameReference<CosmoStrikeGame> {
 
   void _awardWipe() {
     final awarded = game.addKillScore(spec.wipeBonus);
+    game.chargeOverdrive(GameTuning.wipeOverdriveCharge);
     game.pools.scorePopup(
       _lastKillPos + Vector2(0, -34),
       'FORMATION WIPE +$awarded',
-      color: const Color(0xFFFFD37B),
+      color: CosmoPalette.gold,
       scale: 1.25,
       duration: 1.0,
     );
