@@ -15,6 +15,7 @@ import '../game_audio.dart';
 import 'enemy.dart';
 import 'fx.dart';
 import 'power_up.dart';
+import '../tuning.dart';
 
 enum WeaponMode { single, rapid, spread, laser }
 
@@ -443,6 +444,22 @@ class PlayerShip extends PositionComponent
     if (_fireCooldown > 0) return;
     final cooldownScale = speedBoosted ? 0.85 : 1.0;
     final spawnNose = nose;
+    if (game.overdriveActive) {
+      // Overdrive: a dense, piercing three-lane beam.
+      for (final dy in const [-26.0, 0.0, 26.0]) {
+        game.pools.playerBullet(
+          spawn: spawnNose + Vector2(0, dy * 0.3),
+          speed: 980,
+          damage: GameTuning.overdriveDamage,
+          heavy: true,
+          driftY: dy,
+        );
+      }
+      _fireCooldown = GameTuning.overdriveFireCooldown;
+      game.pools.muzzleFlash(spawnNose + Vector2(6, 0));
+      GameAudio.shoot();
+      return;
+    }
     switch (weapon) {
       case WeaponMode.single:
         game.pools.playerBullet(spawn: spawnNose);

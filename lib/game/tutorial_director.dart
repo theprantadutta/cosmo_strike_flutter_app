@@ -173,7 +173,7 @@ class TutorialDirector extends Component
         game.tutorialNotifier.value = const TutorialPrompt(
           title: 'INCOMING FIRE',
           body: 'DODGE the bolts! A near miss earns GRAZE points and '
-              'charges your missile meter.',
+              'charges your OVERDRIVE meter.',
           icon: Icons.flash_on,
         );
         _grazeBaseline = game.combo.grazeCount;
@@ -200,12 +200,15 @@ class TutorialDirector extends Component
         _spawnDrop();
         break;
       case _TutorialBeat.counterFire:
+        // Your gun can't shoot bullets down; Overdrive can. Fill the meter
+        // for them and have them unleash it on an incoming volley.
         game.tutorialNotifier.value = const TutorialPrompt(
-          title: 'RETURN FIRE',
-          body: 'Boss bolts can be SHOT DOWN — but they are tough. Pour fire '
-              'into the incoming bolt until it breaks!',
-          icon: Icons.shield_moon,
+          title: 'OVERDRIVE',
+          body: 'Close calls charge OVERDRIVE. It is full: tap the glowing '
+              'button (bottom right) to unleash a beam that melts bullets!',
+          icon: Icons.bolt,
         );
+        game.chargeOverdrive(1);
         _boltCooldown = 0;
         _fireBossBolt();
         break;
@@ -391,18 +394,19 @@ class TutorialDirector extends Component
   }
 
   void _updateCounterFire(double dt) {
+    // Certified the moment Overdrive fires.
+    if (game.overdriveActive) {
+      _bossBolt = null;
+      _certify();
+      return;
+    }
+    // Keep the meter full if a stray hit or skip logic drained it.
+    if (!game.combo.overdriveReady) game.chargeOverdrive(1);
     if (_boltCooldown > 0) _boltCooldown -= dt;
     final bolt = _bossBolt;
     if (bolt != null && !bolt.active) {
-      // hitsTaken survives deactivate(), so it tells "shot down" (reached
-      // hitsRequired) apart from "expired off-screen / clipped the hull".
-      if (bolt.hitsTaken >= bolt.hitsRequired) {
-        _bossBolt = null;
-        _certify();
-        return;
-      }
       _bossBolt = null;
-      _boltCooldown = 0.6; // missed — send a fresh bolt after a short beat
+      _boltCooldown = 1.2; // send a fresh bolt after a short beat
     }
     if (_bossBolt == null && _boltCooldown <= 0) _fireBossBolt();
   }

@@ -153,21 +153,27 @@ abstract final class LevelCatalog {
         FormationEvent(
             0.8,
             FormationSpec(
-                shape: FormationShape.vWedge, type: EnemyType.dart, count: 5),
+                shape: FormationShape.vWedge,
+                type: EnemyType.dart,
+                count: 5,
+                y01: 0.68),
             countsAsSection: true),
         FormationEvent(4.5,
             FormationSpec.stream(EnemyType.wasp, count: 3, every: 0.7)),
+        // An aiming pair: the first shots in the game that follow you.
+        FormationEvent(2.0,
+            FormationSpec.stream(EnemyType.drone, count: 2, every: 1.0, y01: 0.35)),
         FormationEvent(
             1.2,
             FormationSpec(
                 shape: FormationShape.wallWithGap,
                 type: EnemyType.dart,
                 count: 7,
-                gap01: 0.5,
+                gap01: 0.28,
                 wipeDrop: PowerUpKind.shield),
             countsAsSection: true,
             waitForFieldClear: true),
-        DropEvent(2.5, PowerUpKind.weapon),
+        DropEvent(2.5, PowerUpKind.weapon, y01: 0.75),
         FormationEvent(
             2.0,
             FormationSpec(

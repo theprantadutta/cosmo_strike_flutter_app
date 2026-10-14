@@ -288,6 +288,12 @@ class TurretSweepAttack extends BossAttack {
   @override
   void execute(Boss boss, CosmoStrikeGame game) {
     boss.scratchCount = 0;
+    // Shift the row grid so one row lands exactly on the ship's current
+    // row: the sweep has no permanently safe lane.
+    final top = game.playfieldTop;
+    final rowH = (game.playfieldBottom - top) / rows;
+    final rowPos = (game.player.position.y - top) / rowH;
+    boss.scratchAngle = rowPos - rowPos.floorToDouble() - 0.5;
   }
 
   @override
@@ -299,7 +305,7 @@ class TurretSweepAttack extends BossAttack {
     while (boss.scratchCount < due && boss.scratchCount < rows) {
       final top = game.playfieldTop;
       final span = game.playfieldBottom - top;
-      final y = top + (boss.scratchCount + 0.5) * span / rows;
+      final y = top + (boss.scratchCount + 0.5 + boss.scratchAngle) * span / rows;
       // Each successive shot leaves the muzzle and angles to its row, so
       // the rake reads as the boss's turret sweeping top → bottom.
       game.pools.enemyBullet(

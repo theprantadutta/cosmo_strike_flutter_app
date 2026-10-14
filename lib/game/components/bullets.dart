@@ -100,11 +100,11 @@ class PlayerBullet extends PositionComponent
       other.takeDamage(damage);
       deactivate();
     } else if (other is EnemyBullet) {
-      // Intercept: shoot incoming fire out of the sky. Trades your shot
-      // for safety (+10 pts); the heavy laser pierces straight through.
-      // Regular shots pop on the first hit; boss energy bolts take a few
-      // hits (hitsRequired) and flash on each non-lethal one.
-      if (other.active && other.canBeShotDown) {
+      // Intercept: only HEAVY shots (laser tier, Overdrive) shoot incoming
+      // fire out of the sky (+10 pts). The regular gun passes through it,
+      // so dodging is the player's job. Regular shots pop on the first
+      // hit; boss energy bolts take a few hits (hitsRequired).
+      if (heavy && other.active && other.canBeShotDown) {
         game.pools.hitSpark(other.position);
         other.hitsTaken++;
         if (other.hitsTaken >= other.hitsRequired) {
@@ -113,7 +113,6 @@ class PlayerBullet extends PositionComponent
         } else {
           other.flashHit();
         }
-        if (!heavy) deactivate();
       }
     } else if (other is Boss) {
       game.pools.hitSpark(position);

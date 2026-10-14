@@ -231,6 +231,8 @@ class _GameplayScreenState extends State<GameplayScreen>
       selectedTrailId: premium.selectedTrailId,
       trailEffectsEnabled: themeState.trailSystemEnabled,
     );
+    _game.onOverdrive = () =>
+        unawaited(GetIt.I<AnalyticsFacade>().trackPowerUpUsed('overdrive'));
   }
 
   /// Tutorial resolved: certified (completed) or skipped. Either way the
@@ -772,7 +774,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     // footprint, so the boss bar never runs under the missile button or
     // the d-pad.
     final inset = cs(CsSpace.hud);
-    final missileSize = _MissileButton.sizeFor(cs);
+    final missileSize = _OverdriveButton.sizeFor(cs);
     const dPad = GameDPad.defaultDiameter;
     final gap = cs(24);
     final leftReserve = dPadOnRight
@@ -873,9 +875,46 @@ class _GameplayScreenState extends State<GameplayScreen>
                         horizontal: inset,
                         vertical: cs(20),
                       ),
-                      child: _MissileButton(game: _game),
+                      child: _ActionButtons(
+                        game: _game,
+                        alignEnd: !dPadOnRight,
+                      ),
                     ),
                   ),
+                ),
+
+                // White flash (boss kill, Overdrive).
+                ValueListenableBuilder<int>(
+                  valueListenable: _game.flashNotifier,
+                  builder: (_, n, _) {
+                    if (n == 0) return const SizedBox.shrink();
+                    return IgnorePointer(
+                      child: TweenAnimationBuilder<double>(
+                        key: ValueKey(n),
+                        tween: Tween(begin: 0.55, end: 0),
+                        duration: const Duration(milliseconds: 380),
+                        curve: Curves.easeOut,
+                        builder: (_, t, _) {
+                          if (t <= 0.01) return const SizedBox.shrink();
+                          return ColoredBox(
+                            color: Color.fromRGBO(255, 255, 255, t),
+                            child: const SizedBox.expand(),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+
+                // Boss WARNING banner.
+                ValueListenableBuilder<bool>(
+                  valueListenable: _game.bossWarningNotifier,
+                  builder: (_, on, _) {
+                    if (!on) return const SizedBox.shrink();
+                    return IgnorePointer(
+                      child: _BossWarning(name: _bossName(_game.level.boss.type)),
+                    );
+                  },
                 ),
 
                 // Level intro banner (non-blocking).
@@ -1518,8 +1557,70 @@ class _EffectChip extends StatelessWidget {
 /// 72px missile button: near-black disc, rocket glyph + "×N" ammo count,
 /// ringed by the graze meter as a prism conic arc on a hairline track (a
 /// full ring converts to +1 missile).
-class _MissileButton extends StatelessWidget {
-  const _MissileButton({required this.game});
+/// Bottom-corner actions: the Overdrive button (big, ring = meter) with the
+/// missile launcher stacked above it.
+class _ActionButtons extends StatelessWidget {
+  const _ActionButtons({required this.game, required this.alignEnd});
+  final CosmoStrikeGame game;
+  final bool alignEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        _MissileChip(game: game),
+        SizedBox(height: cs(10)),
+        _OverdriveButton(game: game),
+      ],
+    );
+  }
+}
+
+/// Small missile launcher: rocket + ammo; double-tap anywhere also fires.
+class _MissileChip extends StatelessWidget {
+  const _MissileChip({required this.game});
+  final CosmoStrikeGame game;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final d = cs(46).clamp(44.0, 60.0);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: game.fireMissile,
+      child: ValueListenableBuilder<int>(
+        valueListenable: game.missileAmmoNotifier,
+        builder: (_, ammo, _) {
+          final c = ammo > 0 ? CsColors.ink : CsColors.ink30;
+          return Container(
+            width: d,
+            height: d,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: CsColors.bg.withValues(alpha: 0.6),
+              border: Border.all(color: ammo > 0 ? CsColors.lineStrong : CsColors.hairline),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Symbols.rocket_rounded, size: d * 0.36, color: c),
+                Text('×$ammo', style: cs.type.mono(9, em: 0.04, color: c, height: 1.1)),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Overdrive: the ring fills from grazes; when full it spins prism and
+/// pulses "TAP"; while active the ring drains in gold.
+class _OverdriveButton extends StatelessWidget {
+  const _OverdriveButton({required this.game});
   final CosmoStrikeGame game;
 
   /// Visual size, scaled but kept a comfortable thumb target.
@@ -1531,33 +1632,44 @@ class _MissileButton extends StatelessWidget {
     final size = sizeFor(cs);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: game.fireMissile,
+      onTap: game.activateOverdrive,
       child: RepaintBoundary(
         child: SizedBox.square(
           dimension: size,
           child: ValueListenableBuilder<double>(
-            valueListenable: game.combo.grazeNotifier,
-            builder: (_, graze, child) => CsRingProgress(
-              value: graze,
-              size: size,
-              stroke: 2,
-              trackColor: CsColors.hairline,
-              fill: CsColors.bg,
-              child: child,
-            ),
-            child: ValueListenableBuilder<int>(
-              valueListenable: game.missileAmmoNotifier,
-              builder: (_, ammo, _) {
-                final c = ammo > 0 ? CsColors.ink : CsColors.ink30;
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Symbols.rocket_rounded, size: size * 0.36, color: c),
-                    Text(
-                      '×$ammo',
-                      style: cs.type.mono(10, em: 0.04, color: c, height: 1.2),
+            valueListenable: game.overdriveNotifier,
+            builder: (_, active, _) => ValueListenableBuilder<double>(
+              valueListenable: game.combo.grazeNotifier,
+              builder: (_, meter, _) {
+                if (active > 0) {
+                  return CsRingProgress(
+                    value: active,
+                    size: size,
+                    stroke: 3,
+                    trackColor: CsColors.hairline,
+                    fill: CsColors.gold.withValues(alpha: 0.18),
+                    child: _label(cs, size, Symbols.bolt_rounded, 'ACTIVE', CsColors.gold),
+                  );
+                }
+                if (meter >= 1) {
+                  return CsPrismRing(
+                    circle: true,
+                    rotate: true,
+                    width: 3,
+                    fill: CsColors.bg,
+                    child: _ReadyPulse(
+                      child: _label(cs, size, Symbols.bolt_rounded, 'TAP', CsColors.ink),
                     ),
-                  ],
+                  );
+                }
+                return CsRingProgress(
+                  value: meter,
+                  size: size,
+                  stroke: 2,
+                  trackColor: CsColors.hairline,
+                  fill: CsColors.bg.withValues(alpha: 0.6),
+                  child: _label(cs, size, Symbols.bolt_rounded,
+                      '${(meter * 100).round()}%', CsColors.ink45),
                 );
               },
             ),
@@ -1566,6 +1678,89 @@ class _MissileButton extends StatelessWidget {
       ),
     );
   }
+
+  Widget _label(CsLayout cs, double size, IconData icon, String text, Color c) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: size * 0.36, color: c),
+          Text(text, style: cs.type.mono(9, em: 0.1, color: c, height: 1.2)),
+        ],
+      );
+}
+
+class _ReadyPulse extends StatefulWidget {
+  const _ReadyPulse({required this.child});
+  final Widget child;
+
+  @override
+  State<_ReadyPulse> createState() => _ReadyPulseState();
+}
+
+class _ReadyPulseState extends State<_ReadyPulse> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+        ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ScaleTransition(
+        scale: Tween(begin: 0.92, end: 1.06).animate(CurvedAnimation(parent: _c, curve: Curves.easeInOut)),
+        child: widget.child,
+      );
+}
+
+/// Boss WARNING: pink hazard rules around a Syne headline with the boss
+/// name, sliding in mid-screen for the warning window.
+class _BossWarning extends StatelessWidget {
+  const _BossWarning({required this.name});
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    return Align(
+      alignment: const Alignment(0, -0.15),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: CsMotion.slow,
+        curve: CsMotion.emphasis,
+        builder: (_, v, child) => Opacity(
+          opacity: v.clamp(0.0, 1.0),
+          child: Transform.scale(scale: 1.15 - 0.15 * v, child: child),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _hazardRule(cs),
+            SizedBox(height: cs(12)),
+            Text('WARNING', style: t.display(44, em: 0.12, height: 1, color: CsColors.pink)),
+            SizedBox(height: cs(8)),
+            Text(name.toUpperCase(), style: t.mono(13, em: 0.3, color: CsColors.ink)),
+            SizedBox(height: cs(12)),
+            _hazardRule(cs),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _hazardRule(CsLayout cs) => Container(
+        width: cs(320),
+        height: 2,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(colors: [
+            Color(0x00FF8AD8),
+            CsColors.pink,
+            Color(0x00FF8AD8),
+          ]),
+        ),
+      );
 }
 
 /// "LEVEL 03" mono + level name headline during the level intro phase.

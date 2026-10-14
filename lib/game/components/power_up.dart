@@ -8,6 +8,7 @@ import 'package:flutter/painting.dart';
 import '../cosmo_strike_game.dart';
 import '../game_assets.dart';
 import 'player_ship.dart';
+import '../tuning.dart';
 
 /// The ten pickup orbs, mapped 1:1 onto the powerup_* sprites.
 enum PowerUpKind {
@@ -85,6 +86,10 @@ class PowerUp extends PositionComponent
   final PowerUpKind kind;
   double _age = 0;
 
+  /// Vertical drift (px/s); flips at the playfield edges. Orbs move off the
+  /// row they spawned on, so collecting one is a deliberate move.
+  late double _vy = (game.rng.nextBool() ? 1 : -1) * GameTuning.dropDriftY;
+
   late final Sprite _sprite = Sprite(Flame.images.fromCache(kind.asset));
 
   @override
@@ -103,7 +108,16 @@ class PowerUp extends PositionComponent
       position += dir * 240 * dt;
     } else {
       position.x -= 90 * dt;
-      position.y += math.sin(_age * 3) * 18 * dt;
+      position.y += _vy * dt;
+      final top = game.playfieldTop + 24;
+      final bottom = game.playfieldBottom - 24;
+      if (position.y < top) {
+        position.y = top;
+        _vy = _vy.abs();
+      } else if (position.y > bottom) {
+        position.y = bottom;
+        _vy = -_vy.abs();
+      }
     }
     if (position.x < -30) removeFromParent();
   }
