@@ -35,6 +35,9 @@ class PlayerBullet extends PositionComponent
   /// Vertical drift for the spread fan.
   double driftY = 0;
 
+  /// Enemies this shot can still pass through (Piercing Rounds).
+  int pierceLeft = 0;
+
   late final RectangleHitbox _hitbox =
       RectangleHitbox(collisionType: CollisionType.inactive);
 
@@ -58,7 +61,9 @@ class PlayerBullet extends PositionComponent
     int damage = 1,
     bool heavy = false,
     double driftY = 0,
+    int pierce = 0,
   }) {
+    pierceLeft = pierce;
     this.speed = speed;
     this.damage = damage;
     this.heavy = heavy;
@@ -98,7 +103,11 @@ class PlayerBullet extends PositionComponent
     if (other is EnemyShip) {
       game.pools.hitSpark(position);
       other.takeDamage(damage);
-      deactivate();
+      if (pierceLeft > 0) {
+        pierceLeft--;
+      } else {
+        deactivate();
+      }
     } else if (other is EnemyBullet) {
       // Intercept: only HEAVY shots (laser tier, Overdrive) shoot incoming
       // fire out of the sky (+10 pts). The regular gun passes through it,
@@ -254,7 +263,7 @@ class EnemyBullet extends PositionComponent
 
   // Graze ring: closer than the outer radius but not dead-center (a
   // straight hit is a hit, not a graze). Center-to-center, squared.
-  static const double _grazeOuter2 = 48 * 48;
+  static const double _grazeOuter = 48;
   static const double _grazeInner2 = 24 * 24;
 
   late final CircleHitbox _hitbox =
@@ -323,7 +332,8 @@ class EnemyBullet extends PositionComponent
       final p = game.player;
       if (!p.ghosted && !p.isInvulnerable) {
         final d2 = position.distanceToSquared(p.position);
-        if (d2 < _grazeOuter2 && d2 > _grazeInner2) {
+        final outer = _grazeOuter * game.upgrades.grazeRangeScale;
+        if (d2 < outer * outer && d2 > _grazeInner2) {
           _grazed = true;
           game.onGraze(position.clone());
         }

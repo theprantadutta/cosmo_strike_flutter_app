@@ -34,6 +34,12 @@ class ComboGrazeController {
 
   double _decay = 0;
 
+  /// Run-upgrade modifiers (Chain Link / Siphon).
+  double chainWindowBonus = 0;
+  double grazeChargeScale = 1;
+
+  double get _window => chainWindow + chainWindowBonus;
+
   int get multiplier => multiplierNotifier.value;
   int get chain => comboNotifier.value;
 
@@ -50,7 +56,7 @@ class ComboGrazeController {
     final chain = comboNotifier.value + 1;
     comboNotifier.value = chain;
     if (chain > maxCombo) maxCombo = chain;
-    _decay = chainWindow;
+    _decay = _window;
     final tier = _tierFor(chain);
     if (tier != multiplierNotifier.value) {
       multiplierNotifier.value = tier;
@@ -71,9 +77,9 @@ class ComboGrazeController {
   bool onGraze() {
     grazeCount++;
     if (comboNotifier.value > 0) {
-      _decay = (_decay + GameTuning.grazeChainExtend).clamp(0, chainWindow);
+      _decay = (_decay + GameTuning.grazeChainExtend).clamp(0, _window);
     }
-    return addCharge(1 / GameTuning.grazesForOverdrive);
+    return addCharge(grazeChargeScale / GameTuning.grazesForOverdrive);
   }
 
   /// Adds Overdrive charge (0..1 of the meter). Returns true when this

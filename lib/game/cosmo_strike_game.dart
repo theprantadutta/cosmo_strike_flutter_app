@@ -22,6 +22,7 @@ import 'components/power_up.dart';
 import 'components/ship_trail.dart';
 import 'components/starfield.dart';
 import 'components/terrain.dart';
+import 'components/wingman.dart';
 import 'cosmo_palette.dart';
 import 'game_assets.dart';
 import 'game_audio.dart';
@@ -31,6 +32,7 @@ import 'levels/level_def.dart';
 import 'levels/script_runner.dart';
 import 'pools.dart';
 import 'run_effects.dart';
+import 'run_upgrades.dart';
 import 'tutorial_director.dart';
 import 'tuning.dart';
 
@@ -62,6 +64,7 @@ class GameResult {
     required this.levelResults,
     this.maxCombo = 0,
     this.grazeCount = 0,
+    this.upgrades = const [],
   });
 
   final int score;
@@ -92,6 +95,9 @@ class GameResult {
 
   /// Total bullet grazes of the run.
   final int grazeCount;
+
+  /// Upgrades drafted this run, in pick order (the run's "build").
+  final List<UpgradeId> upgrades;
 }
 
 /// One active timed effect for the HUD chip row.
@@ -225,6 +231,9 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// Adaptive pressure + idle punish (see [IntensityDirector]).
   final IntensityDirector director = IntensityDirector();
 
+  /// Upgrades drafted this run (pick 1 of 3 after every level clear).
+  final RunUpgrades upgrades = RunUpgrades();
+
   // Run state.
   int levelIndex = 1;
   int wave = 1;
@@ -262,6 +271,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
 
   // Overdrive.
   double _overdriveTimer = 0;
+  double _overdriveTotal = GameTuning.overdriveSeconds;
   bool get overdriveActive => _overdriveTimer > 0;
 
   // Thrill-pass feedback timers (real time).
@@ -394,6 +404,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     _levelStartScore = scoreNotifier.value;
     _levelClock = 0;
     _levelTookHit = false;
+
+    if (upgrades.shieldEachLevel) player.shielded = true;
+    if (upgrades.missilesPerLevel > 0) {
+      missileAmmoNotifier.value += upgrades.missilesPerLevel;
+    }
 
     _setupBiome();
 
@@ -558,6 +573,21 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       _endRun(cleared: true);
     } else {
       phaseNotifier.value = GamePhase.levelClear;
+    }
+  }
+
+  /// Three distinct upgrades to offer after this level clear (empty when
+  /// everything is maxed).
+  List<UpgradeDef> rollDraft() => upgrades.draft(rng);
+
+  /// Apply a drafted upgrade for the rest of the run.
+  void takeUpgrade(UpgradeId id) {
+    upgrades.take(id);
+    combo.chainWindowBonus = upgrades.chainWindowBonus;
+    combo.grazeChargeScale = upgrades.grazeChargeScale;
+    final have = children.whereType<Wingman>().length;
+    for (var i = have; i < upgrades.wingmen; i++) {
+      add(Wingman(index: i));
     }
   }
 
@@ -819,7 +849,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   void activateOverdrive() {
     if (phase != GamePhase.playing || overdriveActive) return;
     if (!combo.consumeOverdrive()) return;
-    _overdriveTimer = GameTuning.overdriveSeconds;
+    _overdriveTotal = GameTuning.overdriveSeconds + upgrades.overdriveBonusSeconds;
+    _overdriveTimer = _overdriveTotal;
     overdriveNotifier.value = 1;
     pools.clearEnemyBulletsWithin(
         player.position, GameTuning.overdriveShieldRadius * 2);
@@ -838,7 +869,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     if (_overdriveTimer <= 0) return;
     _overdriveTimer -= dt;
     overdriveNotifier.value =
-        (_overdriveTimer / GameTuning.overdriveSeconds).clamp(0.0, 1.0);
+        (_overdriveTimer / _overdriveTotal).clamp(0.0, 1.0);
     pools.clearEnemyBulletsWithin(
         player.position, GameTuning.overdriveShieldRadius);
   }
@@ -1031,7 +1062,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       _loseLife();
       return;
     }
-    player.health -= damage;
+    player.health -= damage * upgrades.damageTakenScale;
     if (player.health <= 0 && player.consumeScoreShieldCharge()) {
       // Armed score shield: absorb the lethal hit instead of dying.
       player.health = 0.5;
@@ -1247,6 +1278,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       levelResults: results,
       maxCombo: combo.maxCombo,
       grazeCount: combo.grazeCount,
+      upgrades: List.of(upgrades.history),
     );
   }
 

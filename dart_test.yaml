@@ -1,0 +1,5 @@
+tags:
+  screenshot:
+    # Visual-review renders with real fonts, not assertions. Run with:
+    # flutter test test/screenshots --update-goldens --run-skipped
+    skip: "Visual review only"

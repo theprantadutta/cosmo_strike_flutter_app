@@ -42,6 +42,8 @@ import '../widgets/game_dpad.dart';
 import '../widgets/gameplay/game_over_overlay.dart';
 import '../widgets/gameplay/level_complete_overlay.dart';
 import '../widgets/gameplay/pause_overlay.dart';
+import '../widgets/gameplay/upgrade_draft_overlay.dart';
+import '../game/run_upgrades.dart';
 import '../widgets/reward_toast.dart';
 
 /// Hosts the Flame shoot-'em-up. Flame is scoped to this screen only; the
@@ -110,6 +112,10 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   /// Drives the gold REVIVED flourish after a paid continue (auto-dismisses).
   bool _showRevived = false;
+
+  /// The 3 upgrade options shown after CONTINUE on a level clear; null when
+  /// the level-complete debrief is showing.
+  List<UpgradeDef>? _draft;
 
   /// Coins granted for finishing the tutorial — the celebration overlay
   /// shows the same number it actually pays out.
@@ -711,6 +717,24 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// enforced in AdService). The engine is frozen during `levelClear`, so
   /// nothing runs behind the ad; the next level always loads afterwards
   /// whether an ad showed or not.
+  /// CONTINUE on the level-clear debrief: offer the upgrade draft first
+  /// (skipped only if every upgrade is maxed).
+  void _openDraft() {
+    final options = _game.rollDraft();
+    if (options.isEmpty) {
+      _advanceWithInterstitial();
+      return;
+    }
+    setState(() => _draft = options);
+  }
+
+  void _onUpgradePicked(UpgradeId id) {
+    _game.takeUpgrade(id);
+    unawaited(GetIt.I<AnalyticsFacade>().trackPowerUpUsed('upgrade_${id.name}'));
+    setState(() => _draft = null);
+    _advanceWithInterstitial();
+  }
+
   void _advanceWithInterstitial() {
     GetIt.I<AdService>().maybeShowInterstitialOnLevelClear().whenComplete(() {
       if (mounted) _game.advanceToNextLevel();
@@ -997,11 +1021,20 @@ class _GameplayScreenState extends State<GameplayScreen>
                           onWatchAdForLife: _watchAdForLife,
                         );
                       case GamePhase.levelClear:
+                        final draft = _draft;
+                        if (draft != null) {
+                          return UpgradeDraftOverlay(
+                            options: draft,
+                            upgrades: _game.upgrades,
+                            nextLevel: _game.levelIndex + 1,
+                            onPick: _onUpgradePicked,
+                          );
+                        }
                         return LevelCompleteOverlay(
                           game: _game,
                           outcome: _outcomes[_game.levelIndex],
                           priorBest: _priorBest[_game.levelIndex],
-                          onContinue: _advanceWithInterstitial,
+                          onContinue: _openDraft,
                           onQuit: _quitToHome,
                         );
                       case GamePhase.reviveOffer:

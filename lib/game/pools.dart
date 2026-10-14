@@ -21,7 +21,7 @@ class GamePools {
 
   final CosmoStrikeGame game;
 
-  static const int playerBulletCount = 48;
+  static const int playerBulletCount = 96;
   static const int enemyBulletCount = 160;
   static const int sparkCount = 24;
   static const int flashCount = 12;
@@ -64,6 +64,7 @@ class GamePools {
     int damage = 1,
     bool heavy = false,
     double driftY = 0,
+    int pierce = 0,
   }) {
     final b = _playerBullets[_pb];
     _pb = (_pb + 1) % _playerBullets.length;
@@ -73,6 +74,7 @@ class GamePools {
       damage: damage,
       heavy: heavy,
       driftY: driftY,
+      pierce: pierce,
     );
     return b;
   }

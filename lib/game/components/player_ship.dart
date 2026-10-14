@@ -442,17 +442,20 @@ class PlayerShip extends PositionComponent
 
   void fire() {
     if (_fireCooldown > 0) return;
-    final cooldownScale = speedBoosted ? 0.85 : 1.0;
+    final up = game.upgrades;
+    final cooldownScale = (speedBoosted ? 0.85 : 1.0) * up.fireCooldownScale;
     final spawnNose = nose;
+    final dmg = 1 + up.bonusDamage;
     if (game.overdriveActive) {
       // Overdrive: a dense, piercing three-lane beam.
       for (final dy in const [-26.0, 0.0, 26.0]) {
         game.pools.playerBullet(
           spawn: spawnNose + Vector2(0, dy * 0.3),
           speed: 980,
-          damage: GameTuning.overdriveDamage,
+          damage: GameTuning.overdriveDamage + up.bonusDamage,
           heavy: true,
           driftY: dy,
+          pierce: up.pierce,
         );
       }
       _fireCooldown = GameTuning.overdriveFireCooldown;
@@ -460,30 +463,49 @@ class PlayerShip extends PositionComponent
       GameAudio.shoot();
       return;
     }
+    var speed = 520.0;
     switch (weapon) {
       case WeaponMode.single:
-        game.pools.playerBullet(spawn: spawnNose);
+        game.pools.playerBullet(spawn: spawnNose, damage: dmg, pierce: up.pierce);
         _fireCooldown = 0.28 * cooldownScale;
         break;
       case WeaponMode.rapid:
-        game.pools.playerBullet(spawn: spawnNose, speed: 620);
+        speed = 620;
+        game.pools.playerBullet(
+            spawn: spawnNose, speed: speed, damage: dmg, pierce: up.pierce);
         _fireCooldown = 0.12 * cooldownScale;
         break;
       case WeaponMode.spread:
         for (final dy in const [-90.0, 0.0, 90.0]) {
-          game.pools.playerBullet(spawn: spawnNose, driftY: dy);
+          game.pools.playerBullet(
+              spawn: spawnNose, driftY: dy, damage: dmg, pierce: up.pierce);
         }
         _fireCooldown = 0.26 * cooldownScale;
         break;
       case WeaponMode.laser:
+        speed = 820;
         game.pools.playerBullet(
           spawn: spawnNose,
-          speed: 820,
-          damage: 3,
+          speed: speed,
+          damage: 3 + up.bonusDamage,
           heavy: true,
+          pierce: up.pierce,
         );
         _fireCooldown = 0.2 * cooldownScale;
         break;
+    }
+    // Run upgrades stack on top of whatever weapon is equipped.
+    for (var i = 1; i <= up.extraParallelShots; i++) {
+      final dy = (i.isOdd ? -1 : 1) * 9.0 * ((i + 1) ~/ 2);
+      game.pools.playerBullet(
+          spawn: spawnNose + Vector2(-4, dy), speed: speed, damage: dmg, pierce: up.pierce);
+    }
+    for (var i = 1; i <= up.sideShotPairs; i++) {
+      final drift = 55.0 * i;
+      game.pools.playerBullet(
+          spawn: spawnNose, speed: speed, damage: dmg, driftY: -drift, pierce: up.pierce);
+      game.pools.playerBullet(
+          spawn: spawnNose, speed: speed, damage: dmg, driftY: drift, pierce: up.pierce);
     }
     game.pools.muzzleFlash(spawnNose + Vector2(6, 0));
     GameAudio.shoot();

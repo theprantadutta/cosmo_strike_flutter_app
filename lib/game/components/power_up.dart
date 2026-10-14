@@ -102,8 +102,9 @@ class PowerUp extends PositionComponent
     _age += dt;
 
     // Magnet effect: home toward the ship when it's close enough.
-    if (game.player.magnetActive &&
-        position.distanceTo(game.player.position) < 260) {
+    final radius =
+        game.player.magnetActive ? 260.0 : game.upgrades.magnetRadius;
+    if (radius > 0 && position.distanceTo(game.player.position) < radius) {
       final dir = (game.player.position - position)..normalize();
       position += dir * 240 * dt;
     } else {
