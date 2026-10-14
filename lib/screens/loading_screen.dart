@@ -13,6 +13,7 @@ import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
 import 'package:cosmo_strike_flutter_app/services/data_sync_service.dart';
 import 'package:cosmo_strike_flutter_app/services/preferences_service.dart';
+import 'package:cosmo_strike_flutter_app/services/first_run_service.dart';
 import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
 import 'package:cosmo_strike_flutter_app/services/unified_user_service.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
@@ -133,28 +134,23 @@ class _LoadingScreenState extends State<LoadingScreen>
         }
 
         final isFirstTime = authCubit.state.isFirstTimeUser;
+        await FirstRunService.instance.initialize(
+          hasPriorPlay: !isFirstTime ||
+              StatisticsService().statistics.totalGamesPlayed > 0,
+        );
 
         if (isFirstTime) {
-          await _updateProgress(1.0, 'Welcome!', 'Choose how to continue');
-          await Future.delayed(
-            const Duration(milliseconds: 50),
-          ); // Reduced from 100ms
-
-          // Navigate to first-time auth screen
-          if (!mounted) {
-            return;
-          }
-          await _liftSplash();
-          if (!mounted) return;
-          context.go(AppRoutes.firstTimeAuth);
-          return;
+          // No gates on first launch: the local guest created by
+          // UnifiedUserService is already active, so straight to Home.
+          // Privacy is a notice strip on Home (accepted on first Play);
+          // sign-in and notifications are asked later — see FirstRunService.
+          await authCubit.markFirstTimeSetupComplete();
         }
       }
 
-      // Returning user: if the privacy policy has changed version since they
-      // last accepted it, gate them through the re-consent screen first.
-      final policyAccepted = await PrivacyPolicy.isCurrentVersionAccepted();
-      if (!policyAccepted) {
+      // Only players who accepted an EARLIER policy version are gated
+      // through re-consent; new players get the notice strip on Home.
+      if (await PrivacyPolicy.needsReconsent()) {
         if (!mounted) return;
         await _liftSplash();
         if (!mounted) return;

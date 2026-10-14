@@ -60,7 +60,7 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
         SizedBox(height: cs(26)),
         CsLabel('Privacy · v${PrivacyPolicy.currentPrivacyPolicyVersion}'),
         SizedBox(height: cs(10)),
-        CsHeadline(const ['Policy\n', 'updated.'], prismIndex: 1, style: t.title),
+        CsHeadline(const ['Policy ', 'updated.'], prismIndex: 1, maxLines: 3, style: t.title),
         SizedBox(height: cs(14)),
         Text(
           'Please review the updated Privacy Policy and accept it to continue.',
@@ -82,10 +82,7 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
                 child: SingleChildScrollView(
                   primary: true,
                   padding: EdgeInsets.all(cs(22)),
-                  child: Text(
-                    _content,
-                    style: t.body.copyWith(color: CsColors.ink70, height: 1.55),
-                  ),
+                  child: CsMarkdown(_content),
                 ),
               ),
             ),

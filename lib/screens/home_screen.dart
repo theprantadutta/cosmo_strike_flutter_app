@@ -12,6 +12,10 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/power_up/power_up_cub
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/providers/walkthrough_provider.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
+import 'package:cosmo_strike_flutter_app/widgets/notification_soft_ask.dart';
+import 'package:cosmo_strike_flutter_app/utils/privacy_policy.dart';
+import 'package:cosmo_strike_flutter_app/services/first_run_service.dart';
+import 'package:cosmo_strike_flutter_app/router/app_router.dart' show appRouteObserver;
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
@@ -44,85 +48,94 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
-  bool _dailyBonusChecked = false;
-  bool _walkthroughChecked = false;
+class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
+  bool _queueRunning = false;
+  bool _policyNotice = false;
+  ModalRoute<void>? _route;
 
   @override
   void initState() {
     super.initState();
-
-    // Check for daily bonus after a short delay
+    // Short settle so Home finishes its first layout before anything pops.
     Future.delayed(const Duration(milliseconds: 800), () {
-      if (mounted) {
-        _checkDailyBonus();
-      }
+      if (mounted) _runPromptQueue();
     });
-
-    // Check for walkthrough after daily bonus popup delay
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (mounted) {
-        _checkWalkthrough();
-      }
-    });
-
-    // First-launch initialization of the notification service. Used to
-    // live in main.dart but the OS permission dialog as a side effect
-    // was firing before the user had ever seen the app — so we moved
-    // it here, where it fires once the user has actually landed on
-    // home. NotificationService.initialize() guards itself against
-    // double-init (the _initialized flag), so re-entering home doesn't
-    // re-prompt.
-    _maybeInitNotifications();
-  }
-
-  void _maybeInitNotifications() {
-    if (NotificationService().initialized) return;
-    // Small delay so the home screen finishes its first layout +
-    // animations before the permission dialog pops over it.
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (!mounted) return;
-      NotificationService()
-          .initialize()
-          .then((_) {
-            AppLogger.success('Notification service initialized from home');
-          })
-          .catchError((e) {
-            AppLogger.error('Notification service init failed', e);
-          });
-    });
-  }
-
-  /// One-time control-method chooser (touch-drag vs D-pad), shown on the
-  /// first Play tap — right where the choice is about to matter, and
-  /// before the in-game tutorial so its steer beat demos the input the
-  /// player actually picked. Changeable any time in Settings.
-  Future<void> _maybeShowControlChoicePrompt() async {
-    if (!mounted) return;
-    final walkthroughs = WalkthroughService();
-    if (!walkthroughs.isInitialized) await walkthroughs.initialize();
-    if (walkthroughs.isComplete(WalkthroughService.controlChoiceId)) return;
-    if (!mounted) return;
-
-    final settingsCubit = context.read<GameSettingsCubit>();
-    final useDPad = await showCsDialog<bool>(
-      context,
-      barrierDismissible: false,
-      builder: (sheetContext) => const _ControlChoiceSheet(),
-    );
-
-    if (useDPad != null) {
-      await settingsCubit.setDPadEnabled(useDPad);
+    // Wire notifications WITHOUT the OS permission dialog: the ask is
+    // deferred to the soft-ask in the prompt queue (after onboarding).
+    if (!NotificationService().initialized) {
+      NotificationService().initialize().catchError((Object e) {
+        AppLogger.error('Notification service init failed', e);
+      });
     }
-    await walkthroughs.markComplete(WalkthroughService.controlChoiceId);
+    _refreshPolicyNotice();
   }
 
-  /// Shows the first-launch game-mode picker if it hasn't been shown
-  /// before. Returns once the sheet is dismissed (or immediately if the
-  /// user has already seen it). Triggered from the Play button so it
-  /// only appears in the path where the choice actually matters.
-  Future<void> _maybeShowGameModePrompt() async {
-    if (!mounted) return;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != _route && route != null) {
+      if (_route != null) appRouteObserver.unsubscribe(this);
+      _route = route;
+      appRouteObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    appRouteObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  /// Back on Home (e.g. after a run): offer whatever is now due.
+  @override
+  void didPopNext() {
+    _refreshPolicyNotice();
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) _runPromptQueue();
+    });
+  }
+
+  void _refreshPolicyNotice() {
+    PrivacyPolicy.isCurrentVersionAccepted().then((accepted) {
+      if (mounted && _policyNotice == accepted) setState(() => _policyNotice = !accepted);
+    });
+  }
+
+  bool get _onTop => _route?.isCurrent ?? true;
+
+  /// Home's interruptions, strictly one at a time: walkthrough (first
+  /// visit; ends the queue for that visit) -> daily bonus -> game-mode
+  /// picker (after the first run) -> notification soft-ask (after
+  /// onboarding). Each step is a no-op once done, so re-running on every
+  /// return to Home is cheap.
+  Future<void> _runPromptQueue() async {
+    if (_queueRunning || !mounted || !_onTop) return;
+    _queueRunning = true;
+    try {
+      if (await _checkWalkthrough()) {
+        // Let the tour finish; the bonus waits for the next visit.
+        await ref.read(walkthroughProvider.notifier).stream.firstWhere((s) => !s.isActive);
+        return;
+      }
+      if (!mounted || !_onTop) return;
+      await _checkDailyBonus();
+      if (!mounted || !_onTop) return;
+      final firstRun = FirstRunService.instance;
+      if (firstRun.gamesStarted >= 1 && await _maybeShowGameModePrompt()) return;
+      if (!mounted || !_onTop || !firstRun.hasCompletedOnboarding) return;
+      await NotificationSoftAsk.maybeShow(context);
+    } catch (e) {
+      AppLogger.error('Home prompt queue failed', e);
+    } finally {
+      _queueRunning = false;
+    }
+  }
+
+  /// One-time game-mode picker, offered after the first run (never in
+  /// front of the first Play). Returns true when it was shown.
+  Future<bool> _maybeShowGameModePrompt() async {
+    if (!mounted) return false;
     final settingsCubit = context.read<GameSettingsCubit>();
 
     // Read the flag with a short hydration window. If the cubit is
@@ -144,8 +157,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     }
 
-    if (!mounted) return;
-    if (alreadyPrompted) return;
+    if (!mounted || alreadyPrompted) return false;
 
     final selected = await showCsDialog<GameMode>(
       context,
@@ -154,18 +166,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _GameModeFirstLaunchSheet(initialMode: settingsCubit.state.gameMode),
     );
 
-    if (!mounted) return;
     if (selected != null) {
       await settingsCubit.setGameMode(selected);
     }
     await settingsCubit.markGameModePrompted();
+    return true;
   }
 
-  /// Check if home walkthrough should be shown
-  Future<void> _checkWalkthrough() async {
-    if (_walkthroughChecked) return;
-    _walkthroughChecked = true;
-
+  /// Starts the home walkthrough if it hasn't been completed. True when it
+  /// started.
+  Future<bool> _checkWalkthrough() async {
     final walkthroughNotifier = ref.read(walkthroughProvider.notifier);
     final isComplete = await walkthroughNotifier.isWalkthroughComplete(
       WalkthroughService.homeWalkthroughId,
@@ -177,7 +187,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         walkthroughId: WalkthroughService.homeWalkthroughId,
         steps: HomeWalkthrough.getSteps(),
       );
+      return true;
     }
+    return false;
   }
 
   /// Reads the Drift daily-bonus row directly and applies the same
@@ -203,9 +215,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// Check and show daily bonus popup if available.
   /// Offline-first: reads CoinsCubit's local state. No network call.
   Future<void> _checkDailyBonus() async {
-    if (_dailyBonusChecked) return;
-    _dailyBonusChecked = true;
-
     if (!mounted) return;
 
     // Wait until CoinsCubit has hydrated from Drift. Before that its state
@@ -341,6 +350,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
         ),
+
+        // First-run privacy notice (notice-and-continue, like Snake
+        // Classic): acceptance is recorded when the first run starts.
+        if (_policyNotice)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              child: Center(child: _PolicyNotice(onTap: () => context.push(AppRoutes.privacyPolicy))),
+            ),
+          ),
 
         // Walkthrough overlay
         if (walkthroughState.isActive && walkthroughState.currentStep != null)
@@ -546,13 +568,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _launch(BuildContext context) async {
-    // First-launch setup prompts, in the order they matter: how you
-    // fly, then how you want the run tuned. Both are one-time no-ops
-    // for users who've already chosen.
-    await _maybeShowControlChoicePrompt();
-    if (!context.mounted) return;
-    await _maybeShowGameModePrompt();
-    if (!context.mounted) return;
     // Drop STRAIGHT into the next unlocked level — the "continue"
     // target — so the most common intent (just keep playing) is a
     // single tap with no campaign screen in the way. Routes through the
@@ -1157,76 +1172,6 @@ class _ChoiceDialog extends StatelessWidget {
 
 /// First-launch control chooser: touch-drag steering vs on-screen D-pad.
 /// Pops `true` for D-pad, `false` for touch.
-class _ControlChoiceSheet extends StatefulWidget {
-  const _ControlChoiceSheet();
-
-  @override
-  State<_ControlChoiceSheet> createState() => _ControlChoiceSheetState();
-}
-
-class _ControlChoiceSheetState extends State<_ControlChoiceSheet> {
-  bool _useDPad = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return _ChoiceDialog(
-      eyebrow: 'Controls',
-      title: 'How do you want to fly?',
-      options: Row(children: [
-        Expanded(
-          child: _option(
-            useDPad: false,
-            icon: Symbols.swipe_rounded,
-            title: 'Touch drag',
-            tagline: 'Recommended',
-            description: 'Drag anywhere on screen — your ship mirrors your finger.',
-          ),
-        ),
-        SizedBox(width: context.cs(12)),
-        Expanded(
-          child: _option(
-            useDPad: true,
-            icon: Symbols.gamepad_rounded,
-            title: 'D-pad',
-            tagline: 'Classic',
-            description: 'An on-screen directional pad, old-school handheld style.',
-          ),
-        ),
-      ]),
-      footer: Text('You can change this anytime in Settings', style: context.type.micro),
-      cta: CsButton.primary(label: 'Confirm', onPressed: () => Navigator.of(context).pop(_useDPad)),
-    );
-  }
-
-  Widget _option({
-    required bool useDPad,
-    required IconData icon,
-    required String title,
-    required String tagline,
-    required String description,
-  }) {
-    final cs = context.cs;
-    final t = cs.type;
-    final on = _useDPad == useDPad;
-    return CsTile(
-      state: on ? CsTileState.current : CsTileState.done,
-      onTap: () => setState(() => _useDPad = useDPad),
-      padding: EdgeInsets.all(cs(16)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(icon, size: cs(22), color: on ? CsColors.ink : CsColors.ink45),
-          const Spacer(),
-          Text(tagline.toUpperCase(), style: t.mono(9, color: on ? CsColors.mint : CsColors.ink45)),
-        ]),
-        SizedBox(height: cs(12)),
-        Text(title, style: t.rowTitle),
-        SizedBox(height: cs(4)),
-        Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.body),
-      ]),
-    );
-  }
-}
-
 class _GameModeFirstLaunchSheet extends StatefulWidget {
   const _GameModeFirstLaunchSheet({required this.initialMode});
 
@@ -1266,8 +1211,7 @@ class _GameModeFirstLaunchSheetState extends State<_GameModeFirstLaunchSheet> {
         child: Text(_selected.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.body),
       ),
       cta: CsButton.primary(
-        label: 'Start playing',
-        trailingIcon: Symbols.arrow_forward_rounded,
+        label: 'Confirm',
         onPressed: () => Navigator.of(context).pop(_selected),
       ),
     );
@@ -1364,6 +1308,33 @@ class _LoadoutSheet extends StatelessWidget {
           actions: [CsButton.primary(label: 'Done', onPressed: () => Navigator.of(context).pop())],
         );
       },
+    );
+  }
+}
+
+/// One mono line under the nav: "By playing you agree to our Privacy Policy".
+class _PolicyNotice extends StatelessWidget {
+  const _PolicyNotice({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.type;
+    return CsPressable(
+      onTap: onTap,
+      semanticLabel: 'Read the Privacy Policy',
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: context.cs(12), vertical: context.cs(6)),
+        child: Text.rich(
+          TextSpan(style: t.micro, children: [
+            const TextSpan(text: 'BY PLAYING YOU AGREE TO OUR '),
+            TextSpan(
+              text: 'PRIVACY POLICY',
+              style: t.micro.copyWith(color: CsColors.ink70, decoration: TextDecoration.underline),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 }

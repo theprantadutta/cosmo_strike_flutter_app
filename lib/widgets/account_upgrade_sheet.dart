@@ -5,24 +5,37 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart'
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 
-/// Dialog shown when an anonymous (guest) user tries to make a purchase.
-/// Offers two ways to upgrade the account in place — keeping the same
-/// Firebase UID so existing game progress, coins, and cosmetics stay
-/// attached.
+/// Why the account dialog is being offered — changes the copy only.
+enum AccountUpgradeReason {
+  /// Purchase gate: guests can't buy.
+  purchase,
+
+  /// Deferred nudge (new personal best after onboarding) / profile.
+  saveProgress,
+}
+
+/// Account dialog for players without a credential: Firebase anonymous
+/// users (linked in place, same UID) and the silent local guest every new
+/// install starts as (plain sign-in — a brand-new backend account keeps
+/// this device's progress and pushes it up; an existing account restores
+/// its cloud save).
 ///
-/// Returns `true` from [showAccountUpgradeSheet] if the user successfully
-/// linked an account (caller should re-check `isAnonymous` and proceed),
-/// `false` if they dismissed or cancelled.
-Future<bool> showAccountUpgradeSheet(BuildContext context) async {
+/// Returns `true` from [showAccountUpgradeSheet] if an account was
+/// connected, `false` if dismissed or cancelled.
+Future<bool> showAccountUpgradeSheet(
+  BuildContext context, {
+  AccountUpgradeReason reason = AccountUpgradeReason.purchase,
+}) async {
   final result = await showCsDialog<bool>(
     context,
-    builder: (_) => const _AccountUpgradeDialog(),
+    builder: (_) => _AccountUpgradeDialog(reason: reason),
   );
   return result ?? false;
 }
 
 class _AccountUpgradeDialog extends StatefulWidget {
-  const _AccountUpgradeDialog();
+  const _AccountUpgradeDialog({required this.reason});
+  final AccountUpgradeReason reason;
 
   @override
   State<_AccountUpgradeDialog> createState() => _AccountUpgradeDialogState();
@@ -31,21 +44,36 @@ class _AccountUpgradeDialog extends StatefulWidget {
 class _AccountUpgradeDialogState extends State<_AccountUpgradeDialog> {
   bool _busy = false;
 
+  bool get _forPurchase => widget.reason == AccountUpgradeReason.purchase;
+
   Future<void> _linkGoogle() async {
     // Capture context-bound handles before the await so we can dismiss the
     // dialog and show feedback safely afterwards.
     final cubit = context.read<AuthCubit>();
     final navigator = Navigator.of(context);
     setState(() => _busy = true);
-    final ok = await cubit.linkAnonymousToGoogle();
+    final bool ok;
+    if (cubit.state.isAnonymous) {
+      // Firebase anonymous: link in place so the UID (and backend row) stays.
+      ok = await cubit.linkAnonymousToGoogle();
+    } else {
+      // Local offline guest: nothing to link, so sign in. First-sign-in
+      // keeps local progress for a new account (is_new_user) and restores
+      // the cloud save for an existing one.
+      ok = await cubit.signInWithGoogle();
+    }
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) {
-      showCsToast(context, 'Account linked. You can now make purchases.', kind: CsToastKind.success);
+      showCsToast(
+        context,
+        _forPurchase ? 'Account linked. You can now make purchases.' : 'Signed in. Your progress is backed up.',
+        kind: CsToastKind.success,
+      );
       navigator.pop(true);
     } else {
       final code = cubit.state.errorMessage ?? '';
-      if (code.isNotEmpty && code != 'link failed') {
+      if (code.isNotEmpty && code != 'link failed' && code != 'Google sign-in failed') {
         showCsToast(context, _linkError(code), kind: CsToastKind.error);
       }
     }
@@ -53,19 +81,25 @@ class _AccountUpgradeDialogState extends State<_AccountUpgradeDialog> {
 
   void _createEmailAccount() {
     final router = GoRouter.of(context);
+    final anonymous = context.read<AuthCubit>().state.isAnonymous;
     Navigator.of(context).pop(false);
-    router.push('${AppRoutes.emailAuth}?link=1');
+    // Link mode only applies to a Firebase anonymous user; a local guest
+    // just signs in / signs up.
+    router.push(anonymous ? '${AppRoutes.emailAuth}?link=1' : AppRoutes.emailAuth);
   }
 
   @override
   Widget build(BuildContext context) {
     return CsDialog(
-      icon: Symbols.lock_rounded,
-      eyebrow: 'Guest account',
-      title: 'Sign up to make purchases',
-      message: 'Guest accounts can play and save progress locally, but cannot buy items or subscribe. '
-          'Link a Google or email account to unlock purchases — your existing coins, cosmetics, '
-          'and high scores stay attached.',
+      icon: _forPurchase ? Symbols.lock_rounded : Symbols.cloud_upload_rounded,
+      eyebrow: _forPurchase ? 'Guest account' : 'New personal best',
+      title: _forPurchase ? 'Sign up to make purchases' : 'Save your progress',
+      message: _forPurchase
+          ? 'Guest accounts can play and save progress locally, but cannot buy items or subscribe. '
+              'Sign in with Google or email to unlock purchases. Your coins, cosmetics '
+              'and high scores stay attached.'
+          : "You're playing as a guest, so your progress lives only on this device. "
+              'Sign in to back it up, climb the leaderboards and play on any device.',
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -80,8 +114,8 @@ class _AccountUpgradeDialogState extends State<_AccountUpgradeDialog> {
           ),
           _UpgradeOption(
             icon: Symbols.mail_rounded,
-            title: 'Create an Email Account',
-            subtitle: 'Use any email and a password you choose. Restore on any device.',
+            title: 'Use Email',
+            subtitle: 'Any email and a password you choose. Restore on any device.',
             busy: _busy,
             onPressed: _createEmailAccount,
           ),

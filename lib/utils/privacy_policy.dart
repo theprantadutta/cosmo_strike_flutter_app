@@ -37,6 +37,21 @@ class PrivacyPolicy {
     }
   }
 
+  /// True when the player accepted an OLDER version (or the pre-versioning
+  /// bool) and the current one is new to them — the blocking re-consent
+  /// case. A player who never accepted anything gets the Home notice strip
+  /// instead (acceptance recorded on their first Play).
+  static Future<bool> needsReconsent() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getString(_versionKey);
+      if (stored == currentPrivacyPolicyVersion) return false;
+      return stored != null || (prefs.getBool(_legacyKey) ?? false);
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Record acceptance of the current policy version.
   static Future<void> recordAccepted() async {
     try {

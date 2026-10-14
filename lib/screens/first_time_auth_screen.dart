@@ -167,7 +167,6 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
 
   Widget _buildPrivacyPolicyView(BuildContext context) {
     final cs = context.cs;
-    final t = cs.type;
 
     final policy = DecoratedBox(
       decoration: BoxDecoration(
@@ -182,10 +181,7 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
                 child: SingleChildScrollView(
                   primary: true,
                   padding: EdgeInsets.all(cs(22)),
-                  child: Text(
-                    _privacyPolicyContent,
-                    style: t.body.copyWith(color: CsColors.ink70, height: 1.55),
-                  ),
+                  child: CsMarkdown(_privacyPolicyContent),
                 ),
               ),
             ),
@@ -195,7 +191,7 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
       leftWidth: cs.isTablet ? 340 : 300,
       left: _AuthIntro(
         eyebrow: 'Privacy policy · v${PrivacyPolicy.currentPrivacyPolicyVersion}',
-        headline: const ['Cleared for\n', 'takeoff.'],
+        headline: const ['Cleared for ', 'takeoff.'],
         body: 'Before you launch, take a moment with our Privacy Policy & '
             "Terms — then you're cleared for takeoff.",
       ),
@@ -395,7 +391,7 @@ class _AuthIntro extends StatelessWidget {
         SizedBox(height: cs(26)),
         CsLabel(eyebrow),
         SizedBox(height: cs(10)),
-        CsHeadline(headline, prismIndex: 1, style: t.title),
+        CsHeadline(headline, prismIndex: 1, maxLines: 3, style: t.title),
         SizedBox(height: cs(14)),
         Text(body, style: t.body.copyWith(fontSize: cs(14))),
       ],

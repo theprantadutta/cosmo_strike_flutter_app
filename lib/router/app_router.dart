@@ -10,6 +10,7 @@ import 'package:cosmo_strike_flutter_app/screens/challenges_hub_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/email_auth_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/first_time_auth_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/privacy_consent_screen.dart';
+import 'package:cosmo_strike_flutter_app/screens/privacy_policy_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/username_setup_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/friends_leaderboard_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/friends_screen.dart';
@@ -80,12 +81,16 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'rootNavigator',
 );
 
+/// Lets screens react to being revealed again (RouteAware.didPopNext) — Home
+/// re-runs its one-at-a-time prompt queue when the player returns to it.
+final RouteObserver<ModalRoute<void>> appRouteObserver = RouteObserver<ModalRoute<void>>();
+
 /// Creates a [GoRouter] with optional [NavigatorObserver]s for analytics.
 GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
   initialLocation: AppRoutes.loading,
   navigatorKey: rootNavigatorKey,
   debugLogDiagnostics: true,
-  observers: observers ?? [],
+  observers: [...?observers, appRouteObserver],
   routes: [
     // Core routes
     GoRoute(
@@ -104,6 +109,12 @@ GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
       name: 'privacyConsent',
       pageBuilder: (context, state) =>
           _zoomPage(state, const PrivacyConsentScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.privacyPolicy,
+      name: 'privacyPolicy',
+      pageBuilder: (context, state) =>
+          _zoomPage(state, const PrivacyPolicyScreen()),
     ),
     GoRoute(
       path: AppRoutes.emailAuth,

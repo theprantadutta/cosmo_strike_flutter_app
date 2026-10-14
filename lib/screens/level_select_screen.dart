@@ -332,16 +332,21 @@ class _LevelPanel extends StatelessWidget {
                     CsPlanet(size: planet, dim: !unlocked),
                     SizedBox(height: cs(14)),
                   ],
-                  Text(
-                    _titleCase(CampaignCatalog.levelNameFor(level)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: t.display(
-                      22,
-                      em: -0.02,
-                      height: 1.1,
-                      color: unlocked ? CsColors.ink : CsColors.ink45,
+                  // Scale down rather than ellipsize: long names ("Shattered
+                  // Light") don't fit the narrow phone column at full size.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      _titleCase(CampaignCatalog.levelNameFor(level)),
+                      maxLines: 1,
+                      textAlign: TextAlign.right,
+                      style: t.display(
+                        22,
+                        em: -0.02,
+                        height: 1.1,
+                        color: unlocked ? CsColors.ink : CsColors.ink45,
+                      ),
                     ),
                   ),
                   SizedBox(height: cs(8)),

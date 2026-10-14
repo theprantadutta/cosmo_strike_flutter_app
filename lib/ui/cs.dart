@@ -11,6 +11,7 @@ export 'cs/cs_buttons.dart';
 export 'cs/cs_data.dart';
 export 'cs/cs_feedback.dart';
 export 'cs/cs_icons.dart';
+export 'cs/cs_markdown.dart';
 export 'cs/cs_planet.dart';
 export 'cs/cs_prism.dart';
 export 'cs/cs_surfaces.dart';

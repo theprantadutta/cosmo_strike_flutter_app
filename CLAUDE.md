@@ -44,6 +44,27 @@ When adding a new piece of user state: add a Drift table/DAO, read it in the UI,
 write-through to Drift, enqueue it for push in `SyncEngine`. Don't bolt on a
 one-off API call.
 
+## ⚠️ Onboarding: NO GATES, DEFERRED ASKS (mirrors Snake Classic)
+A fresh install goes loading → **Home**, as the silent local guest
+`UnifiedUserService` creates (no Firebase/backend until they sign in). Never
+put sign-in, privacy, notifications or setup choices in front of the first run.
+- `services/first_run_service.dart` (SharedPreferences, device-only): runs
+  started; `hasCompletedOnboarding` after 3 — the gate for later asks.
+- **Privacy**: notice strip on Home ("By playing you agree…"); starting a run
+  records acceptance (`gameplay_screen` initState). Only players who accepted
+  an OLDER version hit the blocking `PrivacyConsentScreen`
+  (`PrivacyPolicy.needsReconsent`). Read-only `/privacy-policy` from Settings.
+- **Home prompt queue** (`home_screen._runPromptQueue`, re-runs on return via
+  `appRouteObserver`): walkthrough (first visit, ends the queue) → daily bonus
+  → game-mode picker (after run 1) → notification soft-ask (after onboarding).
+  One at a time — never stack dialogs.
+- **Notifications**: `NotificationService.initialize()` never shows the OS
+  dialog; only `NotificationSoftAsk` → `requestPermissionFlow()` does.
+- **Sign-in**: `DeferredSignInPrompt` on a new personal best after onboarding
+  (≤3 asks, 3 days apart), plus Profile/Settings/purchase gate, all via
+  `showAccountUpgradeSheet` (links Firebase-anonymous; signs in a local guest —
+  is_new_user keeps local data).
+
 ## Stack & conventions
 - **State management:** `flutter_bloc` Cubits/Blocs in `lib/presentation/bloc/`
   plus some `provider`-based providers in `lib/providers/`.

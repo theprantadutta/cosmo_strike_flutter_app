@@ -46,6 +46,9 @@ import '../widgets/gameplay/pause_overlay.dart';
 import '../widgets/gameplay/upgrade_draft_overlay.dart';
 import '../game/run_upgrades.dart';
 import '../widgets/reward_toast.dart';
+import 'package:cosmo_strike_flutter_app/services/first_run_service.dart';
+import 'package:cosmo_strike_flutter_app/widgets/deferred_sign_in_prompt.dart';
+import 'package:cosmo_strike_flutter_app/utils/privacy_policy.dart';
 
 /// Hosts the Flame shoot-'em-up. Flame is scoped to this screen only; the
 /// HUD, pause / level-clear / revive / game-over overlays, d-pad, missile
@@ -169,6 +172,12 @@ class _GameplayScreenState extends State<GameplayScreen>
     // A tournament plays under ITS rules, not the player's chosen mode.
     _mode = _tournamentContext?.state.mode?.toGameMode() ?? settings.gameMode;
     _gameModeName = _mode.name;
+
+    // First-run bookkeeping: counts toward the onboarding window (gates the
+    // deferred asks), and starting a run accepts the privacy notice shown
+    // on Home (notice-and-continue).
+    unawaited(FirstRunService.instance.recordGameStarted());
+    unawaited(PrivacyPolicy.recordAccepted());
 
     // The debrief shows only THIS run's achievement unlocks and challenge
     // deltas — reset/snapshot both at run start.
@@ -355,6 +364,16 @@ class _GameplayScreenState extends State<GameplayScreen>
       context.read<CoinsCubit>(),
       context.read<BattlePassCubit>(),
     );
+    // New personal best: after the score reveal, nudge guests to save their
+    // progress (budgeted inside the prompt). Skipped if they've already
+    // tapped Retry/Exit by then.
+    if (result.score > _prevBestScore) {
+      Future.delayed(const Duration(milliseconds: 2400), () {
+        if (mounted && _game.phaseNotifier.value == GamePhase.gameOver) {
+          DeferredSignInPrompt.maybeShow(context);
+        }
+      });
+    }
   }
 
   /// Persist campaign progress, submit the run to the backend

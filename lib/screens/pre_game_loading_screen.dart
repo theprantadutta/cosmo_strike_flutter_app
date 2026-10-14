@@ -292,9 +292,11 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: CsMotion.base,
-                    layoutBuilder: (current, previous) => Stack(
+                    // Only the incoming label: a crossfade draws two mono
+                    // labels on top of each other mid-transition.
+                    layoutBuilder: (current, previous) => Align(
                       alignment: Alignment.centerLeft,
-                      children: [...previous, ?current],
+                      child: current,
                     ),
                     child: Text(
                       status,

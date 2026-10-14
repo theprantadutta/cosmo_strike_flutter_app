@@ -58,15 +58,18 @@ class NotificationService {
   String? get fcmToken => _fcmToken;
   bool get initialized => _initialized;
 
-  Future<void> initialize() async {
+  /// Wires local + FCM notifications. With [requestPermission] false (the
+  /// launch path) no OS permission dialog is shown — the ask is deferred to
+  /// [requestPermissionFlow], fired from the soft-ask after onboarding.
+  Future<void> initialize({bool requestPermission = false}) async {
     try {
       AppLogger.info('🔔 Initializing notification service');
 
       _firebaseMessaging = FirebaseMessaging.instance;
       _localNotifications = FlutterLocalNotificationsPlugin();
 
-      await _initializeLocalNotifications();
-      await _initializeFirebaseMessaging().timeout(
+      await _initializeLocalNotifications(requestPermission: requestPermission);
+      await _initializeFirebaseMessaging(requestPermission: requestPermission).timeout(
         const Duration(seconds: 5),
         onTimeout: () {
           AppLogger.warning(
@@ -88,18 +91,18 @@ class NotificationService {
     }
   }
 
-  Future<void> _initializeLocalNotifications() async {
+  Future<void> _initializeLocalNotifications({required bool requestPermission}) async {
     // Android initialization settings
     const androidInit = AndroidInitializationSettings('@drawable/ic_stat_notify');
 
     // iOS initialization settings
-    const iosInit = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+    final iosInit = DarwinInitializationSettings(
+      requestAlertPermission: requestPermission,
+      requestBadgePermission: requestPermission,
+      requestSoundPermission: requestPermission,
     );
 
-    const initSettings = InitializationSettings(
+    final initSettings = InitializationSettings(
       android: androidInit,
       iOS: iosInit,
     );
@@ -136,31 +139,74 @@ class NotificationService {
           >();
       await androidPlugin?.createNotificationChannel(channel);
 
-      final granted = await androidPlugin?.requestNotificationsPermission();
-      AppLogger.info(
-        '🔔 Android notifications permission requested. Granted: $granted',
-      );
+      if (requestPermission) {
+        final granted = await androidPlugin?.requestNotificationsPermission();
+        AppLogger.info(
+          '🔔 Android notifications permission requested. Granted: $granted',
+        );
+      }
     }
   }
 
-  Future<void> _initializeFirebaseMessaging() async {
-    // Request permission for iOS
-    NotificationSettings settings = await _firebaseMessaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
+  /// Whether the OS currently lets us post notifications.
+  Future<bool> areNotificationsEnabled() async {
+    try {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final enabled = await FlutterLocalNotificationsPlugin()
+            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+            ?.areNotificationsEnabled();
+        return enabled ?? false;
+      }
+      final settings = await FirebaseMessaging.instance.getNotificationSettings();
+      return settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Shows the OS permission dialog (Android 13+ POST_NOTIFICATIONS / iOS
+  /// alert) and, when granted, finishes FCM wiring. Returns the result.
+  Future<bool> requestPermissionFlow() async {
+    if (!_initialized) await initialize();
+    try {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await _localNotifications
+            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+            ?.requestNotificationsPermission();
+      }
+      await _initializeFirebaseMessaging(requestPermission: true)
+          .timeout(const Duration(seconds: 8), onTimeout: () {});
+      unawaited(_syncTopicSubscriptions());
+    } catch (e) {
+      AppLogger.error('Notification permission flow failed', e);
+    }
+    return areNotificationsEnabled();
+  }
+
+  bool _fcmWired = false;
+
+  Future<void> _initializeFirebaseMessaging({required bool requestPermission}) async {
+    final NotificationSettings settings = requestPermission
+        ? await _firebaseMessaging.requestPermission(
+            alert: true,
+            announcement: false,
+            badge: true,
+            carPlay: false,
+            criticalAlert: false,
+            provisional: false,
+            sound: true,
+          )
+        : await _firebaseMessaging.getNotificationSettings();
 
     AppLogger.info(
       '🔔 Notification permission: ${settings.authorizationStatus}',
     );
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional) {
+    if (!_fcmWired &&
+        (settings.authorizationStatus == AuthorizationStatus.authorized ||
+            settings.authorizationStatus == AuthorizationStatus.provisional)) {
+      _fcmWired = true;
       // Get FCM token
       _fcmToken = await _firebaseMessaging.getToken();
       AppLogger.info('🎫 FCM Token: $_fcmToken');

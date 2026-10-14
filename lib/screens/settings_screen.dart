@@ -532,6 +532,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildRateButton(),
           _buildShareButton(),
           _buildCreditsButton(theme),
+          _buildActionRow(
+            icon: Symbols.policy_rounded,
+            title: 'Privacy Policy',
+            subtitle: 'What we collect and why',
+            onTap: () => context.push(AppRoutes.privacyPolicy),
+          ),
           _buildPrivacyChoicesButton(),
         ];
 

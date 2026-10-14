@@ -4,6 +4,7 @@ abstract class AppRoutes {
   static const String loading = '/';
   static const String firstTimeAuth = '/first-time-auth';
   static const String privacyConsent = '/privacy-consent';
+  static const String privacyPolicy = '/privacy-policy';
   static const String emailAuth = '/email-auth';
   static const String usernameSetup = '/username-setup';
   static const String home = '/home';
