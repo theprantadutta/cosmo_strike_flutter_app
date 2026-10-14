@@ -660,7 +660,7 @@ class CoinsCubit extends Cubit<CoinsState> {
       // user should still get their daily bonus on first launch.
       final bypassesCap = _capExemptSources.contains(source);
       if (bypassesCap) {
-        return _processEarning(source, multipliedAmount, itemName, metadata);
+        return await _processEarning(source, multipliedAmount, itemName, metadata);
       }
 
       // Re-derive today's total from the synced ledger (handles UTC day
@@ -690,11 +690,11 @@ class CoinsCubit extends Cubit<CoinsState> {
       }
 
       if (multipliedAmount > allowed) {
-        return _processEarning(source, allowed, itemName, metadata,
+        return await _processEarning(source, allowed, itemName, metadata,
             wasCapped: true);
       }
 
-      return _processEarning(source, multipliedAmount, itemName, metadata);
+      return await _processEarning(source, multipliedAmount, itemName, metadata);
     } catch (e) {
       AppLogger.error('Error earning coins', e);
       return false;

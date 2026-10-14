@@ -715,7 +715,7 @@ class SyncEngine {
     try {
       switch (dataType) {
         case SyncDataType.settings:
-          return _dispatchSnapshot(
+          return await _dispatchSnapshot(
             read: () async {
               final row = await _settingsDao!.getSettings();
               return row == null ? null : _settingsToPayload(row);
@@ -724,7 +724,7 @@ class SyncEngine {
           );
 
         case SyncDataType.statistics:
-          return _dispatchSnapshot(
+          return await _dispatchSnapshot(
             read: () async {
               final row = await _gameDao!.getStatistics();
               if (row == null) return null;
@@ -737,7 +737,7 @@ class SyncEngine {
           );
 
         case SyncDataType.coinBalance:
-          return _dispatchSnapshot(
+          return await _dispatchSnapshot(
             read: () async {
               final row = await _storeDao!.getCoinBalanceRow();
               if (row == null) return null;
@@ -752,7 +752,7 @@ class SyncEngine {
           );
 
         case SyncDataType.powerUpInventory:
-          return _dispatchSnapshot(
+          return await _dispatchSnapshot(
             read: () async {
               final row = await _storeDao!.getPowerUpInventoryRow();
               if (row == null) return null;
@@ -772,7 +772,7 @@ class SyncEngine {
           );
 
         case SyncDataType.premiumStatus:
-          return _dispatchSnapshot(
+          return await _dispatchSnapshot(
             read: () async {
               final row = await _storeDao!.getPremiumStatus();
               return row == null ? null : _premiumToPayload(row);
@@ -805,7 +805,7 @@ class SyncEngine {
         case SyncDataType.playerProgress:
           // Lifetime XP + level singleton. Read the current Drift row and
           // send it to the backend's absorbing-merge handler (MAX on totalXp).
-          return _dispatchSnapshot(
+          return await _dispatchSnapshot(
             read: () async {
               final row = await _gameDao!.getPlayerProgress();
               if (row == null) return null;
@@ -880,7 +880,7 @@ class SyncEngine {
           // Singleton snapshot: read the current Drift row and send it
           // to the backend's absorbing-merge handler. Outbox payload is
           // ignored; the latest row state is authoritative.
-          return _dispatchSnapshot(
+          return await _dispatchSnapshot(
             read: () async {
               final row = await _storeDao!.getDailyBonusRow();
               if (row == null) return null;
