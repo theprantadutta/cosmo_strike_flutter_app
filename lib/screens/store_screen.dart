@@ -19,6 +19,7 @@ import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
+import 'package:cosmo_strike_flutter_app/widgets/subscription_legal_links.dart';
 
 class StoreScreen extends StatefulWidget {
   final int initialTab;
@@ -722,7 +723,8 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
-  /// "Cancel anytime · Restore purchases" — the restore half is live.
+  /// "Cancel anytime · Restore purchases" plus the auto-renew / Terms /
+  /// Privacy links App Review requires next to subscription offers.
   Widget _buildProFooter() {
     final cs = context.cs;
     final t = cs.type;
@@ -730,7 +732,7 @@ class _StoreScreenState extends State<StoreScreen>
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Text('Cancel anytime  ·  ', style: quiet),
+        Text('Auto-renews · Cancel anytime  ·  ', style: quiet),
         CsPressable(
           onTap: _restoring ? null : _restorePurchases,
           semanticLabel: 'Restore purchases',
@@ -758,6 +760,8 @@ class _StoreScreenState extends State<StoreScreen>
             ),
           ),
         ),
+        Text('  ·  ', style: quiet),
+        const SubscriptionLegalLinks(compact: true),
       ],
     );
   }

@@ -9,6 +9,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
+import 'package:cosmo_strike_flutter_app/widgets/subscription_legal_links.dart';
 
 /// "Cosmo Pro" paywall — Prism Noir mock 10 (Pro panel).
 ///
@@ -220,6 +221,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
             ),
           ],
         ),
+        const SubscriptionLegalLinks(),
       ],
     );
   }
