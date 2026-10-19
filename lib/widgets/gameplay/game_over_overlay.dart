@@ -1,4 +1,5 @@
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/utils/number_format.dart';
 import 'package:flutter/material.dart';
 
 import '../../game/run_upgrades.dart';
@@ -99,7 +100,7 @@ class GameOverOverlay extends StatelessWidget {
                     const CsChip('New record', kind: CsChipKind.gold, icon: Symbols.star_rounded, size: 10)
                   else
                     Text(
-                      'BEST $previousBest',
+                      'BEST ${formatThousands(previousBest)}',
                       maxLines: 1,
                       style: t.mono(12, em: 0.12, color: CsColors.ink55),
                     ),

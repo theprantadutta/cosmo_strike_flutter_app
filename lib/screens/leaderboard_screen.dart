@@ -11,6 +11,7 @@ import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
+import 'package:cosmo_strike_flutter_app/utils/number_format.dart';
 
 /// The boards on this screen. [friends] is not a local board: it opens the
 /// dedicated friends leaderboard screen.
@@ -156,7 +157,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
         ),
         SizedBox(height: cs(6)),
         Text(
-          '${_formatThousands(score)} PTS · TOP $top%',
+          '${formatThousands(score)} PTS · TOP $top%',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: t.mono(12, em: 0.06, color: CsColors.ink60),
@@ -264,7 +265,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
             name: name,
             photoUrl: player['photoURL'] as String?,
             subtitle: _formatRuns((player['totalGamesPlayed'] ?? 0) as int),
-            score: _formatThousands((player['highScore'] ?? 0) as int),
+            score: formatThousands((player['highScore'] ?? 0) as int),
             isYou: isCurrentUser,
             isGuest: player['isAnonymous'] == true,
           );
@@ -273,18 +274,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     );
   }
 
-  String _formatRuns(int count) => count == 1 ? '1 RUN' : '${_formatThousands(count)} RUNS';
-
-  String _formatThousands(int n) {
-    // Manual thousand-separator — saves pulling in `intl` just for this.
-    final s = n.toString();
-    final buffer = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buffer.write(',');
-      buffer.write(s[i]);
-    }
-    return buffer.toString();
-  }
+  String _formatRuns(int count) => count == 1 ? '1 RUN' : '${formatThousands(count)} RUNS';
 }
 
 /// One leaderboard row: 0N mono rank · ringed avatar · name (+ YOU / GUEST

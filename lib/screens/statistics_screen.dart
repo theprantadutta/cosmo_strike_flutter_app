@@ -7,6 +7,7 @@ import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/utils/number_format.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
 class StatisticsScreen extends StatefulWidget {
@@ -30,6 +31,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
   // Convenience getters using cached data - instant display!
   Map<String, dynamic> get _displayStats => _appCache.statistics ?? {};
+
+  /// An integer stat with thousand separators ("121,360"), matching Ranks.
+  String _num(String key) {
+    final v = _displayStats[key];
+    return v is num ? formatThousands(v.round()) : '${v ?? 0}';
+  }
   Map<String, dynamic> get _performanceTrends => _appCache.performanceTrends ?? {};
   Map<String, dynamic> get _playPatterns => _appCache.playPatterns ?? {};
   bool get _isLoading => !_appCache.isFullyLoaded;
@@ -79,11 +86,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
-          child: Text('${_displayStats['highScore'] ?? 0}', maxLines: 1, style: t.scoreGiant),
+          child: Text(_num('highScore'), maxLines: 1, style: t.scoreGiant),
         ),
         SizedBox(height: cs(16)),
         const CsHairline(),
-        _telemetryRow(context, 'Games played', '${_displayStats['totalGames'] ?? 0}'),
+        _telemetryRow(context, 'Games played', _num('totalGames')),
         const CsHairline(),
         _telemetryRow(context, 'Play time', '${_displayStats['totalPlayTime'] ?? '0s'}'),
         const CsHairline(),
@@ -136,28 +143,28 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       children: [
         const _Section('Performance overview'),
         CsStatGrid(columns: cols, valueSize: 22, stats: [
-          CsStat('${_displayStats['highScore'] ?? 0}', 'High score'),
-          CsStat('${_displayStats['totalGames'] ?? 0}', 'Total games'),
-          CsStat('${_displayStats['averageScore'] ?? 0}', 'Average score'),
-          CsStat('${_displayStats['winStreak'] ?? 0}', 'Win streak'),
+          CsStat(_num('highScore'), 'High score'),
+          CsStat(_num('totalGames'), 'Total games'),
+          CsStat(_num('averageScore'), 'Average score'),
+          CsStat(_num('winStreak'), 'Win streak'),
         ]),
         const _Section('Game activity'),
         CsStatGrid(columns: cols, valueSize: 22, stats: [
           CsStat('${_displayStats['totalPlayTime'] ?? '0s'}', 'Play time'),
           CsStat('${_displayStats['longestSurvival'] ?? '0s'}', 'Longest game'),
-          CsStat('${_displayStats['highestStage'] ?? 0}', 'Highest stage'),
-          CsStat('${_displayStats['highestWave'] ?? 0}', 'Furthest wave'),
+          CsStat(_num('highestStage'), 'Highest stage'),
+          CsStat(_num('highestWave'), 'Furthest wave'),
         ]),
         const _Section('Combat record'),
         CsStatGrid(columns: cols, valueSize: 22, stats: [
-          CsStat('${_displayStats['enemiesKilled'] ?? 0}', 'Enemies destroyed', color: CsColors.pink),
-          CsStat('${_displayStats['bossesKilled'] ?? 0}', 'Bosses defeated'),
-          CsStat('${_displayStats['stagesCleared'] ?? 0}', 'Stages cleared'),
-          CsStat('${_displayStats['bestCombo'] ?? 0}', 'Best combo'),
-          CsStat('${_displayStats['victories'] ?? 0}', 'Victories', color: CsColors.mint),
-          CsStat('${_displayStats['noHitClears'] ?? 0}', 'No-hit clears'),
+          CsStat(_num('enemiesKilled'), 'Enemies', color: CsColors.pink),
+          CsStat(_num('bossesKilled'), 'Bosses'),
+          CsStat(_num('stagesCleared'), 'Stages cleared'),
+          CsStat(_num('bestCombo'), 'Best combo'),
+          CsStat(_num('victories'), 'Victories', color: CsColors.mint),
+          CsStat(_num('noHitClears'), 'No-hit clears'),
           CsStat('${_displayStats['survivalRate'] ?? '0%'}', 'Survival rate'),
-          CsStat('${_displayStats['longestStreak'] ?? 0}', 'Best streak'),
+          CsStat(_num('longestStreak'), 'Best streak'),
         ]),
         _Section('Performance trends', trailing: _trendChip(trend)),
         CsStatGrid(columns: cols, valueSize: 22, stats: [

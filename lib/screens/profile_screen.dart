@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart'
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/utils/number_format.dart';
 import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
 import 'package:cosmo_strike_flutter_app/widgets/player_progression.dart';
 
@@ -42,6 +44,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // Convenience getters using cached data
   Map<String, dynamic> get _displayStats => _appCache.statistics ?? {};
+
+  /// An integer stat with thousand separators ("121,360"), matching Ranks.
+  String _num(String key) {
+    final v = _displayStats[key];
+    return v is num ? formatThousands(v.round()) : '${v ?? 0}';
+  }
   List<Achievement> get _recentAchievements => _appCache.recentAchievements ?? [];
   bool get _isLoading => !_appCache.isFullyLoaded;
 
@@ -105,7 +113,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String _accountType(AuthState a) {
     if (a.isAnonymous || a.isGuestUser) return 'Guest';
-    if (a.isGoogleUser) return 'Google';
+    // UserType.google covers every signed-in account, so ask Firebase which
+    // provider is actually linked (Apple / Google / email+password).
+    final providers =
+        FirebaseAuth.instance.currentUser?.providerData.map((p) => p.providerId) ?? const <String>[];
+    if (providers.contains('apple.com')) return 'Apple';
+    if (providers.contains('google.com')) return 'Google';
+    if (providers.contains('password')) return 'Email';
     return (a.user?.email?.isNotEmpty ?? false) ? 'Email' : 'Verified';
   }
 
@@ -184,12 +198,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             columns: 3,
             valueSize: 22,
             stats: [
-              CsStat('${_displayStats['highScore'] ?? 0}', 'High score'),
-              CsStat('${_displayStats['totalGames'] ?? 0}', 'Games played'),
+              CsStat(_num('highScore'), 'High score'),
+              CsStat(_num('totalGames'), 'Games played'),
               CsStat('${_displayStats['totalPlayTime'] ?? '0s'}', 'Play time'),
-              CsStat('${_displayStats['averageScore'] ?? 0}', 'Average score'),
-              CsStat('${_displayStats['totalFood'] ?? 0}', 'Enemies destroyed'),
-              CsStat('${_displayStats['totalPowerUps'] ?? 0}', 'Power-ups'),
+              CsStat(_num('averageScore'), 'Average score'),
+              CsStat(_num('enemiesKilled'), 'Enemies'),
+              CsStat(_num('bossesKilled'), 'Bosses'),
             ],
           ),
         SizedBox(height: cs.groupGap),

@@ -408,7 +408,9 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       below: Text.rich(
         TextSpan(children: [
           TextSpan(text: 'BEST ${_formatThousands(user.highScore)}', style: const TextStyle(color: CsColors.gold)),
-          TextSpan(text: '  ·  ${_formatThousands(user.totalGamesPlayed)} GAMES'),
+          // Level, not games: the friends API doesn't send a games count,
+          // so this always read "0 GAMES".
+          TextSpan(text: '  ·  LV ${user.level}'),
         ]),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -505,10 +507,11 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
           ]),
           content: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             CsStatGrid(
-              columns: 3,
+              columns: friend.totalGamesPlayed > 0 ? 3 : 2,
               stats: [
                 CsStat(_formatThousands(friend.highScore), 'High score', color: CsColors.gold),
-                CsStat(_formatThousands(friend.totalGamesPlayed), 'Total games'),
+                // Only some endpoints send a games count; skip a bogus 0.
+                if (friend.totalGamesPlayed > 0) CsStat(_formatThousands(friend.totalGamesPlayed), 'Total games'),
                 CsStat('${friend.level}', 'Level', color: CsColors.violet),
               ],
             ),
