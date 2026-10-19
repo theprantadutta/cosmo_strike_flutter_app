@@ -107,6 +107,7 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
                   left: _AuthIntro(
                     eyebrow: 'Pilot registration',
                     headline: const ['Welcome to\nCosmo ', 'Strike'],
+                    keepLines: true,
                     body: "Pick how you'd like to launch — you can upgrade a "
                         'guest to a full account anytime.',
                   ),
@@ -394,12 +395,21 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
 /// Syne headline with one prism word, and body copy. Never scrolls — scales
 /// down on short phones.
 class _AuthIntro extends StatelessWidget {
-  const _AuthIntro({required this.eyebrow, required this.headline, required this.body});
+  const _AuthIntro({
+    required this.eyebrow,
+    required this.headline,
+    required this.body,
+    this.keepLines = false,
+  });
   final String eyebrow;
 
   /// Two parts; the second is painted in prism.
   final List<String> headline;
   final String body;
+
+  /// Break the headline only at its explicit newlines and scale it down to
+  /// fit, so a name like "Cosmo Strike" is never wrapped or ellipsized.
+  final bool keepLines;
 
   @override
   Widget build(BuildContext context) {
@@ -412,7 +422,14 @@ class _AuthIntro extends StatelessWidget {
         SizedBox(height: cs(26)),
         CsLabel(eyebrow),
         SizedBox(height: cs(10)),
-        CsHeadline(headline, prismIndex: 1, maxLines: 3, style: t.title),
+        if (keepLines)
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: CsHeadline(headline, prismIndex: 1, maxLines: 3, style: t.title),
+          )
+        else
+          CsHeadline(headline, prismIndex: 1, maxLines: 3, style: t.title),
         SizedBox(height: cs(14)),
         Text(body, style: t.body.copyWith(fontSize: cs(14))),
       ],
