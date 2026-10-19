@@ -340,7 +340,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: context.cs.screenPadding,
+                // Leave room under the nav for the policy notice line so
+                // the two don't overlap on short (landscape phone) screens.
+                padding: context.cs.screenPadding +
+                    EdgeInsets.only(bottom: _policyNotice ? context.cs(22) : 0),
                 child: _HomeLayout(
                   topBar: _buildTopBar(context, authState),
                   hero: _buildHero(context, theme),
@@ -415,7 +418,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   tapText(
-                    'BEST ${context.watch<GameSettingsCubit>().state.highScore}',
+                    'BEST ${_formatCoins(context.watch<GameSettingsCubit>().state.highScore)}',
                     () => context.push(AppRoutes.statistics),
                   ),
                   SizedBox(width: cs(22)),
@@ -1320,19 +1323,25 @@ class _PolicyNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.type;
-    return CsPressable(
-      onTap: onTap,
-      semanticLabel: 'Read the Privacy Policy',
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: context.cs(12), vertical: context.cs(6)),
-        child: Text.rich(
-          TextSpan(style: t.micro, children: [
-            const TextSpan(text: 'BY PLAYING YOU AGREE TO OUR '),
-            TextSpan(
-              text: 'PRIVACY POLICY',
-              style: t.micro.copyWith(color: CsColors.ink70, decoration: TextDecoration.underline),
-            ),
-          ]),
+    // Positioned in Home's Stack outside the Scaffold, so it needs its own
+    // Material — without one the text inherits Flutter's fallback style
+    // (yellow double underline).
+    return Material(
+      type: MaterialType.transparency,
+      child: CsPressable(
+        onTap: onTap,
+        semanticLabel: 'Read the Privacy Policy',
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: context.cs(12), vertical: context.cs(6)),
+          child: Text.rich(
+            TextSpan(style: t.micro, children: [
+              const TextSpan(text: 'BY PLAYING YOU AGREE TO OUR '),
+              TextSpan(
+                text: 'PRIVACY POLICY',
+                style: t.micro.copyWith(color: CsColors.ink70, decoration: TextDecoration.underline),
+              ),
+            ]),
+          ),
         ),
       ),
     );
