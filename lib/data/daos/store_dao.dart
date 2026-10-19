@@ -847,6 +847,7 @@ class StoreDao extends DatabaseAccessor<AppDatabase> with _$StoreDaoMixin {
     final existing = await getDailyBonusRow();
     if (existing == null) {
       await into(dailyBonusState).insert(DailyBonusStateCompanion.insert(
+        id: const Value(1),
         lastClaimUtcMs: Value(lastClaimUtcMs),
         lastClaimTzOffsetMinutes: Value(lastClaimTzOffsetMinutes),
         currentStreak: Value(currentStreak),
@@ -924,6 +925,7 @@ class StoreDao extends DatabaseAccessor<AppDatabase> with _$StoreDaoMixin {
 
       if (row == null) {
         await into(dailyBonusState).insert(DailyBonusStateCompanion.insert(
+          id: const Value(1),
           lastClaimUtcMs: Value(nowEpochMs),
           lastClaimTzOffsetMinutes: Value(tzOffsetMin),
           currentStreak: Value(newStreak),

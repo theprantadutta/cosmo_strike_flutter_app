@@ -923,32 +923,62 @@ class AppDatabase extends _$AppDatabase {
 
   /// Initialize default data if tables are empty
   Future<void> initializeDefaults() async {
+    await _repairSingletonIds();
+
+    // Singleton rows are always id 1 — every DAO reads and writes
+    // `id = 1`. The ids are AUTOINCREMENT, so an insert without an explicit
+    // id after clearAllData() would land on id 2+ and be invisible.
+
     // Initialize game settings if not exists
     final existingSettings = await select(gameSettings).getSingleOrNull();
     if (existingSettings == null) {
-      await into(gameSettings).insert(GameSettingsCompanion.insert());
+      await into(gameSettings).insert(GameSettingsCompanion.insert(id: const Value(1)));
     }
 
     // Initialize statistics if not exists
     final existingStats = await select(statistics).getSingleOrNull();
     if (existingStats == null) {
-      await into(statistics).insert(StatisticsCompanion.insert());
+      await into(statistics).insert(StatisticsCompanion.insert(id: const Value(1)));
     }
 
     // Initialize coins if not exists
     final existingCoins = await select(coins).getSingleOrNull();
     if (existingCoins == null) {
-      await into(coins).insert(CoinsCompanion.insert());
+      await into(coins).insert(CoinsCompanion.insert(id: const Value(1)));
     }
 
     // Initialize premium status if not exists
     final existingPremium = await select(premiumStatus).getSingleOrNull();
     if (existingPremium == null) {
-      await into(premiumStatus).insert(PremiumStatusCompanion.insert());
+      await into(premiumStatus).insert(PremiumStatusCompanion.insert(id: const Value(1)));
     }
 
     // Seed the campaign stage rows (level 1 unlocked) if missing.
     await stageProgressDao.seedDefaultsIfEmpty();
+  }
+
+  /// Heal singleton tables whose row was re-created on id 2+ (older builds
+  /// inserted without an explicit id after clearAllData, so the coin
+  /// balance, daily bonus, settings, etc. silently stopped saving). Keeps
+  /// the newest row as id 1 and drops the rest.
+  Future<void> _repairSingletonIds() async {
+    const tables = [
+      'game_settings',
+      'statistics',
+      'coins',
+      'premium_status',
+      'daily_bonus_state',
+      'power_up_inventory',
+    ];
+    await transaction(() async {
+      for (final t in tables) {
+        await customStatement(
+          'UPDATE $t SET id = 1 WHERE id = (SELECT MAX(id) FROM $t) '
+          'AND NOT EXISTS (SELECT 1 FROM $t WHERE id = 1)',
+        );
+        await customStatement('DELETE FROM $t WHERE id <> 1');
+      }
+    });
   }
 
   /// Clear all data (for logout/reset). Wipes per-user tables AND the

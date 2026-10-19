@@ -109,7 +109,7 @@ class SettingsDao extends DatabaseAccessor<AppDatabase>
   Future<void> resetSettings() async {
     await transaction(() async {
       await delete(gameSettings).go();
-      await into(gameSettings).insert(GameSettingsCompanion.insert());
+      await into(gameSettings).insert(GameSettingsCompanion.insert(id: const Value(1)));
       await attachedDatabase.enqueueSyncOutbox(
         dataType: SyncDataType.settings,
         entityKey: 'settings:1',
