@@ -143,6 +143,19 @@ class PremiumState extends Equatable {
     return DateTime.now().isAfter(subscriptionExpiry!);
   }
 
+  /// "Renews Nov 19, 2026" for an active subscription. Null when there is no
+  /// expiry or it is more than 10 years out (operator / lifetime grants),
+  /// where a far-future date would only read as a glitch.
+  String? get renewalLabel {
+    final expiry = subscriptionExpiry;
+    if (expiry == null || expiry.isAfter(DateTime.now().add(const Duration(days: 3650)))) {
+      return null;
+    }
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final d = expiry.toLocal();
+    return 'Renews ${months[d.month - 1]} ${d.day}, ${d.year}';
+  }
+
   /// Check if a theme is owned
   bool isThemeOwned(GameTheme theme) => ownedThemes.contains(theme);
 

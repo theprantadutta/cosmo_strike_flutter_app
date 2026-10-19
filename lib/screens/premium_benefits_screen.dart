@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_inapp_purchase/flutter_inapp_purchase.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
@@ -19,7 +21,8 @@ import 'package:cosmo_strike_flutter_app/widgets/subscription_legal_links.dart';
 ///     cards — Monthly (outlined, secondary SUBSCRIBE) and Yearly (prism ring,
 ///     SAVE chip, the screen's white primary SUBSCRIBE) — and the
 ///     "Cancel anytime · Restore purchases" footer.
-///   • Already Pro: the right side swaps to an active-state block.
+///   • Already Pro: the status summary moves LEFT (the standard summary
+///     side) and the right side lists every perk with an owned check.
 class PremiumBenefitsScreen extends StatefulWidget {
   const PremiumBenefitsScreen({super.key});
 
@@ -112,14 +115,19 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
               const CsMeta('Pro', color: CsColors.gold, icon: Symbols.diamond_rounded),
           ],
           washes: const [CsWash.violetTopRight, CsWash.goldTopRight],
-          body: CsSplit(
-            leftWidth: cs.isTablet ? 300 : 270,
-            gap: cs(36),
-            left: const _BenefitsList(),
-            right: premiumState.hasPremium
-                ? const _PremiumActiveBlock()
-                : _buildPurchasePanel(),
-          ),
+          body: premiumState.hasPremium
+              ? CsSplit(
+                  leftWidth: cs.isTablet ? 340 : 300,
+                  gap: cs(36),
+                  left: _PremiumActiveBlock(renewal: premiumState.renewalLabel),
+                  right: const _BenefitsList(owned: true),
+                )
+              : CsSplit(
+                  leftWidth: cs.isTablet ? 300 : 270,
+                  gap: cs(36),
+                  left: const _BenefitsList(),
+                  right: _buildPurchasePanel(),
+                ),
         );
       },
     );
@@ -514,7 +522,10 @@ const _benefits = [
 ];
 
 class _BenefitsList extends StatelessWidget {
-  const _BenefitsList();
+  const _BenefitsList({this.owned = false});
+
+  /// Pro owners: "Included with Pro" + a mint check on every row.
+  final bool owned;
 
   @override
   Widget build(BuildContext context) {
@@ -522,7 +533,7 @@ class _BenefitsList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const CsLabel('Pro includes', color: CsColors.gold),
+        CsLabel(owned ? 'Included with your Pro' : 'Pro includes', color: CsColors.gold),
         SizedBox(height: cs(6)),
         Expanded(
           child: ListView.builder(
@@ -535,6 +546,9 @@ class _BenefitsList extends StatelessWidget {
                 leading: CsIconDisc(b.icon, size: 34, color: CsColors.gold),
                 title: b.title,
                 subtitle: b.description,
+                trailing: owned
+                    ? Icon(Symbols.check_circle_rounded, size: cs(20), color: CsColors.mint)
+                    : null,
                 padding: EdgeInsets.symmetric(vertical: cs(10), horizontal: cs(2)),
               );
             },
@@ -545,9 +559,18 @@ class _BenefitsList extends StatelessWidget {
   }
 }
 
-/// Shown when the user already owns Pro.
+/// Shown when the user already owns Pro: status summary + manage link.
 class _PremiumActiveBlock extends StatelessWidget {
-  const _PremiumActiveBlock();
+  const _PremiumActiveBlock({this.renewal});
+
+  /// [PremiumState.renewalLabel] — null for lifetime / far-future grants.
+  final String? renewal;
+
+  static final _manageUrl = Uri.parse(
+    defaultTargetPlatform == TargetPlatform.iOS
+        ? 'https://apps.apple.com/account/subscriptions'
+        : 'https://play.google.com/store/account/subscriptions',
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -556,13 +579,22 @@ class _PremiumActiveBlock extends StatelessWidget {
     return CsFitColumn(
       alignment: Alignment.centerLeft,
       children: [
-        Icon(Symbols.verified_rounded, size: cs(34), color: CsColors.mint),
-        SizedBox(height: cs(14)),
-        CsHeadline(const ['Premium ', 'active'], prismIndex: 1, maxLines: 1, style: t.display(34, em: -0.03, height: 1)),
-        SizedBox(height: cs(10)),
-        Text('You have access to all premium features', style: t.body),
-        SizedBox(height: cs(14)),
         const CsChip('Pro', kind: CsChipKind.gold, icon: Symbols.diamond_rounded),
+        SizedBox(height: cs(16)),
+        CsHeadline(const ['Premium\n', 'active.'], prismIndex: 1, maxLines: 2, style: t.title),
+        SizedBox(height: cs(14)),
+        Text(
+          'Thanks for flying Pro. Every perk on the right is unlocked on this account.',
+          style: t.body.copyWith(fontSize: cs(14)),
+        ),
+        SizedBox(height: cs(18)),
+        CsMeta(renewal ?? 'Active', color: CsColors.mint, icon: Symbols.verified_rounded),
+        SizedBox(height: cs(18)),
+        CsButton.secondary(
+          label: 'Manage plan',
+          icon: Symbols.open_in_new_rounded,
+          onPressed: () => launchUrl(_manageUrl, mode: LaunchMode.externalApplication),
+        ),
       ],
     );
   }

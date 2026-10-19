@@ -1516,11 +1516,10 @@ extension _SettingsPremium on _SettingsScreenState {
                     pro ? 'Active subscription' : 'Unlock premium features',
                     style: t.body,
                   ),
-                  if (pro && premiumState.subscriptionExpiry != null) ...[
+                  if (pro && premiumState.renewalLabel != null) ...[
                     SizedBox(height: cs(3)),
                     Text(
-                      'Renews ${premiumState.subscriptionExpiry!.day}/${premiumState.subscriptionExpiry!.month}'
-                          .toUpperCase(),
+                      premiumState.renewalLabel!.toUpperCase(),
                       style: t.mono(10, color: CsColors.gold),
                     ),
                   ],
