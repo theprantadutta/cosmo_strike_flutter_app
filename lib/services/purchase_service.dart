@@ -958,7 +958,12 @@ class PurchaseService {
   /// purchase stream; OpenIAP's restore returns nothing, so owned items are
   /// read back explicitly. The delivered-set makes re-handling them a no-op
   /// for anything already credited.
-  Future<void> restorePurchases() async {
+  ///
+  /// [syncWithStore] forces a store sync first. On iOS that is
+  /// `AppStore.sync()`, which always asks for the Apple ID password, so only
+  /// a user-initiated "Restore purchases" should pass true. Without it,
+  /// owned items are still read from the current entitlements, silently.
+  Future<void> restorePurchases({bool syncWithStore = true}) async {
     try {
       AppLogger.info('Restoring purchases...');
       if (!_isAvailable) {
@@ -968,7 +973,7 @@ class PurchaseService {
           return;
         }
       }
-      await _iap.restorePurchases();
+      if (syncWithStore) await _iap.restorePurchases();
       final owned = await _iap.getAvailablePurchases();
       for (final purchase in owned) {
         await _handlePurchase(purchase);
@@ -996,7 +1001,9 @@ class PurchaseService {
     _postAuthRestoreDone = true;
     try {
       AppLogger.info('Running post-auth purchase restore + verification drain');
-      await restorePurchases().timeout(
+      // No store sync here: on iOS it pops an Apple ID password prompt on
+      // every launch after sign-in.
+      await restorePurchases(syncWithStore: false).timeout(
         const Duration(seconds: 15),
         onTimeout: () =>
             AppLogger.warning('Post-auth restorePurchases timed out'),
