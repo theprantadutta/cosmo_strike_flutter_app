@@ -8,6 +8,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart'
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
 import 'package:cosmo_strike_flutter_app/widgets/player_progression.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -200,12 +201,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title: 'Save your progress',
             subtitle: 'Sign in to sync across devices',
             trailing: CsButton.primary(
-              label: 'Google',
+              label: 'Sign in',
               icon: Symbols.login_rounded,
               size: CsButtonSize.small,
-              onPressed: () => _handleGoogleUpgrade(context),
+              onPressed: () => _handleAccountUpgrade(context),
             ),
-            onTap: () => _handleGoogleUpgrade(context),
+            onTap: () => _handleAccountUpgrade(context),
           ),
         CsListRow(
           dividerTop: !showUpgrade,
@@ -302,21 +303,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     context.push(AppRoutes.replays);
   }
 
-  Future<void> _handleGoogleUpgrade(BuildContext context) async {
-    try {
-      final authCubit = context.read<AuthCubit>();
-      final success = await authCubit.signInWithGoogle();
-
-      if (success && context.mounted) {
-        showCsToast(context, 'Successfully upgraded to Google account!', kind: CsToastKind.success);
-      } else if (context.mounted) {
-        showCsToast(context, 'Failed to upgrade account. Please try again.', kind: CsToastKind.error);
-      }
-    } catch (e) {
-      if (context.mounted) {
-        showCsToast(context, 'An error occurred during account upgrade.', kind: CsToastKind.error);
-      }
-    }
+  /// Offers every sign-in option (Apple on iOS, Google, email) via the
+  /// shared account dialog, which links Firebase-anonymous users in place.
+  Future<void> _handleAccountUpgrade(BuildContext context) async {
+    await showAccountUpgradeSheet(
+      context,
+      reason: AccountUpgradeReason.saveProgress,
+    );
   }
 
   Future<void> _showSignOutDialog(BuildContext context) async {
@@ -325,7 +318,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       eyebrow: 'Account',
       title: 'Sign out?',
       message: 'Are you sure you want to sign out?\n\n'
-          'Your progress will be saved if you\'re signed in with Google.',
+          'Your progress will be saved if you\'re signed in.',
       confirmLabel: 'Sign out',
       destructive: true,
     );

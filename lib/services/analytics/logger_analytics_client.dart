@@ -44,6 +44,11 @@ class LoggerAnalyticsClient implements AnalyticsClient {
   }
 
   @override
+  Future<void> trackSignInApple() async {
+    AppLogger.info('$_tag sign_in_apple');
+  }
+
+  @override
   Future<void> trackSignOut() async {
     AppLogger.info('$_tag sign_out');
   }

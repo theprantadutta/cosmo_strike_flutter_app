@@ -19,6 +19,10 @@ import 'auth_state.dart';
 
 export 'auth_state.dart';
 
+/// Sign in with Apple is offered on iOS only (App Store guideline 4.8).
+bool get appleSignInAvailable =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
 /// Cubit for managing authentication state
 class AuthCubit extends Cubit<AuthState> {
   final UnifiedUserService _userService;
@@ -199,6 +203,37 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
+  /// Sign in with Apple (iOS only — callers gate on [appleSignInAvailable]).
+  Future<bool> signInWithApple() async {
+    emit(state.copyWith(isLoading: true, clearError: true));
+
+    try {
+      final result = await _userService.signInWithApple();
+
+      if (result) {
+        _analytics.trackSignInApple();
+        final uid = _userService.currentUser?.uid;
+        _analytics.setUserId(uid);
+        _analytics.setUserProperties(authMethod: 'apple');
+
+        final needsSetup = _userService.consumeJustLoadedNewUser();
+        emit(state.copyWith(needsUsernameSetup: needsSetup));
+      } else {
+        emit(
+          state.copyWith(
+            isLoading: false,
+            errorMessage: 'Apple sign-in failed',
+          ),
+        );
+      }
+
+      return result;
+    } catch (e) {
+      emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
+      return false;
+    }
+  }
+
   /// Sign in anonymously (guest mode)
   Future<bool> signInAnonymously() async {
     emit(state.copyWith(isLoading: true, clearError: true));
@@ -333,6 +368,26 @@ class AuthCubit extends Cubit<AuthState> {
       final ok = await _userService.linkAnonymousToGoogle();
       if (ok) {
         _analytics.setUserProperties(authMethod: 'google');
+        emit(state.copyWith(user: _userService.currentUser, isLoading: false));
+      } else {
+        emit(state.copyWith(isLoading: false, errorMessage: 'link failed'));
+      }
+      return ok;
+    } on FirebaseAuthException catch (e) {
+      emit(state.copyWith(isLoading: false, errorMessage: e.code));
+      return false;
+    } catch (e) {
+      emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
+      return false;
+    }
+  }
+
+  Future<bool> linkAnonymousToApple() async {
+    emit(state.copyWith(isLoading: true, clearError: true));
+    try {
+      final ok = await _userService.linkAnonymousToApple();
+      if (ok) {
+        _analytics.setUserProperties(authMethod: 'apple');
         emit(state.copyWith(user: _userService.currentUser, isLoading: false));
       } else {
         emit(state.copyWith(isLoading: false, errorMessage: 'link failed'));

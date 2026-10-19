@@ -132,7 +132,19 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
             children: [
               const CsLabel('Choose how to sign in'),
               SizedBox(height: cs(14)),
-              _GoogleSignInButton(onPressed: () => _handleGoogleSignIn(authCubit)),
+              if (appleSignInAvailable) ...[
+                _BrandSignInButton(
+                  icon: FontAwesomeIcons.apple,
+                  label: 'Sign in with Apple',
+                  onPressed: () => _handleAppleSignIn(authCubit),
+                ),
+                SizedBox(height: cs(12)),
+              ],
+              _BrandSignInButton(
+                icon: FontAwesomeIcons.google,
+                label: 'Sign in with Google',
+                onPressed: () => _handleGoogleSignIn(authCubit),
+              ),
               SizedBox(height: cs(12)),
               CsButton.secondary(
                 label: 'Sign in with Email',
@@ -152,9 +164,8 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
               SizedBox(height: cs(12)),
               Text(
                 'Guests play and save locally but '
-                "can't make purchases. Sign in with "
-                'Google or Email when you want to '
-                'subscribe or buy.',
+                "can't make purchases. Sign in "
+                'when you want to subscribe or buy.',
                 textAlign: TextAlign.center,
                 style: cs.type.micro.copyWith(height: 1.5),
               ),
@@ -228,11 +239,21 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
     );
   }
 
-  Future<void> _handleGoogleSignIn(AuthCubit authCubit) async {
+  Future<void> _handleGoogleSignIn(AuthCubit authCubit) =>
+      _handleProviderSignIn(authCubit.signInWithGoogle, authCubit, 'Google');
+
+  Future<void> _handleAppleSignIn(AuthCubit authCubit) =>
+      _handleProviderSignIn(authCubit.signInWithApple, authCubit, 'Apple');
+
+  Future<void> _handleProviderSignIn(
+    Future<bool> Function() signIn,
+    AuthCubit authCubit,
+    String providerName,
+  ) async {
     setState(() => _isLoading = true);
 
     try {
-      final success = await authCubit.signInWithGoogle();
+      final success = await signIn();
 
       if (success && mounted) {
         // Mark first-time setup as complete
@@ -241,7 +262,7 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
         // If the backend just created a fresh account, divert through the
         // username-setup screen so the user can keep or edit the
         // auto-generated name before landing on home. For returning users
-        // (cross-device Google login etc.), needsUsernameSetup is false
+        // (cross-device login etc.), needsUsernameSetup is false
         // and we go straight home.
         //
         // Second gate: never show the setup screen to a user that already
@@ -261,7 +282,7 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
           context.go(route);
         }
       } else if (mounted) {
-        _showError('Failed to sign in with Google. Please try again.');
+        _showError('Failed to sign in with $providerName. Please try again.');
       }
     } catch (e) {
       if (mounted) {
@@ -399,11 +420,18 @@ class _AuthIntro extends StatelessWidget {
   }
 }
 
-/// White primary pill with the Google "G" brand glyph (FontAwesome).
-/// [CsButton] only takes an [IconData], and FontAwesome 11 glyphs are
-/// [FaIconData], so the pill is composed here with the same metrics.
-class _GoogleSignInButton extends StatelessWidget {
-  const _GoogleSignInButton({required this.onPressed});
+/// White primary pill with a brand glyph (FontAwesome) — Google "G" or the
+/// Apple logo. [CsButton] only takes an [IconData], and FontAwesome 11
+/// glyphs are [FaIconData], so the pill is composed here with the same
+/// metrics.
+class _BrandSignInButton extends StatelessWidget {
+  const _BrandSignInButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+  final FaIconData icon;
+  final String label;
   final VoidCallback onPressed;
 
   @override
@@ -411,7 +439,7 @@ class _GoogleSignInButton extends StatelessWidget {
     final cs = context.cs;
     return CsPressable(
       onTap: onPressed,
-      semanticLabel: 'Sign in with Google',
+      semanticLabel: label,
       child: Container(
         constraints: BoxConstraints(minHeight: cs(48).clamp(44.0, 64.0)),
         padding: EdgeInsets.symmetric(horizontal: cs(26)),
@@ -419,11 +447,11 @@ class _GoogleSignInButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            FaIcon(FontAwesomeIcons.google, size: cs(17), color: CsColors.onLight),
+            FaIcon(icon, size: cs(17), color: CsColors.onLight),
             SizedBox(width: cs(10)),
             Flexible(
               child: Text(
-                'SIGN IN WITH GOOGLE',
+                label.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: cs.type.button.copyWith(color: CsColors.onLight),

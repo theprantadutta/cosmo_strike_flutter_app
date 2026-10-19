@@ -586,10 +586,13 @@ class UnifiedUserService extends ChangeNotifier {
   }
 
   Future<UnifiedUser> _createUserFromFirebase(User firebaseUser) async {
-    // Determine user type
+    // Determine user type. UserType.google is the "signed-in account" tier,
+    // which Sign in with Apple users share.
     UserType userType = UserType.anonymous;
     if (firebaseUser.providerData.any(
-      (provider) => provider.providerId == 'google.com',
+      (provider) =>
+          provider.providerId == 'google.com' ||
+          provider.providerId == 'apple.com',
     )) {
       userType = UserType.google;
     }
@@ -931,6 +934,34 @@ class UnifiedUserService extends ChangeNotifier {
     }
   }
 
+  /// Sign in with Apple (iOS). Firebase drives the native Apple sheet via
+  /// AuthenticationServices, so no extra plugin is needed. Required by App
+  /// Store guideline 4.8 alongside Google Sign-In.
+  Future<bool> signInWithApple() async {
+    try {
+      AppLogger.user('Starting Sign in with Apple...');
+      final provider = AppleAuthProvider()
+        ..addScope('email')
+        ..addScope('name');
+      final result = await _auth.signInWithProvider(provider);
+      if (result.user != null) {
+        AppLogger.success('Apple sign-in successful: ${result.user!.uid}');
+        // Same direct backend handoff as signInWithGoogle.
+        await _loadOrCreateUser(result.user!);
+        return true;
+      }
+      return false;
+    } on FirebaseAuthException catch (e) {
+      AppLogger.user(
+        'Firebase Auth error during Apple sign-in: ${e.code} - ${e.message}',
+      );
+      return false;
+    } catch (e, stackTrace) {
+      AppLogger.user('Error signing in with Apple', e, stackTrace);
+      return false;
+    }
+  }
+
   /// Public wrapper for anonymous sign-in
   Future<bool> signInAnonymously() async {
     return _signInAnonymously();
@@ -1051,6 +1082,29 @@ class UnifiedUserService extends ChangeNotifier {
       return true;
     } catch (e, stackTrace) {
       AppLogger.user('Error linking anon → Google', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Promote the current anonymous account to Sign in with Apple.
+  Future<bool> linkAnonymousToApple() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null || !user.isAnonymous) {
+        AppLogger.user('linkAnonymousToApple called without anon user');
+        return false;
+      }
+      final provider = AppleAuthProvider()
+        ..addScope('email')
+        ..addScope('name');
+      final result = await user.linkWithProvider(provider);
+      AppLogger.success('Linked anon → Apple: ${result.user?.uid}');
+      if (result.user != null) {
+        await _loadOrCreateUser(result.user!);
+      }
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.user('Error linking anon → Apple', e, stackTrace);
       rethrow;
     }
   }
