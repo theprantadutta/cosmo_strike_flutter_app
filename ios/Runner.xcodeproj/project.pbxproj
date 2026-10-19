@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
+		169C3CDF40F9AFDB83C8608E /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CA00B7EC6283F9A3357D09DA /* GoogleService-Info.plist */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
@@ -59,6 +60,7 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		CA00B7EC6283F9A3357D09DA /* GoogleService-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,6 +102,7 @@
 				97C146F01CF9000F007C117D /* Runner */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
+				CA00B7EC6283F9A3357D09DA /* GoogleService-Info.plist */,
 			);
 			sourceTree = "<group>";
 		};
@@ -202,7 +205,7 @@
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
 			packageReferences = (
-				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */,
+				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */,
 			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
@@ -230,6 +233,7 @@
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
+				169C3CDF40F9AFDB83C8608E /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -281,7 +285,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Uploads dSYMs to Firebase Crashlytics so iOS crashes are symbolicated.\n# Guarded so the build never fails if the pod isn't installed yet (e.g. before\n# `pod install`, or on a setup without GoogleService-Info.plist downloaded).\nif [ -f \"${PODS_ROOT}/FirebaseCrashlytics/run\" ]; then\n  \"${PODS_ROOT}/FirebaseCrashlytics/run\"\nelse\n  echo \"warning: FirebaseCrashlytics run script not found at ${PODS_ROOT}/FirebaseCrashlytics/run — skipping dSYM upload (run 'pod install' and add GoogleService-Info.plist).\"\nfi\n";
+			shellScript = "# Uploads dSYMs to Firebase Crashlytics so iOS crashes are symbolicated.\n# Finds the Crashlytics run script wherever the Firebase SDK was resolved:\n# CocoaPods, Xcode's DerivedData SourcePackages, or `flutter build`'s\n# build/ios/SourcePackages. Never fails the build.\nfor RUN in \\\n  \"${PODS_ROOT}/FirebaseCrashlytics/run\" \\\n  \"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\" \\\n  \"${SRCROOT}/../build/ios/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"; do\n  if [ -f \"$RUN\" ]; then\n    \"$RUN\" || echo \"warning: Crashlytics dSYM upload failed\"\n    exit 0\n  fi\ndone\necho \"warning: FirebaseCrashlytics run script not found — skipping dSYM upload.\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -394,6 +398,8 @@
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				ENABLE_BITCODE = NO;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				DEVELOPMENT_TEAM = 9M6X7M798T;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -573,6 +579,8 @@
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				ENABLE_BITCODE = NO;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				DEVELOPMENT_TEAM = 9M6X7M798T;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -595,6 +603,12 @@
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				ENABLE_BITCODE = NO;
+				CODE_SIGN_ENTITLEMENTS = Runner/RunnerRelease.entitlements;
+				DEVELOPMENT_TEAM = 9M6X7M798T;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				PROVISIONING_PROFILE_SPECIFIER = "Cosmo Strike";
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -644,7 +658,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */ = {
+		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage;
 		};
