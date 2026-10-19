@@ -79,11 +79,19 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
           value: completion,
           size: cs(cs.isTablet ? 150 : 128),
           stroke: 3,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('$unlocked/$total', maxLines: 1, style: t.display(28, em: -0.03, height: 1)),
-            SizedBox(height: cs(4)),
-            Text('UNLOCKED', style: t.micro),
-          ]),
+          // Scale down to fit the ring: "28/114" overflowed and was clipped
+          // to "28/11" on phones.
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: cs(14)),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('$unlocked/$total', maxLines: 1, style: t.display(28, em: -0.03, height: 1)),
+                SizedBox(height: cs(4)),
+                Text('UNLOCKED', style: t.micro),
+              ]),
+            ),
+          ),
         ),
         SizedBox(height: cs(22)),
         FittedBox(

@@ -312,7 +312,9 @@ class _EventRow extends StatelessWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
               Row(children: [
-                Flexible(child: Text(tm.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle)),
+                // Two lines: names like "Weekly Championship - Week 42" get
+                // cut mid-word on landscape phones at one line.
+                Flexible(child: Text(tm.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.rowTitle)),
                 SizedBox(width: cs(8)),
                 _statusChip(tm.status),
               ]),

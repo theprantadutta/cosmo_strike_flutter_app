@@ -888,12 +888,24 @@ class _GameplayScreenState extends State<GameplayScreen>
                     );
                   },
                 ),
-                SafeArea(
-                  child: _Hud(
-                    game: _game,
-                    bossLeftReserve: leftReserve,
-                    bossRightReserve: rightReserve,
-                    bossLift: bossLift,
+                // Hidden under the full-screen result overlays: their scrim
+                // is 95% opaque, so the white HUD ghosted through behind
+                // the GAME OVER / revive headers.
+                ValueListenableBuilder<GamePhase>(
+                  valueListenable: _game.phaseNotifier,
+                  builder: (context, phase, hud) => Offstage(
+                    offstage: phase == GamePhase.levelClear ||
+                        phase == GamePhase.reviveOffer ||
+                        phase == GamePhase.gameOver,
+                    child: hud,
+                  ),
+                  child: SafeArea(
+                    child: _Hud(
+                      game: _game,
+                      bossLeftReserve: leftReserve,
+                      bossRightReserve: rightReserve,
+                      bossLift: bossLift,
+                    ),
                   ),
                 ),
 

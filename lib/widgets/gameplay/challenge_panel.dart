@@ -163,6 +163,12 @@ class _ChallengeRow extends StatelessWidget {
       style: t.mono(10, em: 0.1, color: done ? CsColors.mint : CsColors.ink45),
     );
 
+    final reward = Text(
+      '+${c.coinReward}C · ${c.xpReward}XP',
+      maxLines: 1,
+      style: t.mono(11, em: 0.06, color: CsColors.gold),
+    );
+
     final body = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,12 +192,12 @@ class _ChallengeRow extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(width: cs(10)),
-            Text(
-              '+${c.coinReward}C · ${c.xpReward}XP',
-              maxLines: 1,
-              style: t.mono(11, em: 0.06, color: CsColors.gold),
-            ),
+            // Claimable rows show the reward under the CLAIM pill instead,
+            // so the title isn't squeezed to "Casu…" on phones.
+            if (!c.canClaim) ...[
+              SizedBox(width: cs(10)),
+              reward,
+            ],
           ],
         ),
         SizedBox(height: cs(8)),
@@ -213,14 +219,18 @@ class _ChallengeRow extends StatelessWidget {
             Expanded(child: body),
             if (c.canClaim) ...[
               SizedBox(width: cs(14)),
-              CsButton.primary(
-                label: 'Claim',
-                size: CsButtonSize.small,
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  onClaim();
-                },
-              ),
+              Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                CsButton.primary(
+                  label: 'Claim',
+                  size: CsButtonSize.small,
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    onClaim();
+                  },
+                ),
+                SizedBox(height: cs(6)),
+                reward,
+              ]),
             ] else if (claimed) ...[
               SizedBox(width: cs(14)),
               Icon(Symbols.check_circle_rounded, size: cs(18), color: CsColors.mint),

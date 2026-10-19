@@ -288,7 +288,8 @@ class _Header extends StatelessWidget {
           children: [
             Text.rich(
               TextSpan(children: [
-                TextSpan(text: 'T${state.currentTier}', style: t.display(22, height: 1)),
+                // Spelled out: in Syne a bare "T0" reads as the word "To".
+                TextSpan(text: 'Tier ${state.currentTier}', style: t.display(22, height: 1)),
                 TextSpan(text: ' / $maxTier', style: t.mono(12, color: CsColors.ink45)),
               ]),
               maxLines: 1,
@@ -560,9 +561,11 @@ class _TierStrip extends StatelessWidget {
     return LayoutBuilder(builder: (context, c) {
       final labelH = cs(14);
       final gap = cs(8);
-      final maxTile = cs(cs.isTablet ? 110 : 66);
+      // Tablets get taller, wider tiles so the two tracks fill the screen
+      // instead of floating in an empty band.
+      final maxTile = cs(cs.isTablet ? 150 : 66);
       final tileH = ((c.maxHeight - labelH - gap * 2) / 2).clamp(36.0, maxTile);
-      final tileW = cs(cs.isTablet ? 118 : 106);
+      final tileW = cs(cs.isTablet ? 150 : 106);
       final extent = tileW + gap;
       if (levels.isNotEmpty) onLayout(focusIndex, extent);
 
