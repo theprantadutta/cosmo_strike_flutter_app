@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_inapp_purchase/flutter_inapp_purchase.dart' as iap;
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
+import 'package:cosmo_strike_flutter_app/game/cosmo_palette.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_cosmetics.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_power_up.dart';
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
@@ -450,8 +451,9 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
-  /// Dark base + soft palette wash behind a painted cosmetic preview.
-  Widget _palettePreview(List<Color> palette, CustomPainter painter) {
+  /// Dark base + soft palette wash behind a cosmetic preview — either a
+  /// [painter] or a [child] widget.
+  Widget _palettePreview(List<Color> palette, CustomPainter? painter, {Widget? child}) {
     return ColoredBox(
       color: CsColors.raised,
       child: DecoratedBox(
@@ -465,7 +467,7 @@ class _StoreScreenState extends State<StoreScreen>
             ],
           ),
         ),
-        child: SizedBox.expand(child: CustomPaint(painter: painter)),
+        child: SizedBox.expand(child: child ?? CustomPaint(painter: painter)),
       ),
     );
   }
@@ -695,7 +697,7 @@ class _StoreScreenState extends State<StoreScreen>
         isPromo ? premiumState.promoExpiresAt : premiumState.subscriptionExpiry;
     final expiryLabel = isPromo
         ? (expiry != null ? _formatPromoCountdown(expiry) : 'Free 3-day trial')
-        : (expiry != null ? 'Renews ${_formatDate(expiry)}' : null);
+        : premiumState.renewalLabel;
     final anyProPending = _pendingProductIds.contains(ProductIds.proMonthly) ||
         _pendingProductIds.contains(ProductIds.proYearly);
     return CsListRow(
@@ -848,10 +850,6 @@ class _StoreScreenState extends State<StoreScreen>
         );
       },
     );
-  }
-
-  String _formatDate(DateTime d) {
-    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 
   /// Anonymous (guest) users can't make purchases — every paid path on this
@@ -1094,7 +1092,8 @@ class _StoreScreenState extends State<StoreScreen>
             'shots and the battlefield glow.',
       )),
       _box(_buildProIncludedRow(premiumState, 'theme')),
-      _box(_buildThemesBundleTile(premiumState)),
+      // Pro already includes every theme — don't sell Pro users the bundle.
+      if (!premiumState.hasPremium) _box(_buildThemesBundleTile(premiumState)),
       _box(_sectionLabel('Premium themes')),
       _tileGrid(
         count: premiumThemes.length,
@@ -1401,16 +1400,16 @@ class _StoreScreenState extends State<StoreScreen>
           final isUnlocked = premiumState.isSkinUnlocked(skin);
           final isSelected = premiumState.selectedSkinId == skin.id;
           final productId = ProductIds.skinStoreId(skin.id);
-          // Each tile paints a ship-silhouette preview using the skin's own
-          // colors and per-skin signature so users see the in-game look.
-          final palette = skin.colors.isNotEmpty
+          // Each tile shows the real hull tinted the way the skin renders
+          // in-game.
+          // Classic's model colour is a leftover green; wash it in Prism cyan.
+          final palette = skin == ShipSkinType.classic
+              ? const [CosmoPalette.cyan, CosmoPalette.violet]
+              : skin.colors.isNotEmpty
               ? skin.colors
               : [theme.shipColor, theme.shipColor.withValues(alpha: 0.6)];
           return _cosmeticTile(
-            preview: _palettePreview(
-              palette,
-              _SkinPreviewPainter(skin: skin, accentColor: theme.accentColor),
-            ),
+            preview: _palettePreview(palette, null, child: _SkinShipPreview(skin: skin)),
             name: skin.displayName,
             description: skin.description,
             isEquipped: isSelected,
@@ -1464,10 +1463,7 @@ class _StoreScreenState extends State<StoreScreen>
                   theme.backgroundColor.withValues(alpha: 0.6),
                 ];
           return _cosmeticTile(
-            preview: _palettePreview(
-              palette,
-              _TrailPreviewPainter(trail: trail, accentColor: theme.accentColor),
-            ),
+            preview: _palettePreview(palette, null, child: _TrailShipPreview(trail: trail)),
             name: trail.displayName,
             description: trail.description,
             isEquipped: isSelected,
@@ -2060,10 +2056,14 @@ class _ThemePreview extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          // Faint grid hint
           Positioned.fill(
-            child: CustomPaint(
-              painter: _ThemePreviewPainter(theme: theme),
+            child: CustomPaint(painter: _ThemeScenePainter(theme: theme)),
+          ),
+          Align(
+            alignment: const Alignment(-0.55, 0),
+            child: FractionallySizedBox(
+              widthFactor: 0.34,
+              child: Image.asset('assets/game/player/player_ship.png', filterQuality: FilterQuality.medium),
             ),
           ),
         ],
@@ -2072,680 +2072,147 @@ class _ThemePreview extends StatelessWidget {
   }
 }
 
-class _ThemePreviewPainter extends CustomPainter {
+/// Theme card scene: what a run looks like in this theme — the hull, a
+/// burst of shots and the battlefield glow in the theme's accent (ship
+/// colour) and secondary (food colour), the same pair CosmoPalette
+/// .applyGameTheme feeds the game. Classic is Prism Noir's cyan / pink.
+class _ThemeScenePainter extends CustomPainter {
   final GameTheme theme;
-  _ThemePreviewPainter({required this.theme});
+  _ThemeScenePainter({required this.theme});
+
+  Color get _accent => theme == GameTheme.classic ? CosmoPalette.cyan : theme.shipColor;
+  Color get _secondary => theme == GameTheme.classic ? CosmoPalette.pink : theme.foodColor;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = theme.accentColor.withValues(alpha: 0.18)
-      ..strokeWidth = 0.6;
-    // 6×6 grid + a longer 6-segment coiled ship + 2 food items. Denser
-    // than the original 8×8/4-segment preview so the card visibly
-    // represents "ship game" rather than a near-empty backdrop.
-    const cells = 6;
-    final cellW = size.width / cells;
-    final cellH = size.height / cells;
-    for (int i = 1; i < cells; i++) {
-      canvas.drawLine(
-        Offset(cellW * i, 0),
-        Offset(cellW * i, size.height),
-        gridPaint,
-      );
-      canvas.drawLine(
-        Offset(0, cellH * i),
-        Offset(size.width, cellH * i),
-        gridPaint,
-      );
-    }
-
-    // Coiled ship path (head → tail). Index 0 is the head.
-    const shipCells = <(int, int)>[
-      (4, 2), (3, 2), (2, 2), (2, 3), (2, 4), (3, 4),
-    ];
-    final r = (cellW < cellH ? cellW : cellH) * 0.40;
-    for (int i = 0; i < shipCells.length; i++) {
-      final fade = 1.0 - (i / shipCells.length) * 0.55;
-      final paint = Paint()
-        ..color = theme.shipColor.withValues(alpha: fade);
-      final (col, row) = shipCells[i];
-      canvas.drawCircle(
-        Offset(cellW * col + cellW / 2, cellH * row + cellH / 2),
-        i == 0 ? r * 1.05 : r,
-        paint,
-      );
-    }
-    // Head highlight — small accent dot so the head is unmistakable.
-    canvas.drawCircle(
-      Offset(cellW * 4 + cellW / 2, cellH * 2 + cellH / 2),
-      r * 0.30,
-      Paint()..color = theme.accentColor,
+    final w = size.width, h = size.height;
+    // Battlefield glow: accent behind the ship, secondary far right.
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.5, 0),
+          radius: 0.9,
+          colors: [_accent.withValues(alpha: 0.22), _accent.withValues(alpha: 0)],
+        ).createShader(Offset.zero & size),
     );
-
-    // Two food pickups to fill the empty quadrants.
-    final foodPaint = Paint()..color = theme.foodColor;
-    for (final (col, row) in const <(int, int)>[(0, 0), (5, 4)]) {
-      canvas.drawCircle(
-        Offset(cellW * col + cellW / 2, cellH * row + cellH / 2),
-        r * 0.85,
-        foodPaint,
-      );
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(0.9, -0.4),
+          radius: 0.7,
+          colors: [_secondary.withValues(alpha: 0.18), _secondary.withValues(alpha: 0)],
+        ).createShader(Offset.zero & size),
+    );
+    // Shots streaking right from the nose.
+    final shot = Paint()
+      ..color = _accent
+      ..strokeWidth = h * 0.025
+      ..strokeCap = StrokeCap.round;
+    final glow = Paint()
+      ..color = _accent.withValues(alpha: 0.25)
+      ..strokeWidth = h * 0.07
+      ..strokeCap = StrokeCap.round;
+    for (final x in const [0.52, 0.68, 0.84]) {
+      final a = Offset(w * x, h * 0.5), b = Offset(w * (x + 0.07), h * 0.5);
+      canvas.drawLine(a, b, glow);
+      canvas.drawLine(a, b, shot);
     }
+    // A couple of enemy rounds in the secondary colour.
+    final ring = Paint()
+      ..color = _secondary
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = h * 0.018;
+    canvas.drawCircle(Offset(w * 0.74, h * 0.24), h * 0.04, ring);
+    canvas.drawCircle(Offset(w * 0.88, h * 0.72), h * 0.04, ring);
   }
 
   @override
-  bool shouldRepaint(covariant _ThemePreviewPainter old) =>
-      old.theme != theme;
+  bool shouldRepaint(covariant _ThemeScenePainter old) => old.theme != theme;
 }
 
-/// Paints a stylized ship-trail preview specific to each trail type.
-/// The shared element is a 5-segment serpentine head with a fading
-/// tail; the per-trail signature (sparkles, lightning, flame, stars,
-/// crystal facets, etc.) draws on top using the trail's own color
-/// palette. The painter never animates — these are still previews —
-/// but the geometric variation is rich enough to make twelve trails
-/// visually distinct at glance.
-class _TrailPreviewPainter extends CustomPainter {
+/// Trail card: the hull with the trail's particle stream behind it — soft
+/// halo + bright core per particle in the trail's palette, like the
+/// in-game ShipTrail. "No trail" shows the bare hull.
+class _TrailShipPreview extends StatelessWidget {
+  const _TrailShipPreview({required this.trail});
   final TrailEffectType trail;
-  final Color accentColor;
-
-  _TrailPreviewPainter({required this.trail, required this.accentColor});
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final width = size.width;
-    final height = size.height;
-    final palette = trail.colors;
-
-    // 5-segment serpentine head, curving down-right across the card.
-    // Coordinates are normalized inside the preview band so the
-    // composition stays consistent across grid cell sizes.
-    final segmentCenters = <Offset>[
-      Offset(width * 0.18, height * 0.62), // tail
-      Offset(width * 0.34, height * 0.52),
-      Offset(width * 0.50, height * 0.45),
-      Offset(width * 0.66, height * 0.42),
-      Offset(width * 0.82, height * 0.45), // head
-    ];
-    final segmentRadius = (width < height ? width : height) * 0.08;
-
-    // Trail-specific overlays — drawn BEHIND the ship so the head
-    // reads cleanly on top.
-    switch (trail) {
-      case TrailEffectType.none:
-        // Empty band, just the base gradient backdrop.
-        break;
-      case TrailEffectType.particle:
-        _drawSparkles(canvas, size, palette, density: 14);
-        break;
-      case TrailEffectType.glow:
-        _drawHalos(canvas, segmentCenters, palette, segmentRadius);
-        break;
-      case TrailEffectType.rainbow:
-        _drawRainbowArc(canvas, segmentCenters, palette, segmentRadius);
-        break;
-      case TrailEffectType.fire:
-        _drawFlames(canvas, segmentCenters, palette);
-        break;
-      case TrailEffectType.electric:
-        _drawLightning(canvas, segmentCenters, palette);
-        break;
-      case TrailEffectType.star:
-        _drawStars(canvas, size, palette);
-        break;
-      case TrailEffectType.cosmic:
-        _drawNebula(canvas, size, palette);
-        break;
-      case TrailEffectType.neon:
-        _drawNeonGlow(canvas, segmentCenters, palette, segmentRadius);
-        break;
-      case TrailEffectType.shadow:
-        _drawShadowSmoke(canvas, segmentCenters, palette);
-        break;
-      case TrailEffectType.crystal:
-        _drawCrystalShards(canvas, segmentCenters, palette, segmentRadius);
-        break;
-      case TrailEffectType.dragon:
-        _drawDragonBreath(canvas, segmentCenters, palette);
-        break;
-    }
-
-    // Ship head + body. Color picked from the trail palette so the
-    // ship itself reads as part of the trail's identity. Tail fades
-    // by alpha so the serpentine reads directionally.
-    for (var i = 0; i < segmentCenters.length; i++) {
-      final t = i / (segmentCenters.length - 1);
-      final color = palette.isEmpty
-          ? accentColor
-          : Color.lerp(palette.first, palette.last, t) ?? palette.first;
-      final fade = 0.45 + 0.55 * t;
-      final paint = Paint()
-        ..color = color.withValues(alpha: fade)
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(
-        segmentCenters[i],
-        segmentRadius * (0.7 + 0.3 * t),
-        paint,
-      );
-    }
-
-    // Ship-head highlight — small bright dot on the leading segment
-    // so the eye picks up direction immediately.
-    canvas.drawCircle(
-      segmentCenters.last,
-      segmentRadius * 0.25,
-      Paint()..color = Colors.white.withValues(alpha: 0.85),
-    );
+  Widget build(BuildContext context) {
+    return Stack(fit: StackFit.expand, children: [
+      if (trail.colors.isNotEmpty) CustomPaint(painter: _TrailStreamPainter(trail.colors)),
+      Align(
+        alignment: const Alignment(0.45, 0),
+        child: FractionallySizedBox(
+          widthFactor: 0.4,
+          child: Image.asset('assets/game/player/player_ship.png', filterQuality: FilterQuality.medium),
+        ),
+      ),
+    ]);
   }
-
-  // ------------- Per-trail signature helpers -------------
-
-  void _drawSparkles(Canvas canvas, Size size, List<Color> palette,
-      {required int density}) {
-    final paint = Paint()
-      ..color = (palette.isEmpty ? Colors.white : palette.first)
-          .withValues(alpha: 0.9);
-    final rng = math.Random(7);
-    for (var i = 0; i < density; i++) {
-      final cx = rng.nextDouble() * size.width;
-      final cy = rng.nextDouble() * size.height;
-      final r = 0.8 + rng.nextDouble() * 1.6;
-      canvas.drawCircle(Offset(cx, cy), r, paint);
-    }
-  }
-
-  void _drawHalos(Canvas canvas, List<Offset> centers, List<Color> palette,
-      double r) {
-    for (var i = 0; i < centers.length; i++) {
-      final paint = Paint()
-        ..color = (palette.isEmpty
-                ? CsColors.cyan
-                : Color.lerp(palette.first, palette.last,
-                    i / centers.length)!)
-            .withValues(alpha: 0.30)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-      canvas.drawCircle(centers[i], r * 2.0, paint);
-    }
-  }
-
-  void _drawRainbowArc(Canvas canvas, List<Offset> centers,
-      List<Color> palette, double r) {
-    if (palette.isEmpty) return;
-    final path = Path()..moveTo(centers.first.dx, centers.first.dy);
-    for (var i = 1; i < centers.length; i++) {
-      path.lineTo(centers[i].dx, centers[i].dy);
-    }
-    final paint = Paint()
-      ..shader = LinearGradient(
-        colors: palette,
-      ).createShader(
-          Rect.fromPoints(centers.first, centers.last))
-      ..strokeWidth = r * 1.8
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
-    canvas.drawPath(path, paint);
-  }
-
-  void _drawFlames(Canvas canvas, List<Offset> centers, List<Color> palette) {
-    if (palette.length < 2) return;
-    final tail = centers.first;
-    for (var i = 0; i < 6; i++) {
-      final t = i / 5;
-      final flameTip = Offset(
-        tail.dx - 10 - i * 3,
-        tail.dy + 8 - i * 2.5,
-      );
-      final flameBase = Offset(tail.dx + (i % 2 == 0 ? -2 : 2), tail.dy);
-      final path = Path()
-        ..moveTo(flameBase.dx - 4, flameBase.dy + 4)
-        ..quadraticBezierTo(
-          flameTip.dx - 2, flameTip.dy + 4, flameTip.dx, flameTip.dy)
-        ..quadraticBezierTo(
-          flameTip.dx + 2, flameTip.dy + 4, flameBase.dx + 4, flameBase.dy + 4)
-        ..close();
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = Color.lerp(palette.last, palette.first, t)!
-              .withValues(alpha: 0.55 - t * 0.4)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
-      );
-    }
-  }
-
-  void _drawLightning(
-      Canvas canvas, List<Offset> centers, List<Color> palette) {
-    if (palette.isEmpty) return;
-    final paint = Paint()
-      ..color = palette.first.withValues(alpha: 0.85)
-      ..strokeWidth = 1.4
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
-    for (var i = 0; i < centers.length - 1; i++) {
-      final mid = Offset(
-        (centers[i].dx + centers[i + 1].dx) / 2,
-        (centers[i].dy + centers[i + 1].dy) / 2 + (i.isEven ? 6 : -6),
-      );
-      final path = Path()
-        ..moveTo(centers[i].dx, centers[i].dy)
-        ..lineTo(mid.dx, mid.dy)
-        ..lineTo(centers[i + 1].dx, centers[i + 1].dy);
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  void _drawStars(Canvas canvas, Size size, List<Color> palette) {
-    if (palette.isEmpty) return;
-    final rng = math.Random(42);
-    for (var i = 0; i < 8; i++) {
-      final cx = rng.nextDouble() * size.width;
-      final cy = rng.nextDouble() * size.height;
-      final r = 2 + rng.nextDouble() * 3;
-      _drawStarGlyph(
-        canvas,
-        Offset(cx, cy),
-        r,
-        Paint()
-          ..color = palette[i % palette.length]
-              .withValues(alpha: 0.85),
-      );
-    }
-  }
-
-  void _drawStarGlyph(Canvas canvas, Offset c, double r, Paint paint) {
-    final path = Path();
-    for (var i = 0; i < 4; i++) {
-      final angle = (math.pi / 2) * i;
-      final tip = Offset(c.dx + math.cos(angle) * r, c.dy + math.sin(angle) * r);
-      final inner = Offset(
-        c.dx + math.cos(angle + math.pi / 4) * r * 0.35,
-        c.dy + math.sin(angle + math.pi / 4) * r * 0.35,
-      );
-      if (i == 0) path.moveTo(tip.dx, tip.dy);
-      path.lineTo(inner.dx, inner.dy);
-      if (i < 3) {
-        final nextTip = Offset(
-          c.dx + math.cos(angle + math.pi / 2) * r,
-          c.dy + math.sin(angle + math.pi / 2) * r,
-        );
-        path.lineTo(nextTip.dx, nextTip.dy);
-      }
-    }
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  void _drawNebula(Canvas canvas, Size size, List<Color> palette) {
-    if (palette.length < 2) return;
-    for (var i = 0; i < 5; i++) {
-      final rng = math.Random(i * 11);
-      final c = Offset(
-        rng.nextDouble() * size.width,
-        rng.nextDouble() * size.height,
-      );
-      final paint = Paint()
-        ..color = palette[i % palette.length].withValues(alpha: 0.35)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-      canvas.drawCircle(c, 8 + rng.nextDouble() * 12, paint);
-    }
-  }
-
-  void _drawNeonGlow(Canvas canvas, List<Offset> centers, List<Color> palette,
-      double r) {
-    if (palette.isEmpty) return;
-    for (var i = 0; i < centers.length; i++) {
-      final color = palette[i % palette.length];
-      canvas.drawCircle(
-        centers[i],
-        r * 2.5,
-        Paint()
-          ..color = color.withValues(alpha: 0.40)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
-      );
-    }
-  }
-
-  void _drawShadowSmoke(
-      Canvas canvas, List<Offset> centers, List<Color> palette) {
-    if (palette.isEmpty) return;
-    final rng = math.Random(99);
-    for (var i = 0; i < 9; i++) {
-      final base = centers[i % centers.length];
-      final puff = Offset(
-        base.dx - rng.nextDouble() * 24,
-        base.dy + (rng.nextDouble() - 0.3) * 18,
-      );
-      canvas.drawCircle(
-        puff,
-        4 + rng.nextDouble() * 5,
-        Paint()
-          ..color = palette.first.withValues(alpha: 0.35)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-      );
-    }
-  }
-
-  void _drawCrystalShards(Canvas canvas, List<Offset> centers,
-      List<Color> palette, double r) {
-    if (palette.isEmpty) return;
-    final rng = math.Random(13);
-    for (var i = 0; i < 6; i++) {
-      final base = centers[i % centers.length];
-      final tip = Offset(
-        base.dx + (rng.nextDouble() - 0.5) * 26,
-        base.dy - 4 - rng.nextDouble() * 10,
-      );
-      final left = Offset(tip.dx - 3, tip.dy + 6);
-      final right = Offset(tip.dx + 3, tip.dy + 6);
-      final path = Path()
-        ..moveTo(tip.dx, tip.dy)
-        ..lineTo(left.dx, left.dy)
-        ..lineTo(right.dx, right.dy)
-        ..close();
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = palette[i % palette.length].withValues(alpha: 0.75),
-      );
-    }
-  }
-
-  void _drawDragonBreath(
-      Canvas canvas, List<Offset> centers, List<Color> palette) {
-    if (palette.length < 2) return;
-    // Curving plume from the head, fanning out as it trails.
-    final head = centers.last;
-    for (var i = 0; i < 8; i++) {
-      final t = i / 7;
-      final cx = head.dx + 8 + i * 4.0;
-      final cy = head.dy - 6 + (i % 2 == 0 ? 0 : 4);
-      final r = 6.0 - t * 4.0;
-      canvas.drawCircle(
-        Offset(cx, cy),
-        r,
-        Paint()
-          ..color = Color.lerp(palette.last, palette.first, t)!
-              .withValues(alpha: 0.65 - t * 0.5)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _TrailPreviewPainter old) =>
-      old.trail != trail || old.accentColor != accentColor;
 }
 
-/// Paints a stylized ship silhouette for the store's Skins tab, using
-/// the skin's own color palette plus a per-skin signature overlay
-/// (shimmer for golden, ember dots for fire, scale ridges for dragon,
-/// etc.) so each skin card visually previews what the in-game ship
-/// will look like with that skin equipped.
-class _SkinPreviewPainter extends CustomPainter {
-  final ShipSkinType skin;
-  final Color accentColor;
-
-  _SkinPreviewPainter({required this.skin, required this.accentColor});
+class _TrailStreamPainter extends CustomPainter {
+  _TrailStreamPainter(this.palette);
+  final List<Color> palette;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final width = size.width;
-    final height = size.height;
-    final palette = skin.colors.isNotEmpty
-        ? skin.colors
-        : <Color>[accentColor, accentColor.withValues(alpha: 0.5)];
-
-    // S-curve ship silhouette, 7 segments. Curving more dramatically
-    // than the trail card's 5-segment line so the skin's colors get a
-    // proper showcase across multiple body positions.
-    final centers = <Offset>[
-      Offset(width * 0.14, height * 0.70),
-      Offset(width * 0.26, height * 0.58),
-      Offset(width * 0.38, height * 0.50),
-      Offset(width * 0.50, height * 0.48),
-      Offset(width * 0.62, height * 0.50),
-      Offset(width * 0.74, height * 0.42),
-      Offset(width * 0.86, height * 0.36), // head
-    ];
-    final r = (width < height ? width : height) * 0.085;
-
-    // Base body — color lerp across segments using the skin's palette.
-    for (var i = 0; i < centers.length; i++) {
-      final t = i / (centers.length - 1);
-      Color color;
-      if (palette.length == 1) {
-        color = palette.first;
-      } else if (palette.length == 2) {
-        color = Color.lerp(palette.first, palette.last, t)!;
-      } else {
-        // Multi-color: pick across the palette by index position.
-        final scaled = t * (palette.length - 1);
-        final lower = scaled.floor();
-        final upper = math.min(lower + 1, palette.length - 1);
-        color = Color.lerp(palette[lower], palette[upper], scaled - lower)!;
-      }
-      final fade = 0.55 + 0.45 * t;
-      canvas.drawCircle(
-        centers[i],
-        r * (0.78 + 0.22 * t),
-        Paint()
-          ..color = color.withValues(alpha: fade)
-          ..isAntiAlias = true,
-      );
-    }
-
-    // Per-skin signature overlay — same direction as the in-game
-    // _drawSkinSignature so the store preview matches gameplay.
-    switch (skin) {
-      case ShipSkinType.classic:
-        break;
-      case ShipSkinType.golden:
-        _shimmerStripe(canvas, centers, r);
-        break;
-      case ShipSkinType.rainbow:
-        _whiteSparkles(canvas, centers, r, count: 4);
-        break;
-      case ShipSkinType.galaxy:
-        _starSpecks(canvas, size, 12);
-        break;
-      case ShipSkinType.dragon:
-        _scaleRidges(canvas, centers, r);
-        break;
-      case ShipSkinType.electric:
-        _sparkBolts(canvas, centers);
-        break;
-      case ShipSkinType.fire:
-        _emberRising(canvas, centers);
-        break;
-      case ShipSkinType.ice:
-        _frostSpecks(canvas, centers, r);
-        break;
-      case ShipSkinType.shadow:
-        _smokyHalos(canvas, centers, r);
-        break;
-      case ShipSkinType.neon:
-        _neonHalos(canvas, centers, r);
-        break;
-      case ShipSkinType.crystal:
-        _facetHighlights(canvas, centers, r);
-        break;
-      case ShipSkinType.cosmic:
-        _cosmicHaze(canvas, centers, r);
-        _starSpecks(canvas, size, 6);
-        break;
-    }
-
-    // Head highlight — small bright dot on the leading segment so the
-    // eye picks up direction immediately.
-    canvas.drawCircle(
-      centers.last,
-      r * 0.28,
-      Paint()..color = Colors.white.withValues(alpha: 0.9),
-    );
-  }
-
-  void _shimmerStripe(Canvas canvas, List<Offset> centers, double r) {
-    for (final c in centers) {
-      canvas.drawCircle(
-        Offset(c.dx - r * 0.25, c.dy - r * 0.25),
-        r * 0.32,
-        Paint()
-          ..color = const Color(0xFFFFF6C4).withValues(alpha: 0.55)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
-      );
-    }
-  }
-
-  void _whiteSparkles(Canvas canvas, List<Offset> centers, double r,
-      {required int count}) {
-    final rng = math.Random(3);
-    final paint = Paint()..color = Colors.white.withValues(alpha: 0.85);
+    final w = size.width, h = size.height;
+    final rng = math.Random(7); // fixed seed: same scatter every frame
+    const count = 22;
     for (var i = 0; i < count; i++) {
-      final c = centers[i % centers.length];
-      canvas.drawCircle(
-        Offset(c.dx + (rng.nextDouble() - 0.5) * r * 0.8,
-            c.dy + (rng.nextDouble() - 0.5) * r * 0.8),
-        1.4,
-        paint,
-      );
-    }
-  }
-
-  void _starSpecks(Canvas canvas, Size size, int count) {
-    final rng = math.Random(42);
-    final paint = Paint()..color = Colors.white.withValues(alpha: 0.75);
-    for (var i = 0; i < count; i++) {
-      final cx = rng.nextDouble() * size.width;
-      final cy = rng.nextDouble() * size.height * 0.7; // upper portion
-      canvas.drawCircle(Offset(cx, cy), 0.9, paint);
-    }
-  }
-
-  void _scaleRidges(Canvas canvas, List<Offset> centers, double r) {
-    final paint = Paint()
-      ..color = const Color(0xFFFFD700).withValues(alpha: 0.7)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1
-      ..strokeCap = StrokeCap.round;
-    for (final c in centers) {
-      final rect =
-          Rect.fromCenter(center: Offset(c.dx, c.dy - r * 0.1), width: r * 1.4, height: r * 0.9);
-      canvas.drawArc(rect, math.pi, math.pi, false, paint);
-    }
-  }
-
-  void _sparkBolts(Canvas canvas, List<Offset> centers) {
-    final paint = Paint()
-      ..color = const Color(0xFF00E5FF).withValues(alpha: 0.9)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
-    for (var i = 0; i < centers.length; i += 2) {
-      final c = centers[i];
-      final path = Path()
-        ..moveTo(c.dx - 4, c.dy - 5)
-        ..lineTo(c.dx, c.dy)
-        ..lineTo(c.dx + 1, c.dy + 1)
-        ..lineTo(c.dx + 4, c.dy + 5);
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  void _emberRising(Canvas canvas, List<Offset> centers) {
-    final rng = math.Random(7);
-    for (var i = 0; i < centers.length; i++) {
-      final c = centers[i];
-      for (var s = 0; s < 2; s++) {
-        final dy = -4 - rng.nextDouble() * 8 - s * 3.0;
-        final dx = (rng.nextDouble() - 0.5) * 8;
-        canvas.drawCircle(
-          Offset(c.dx + dx, c.dy + dy),
-          1.2 + rng.nextDouble(),
-          Paint()
-            ..color = Color.lerp(
-                    const Color(0xFFFFD86A), const Color(0xFFFF4500), s / 2)!
-                .withValues(alpha: 0.8)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
-        );
-      }
-    }
-  }
-
-  void _frostSpecks(Canvas canvas, List<Offset> centers, double r) {
-    final paint = Paint()
-      ..color = const Color(0xFFE0FBFF).withValues(alpha: 0.85)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8
-      ..strokeCap = StrokeCap.round;
-    for (final c in centers) {
-      const s = 2.2;
-      final fx = c.dx + r * 0.3;
-      final fy = c.dy - r * 0.5;
-      canvas.drawLine(Offset(fx - s, fy - s), Offset(fx + s, fy + s), paint);
-      canvas.drawLine(Offset(fx - s, fy + s), Offset(fx + s, fy - s), paint);
-      canvas.drawLine(Offset(fx, fy - s * 1.4), Offset(fx, fy + s * 1.4),
-          paint);
-    }
-  }
-
-  void _smokyHalos(Canvas canvas, List<Offset> centers, double r) {
-    for (final c in centers) {
-      canvas.drawCircle(
-        c,
-        r * 1.8,
-        Paint()
-          ..color = Colors.black.withValues(alpha: 0.4)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-      );
-    }
-  }
-
-  void _neonHalos(Canvas canvas, List<Offset> centers, double r) {
-    for (var i = 0; i < centers.length; i++) {
-      final color = i.isEven
-          ? const Color(0xFF39FF14)
-          : const Color(0xFFFF1493);
-      canvas.drawCircle(
-        centers[i],
-        r * 1.6,
-        Paint()
-          ..color = color.withValues(alpha: 0.40)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
-      );
-    }
-  }
-
-  void _facetHighlights(Canvas canvas, List<Offset> centers, double r) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.5)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.6);
-    for (final c in centers) {
-      final path = Path()
-        ..moveTo(c.dx - r * 0.55, c.dy - r * 0.55)
-        ..lineTo(c.dx - r * 0.15, c.dy - r * 0.55)
-        ..lineTo(c.dx - r * 0.55, c.dy - r * 0.15)
-        ..close();
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  void _cosmicHaze(Canvas canvas, List<Offset> centers, double r) {
-    for (final c in centers) {
-      canvas.drawCircle(
-        c,
-        r * 1.6,
-        Paint()
-          ..color = const Color(0xFFB46AFF).withValues(alpha: 0.45)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-      );
+      final t = i / (count - 1); // 0 at the engine, 1 at the far left
+      final x = w * (0.48 - 0.44 * t);
+      final y = h * 0.5 + (rng.nextDouble() - 0.5) * h * (0.06 + 0.28 * t);
+      final r = h * (0.055 - 0.035 * t);
+      final c = palette[i % palette.length];
+      final alpha = 1.0 - 0.8 * t;
+      canvas.drawCircle(Offset(x, y), r * 2.2, Paint()..color = c.withValues(alpha: 0.18 * alpha));
+      canvas.drawCircle(Offset(x, y), r, Paint()..color = c.withValues(alpha: alpha));
     }
   }
 
   @override
-  bool shouldRepaint(covariant _SkinPreviewPainter old) =>
-      old.skin != skin || old.accentColor != accentColor;
+  bool shouldRepaint(covariant _TrailStreamPainter old) => old.palette != palette;
+}
+
+/// Store preview for a ship skin: the real hull sprite tinted exactly like
+/// the in-game skin (PlayerShip: first palette colour at 55% srcATop plus a
+/// soft halo), so the card shows what you'll actually fly.
+class _SkinShipPreview extends StatelessWidget {
+  const _SkinShipPreview({required this.skin});
+  final ShipSkinType skin;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = skin == ShipSkinType.classic || skin.colors.isEmpty ? null : skin.colors.first;
+    return Center(
+      child: FractionallySizedBox(
+        widthFactor: 0.58,
+        child: AspectRatio(
+          aspectRatio: 1.5,
+          child: Stack(fit: StackFit.expand, children: [
+            if (tint != null)
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    radius: 0.62,
+                    colors: [tint.withValues(alpha: 0.30), tint.withValues(alpha: 0)],
+                  ),
+                ),
+              ),
+            Image.asset(
+              'assets/game/player/player_ship.png',
+              color: tint?.withValues(alpha: 0.55),
+              colorBlendMode: BlendMode.srcATop,
+              filterQuality: FilterQuality.medium,
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
 }
