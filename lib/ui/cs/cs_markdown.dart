@@ -27,7 +27,9 @@ class CsMarkdown extends StatelessWidget {
       gap(10);
     }
 
-    for (final raw in source.split('\n')) {
+    // Split on CRLF too: PRIVACY.md has Windows line endings, and a stray
+    // '\r' after the two trailing spaces hides the hard line break.
+    for (final raw in source.split(RegExp(r'\r?\n'))) {
       final line = raw.trimRight();
       final trimmed = line.trimLeft();
       if (trimmed.isEmpty) {

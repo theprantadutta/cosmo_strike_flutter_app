@@ -217,8 +217,7 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
               Expanded(
                 child: _ConsentCheck(
                   value: _privacyAccepted,
-                  label: 'I have read and agree to the Privacy Policy and '
-                      'Terms of Service.',
+                  label: 'I agree to the Privacy Policy and Terms of Service.',
                   onChanged: (v) {
                     setState(() => _privacyAccepted = v);
                     if (_privacyAccepted) PrivacyPolicy.recordAccepted();
@@ -226,8 +225,10 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
                 ),
               ),
               SizedBox(width: cs(16)),
+              // Short label (matches PrivacyConsentScreen) so the consent
+              // text beside it isn't squeezed into a narrow column.
               CsButton.primary(
-                label: 'Agree & Continue',
+                label: 'Continue',
                 icon: Symbols.rocket_launch_rounded,
                 onPressed: _privacyAccepted
                     ? () => setState(() => _showPrivacyPolicy = false)
