@@ -84,13 +84,17 @@ class AdService {
       _prefs = await SharedPreferences.getInstance();
       await _gatherConsentAndAtt();
       await MobileAds.instance.initialize();
-      if (kDebugMode) {
-        // Emulators/sim are test devices automatically; this covers physical
-        // dev phones too so we never serve real impressions in debug.
-        await MobileAds.instance.updateRequestConfiguration(
-          RequestConfiguration(testDeviceIds: const []),
-        );
-      }
+      // Family-safe ads only. The app's Play target audience includes 6-12
+      // (Families program), and Play rejected an update because served ads
+      // didn't match the content rating. G = suitable for general audiences.
+      // Emulators/sim are test devices automatically; the empty list covers
+      // physical dev phones too so we never serve real impressions in debug.
+      await MobileAds.instance.updateRequestConfiguration(
+        RequestConfiguration(
+          maxAdContentRating: MaxAdContentRating.g,
+          testDeviceIds: kDebugMode ? const [] : null,
+        ),
+      );
       _sdkReady = true;
       AppLogger.success(
         'AdService initialized (ads ${adsEnabled ? 'on' : 'off'})',
