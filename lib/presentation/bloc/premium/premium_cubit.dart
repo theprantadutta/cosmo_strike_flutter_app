@@ -305,9 +305,11 @@ class PremiumCubit extends Cubit<PremiumState> {
       } else if (internalId.contains('gold')) {
         await addTournamentEntry('gold');
       } else if (internalId.contains('championship')) {
-        await addTournamentEntry('gold'); // Championship maps to gold tier
+        // Bundle — keep in sync with the backend's TournamentEntryGrants.
+        await addTournamentEntry('gold', count: 3);
       } else if (internalId.contains('vip')) {
-        await addTournamentEntry('gold'); // VIP maps to gold tier
+        await addTournamentEntry('gold', count: 5);
+        await addTournamentEntry('silver', count: 5);
       }
       return;
     }

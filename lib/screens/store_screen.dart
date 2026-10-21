@@ -18,7 +18,6 @@ import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dar
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
-import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 import 'package:cosmo_strike_flutter_app/widgets/subscription_legal_links.dart';
 
@@ -46,7 +45,7 @@ class _StoreScreenState extends State<StoreScreen>
   /// True while a "Restore purchases" request is in flight.
   bool _restoring = false;
 
-  // Tab order: Pro / Coins / Themes / Skins / Trails / Power-Ups.
+  // Tab order: Pro / Coins / Themes / Skins / Trails / Power-Ups / Entries.
   // Keeps Coins at index 1 so existing `?tab=1` deep links still land on
   // coins. These names are the analytics tab ids — keep them stable.
   static const _tabNames = [
@@ -56,6 +55,7 @@ class _StoreScreenState extends State<StoreScreen>
     'Skins',
     'Trails',
     'Power-Ups',
+    'Entries',
   ];
 
   static const _tabLabels = [
@@ -65,6 +65,7 @@ class _StoreScreenState extends State<StoreScreen>
     'Skins',
     'Trails',
     'Power-ups',
+    'Entries',
   ];
 
   static const _tabIcons = [
@@ -74,6 +75,7 @@ class _StoreScreenState extends State<StoreScreen>
     Symbols.rocket_rounded,
     Symbols.auto_awesome_rounded,
     Symbols.bolt_rounded,
+    Symbols.confirmation_number_rounded,
   ];
 
   @override
@@ -151,6 +153,7 @@ class _StoreScreenState extends State<StoreScreen>
                               _buildSkinsTab(theme, premiumState),
                               _buildTrailsTab(theme, premiumState),
                               _buildPowerUpsTab(coinsState),
+                              _buildEntriesTab(),
                             ],
                           ),
                         ),
@@ -852,26 +855,20 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
-  /// Anonymous (guest) users can't make purchases — every paid path on this
-  /// screen funnels through this check. On block we show the upgrade dialog;
-  /// the caller bails so the user can re-tap Buy after they link an account.
+  /// Every paid path on this screen funnels through this check. Guests
+  /// never have to register (App Store guideline 5.1.1(v)): a local guest
+  /// gets a silent anonymous account so the purchase can be verified, and
+  /// signing in stays optional. Only a missing connection blocks the buy.
   Future<bool> _ensurePurchasable() async {
-    final user = context.read<AuthCubit>().state.user;
-    if (user == null || !user.isAnonymous) return true;
-    await showAccountUpgradeSheet(context);
-    return false;
+    final ok = await context.read<AuthCubit>().ensurePurchaseAccount();
+    if (!ok && mounted) showCsToast(context, "Couldn't reach the store. Check your connection and try again.", kind: CsToastKind.error);
+    return ok;
   }
 
-  /// Restore purchases. Guests can't restore: the backend rejects anonymous
-  /// verifies, so restored purchases need the signed-in account they belong
-  /// to. Results arrive asynchronously on the purchase stream.
+  /// Restore purchases — guests included (on their silent anonymous
+  /// account). Results arrive asynchronously on the purchase stream.
   Future<void> _restorePurchases() async {
-    final user = context.read<AuthCubit>().state.user;
-    if (user == null || user.isAnonymous) {
-      await showAccountUpgradeSheet(context);
-      return;
-    }
-    if (!mounted) return;
+    if (!await _ensurePurchasable() || !mounted) return;
     setState(() => _restoring = true);
     showCsToast(context, 'Restoring purchases…', icon: Symbols.restore_rounded);
     try {
@@ -1656,6 +1653,106 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
+  // ===========================================================================
+  // ENTRIES TAB
+  // ===========================================================================
+
+  Widget _buildEntriesTab() {
+    return _tabScroll([
+      _box(_tabHeader(
+        'Tournament entries',
+        subtitle: 'Tickets to join the tournaments in Events. Each tournament '
+            'takes one ticket of its tier. Pro includes free entries.',
+      )),
+      _box(_sectionLabel('Buy entries', first: true)),
+      _tileGrid(
+        count: _tournamentEntries.length,
+        minTile: 150,
+        extent: 214,
+        maxColumns: 5,
+        maxColumnsTablet: 5,
+        itemBuilder: (context, i) => _buildTournamentEntryTile(_tournamentEntries[i]),
+      ),
+    ]);
+  }
+
+  static const _tournamentEntries = [
+    _TournamentEntryOffer(ProductIds.tournamentBronze, 'Bronze Entry', '1 bronze ticket', 0.99, CsColors.ink70),
+    _TournamentEntryOffer(ProductIds.tournamentSilver, 'Silver Entry', '1 silver ticket', 1.99, CsColors.ink),
+    _TournamentEntryOffer(ProductIds.tournamentGold, 'Gold Entry', '1 gold ticket', 4.99, CsColors.gold),
+    _TournamentEntryOffer(ProductIds.championshipEntry, 'Championship', '3 gold tickets', 9.99, CsColors.gold),
+    _TournamentEntryOffer(ProductIds.tournamentVipEntry, 'VIP Pack', '5 gold + 5 silver', 19.99, CsColors.violet),
+  ];
+
+  Future<void> _purchaseTournamentEntry(_TournamentEntryOffer offer) async {
+    if (!await _ensurePurchasable() || !mounted) return;
+    final price = PurchaseService().getStorePriceOrDefault(offer.productId, offer.fallbackPrice);
+    final confirmed = await showCsConfirm(
+      context,
+      eyebrow: 'Tournament entries',
+      title: 'Buy ${offer.name}',
+      message: 'Get ${offer.grants} for $price?',
+      confirmLabel: 'Buy · $price',
+    );
+    if (!confirmed || !mounted) return;
+    try {
+      await PurchaseService().purchaseProduct(offer.productId);
+      _markPending(offer.productId);
+    } catch (e) {
+      if (mounted) {
+        showCsToast(context, 'Product not available. Please try again later.', kind: CsToastKind.error);
+      }
+    }
+  }
+
+  Widget _buildTournamentEntryTile(_TournamentEntryOffer offer) {
+    final cs = context.cs;
+    final t = cs.type;
+    final premium = context.watch<PremiumCubit>().state;
+    final price = PurchaseService().getStorePriceOrDefault(offer.productId, offer.fallbackPrice);
+    final owned = ['bronze', 'silver', 'gold']
+        .map((tier) => (tier, premium.getTournamentEntryCount(tier)))
+        .where((e) => e.$2 > 0 && offer.grants.contains(e.$1))
+        .map((e) => '${e.$2} ${e.$1}')
+        .join(' · ');
+    void onTap() => _purchaseTournamentEntry(offer);
+    return CsTile(
+      state: CsTileState.future,
+      onTap: onTap,
+      padding: EdgeInsets.all(cs(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Symbols.confirmation_number_rounded, size: cs(26), color: offer.color),
+          const Spacer(),
+          Text(
+            offer.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: t.display(14, weight: FontWeight.w700, em: 0, height: 1.2),
+          ),
+          SizedBox(height: cs(2)),
+          Text(offer.grants.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.mono(10, em: 0.04, color: CsColors.ink45)),
+          SizedBox(height: cs(2)),
+          Text(
+            owned.isEmpty ? 'NONE OWNED' : 'OWNED: ${owned.toUpperCase()}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: t.mono(9, em: 0.06, color: owned.isEmpty ? CsColors.ink30 : CsColors.mint),
+          ),
+          SizedBox(height: cs(10)),
+          CsButton.secondary(
+            label: price,
+            size: CsButtonSize.small,
+            expand: true,
+            loading: _pendingProductIds.contains(offer.productId),
+            onPressed: onTap,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPowerUpTile(_PowerUpCatalogItem item, PowerUpState powerUpState) {
     final cs = context.cs;
     final owned = powerUpState.countFor(item.type);
@@ -2215,4 +2312,16 @@ class _SkinShipPreview extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A tournament ticket product in the Store's Power-ups tab.
+class _TournamentEntryOffer {
+  const _TournamentEntryOffer(this.productId, this.name, this.grants, this.fallbackPrice, this.color);
+  final String productId;
+  final String name;
+
+  /// What one purchase grants — mirrors PremiumCubit's entry grants.
+  final String grants;
+  final double fallbackPrice;
+  final Color color;
 }

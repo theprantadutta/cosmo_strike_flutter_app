@@ -67,13 +67,13 @@ Restore).
 | `com.pranta.cosmostrike.tournament_bronze` | Bronze Tournament Entry | 1 bronze ticket | **$0.99** |
 | `com.pranta.cosmostrike.tournament_silver` | Silver Tournament Entry | 1 silver ticket | **$1.99** |
 | `com.pranta.cosmostrike.tournament_gold` | Gold Tournament Entry | 1 gold ticket | **$4.99** |
-| `com.pranta.cosmostrike.championship_entry` | Championship Entry | 1 gold-tier ticket | $4.99 *(optional — see note)* |
-| `com.pranta.cosmostrike.tournament_vip_entry` | VIP Tournament Entry | 1 gold-tier ticket | $4.99 *(optional — see note)* |
+| `com.pranta.cosmostrike.championship_entry` | Championship Entry | 3 gold tickets | **$9.99** |
+| `com.pranta.cosmostrike.tournament_vip_entry` | VIP Tournament Pack | 5 gold + 5 silver tickets | **$19.99** |
 
-> Note: `championship_entry` and `tournament_vip_entry` are registered in the
-> app + backend but **no screen sells them yet** (only bronze/silver/gold have
-> buy buttons). Safe to skip for now — querying a missing product is harmless —
-> or create them Inactive until a UI exists.
+> Note: all five are sold in the Store's **Entries** tab (Championship and VIP
+> are bundles so they aren't duplicates of the single Gold entry). Grants live
+> in `PremiumCubit._handlePurchaseCompleted` and the backend's
+> `GetPremiumContentQueryHandler.TournamentEntryGrants` — keep them in sync.
 >
 > Bronze entries can also be earned via a rewarded ad, **capped at 2/day**
 > (`AdService.capTournamentEntry`), so the paid bronze entry retains value.

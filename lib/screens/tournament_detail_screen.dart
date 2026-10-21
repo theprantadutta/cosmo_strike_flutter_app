@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/tournament/tournament_context_cubit.dart';
 import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
@@ -10,7 +11,9 @@ import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dar
 import 'package:cosmo_strike_flutter_app/services/tournament_service.dart';
 import 'package:cosmo_strike_flutter_app/services/auth_service.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
+import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
+import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/screens/gameplay_screen.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
@@ -658,6 +661,14 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           ]),
           actions: [
             CsButton.text(label: 'Cancel', onPressed: () => Navigator.of(ctx).pop()),
+            // Store's Entries tab also sells the Championship / VIP bundles.
+            CsButton.text(
+              label: 'More entry options',
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                context.push('${AppRoutes.store}?tab=6');
+              },
+            ),
             if (showAdEntry)
               CsButton.secondary(
                 label: 'Free entry (ad) · '
@@ -681,12 +692,20 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             CsButton.premium(
               label: 'Buy $tierName Entry · '
                   '${PurchaseService().getStorePrice(productId) ?? _getDefaultPrice(tier)}',
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(ctx).pop();
+                // Guests buy on a silent anonymous account (no sign-in).
+                if (!await context.read<AuthCubit>().ensurePurchaseAccount()) {
+                  if (mounted) {
+                    showCsToast(context, "Couldn't reach the store. Check your connection and try again.",
+                        kind: CsToastKind.error);
+                  }
+                  return;
+                }
                 final purchaseService = PurchaseService();
                 final product = purchaseService.getProduct(productId);
                 if (product != null) {
-                  purchaseService.buyProduct(product);
+                  await purchaseService.buyProduct(product);
                 }
               },
             ),
