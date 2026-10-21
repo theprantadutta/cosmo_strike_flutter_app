@@ -1218,6 +1218,82 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
+  Future<void> _purchaseCosmeticBundle(CosmeticBundle bundle) async {
+    if (!await _ensurePurchasable() || !mounted) return;
+    final productId = ProductIds.withPrefix(bundle.id);
+    final price = PurchaseService().getStorePriceOrDefault(productId, bundle.bundlePrice);
+    final confirmed = await showCsConfirm(
+      context,
+      eyebrow: 'Bundle',
+      title: bundle.name,
+      message: 'Unlock ${_bundleContents(bundle)} for $price?',
+      confirmLabel: 'Buy · $price',
+    );
+    if (!confirmed || !mounted) return;
+    try {
+      await PurchaseService().purchaseProduct(productId);
+      if (!mounted) return;
+      _markPending(productId);
+      showCsToast(context, 'Verifying ${bundle.name} purchase…');
+    } catch (e) {
+      if (mounted) {
+        showCsToast(context, 'Bundle not available. Please try again later.', kind: CsToastKind.error);
+      }
+    }
+  }
+
+  String _bundleContents(CosmeticBundle bundle) {
+    String plural(int n, String word) => '$n $word${n == 1 ? '' : 's'}';
+    return '${plural(bundle.skins.length, 'skin')} + ${plural(bundle.trails.length, 'trail')}';
+  }
+
+  Widget _buildCosmeticBundleTile(CosmeticBundle bundle, PremiumState premiumState) {
+    final cs = context.cs;
+    final t = cs.type;
+    final productId = ProductIds.withPrefix(bundle.id);
+    final owned = premiumState.isBundleOwned(bundle.id);
+    final isPending = _pendingProductIds.contains(productId);
+    final price = PurchaseService().getStorePriceOrDefault(productId, bundle.bundlePrice);
+    void buy() => _purchaseCosmeticBundle(bundle);
+    final Widget action;
+    if (isPending) {
+      action = const CsButton.secondary(label: 'Verifying', size: CsButtonSize.small, loading: true);
+    } else if (owned) {
+      action = const CsChip('Owned', kind: CsChipKind.mint, size: 10);
+    } else {
+      action = CsButton.premium(label: 'Buy · $price', size: CsButtonSize.small, onPressed: buy);
+    }
+    return CsTile(
+      state: owned ? CsTileState.done : CsTileState.future,
+      onTap: (owned || isPending) ? null : buy,
+      padding: EdgeInsets.symmetric(horizontal: cs(14), vertical: cs(12)),
+      child: Row(
+        children: [
+          CsIconDisc(Symbols.redeem_rounded, size: 38, color: CsColors.gold),
+          SizedBox(width: cs(14)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(bundle.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
+                SizedBox(height: cs(3)),
+                Text(
+                  '${_bundleContents(bundle)} · ${bundle.description}'.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.mono(10, em: 0.06, color: CsColors.ink55),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: cs(12)),
+          action,
+        ],
+      ),
+    );
+  }
+
   Widget _buildThemeTile(
     GameTheme target,
     GameTheme currentTheme,
@@ -1389,6 +1465,16 @@ class _StoreScreenState extends State<StoreScreen>
     return _tabScroll([
       _box(_tabHeader('Ship skins')),
       _box(_buildProIncludedRow(premiumState, 'skin')),
+      // Skin + trail bundles. Pro already includes every cosmetic.
+      if (!premiumState.hasPremium) ...[
+        _box(_sectionLabel('Bundles', first: true, note: 'Skins and trails together, for less.')),
+        for (final bundle in CosmeticBundle.availableBundles)
+          _box(Padding(
+            padding: EdgeInsets.only(bottom: context.cs(8)),
+            child: _buildCosmeticBundleTile(bundle, premiumState),
+          )),
+        _box(_sectionLabel('Ship skins')),
+      ],
       _tileGrid(
         count: skins.length,
         itemBuilder: (context, index) {
