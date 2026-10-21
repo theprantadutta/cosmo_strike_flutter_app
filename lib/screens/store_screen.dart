@@ -1752,22 +1752,33 @@ class _StoreScreenState extends State<StoreScreen>
       )),
       _box(_sectionLabel('Buy entries', first: true)),
       _tileGrid(
-        count: _tournamentEntries.length,
+        count: _visibleTournamentEntries.length,
         minTile: 150,
         extent: 214,
         maxColumns: 5,
         maxColumnsTablet: 5,
-        itemBuilder: (context, i) => _buildTournamentEntryTile(_tournamentEntries[i]),
+        itemBuilder: (context, i) => _buildTournamentEntryTile(_visibleTournamentEntries[i]),
       ),
     ]);
   }
+
+  /// Bundle offers are shown only once the store actually returns their
+  /// product: Championship and VIP weren't approved with the first App Store
+  /// release, and App Review rejects apps that show unsubmitted purchases.
+  /// See CLAUDE.md "Pending App Store items".
+  List<_TournamentEntryOffer> get _visibleTournamentEntries => [
+        for (final o in _tournamentEntries)
+          if (!o.requiresStoreProduct || PurchaseService().getProduct(o.productId) != null) o,
+      ];
 
   static const _tournamentEntries = [
     _TournamentEntryOffer(ProductIds.tournamentBronze, 'Bronze Entry', '1 bronze ticket', 0.99, CsColors.ink70),
     _TournamentEntryOffer(ProductIds.tournamentSilver, 'Silver Entry', '1 silver ticket', 1.99, CsColors.ink),
     _TournamentEntryOffer(ProductIds.tournamentGold, 'Gold Entry', '1 gold ticket', 4.99, CsColors.gold),
-    _TournamentEntryOffer(ProductIds.championshipEntry, 'Championship', '3 gold tickets', 9.99, CsColors.gold),
-    _TournamentEntryOffer(ProductIds.tournamentVipEntry, 'VIP Pack', '5 gold + 5 silver', 19.99, CsColors.violet),
+    _TournamentEntryOffer(ProductIds.championshipEntry, 'Championship', '3 gold tickets', 9.99, CsColors.gold,
+        requiresStoreProduct: true),
+    _TournamentEntryOffer(ProductIds.tournamentVipEntry, 'VIP Pack', '5 gold + 5 silver', 19.99, CsColors.violet,
+        requiresStoreProduct: true),
   ];
 
   Future<void> _purchaseTournamentEntry(_TournamentEntryOffer offer) async {
@@ -2402,7 +2413,8 @@ class _SkinShipPreview extends StatelessWidget {
 
 /// A tournament ticket product in the Store's Power-ups tab.
 class _TournamentEntryOffer {
-  const _TournamentEntryOffer(this.productId, this.name, this.grants, this.fallbackPrice, this.color);
+  const _TournamentEntryOffer(this.productId, this.name, this.grants, this.fallbackPrice, this.color,
+      {this.requiresStoreProduct = false});
   final String productId;
   final String name;
 
@@ -2410,4 +2422,7 @@ class _TournamentEntryOffer {
   final String grants;
   final double fallbackPrice;
   final Color color;
+
+  /// Hide the tile unless the store returns this product.
+  final bool requiresStoreProduct;
 }
