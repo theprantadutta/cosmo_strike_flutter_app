@@ -70,6 +70,21 @@ put sign-in, privacy, notifications or setup choices in front of the first run.
   Firebase-anonymous account so the backend can verify the purchase. Never
   put the account sheet in front of a purchase.
 
+## ⚠️ Pending App Store items — do this for the next iOS release
+App Store review of 3.1.1 (16) went in WITHOUT two in-app purchases: Apple
+won't add items back into a submission once it's "Unresolved Issues".
+- **Championship Entry** (`com.pranta.cosmostrike.championship_entry`, 3 gold
+  tickets, $9.99) and **VIP Tournament Pack**
+  (`com.pranta.cosmostrike.tournament_vip_entry`, 5 gold + 5 silver, $19.99)
+  are set up in App Store Connect (name, price, review note, screenshot) but
+  not approved yet.
+- The Store's Entries tab hides their tiles until the store returns the
+  product (`_TournamentEntryOffer.requiresStoreProduct` in `store_screen.dart`),
+  so they appear automatically once approved — no new build needed.
+- **Next step:** once the app is approved, submit both products for review
+  (standalone from In-App Purchases, or with the next version). After they're
+  approved, the `requiresStoreProduct` flag can be dropped.
+
 ## Stack & conventions
 - **State management:** `flutter_bloc` Cubits/Blocs in `lib/presentation/bloc/`
   plus some `provider`-based providers in `lib/providers/`.
