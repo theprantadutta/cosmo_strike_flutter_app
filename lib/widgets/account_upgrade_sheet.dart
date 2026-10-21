@@ -8,7 +8,7 @@ import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 
 /// Why the account dialog is being offered — changes the copy only.
 enum AccountUpgradeReason {
-  /// Purchase gate: guests can't buy.
+  /// Purchase-related nudge: optional — guests can buy without an account.
   purchase,
 
   /// Deferred nudge (new personal best after onboarding) / profile.
@@ -93,7 +93,7 @@ class _AccountUpgradeDialogState extends State<_AccountUpgradeDialog> {
     if (ok) {
       showCsToast(
         context,
-        _forPurchase ? 'Account linked. You can now make purchases.' : 'Signed in. Your progress is backed up.',
+        _forPurchase ? 'Signed in. Your purchases now follow you to every device.' : 'Signed in. Your progress is backed up.',
         kind: CsToastKind.success,
       );
       navigator.pop(true);
@@ -121,13 +121,12 @@ class _AccountUpgradeDialogState extends State<_AccountUpgradeDialog> {
   @override
   Widget build(BuildContext context) {
     return CsDialog(
-      icon: _forPurchase ? Symbols.lock_rounded : Symbols.cloud_upload_rounded,
-      eyebrow: _forPurchase ? 'Guest account' : 'New personal best',
-      title: _forPurchase ? 'Sign up to make purchases' : 'Save your progress',
+      icon: _forPurchase ? Symbols.devices_rounded : Symbols.cloud_upload_rounded,
+      eyebrow: _forPurchase ? 'Optional' : 'New personal best',
+      title: _forPurchase ? 'Keep purchases on every device' : 'Save your progress',
       message: _forPurchase
-          ? 'Guest accounts can play and save progress locally, but cannot buy items or subscribe. '
-              'Sign in to unlock purchases. Your coins, cosmetics '
-              'and high scores stay attached.'
+          ? 'Signing in is optional. It lets you restore your coins, cosmetics '
+              'and Pro on any device. You can keep playing and buying as a guest.'
           : "You're playing as a guest, so your progress lives only on this device. "
               'Sign in to back it up, climb the leaderboards and play on any device.',
       content: Column(

@@ -164,9 +164,9 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
               const CsHairline(),
               SizedBox(height: cs(12)),
               Text(
-                'Guests play and save locally but '
-                "can't make purchases. Sign in "
-                'when you want to subscribe or buy.',
+                'Guests can play and buy without an account. '
+                'Sign in any time to keep progress and '
+                'purchases on all your devices.',
                 textAlign: TextAlign.center,
                 style: cs.type.micro.copyWith(height: 1.5),
               ),
@@ -301,7 +301,7 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
   /// before firing the actual anonymous sign-in. The user has to
   /// explicitly tap "Proceed Anyway" to continue — closing the dialog
   /// or tapping "I Changed My Mind" no-ops and leaves them on the auth
-  /// screen so they can pick Google / Email instead.
+  /// screen so they can pick Apple / Google / Email instead.
   Future<void> _confirmGuestLogin(AuthCubit authCubit) async {
     final confirmed = await showCsDialog<bool>(
       context,
@@ -325,13 +325,12 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
             _GuestWarningBullet(
               icon: Symbols.cloud_sync_rounded,
               text: 'To save your progress permanently and play across '
-                  'devices, sign in with Google or Email instead.',
+                  'devices, sign in with Apple, Google or Email instead.',
             ),
             _GuestWarningBullet(
               icon: Symbols.shopping_cart_rounded,
-              text: 'Guest accounts cannot purchase products or '
-                  'subscriptions. Sign in if you want to upgrade to Pro '
-                  'or buy cosmetics.',
+              text: 'Purchases made as a guest stay on this device. Sign in '
+                  'later to carry them to your other devices.',
               last: true,
             ),
           ],

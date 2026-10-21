@@ -54,9 +54,9 @@ class UnifiedUser {
     this.preferences = const {},
   });
 
-  /// True when the account has no identifiable credential. Purchases are
-  /// gated on this — anonymous users must link a Google or email/password
-  /// credential via the account-upgrade sheet before they can buy.
+  /// True when the account has no identifiable credential (local guest or
+  /// Firebase anonymous). Purchases are NOT gated on this — guests buy on a
+  /// silent anonymous account (see [UnifiedUserService.ensurePurchaseAccount]).
   bool get isAnonymous =>
       userType == UserType.anonymous || userType == UserType.guest;
 
@@ -958,6 +958,26 @@ class UnifiedUserService extends ChangeNotifier {
       return false;
     } catch (e, stackTrace) {
       AppLogger.user('Error signing in with Apple', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Make sure purchases can be verified: a Firebase user (anonymous is
+  /// fine) with a live backend session. A local offline guest is quietly
+  /// promoted to a Firebase-anonymous account (no personal info), keeping
+  /// its local progress, so guests can buy without registering (App Store
+  /// guideline 5.1.1(v)). Returns false only when the backend can't be
+  /// reached; unlike [signInAnonymously] it never falls back to an offline
+  /// guest, because a purchase made there could never be verified.
+  Future<bool> ensurePurchaseAccount() async {
+    if (_auth.currentUser != null && _apiService.isAuthenticated) return true;
+    try {
+      final user = _auth.currentUser ?? (await _auth.signInAnonymously()).user;
+      if (user == null) return false;
+      await _loadOrCreateUser(user);
+      return _apiService.isAuthenticated;
+    } catch (e, stackTrace) {
+      AppLogger.user('Could not set up a purchase account', e, stackTrace);
       return false;
     }
   }

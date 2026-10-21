@@ -234,6 +234,15 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
+  /// Silent account for purchases — see
+  /// [UnifiedUserService.ensurePurchaseAccount]. No loading state: it runs
+  /// behind the Buy tap.
+  Future<bool> ensurePurchaseAccount() async {
+    final ok = await _userService.ensurePurchaseAccount();
+    if (ok) emit(state.copyWith(user: _userService.currentUser));
+    return ok;
+  }
+
   /// Sign in anonymously (guest mode)
   Future<bool> signInAnonymously() async {
     emit(state.copyWith(isLoading: true, clearError: true));

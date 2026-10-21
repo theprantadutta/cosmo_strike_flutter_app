@@ -9,7 +9,6 @@ import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dar
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
-import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
@@ -1612,15 +1611,14 @@ extension _SettingsPremium on _SettingsScreenState {
   // upsell.
 
   void _restorePurchases() async {
-    // Guests can't restore: the backend rejects anonymous verifies, which
-    // used to leave an unverified local-only grant + a stuck retry queue.
-    // Restored purchases need the signed-in account they belong to.
-    final user = context.read<AuthCubit>().state.user;
-    if (user == null || user.isAnonymous) {
-      await showAccountUpgradeSheet(context);
+    // Guests can restore too, on a silent anonymous account (App Store
+    // guideline 5.1.1(v): registration must stay optional).
+    final ok = await context.read<AuthCubit>().ensurePurchaseAccount();
+    if (!mounted) return;
+    if (!ok) {
+      showCsToast(context, "Couldn't reach the store. Check your connection and try again.", kind: CsToastKind.error);
       return;
     }
-    if (!mounted) return;
 
     try {
       showCsToast(context, 'Restoring purchases...', icon: Symbols.restore_rounded);

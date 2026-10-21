@@ -61,9 +61,14 @@ put sign-in, privacy, notifications or setup choices in front of the first run.
 - **Notifications**: `NotificationService.initialize()` never shows the OS
   dialog; only `NotificationSoftAsk` → `requestPermissionFlow()` does.
 - **Sign-in**: `DeferredSignInPrompt` on a new personal best after onboarding
-  (≤3 asks, 3 days apart), plus Profile/Settings/purchase gate, all via
-  `showAccountUpgradeSheet` (links Firebase-anonymous; signs in a local guest —
-  is_new_user keeps local data).
+  (≤3 asks, 3 days apart), plus Profile, all via `showAccountUpgradeSheet`
+  (links Firebase-anonymous; signs in a local guest — is_new_user keeps local
+  data).
+- **⚠️ Purchases never require sign-in** (App Store guideline 5.1.1(v) — the
+  first iOS submission was rejected for it). Every buy/restore path calls
+  `AuthCubit.ensurePurchaseAccount()`, which silently gives a local guest a
+  Firebase-anonymous account so the backend can verify the purchase. Never
+  put the account sheet in front of a purchase.
 
 ## Stack & conventions
 - **State management:** `flutter_bloc` Cubits/Blocs in `lib/presentation/bloc/`

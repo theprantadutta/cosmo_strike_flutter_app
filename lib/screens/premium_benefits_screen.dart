@@ -10,7 +10,6 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart'
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
-import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
 import 'package:cosmo_strike_flutter_app/widgets/subscription_legal_links.dart';
 
 /// "Cosmo Pro" paywall — Prism Noir mock 10 (Pro panel).
@@ -277,16 +276,9 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
   /// the user knows what to do, and offer a Retry when the store query simply
   /// hasn't completed.
   Future<void> _subscribe() async {
-    // Anonymous (guest) users can't purchase — the backend rejects the
-    // verify (ANONYMOUS_ACCOUNT_PURCHASE_BLOCKED), which would leave a paid
-    // Google sub with no server-side entitlement. Same gate the store
-    // screen's paid paths use.
-    final user = context.read<AuthCubit>().state.user;
-    if (user == null || user.isAnonymous) {
-      await showAccountUpgradeSheet(context);
-      return;
-    }
-    if (!mounted) return;
+    // Guests don't have to register (App Store guideline 5.1.1(v)); they
+    // get a silent anonymous account so the backend can verify the sub.
+    if (!await _ensurePurchaseAccount() || !mounted) return;
 
     final purchaseService = PurchaseService();
     final productId = _isYearly ? ProductIds.proYearly : ProductIds.proMonthly;
@@ -330,16 +322,16 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     );
   }
 
-  /// Restore — same flow as Settings: guests must link an account first
-  /// (anonymous verifies are rejected server-side); results arrive
-  /// asynchronously on the purchase stream.
+  Future<bool> _ensurePurchaseAccount() async {
+    final ok = await context.read<AuthCubit>().ensurePurchaseAccount();
+    if (!ok && mounted) showCsToast(context, "Couldn't reach the store. Check your connection and try again.", kind: CsToastKind.error);
+    return ok;
+  }
+
+  /// Restore — guests included; results arrive asynchronously on the
+  /// purchase stream.
   Future<void> _restorePurchases() async {
-    final user = context.read<AuthCubit>().state.user;
-    if (user == null || user.isAnonymous) {
-      await showAccountUpgradeSheet(context);
-      return;
-    }
-    if (!mounted) return;
+    if (!await _ensurePurchaseAccount() || !mounted) return;
 
     setState(() => _restoring = true);
     showCsToast(context, 'Restoring purchases…', icon: Symbols.restore_rounded);
