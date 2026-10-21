@@ -54,7 +54,10 @@ dependencies:
   # Native in-app review prompts (Google Play + StoreKit)
   in_app_review: ^2.0.12
 
-  # Firebase dependencies
+  # Firebase dependencies. Held on the pre-Firebase-iOS-SDK-13 majors:
+  # FlutterFire core 5 / auth 7 / messaging 17 need Firebase iOS SDK 13, which
+  # conflicts with google_sign_in_ios 6.3.x (GoogleSignIn-iOS 9). Upgrade them
+  # together once google_sign_in ships a GoogleSignIn-iOS 10 release.
   firebase_core: ^4.15.0
   firebase_auth: ^6.7.0
   google_sign_in: ^7.2.0
