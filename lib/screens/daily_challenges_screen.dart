@@ -439,16 +439,21 @@ class ChallengeRow extends StatelessWidget {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: t.display(
-                          19,
-                          weight: FontWeight.w700,
-                          em: -0.01,
-                          height: 1.2,
-                          color: claimed ? CsColors.ink45 : CsColors.ink,
+                      // Shrink long op titles ("Weekly Skirmisher") instead
+                      // of cutting them off next to the chip.
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          style: t.display(
+                            19,
+                            weight: FontWeight.w700,
+                            em: -0.01,
+                            height: 1.2,
+                            color: claimed ? CsColors.ink45 : CsColors.ink,
+                          ),
                         ),
                       ),
                     ),

@@ -204,12 +204,16 @@ class CsButton extends StatelessWidget {
             padding: EdgeInsets.only(right: cs(10)),
             child: Icon(icon, size: iconSize, color: fg),
           ),
+        // Long labels ("Claim all · 8 CR + 20 XP") shrink to fit rather
+        // than ellipsize, so amounts are never cut off.
         Flexible(
-          child: Text(
-            label.toUpperCase(),
-            style: textStyle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label.toUpperCase(),
+              style: textStyle,
+              maxLines: 1,
+            ),
           ),
         ),
         if (trailing != null) ...[SizedBox(width: cs(8)), trailing!],
