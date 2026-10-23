@@ -69,7 +69,7 @@ class HomeWalkthrough {
         title: 'Armory',
         message:
             'Liveries, exhausts, Sectors and Tactical Gear. Strike Command '
-            'doubles credit payouts and removes ads.',
+            'adds 50% to credit payouts and removes ads.',
         targetKey: storeKey,
         position: TooltipPosition.above,
         icon: Symbols.storefront_rounded,

@@ -473,7 +473,7 @@ class _StoreScreenState extends State<StoreScreen>
   // ===========================================================================
 
   static const _commandBenefitsLine =
-      'No ads · Every livery, exhaust & sector · 2× credits · Frontline Command lane';
+      'No ads · Every livery, exhaust & sector · 1.5× credits · Frontline Command lane';
 
   Widget _buildCommandTab(PremiumState premiumState) {
     // Drops any Command SKU from the pending set once PremiumCubit reports
@@ -793,7 +793,7 @@ class _StoreScreenState extends State<StoreScreen>
           'All ${LiveryType.values.where((l) => l.isPremium).length} premium liveries'),
       (Symbols.local_fire_department_rounded,
           'All ${ExhaustType.values.where((e) => e.isPremium).length} premium exhausts'),
-      (Symbols.paid_rounded, '2× credit earnings'),
+      (Symbols.paid_rounded, '1.5× credit earnings'),
       (Symbols.bolt_rounded, '5× Tactical Gear every cycle'),
       (Symbols.confirmation_number_rounded, 'Scout, Strike and Ace Cup Passes each cycle'),
       (Symbols.workspace_premium_rounded, 'Frontline Command lane every season'),

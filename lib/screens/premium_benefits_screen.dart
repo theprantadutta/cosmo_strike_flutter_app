@@ -158,7 +158,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
         CsHeadline(const ['Strike ', 'Command'], prismIndex: 1, maxLines: 1, style: t.display(34, em: -0.03, height: 1)),
         SizedBox(height: cs(8)),
         Text(
-          'Frontline Command lane · No ads · 2× credits · Every livery, exhaust & sector',
+          'Frontline Command lane · No ads · 1.5× credits · Every livery, exhaust & sector',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: t.mono(11, em: 0.06, color: CsColors.ink55, height: 1.4),
@@ -505,7 +505,7 @@ final _benefits = [
       LiveryType.values.where((l) => l.isPremium).map((l) => l.displayName).join(', ')),
   _Benefit(Symbols.local_fire_department_rounded, 'All premium exhausts',
       ExhaustType.values.where((e) => e.isPremium).map((e) => e.displayName).join(', ')),
-  const _Benefit(Symbols.paid_rounded, '2× credit rewards', 'Double credits from every run'),
+  const _Benefit(Symbols.paid_rounded, '1.5× credit rewards', '50% more credits from every run'),
   const _Benefit(Symbols.stars_rounded, 'Lucky draw: rarer pickups',
       '+50% chance to spawn the rare 50-point pickup in every run'),
   const _Benefit(Symbols.bolt_rounded, 'More in-flight pickups',
