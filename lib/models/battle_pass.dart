@@ -475,7 +475,7 @@ class BattlePassSeason {
   };
 
   static const _premiumRewardNames = <BattlePassRewardType, List<String>>{
-    BattlePassRewardType.xp: ['Mega XP', 'Nova Charge', 'Nova Burst'],
+    BattlePassRewardType.xp: ['Surge XP', 'Nova Charge', 'Nova Burst'],
     BattlePassRewardType.coins: ['200 Credits', '350 Credits', '500 Credits'],
     BattlePassRewardType.special: ['Season Medal', 'Flagship Crest'],
     BattlePassRewardType.title: ['Ace of Aces', 'Star Commander'],

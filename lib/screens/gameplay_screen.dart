@@ -959,14 +959,10 @@ class _GameplayScreenState extends State<GameplayScreen>
                         ? Alignment.bottomLeft
                         : Alignment.bottomRight,
                     child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: inset,
-                        vertical: cs(20),
-                      ),
-                      child: _ActionButtons(
-                        game: _game,
-                        alignEnd: !dPadOnRight,
-                      ),
+                      // Same inset on both axes so the cluster sits square
+                      // in its corner.
+                      padding: EdgeInsets.all(inset),
+                      child: _ActionButtons(game: _game),
                     ),
                   ),
                 ),
@@ -1657,16 +1653,16 @@ class _EffectChip extends StatelessWidget {
 /// Bottom-corner actions: the Overdrive button (big, ring = meter) with the
 /// missile launcher stacked above it.
 class _ActionButtons extends StatelessWidget {
-  const _ActionButtons({required this.game, required this.alignEnd});
+  const _ActionButtons({required this.game});
   final CosmoStrikeGame game;
-  final bool alignEnd;
 
   @override
   Widget build(BuildContext context) {
     final cs = context.cs;
+    // The smaller missile chip shares the Overdrive button's centre line;
+    // edge-aligning both left them 13pt off-axis in the corner.
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
         _MissileChip(game: game),
         SizedBox(height: cs(10)),
@@ -1776,12 +1772,16 @@ class _OverdriveButton extends StatelessWidget {
     );
   }
 
-  Widget _label(CsLayout cs, double size, IconData icon, String text, Color c) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: size * 0.36, color: c),
-          Text(text, style: cs.type.mono(9, em: 0.1, color: c, height: 1.2)),
-        ],
+  // Centered explicitly: CsPrismRing hands its child tight constraints, so
+  // a bare Column would fill the ring and stack from the top.
+  Widget _label(CsLayout cs, double size, IconData icon, String text, Color c) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: size * 0.36, color: c),
+            Text(text, style: cs.type.mono(9, em: 0.1, color: c, height: 1.2)),
+          ],
+        ),
       );
 }
 

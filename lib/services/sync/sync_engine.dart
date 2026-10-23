@@ -998,6 +998,9 @@ class SyncEngine {
       case SyncDataType.playerProgress:
       case SyncDataType.stageProgress:
       case SyncDataType.powerUpInventory:
+      // Per-run scores (POST /scores/batch). Missing here, every queued run
+      // sat pending forever and never reached the leaderboards.
+      case SyncDataType.gameScore:
         return true;
       default:
         return false;

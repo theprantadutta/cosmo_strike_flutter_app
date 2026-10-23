@@ -448,7 +448,7 @@ class BattlePassCubit extends Cubit<BattlePassState> {
         }
         break;
       case BattlePassRewardType.xp:
-        // XP rewards (e.g. "XP Boost" / "Mega XP") grant battle-pass XP so the
+        // XP rewards (e.g. "XP Boost" / "Surge XP") grant battle-pass XP so the
         // pass visibly advances when claimed. Run after this microtask so it
         // layers onto the just-emitted claimed-tiers state instead of racing
         // it. Quantities are small (15–25) relative to tier costs, so this

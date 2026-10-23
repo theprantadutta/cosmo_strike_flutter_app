@@ -881,6 +881,20 @@ class PremiumCubit extends Cubit<PremiumState> {
         .toList();
   }
 
+  /// Keep the credit multiplier in step with every way Strike Command or the
+  /// Frontline Command lane can flip — purchase, restore, first-sign-in
+  /// snapshot, the Drift watch, expiry — not just the purchase path.
+  @override
+  void onChange(Change<PremiumState> change) {
+    super.onChange(change);
+    final prev = change.currentState;
+    final next = change.nextState;
+    if (prev.hasPremium != next.hasPremium ||
+        prev.hasBattlePass != next.hasBattlePass) {
+      _coinsCubit?.updatePremiumMultiplier(next.hasPremium, next.hasBattlePass);
+    }
+  }
+
   @override
   Future<void> close() {
     _purchaseStatusSubscription?.cancel();

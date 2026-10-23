@@ -20,7 +20,7 @@
 		<!-- Shown by the App Tracking Transparency prompt (ad_service.dart).
 		     iOS terminates the app if ATT is requested without this key. -->
 		<key>NSUserTrackingUsageDescription</key>
-		<string>Your data will be used to show you more relevant ads. Pro players never see ads.</string>
+		<string>Your data will be used to show you more relevant ads. Strike Command pilots never see ads.</string>
 		<!-- Google Sign-In: iOS OAuth client (CLIENT_ID in GoogleService-Info.plist)
 		     and its reversed form as the redirect URL scheme. -->
 		<key>GIDClientID</key>
