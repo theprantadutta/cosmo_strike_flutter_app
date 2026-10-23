@@ -173,7 +173,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         compact: true,
       );
     }
-    final columns = cs.isTablet ? 4 : (cs.size.width < 700 ? 2 : 3);
+    final columns = cs.isTablet ? 3 : (cs.size.width < 700 ? 2 : 3);
     return GridView.builder(
       padding: EdgeInsets.only(bottom: cs(12)),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -296,10 +296,8 @@ class _AwardTile extends StatelessWidget {
         ]),
         SizedBox(height: cs(10)),
         Expanded(
-          child: Text(
+          child: _WordSafeTitle(
             a.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
             style: t.display(15, weight: FontWeight.w700, em: 0, height: 1.15),
           ),
         ),
@@ -334,5 +332,38 @@ String _formatDate(DateTime date) {
     return '${difference.inMinutes}m ago';
   } else {
     return 'just now';
+  }
+}
+
+/// Two-line tile title that never breaks inside a word: when the longest
+/// word ("Dreadnought") is wider than the tile, the font shrinks until it
+/// fits on a line.
+class _WordSafeTitle extends StatelessWidget {
+  const _WordSafeTitle(this.text, {required this.style});
+  final String text;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, box) {
+      final scaler = MediaQuery.textScalerOf(context);
+      var widest = 0.0;
+      for (final word in text.split(' ')) {
+        final tp = TextPainter(
+          text: TextSpan(text: word, style: style),
+          textDirection: TextDirection.ltr,
+          textScaler: scaler,
+          maxLines: 1,
+        )..layout();
+        if (tp.width > widest) widest = tp.width;
+      }
+      final fit = widest > box.maxWidth && widest > 0 ? box.maxWidth / widest : 1.0;
+      return Text(
+        text,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: style.copyWith(fontSize: (style.fontSize ?? 15) * fit * 0.98),
+      );
+    });
   }
 }

@@ -195,13 +195,13 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
             title: 'Formation Wipe',
             chip: 'bonus + orb',
             body: 'Destroy an entire formation fast for a wipe bonus, '
-                'Overdrive charge and a guaranteed power-up drop',
+                'Overdrive charge and a guaranteed pickup drop',
           ),
         ];
       case 3:
         return const [
           _Lead(
-            'Destroyed enemies sometimes drop power-up orbs — fly into '
+            'Destroyed enemies sometimes drop pickup orbs — fly into '
             'them to collect.',
           ),
           _PowerUpGrid(items: [

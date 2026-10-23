@@ -33,7 +33,7 @@ class HangarCatalog {
     HangarStatDef(HangarStat.cannons, 'Cannon Tuning', '+4% fire rate'),
     HangarStatDef(HangarStat.capacitor, 'Overdrive Capacitor', 'Grazes charge Overdrive 8% faster'),
     HangarStatDef(HangarStat.arsenal, 'Missile Bay', '+1 missile at the start of every run'),
-    HangarStatDef(HangarStat.tractor, 'Tractor Beam', '+40 range always-on power-up magnet'),
+    HangarStatDef(HangarStat.tractor, 'Tractor Beam', '+40 range always-on pickup magnet'),
   ];
 
   static HangarStatDef byStat(HangarStat s) => stats.firstWhere((d) => d.stat == s);

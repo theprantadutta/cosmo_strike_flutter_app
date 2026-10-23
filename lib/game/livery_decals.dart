@@ -113,6 +113,9 @@ abstract final class LiveryDecals {
         Offset(-pulseWidth / 2 * k, 0),
         Offset(pulseWidth / 2 * k, 0),
         const [Color(0x00FFFFFF), Color(0xD9FFFFFF), Color(0x00FFFFFF)],
+        // Required with 3+ colours — without stops dart:ui throws and the
+        // whole paint pass (Armory card text, in-game hull) is lost.
+        const [0.0, 0.5, 1.0],
       );
 
   /// Sweep travel range (sprite space): starts behind the tail, ends past

@@ -191,8 +191,8 @@ class TutorialDirector extends Component
         break;
       case _TutorialBeat.powerUp:
         game.tutorialNotifier.value = const TutorialPrompt(
-          title: 'GRAB THE POWER-UP',
-          body: 'Fly into the glowing orb to collect it — power-ups upgrade '
+          title: 'GRAB THE PICKUP',
+          body: 'Fly into the glowing orb to collect it — pickups upgrade '
               'your ship, shields, missiles and more.',
           icon: Icons.auto_awesome,
         );

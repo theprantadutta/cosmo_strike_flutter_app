@@ -101,7 +101,7 @@ class UpgradeCatalog {
     UpgradeDef(
         id: UpgradeId.magnetField,
         name: 'Magnet Field',
-        blurb: 'Pull in power-ups from range',
+        blurb: 'Pull in pickups from range',
         maxStacks: 2,
         category: 'Utility'),
     UpgradeDef(
