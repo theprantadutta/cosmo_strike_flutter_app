@@ -3,7 +3,7 @@ description: "Cosmo Strike — a retro side-scrolling shoot-'em-up (Space Impact
 
 publish_to: 'none'
 
-version: 3.2.0+18
+version: 3.2.1+19
 
 environment:
   # google_mobile_ads 8.0.0 requires Dart >= 3.10.0.
