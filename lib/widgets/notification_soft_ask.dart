@@ -27,14 +27,14 @@ class NotificationSoftAsk {
       context,
       builder: (dialogContext) => CsDialog(
         icon: Symbols.notifications_active_rounded,
-        eyebrow: 'Stay in the loop',
-        title: 'Never miss a reward',
-        message: 'Get a heads-up when your daily bonus is ready, a new Daily Run '
-            'drops, or an event is about to end. No spam — you can turn '
-            'each type off in Settings.',
+        eyebrow: 'Comms',
+        title: 'Open a channel?',
+        message: 'We ping you when a Supply Drop is ready, a new Daily Run '
+            'posts, or a Sector Cup is closing. Each channel can be muted '
+            'in Settings.',
         actions: [
           CsButton.text(label: 'Not now', onPressed: () => Navigator.of(dialogContext).pop(false)),
-          CsButton.primary(label: 'Turn on', onPressed: () => Navigator.of(dialogContext).pop(true)),
+          CsButton.primary(label: 'Open channel', onPressed: () => Navigator.of(dialogContext).pop(true)),
         ],
       ),
     );

@@ -197,7 +197,11 @@ class StatisticsService extends ChangeNotifier {
     int noHitClears = 0,
     int maxCombo = 0,
     int grazeCount = 0,
-    String gameMode = 'classic',
+    int overdrives = 0,
+    int formationWipes = 0,
+    bool dailyRun = false,
+    bool cupRun = false,
+    String gameMode = 'sortie',
   }) async {
     if (!_initialized) {
       await initialize();
@@ -217,6 +221,10 @@ class StatisticsService extends ChangeNotifier {
       noHitClears: noHitClears,
       maxCombo: maxCombo,
       grazeCount: grazeCount,
+      overdrives: overdrives,
+      formationWipes: formationWipes,
+      dailyRun: dailyRun,
+      cupRun: cupRun,
       gameMode: gameMode,
     );
 

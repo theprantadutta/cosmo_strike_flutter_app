@@ -108,8 +108,8 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
                     eyebrow: 'Pilot registration',
                     headline: const ['Welcome to\nCosmo ', 'Strike'],
                     keepLines: true,
-                    body: "Pick how you'd like to launch — you can upgrade a "
-                        'guest to a full account anytime.',
+                    body: 'Choose how you launch. A guest pilot can link an '
+                        'account later.',
                   ),
                   right: _buildSignInOptions(context, authCubit),
                 ),
@@ -121,7 +121,7 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
   Widget _buildSignInOptions(BuildContext context, AuthCubit authCubit) {
     final cs = context.cs;
     if (_isLoading) {
-      return const CsLoadingState(label: 'Signing you in');
+      return const CsLoadingState(label: 'Authenticating');
     }
     return Center(
       child: SingleChildScrollView(
@@ -131,7 +131,7 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const CsLabel('Choose how to sign in'),
+              const CsLabel('Sign-in method'),
               SizedBox(height: cs(14)),
               if (appleSignInAvailable) ...[
                 _BrandSignInButton(
@@ -155,7 +155,7 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
               ),
               SizedBox(height: cs(6)),
               CsButton.text(
-                label: 'Continue as Guest',
+                label: 'Fly as guest',
                 icon: Symbols.person_rounded,
                 expand: true,
                 onPressed: () => _confirmGuestLogin(authCubit),
@@ -164,9 +164,9 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
               const CsHairline(),
               SizedBox(height: cs(12)),
               Text(
-                'Guests can play and buy without an account. '
-                'Sign in any time to keep progress and '
-                'purchases on all your devices.',
+                'No account needed to fly or buy. '
+                'Sign in later to carry progress and '
+                'purchases to every device.',
                 textAlign: TextAlign.center,
                 style: cs.type.micro.copyWith(height: 1.5),
               ),
@@ -284,11 +284,11 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
           context.go(route);
         }
       } else if (mounted) {
-        _showError('Failed to sign in with $providerName. Please try again.');
+        _showError('$providerName sign-in failed. Try again.');
       }
     } catch (e) {
       if (mounted) {
-        _showError('An unexpected error occurred. Please try again.');
+        _showError('Something went wrong. Try again.');
       }
     } finally {
       if (mounted) {
@@ -311,8 +311,8 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
       builder: (dialogContext) => CsDialog(
         icon: Symbols.warning_rounded,
         iconColor: CsColors.gold,
-        eyebrow: 'Guest account',
-        title: 'Heads up',
+        eyebrow: 'Guest pilot',
+        title: 'Before you go',
         content: const Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -324,8 +324,8 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
             ),
             _GuestWarningBullet(
               icon: Symbols.cloud_sync_rounded,
-              text: 'To save your progress permanently and play across '
-                  'devices, sign in with Apple, Google or Email instead.',
+              text: 'For a permanent Pilot File on every device, sign in '
+                  'with Apple, Google or email instead.',
             ),
             _GuestWarningBullet(
               icon: Symbols.shopping_cart_rounded,
@@ -337,11 +337,11 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
         ),
         actions: [
           CsButton.text(
-            label: 'Proceed anyway',
+            label: 'Fly as guest',
             onPressed: () => Navigator.of(dialogContext).pop(true),
           ),
           CsButton.primary(
-            label: 'I changed my mind',
+            label: 'Back',
             onPressed: () => Navigator.of(dialogContext).pop(false),
           ),
         ],
@@ -376,7 +376,7 @@ By using Cosmo Strike, you acknowledge that you have read, understood, and agree
       }
     } catch (e) {
       if (mounted) {
-        _showError('Failed to continue as guest. Please try again.');
+        _showError('Guest launch failed. Try again.');
       }
     } finally {
       if (mounted) {

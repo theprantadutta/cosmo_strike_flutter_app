@@ -2,7 +2,8 @@ import 'package:equatable/equatable.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_cosmetics.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 
-/// Premium subscription tier
+/// Subscription tier. `pro` = an active Strike Command subscription (the
+/// internal name predates the rebrand and is never shown).
 enum PremiumTier { free, pro }
 
 /// Status of the premium cubit
@@ -10,17 +11,16 @@ enum PremiumStatus { initial, loading, ready, error }
 
 /// Premium content definition
 class PremiumContent {
-  /// Themes that require premium or purchase to unlock
+  /// Sectors that require Strike Command or a purchase to unlock.
   static const Set<GameTheme> premiumThemes = {
-    GameTheme.space,
-    GameTheme.ocean,
-    GameTheme.cyberpunk,
-    GameTheme.forest,
-    GameTheme.desert,
-    GameTheme.crystal,
+    GameTheme.aurora,
+    GameTheme.solar,
+    GameTheme.abyss,
+    GameTheme.ion,
+    GameTheme.crimson,
   };
 
-  /// Check if a theme requires premium
+  /// Check if a sector requires Strike Command / a purchase.
   static bool isPremiumTheme(GameTheme theme) => premiumThemes.contains(theme);
 }
 
@@ -30,11 +30,17 @@ class PremiumState extends Equatable {
   final PremiumTier tier;
   final DateTime? subscriptionExpiry;
   final Set<GameTheme> ownedThemes;
+  /// Owned livery IDs ([LiveryType.id]).
   final Set<String> ownedSkins;
+
+  /// Owned exhaust IDs ([ExhaustType.id]).
   final Set<String> ownedTrails;
   final Set<String> ownedPowerUps;
   final Set<String> ownedBundles;
+  /// Equipped livery ID ([LiveryType.id]).
   final String selectedSkinId;
+
+  /// Equipped exhaust ID ([ExhaustType.id]).
   final String selectedTrailId;
   final String? errorMessage;
 
@@ -48,9 +54,9 @@ class PremiumState extends Equatable {
   final int battlePassTier;
 
   // Server-side promo (welcome bonus / app-wide giveaway). When `isOnPromo`
-  // is true the user has Pro for free until `promoExpiresAt`; revocation is
-  // handled server-side by the ExpirePromosJob. (This is the only free-Pro
-  // mechanism — the old in-app free trial was removed.)
+  // is true the user has Strike Command for free until `promoExpiresAt`;
+  // revocation is handled server-side by the ExpirePromosJob. (This is the
+  // only free-subscription mechanism — the old in-app trial was removed.)
   final bool isOnPromo;
   final DateTime? promoExpiresAt;
   final String? promoSource;
@@ -64,8 +70,8 @@ class PremiumState extends Equatable {
     this.ownedTrails = const {},
     this.ownedPowerUps = const {},
     this.ownedBundles = const {},
-    this.selectedSkinId = 'classic',
-    this.selectedTrailId = 'none',
+    this.selectedSkinId = 'standard',
+    this.selectedTrailId = 'stock',
     this.errorMessage,
     this.bronzeTournamentEntries = 0,
     this.silverTournamentEntries = 0,
@@ -159,37 +165,37 @@ class PremiumState extends Equatable {
   /// Check if a theme is owned
   bool isThemeOwned(GameTheme theme) => ownedThemes.contains(theme);
 
-  /// Check if a theme is unlocked (free themes always unlocked, premium needs purchase or subscription)
+  /// Check if a sector is unlocked (free sectors always; premium needs a purchase or Strike Command)
   bool isThemeUnlocked(GameTheme theme) =>
       !PremiumContent.isPremiumTheme(theme) || hasPremium || ownedThemes.contains(theme);
 
-  /// Check if a skin is owned. Strict set-membership only — used by the
+  /// Check if a livery is owned. Strict set-membership only — used by the
   /// purchase-pending reconciler (`_isProductOwned`) where we need to know
-  /// whether the IAP grant has landed, independent of Pro status.
-  bool isSkinOwned(String skinId) => ownedSkins.contains(skinId);
+  /// whether the IAP grant has landed, independent of Strike Command.
+  bool isSkinOwned(String liveryId) => ownedSkins.contains(liveryId);
 
-  /// Check if a trail is owned. Same strict-set semantics as [isSkinOwned].
-  bool isTrailOwned(String trailId) => ownedTrails.contains(trailId);
+  /// Check if an exhaust is owned. Same strict-set semantics as [isSkinOwned].
+  bool isTrailOwned(String exhaustId) => ownedTrails.contains(exhaustId);
 
-  /// Check if a skin is usable by the player — free skins always are; premium
-  /// skins unlock either through individual purchase OR an active Pro
-  /// subscription (Pro bundles all premium cosmetics, mirroring the theme
-  /// fast-path). Use this in UI gating (store equip buttons, paint logic).
-  bool isSkinUnlocked(ShipSkinType skin) =>
-      !skin.isPremium || hasPremium || ownedSkins.contains(skin.id);
+  /// Check if a livery is usable by the player — the free livery always is;
+  /// premium liveries unlock through an individual purchase, a Fleet Kit OR
+  /// an active Strike Command subscription (which includes every cosmetic,
+  /// mirroring the sector fast-path). Use this in UI gating.
+  bool isLiveryUnlocked(LiveryType livery) =>
+      !livery.isPremium || hasPremium || ownedSkins.contains(livery.id);
 
-  /// Check if a trail is usable by the player. Same Pro-bundle fast-path
-  /// as [isSkinUnlocked].
-  bool isTrailUnlocked(TrailEffectType trail) =>
-      !trail.isPremium || hasPremium || ownedTrails.contains(trail.id);
+  /// Check if an exhaust is usable by the player. Same fast-path as
+  /// [isLiveryUnlocked].
+  bool isExhaustUnlocked(ExhaustType exhaust) =>
+      !exhaust.isPremium || hasPremium || ownedTrails.contains(exhaust.id);
 
-  /// Check if a power-up is unlocked
+  /// Legacy "unlocked power-up" set (vestigial — gear is a consumable)
   bool isPowerUpUnlocked(String powerUpId) => ownedPowerUps.contains(powerUpId);
 
   /// Check if a bundle is owned
   bool isBundleOwned(String bundleId) => ownedBundles.contains(bundleId);
 
-  /// Check if user has tournament entry
+  /// Check if user has a Cup Pass of a tier (wire tiers: bronze/silver/gold)
   bool hasTournamentEntry(String tournamentType) {
     switch (tournamentType.toLowerCase()) {
       case 'bronze':
@@ -203,7 +209,7 @@ class PremiumState extends Equatable {
     }
   }
 
-  /// Get tournament entry count
+  /// Get Cup Pass count for a tier
   int getTournamentEntryCount(String tournamentType) {
     switch (tournamentType.toLowerCase()) {
       case 'bronze':

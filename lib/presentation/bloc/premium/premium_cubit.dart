@@ -60,10 +60,14 @@ class PremiumCubit extends Cubit<PremiumState> {
       // Load saved premium state
       final isPremiumActive = await _storageService.isPremiumActive();
       final expiryDateStr = await _storageService.getPremiumExpirationDate();
+      // Every persisted cosmetic ID is parsed through the catalog's legacy
+      // aliases, so pre-3.2 rows (skin 'golden', trail 'trail_fire',
+      // theme 'space') read as their new equivalents even before the
+      // one-time legacy_catalog_migration rewrites them on disk.
       final selectedSkinId =
-          await _storageService.getSelectedSkinId() ?? 'classic';
+          LiveryType.fromId(await _storageService.getSelectedSkinId()).id;
       final selectedTrailId =
-          await _storageService.getSelectedTrailId() ?? 'none';
+          ExhaustType.fromId(await _storageService.getSelectedTrailId()).id;
       final ownedThemes = await _storageService.getUnlockedThemes();
       final ownedSkins = await _storageService.getUnlockedSkins();
       final ownedTrails = await _storageService.getUnlockedTrails();
@@ -76,57 +80,48 @@ class PremiumCubit extends Cubit<PremiumState> {
         expiryDate = DateTime.tryParse(expiryDateStr);
       }
 
-      // Migrate bare trail IDs to prefixed form (trail_particle, etc.)
-      final migratedTrails = _migrateTrailIds(ownedTrails.toSet());
-      final migratedSelectedTrail = _migrateTrailId(selectedTrailId);
-
       emit(
         state.copyWith(
           status: PremiumStatus.ready,
           tier: isPremiumActive ? PremiumTier.pro : PremiumTier.free,
           subscriptionExpiry: expiryDate,
           selectedSkinId: selectedSkinId,
-          selectedTrailId: migratedSelectedTrail,
+          selectedTrailId: selectedTrailId,
           ownedThemes: _parseThemes(ownedThemes),
-          ownedSkins: ownedSkins.toSet(),
-          ownedTrails: migratedTrails,
+          ownedSkins: _parseLiveries(ownedSkins),
+          ownedTrails: _parseExhausts(ownedTrails),
           ownedPowerUps: ownedPowerUps.toSet(),
-          ownedBundles: ownedBundles.toSet(),
+          ownedBundles: _parseBundles(ownedBundles),
           bronzeTournamentEntries: tournamentEntries['bronze'] ?? 0,
           silverTournamentEntries: tournamentEntries['silver'] ?? 0,
           goldTournamentEntries: tournamentEntries['gold'] ?? 0,
         ),
       );
 
-      // Persist migrated trail data if any IDs were changed
-      if (migratedTrails.length != ownedTrails.length ||
-          !migratedTrails.every((t) => ownedTrails.contains(t))) {
-        await _storageService.setUnlockedTrails(migratedTrails.toList());
-      }
-      if (migratedSelectedTrail != selectedTrailId) {
-        await _storageService.setSelectedTrailId(migratedSelectedTrail);
-      }
-
       // Reconcile bundle contents for existing bundle owners
       for (final bundleId in state.ownedBundles) {
-        // Cosmetic bundles — skins + trails
-        final cosmeticBundle = CosmeticBundle.availableBundles
-            .where((b) => b.id == bundleId)
-            .firstOrNull;
-        if (cosmeticBundle != null) {
-          for (final skin in cosmeticBundle.skins) {
-            if (!state.ownedSkins.contains(skin.id)) {
-              await unlockSkin(skin.id);
+        // Fleet Kits — liveries + exhausts
+        final kit = FleetKit.byId(bundleId);
+        if (kit != null) {
+          for (final livery in kit.liveries) {
+            if (!state.ownedSkins.contains(livery.id)) {
+              await unlockSkin(livery.id);
             }
           }
-          for (final trail in cosmeticBundle.trails) {
-            if (!state.ownedTrails.contains(trail.id)) {
-              await unlockTrail(trail.id);
+          for (final exhaust in kit.exhausts) {
+            if (!state.ownedTrails.contains(exhaust.id)) {
+              await unlockTrail(exhaust.id);
             }
           }
         }
+        // Star Atlas — every premium sector.
+        if (bundleId == FleetKit.sectorAtlasId) {
+          for (final sector in PremiumContent.premiumThemes) {
+            if (!state.ownedThemes.contains(sector)) await unlockTheme(sector);
+          }
+        }
 
-        // Power-up bundles are CONSUMABLE count packs now (PowerUpCubit
+        // Gear bundles are CONSUMABLE count packs (PowerUpCubit
         // inventory), not permanent unlocks — nothing to re-derive here.
       }
 
@@ -155,36 +150,30 @@ class PremiumCubit extends Cubit<PremiumState> {
     }
   }
 
-  /// Known bare trail enum names that need the 'trail_' prefix
-  static const _bareTrailNames = {
-    'particle', 'glow', 'rainbow', 'fire', 'electric',
-    'star', 'cosmic', 'neon', 'shadow', 'crystal', 'dragon',
-  };
+  /// Persisted / server sector IDs (current or pre-3.2) → sectors.
+  static Set<GameTheme> _parseThemes(Iterable<String> ids) =>
+      ids.map(GameTheme.fromId).whereType<GameTheme>().toSet();
 
-  /// Migrate a single trail ID: bare name → prefixed form
-  String _migrateTrailId(String trailId) {
-    if (trailId == 'none') return 'none';
-    if (_bareTrailNames.contains(trailId)) return 'trail_$trailId';
-    return trailId;
-  }
+  /// Persisted / server livery IDs → canonical IDs. The free livery and
+  /// unknown junk are dropped (several legacy skins fold onto one livery).
+  static Set<String> _parseLiveries(Iterable<String> ids) => ids
+      .map(LiveryType.tryParse)
+      .whereType<LiveryType>()
+      .where((l) => l.isPremium)
+      .map((l) => l.id)
+      .toSet();
 
-  /// Migrate a set of trail IDs from bare to prefixed form
-  Set<String> _migrateTrailIds(Set<String> trailIds) {
-    return trailIds.map(_migrateTrailId).toSet();
-  }
+  /// Persisted / server exhaust IDs → canonical IDs (see [_parseLiveries]).
+  static Set<String> _parseExhausts(Iterable<String> ids) => ids
+      .map(ExhaustType.tryParse)
+      .whereType<ExhaustType>()
+      .where((e) => e.isPremium)
+      .map((e) => e.id)
+      .toSet();
 
-  Set<GameTheme> _parseThemes(List<String> themeNames) {
-    return themeNames
-        .map((name) {
-          try {
-            return GameTheme.values.firstWhere((t) => t.name == name);
-          } catch (e) {
-            return null;
-          }
-        })
-        .whereType<GameTheme>()
-        .toSet();
-  }
+  /// Persisted / server bundle IDs → current Fleet Kit / Star Atlas IDs.
+  static Set<String> _parseBundles(Iterable<String> ids) =>
+      ids.map(FleetKit.normalizeBundleId).whereType<String>().toSet();
 
   void _setupPurchaseListener() {
     _purchaseStatusSubscription = _purchaseService.purchaseStatusStream.listen((
@@ -205,31 +194,25 @@ class PremiumCubit extends Cubit<PremiumState> {
     // Strip store prefix — all comparisons below use internal IDs
     final internalId = ProductIds.stripPrefix(productId);
 
-    // Subscriptions — route monthly vs yearly for correct expiry
-    if (internalId.contains('pro_monthly')) {
+    // Strike Command — route monthly vs annual for correct expiry
+    if (internalId == ProductIds.stripPrefix(ProductIds.commandMonthly)) {
       _handlePremiumPurchased(isYearly: false);
       return;
     }
-    if (internalId.contains('pro_yearly')) {
+    if (internalId == ProductIds.stripPrefix(ProductIds.commandAnnual)) {
       _handlePremiumPurchased(isYearly: true);
       return;
     }
 
-    // Coin packs — credit coins via CoinsCubit
-    const coinPackIds = {
-      'coin_pack_small',
-      'coin_pack_medium',
-      'coin_pack_large',
-      'coin_pack_mega',
-    };
-    if (coinPackIds.contains(internalId)) {
-      final option = CoinPurchaseOption.availableOptions
-          .where((o) => o.id == internalId)
-          .firstOrNull;
-      if (option != null && _coinsCubit != null) {
+    // Credit Caches — credit via CoinsCubit
+    final option = CoinPurchaseOption.availableOptions
+        .where((o) => o.id == internalId)
+        .firstOrNull;
+    if (option != null) {
+      if (_coinsCubit != null) {
         await _coinsCubit.purchaseCoins(option, productId);
         AppLogger.info(
-          'Coin pack delivered: ${option.totalCoins} coins for $internalId',
+          'Credit cache delivered: ${option.totalCoins} credits for $internalId',
         );
         // Pull the authoritative balance from the server. Backend's
         // VerifyPurchaseCommandHandler increments User.Coins on a successful
@@ -238,93 +221,54 @@ class PremiumCubit extends Cubit<PremiumState> {
         unawaited(_coinsCubit.syncWithBackend());
       } else {
         AppLogger.error(
-          'Failed to deliver coin pack: option=$option, coinsCubit=$_coinsCubit',
+          'Failed to deliver credit cache $internalId: no CoinsCubit',
         );
       }
       return;
     }
 
-    // Theme purchases
-    const themeProductMap = {
-      'crystal_theme': GameTheme.crystal,
-      'cyberpunk_theme': GameTheme.cyberpunk,
-      'space_theme': GameTheme.space,
-      'ocean_theme': GameTheme.ocean,
-      'desert_theme': GameTheme.desert,
-      'forest_theme': GameTheme.forest,
-    };
-    if (themeProductMap.containsKey(internalId)) {
-      await unlockTheme(themeProductMap[internalId]!);
-      return;
-    }
-
-    // Theme bundle — unlock all premium themes
-    if (internalId == 'premium_themes_bundle') {
-      for (final theme in PremiumContent.premiumThemes) {
-        await unlockTheme(theme);
+    // Star Atlas — every premium sector
+    if (internalId == FleetKit.sectorAtlasId) {
+      for (final sector in PremiumContent.premiumThemes) {
+        await unlockTheme(sector);
       }
+      await unlockBundle(FleetKit.sectorAtlasId);
       return;
     }
 
-    // Trail effects (prefixed with 'trail_')
-    if (internalId.startsWith('trail_')) {
-      await unlockTrail(internalId);
+    // Single sectors
+    final sector = GameTheme.fromId(internalId);
+    if (sector != null && sector.productId == internalId) {
+      await unlockTheme(sector);
       return;
     }
 
-    // Ship Skins (store IDs use skin_ prefix, strip it for internal ID)
-    const skinNames = {
-      'golden', 'rainbow', 'galaxy', 'dragon', 'electric',
-      'fire', 'ice', 'shadow', 'neon', 'crystal', 'cosmic',
-    };
-    final skinInternalId = internalId.startsWith('skin_')
-        ? internalId.substring('skin_'.length)
-        : internalId;
-    if (skinNames.contains(skinInternalId)) {
-      await unlockSkin(skinInternalId);
+    // Liveries
+    final livery = LiveryType.tryParse(internalId);
+    if (livery != null && livery.isPremium && livery.id == internalId) {
+      await unlockSkin(livery.id);
       return;
     }
 
-    // Cosmetic bundles
-    const bundleIds = {
-      'starter_pack', 'elemental_pack', 'cosmic_collection',
-      'ultimate_collection',
-    };
-    if (bundleIds.contains(internalId)) {
+    // Exhausts
+    final exhaust = ExhaustType.tryParse(internalId);
+    if (exhaust != null && exhaust.isPremium && exhaust.id == internalId) {
+      await unlockTrail(exhaust.id);
+      return;
+    }
+
+    // Fleet Kits
+    if (FleetKit.byId(internalId) != null) {
       await unlockBundle(internalId);
       return;
     }
 
-    // Tournament entries — handle all 5 types including championship & VIP
-    if (internalId.contains('tournament') ||
-        internalId.contains('championship')) {
-      if (internalId.contains('bronze')) {
-        await addTournamentEntry('bronze');
-      } else if (internalId.contains('silver')) {
-        await addTournamentEntry('silver');
-      } else if (internalId.contains('gold')) {
-        await addTournamentEntry('gold');
-      } else if (internalId.contains('championship')) {
-        // Bundle — keep in sync with the backend's TournamentEntryGrants.
-        await addTournamentEntry('gold', count: 3);
-      } else if (internalId.contains('vip')) {
-        await addTournamentEntry('gold', count: 5);
-        await addTournamentEntry('silver', count: 5);
+    // Cup Passes — keep in sync with the backend's TournamentEntryGrants.
+    final cupGrants = ProductIds.cupPassGrants[internalId];
+    if (cupGrants != null) {
+      for (final grant in cupGrants.entries) {
+        await addTournamentEntry(grant.key, count: grant.value);
       }
-      return;
-    }
-
-    // Battle pass — RETIRED product. The premium track now rides the Pro
-    // subscription (server: BattlePassPremiumGate; client: BattlePassCubit
-    // reconciles isActive to hasPremium). This branch is only reachable
-    // via a Play restore of a legacy battle_pass_season purchase, and
-    // flipping hasBattlePass here would desync from the server which no
-    // longer honors the product. Log-only no-op.
-    if (internalId.contains('battle_pass')) {
-      AppLogger.info(
-        'Ignoring retired battle_pass product restore — '
-        'premium track is included with Pro',
-      );
       return;
     }
 
@@ -352,12 +296,12 @@ class PremiumCubit extends Cubit<PremiumState> {
     unawaited(getIt<PowerUpCubit>().loadInventory());
   }
 
-  /// Purchase premium subscription (monthly)
+  /// Purchase Strike Command (monthly)
   /// Note: actual unlock happens via purchase stream in _handlePurchaseCompleted
   Future<bool> purchasePremium() async {
     try {
       final result = await _purchaseService.purchaseProduct(
-        ProductIds.proMonthly,
+        ProductIds.commandMonthly,
       );
       // Do NOT call _handlePremiumPurchased() here — purchaseProduct() only
       // initiates the billing flow. The actual completion arrives asynchronously
@@ -386,43 +330,49 @@ class PremiumCubit extends Cubit<PremiumState> {
     _coinsCubit?.updatePremiumMultiplier(state.hasPremium, isActive);
   }
 
-  /// Select skin (validates ownership — classic is always allowed).
+  /// Equip a livery (validates it's unlocked — owned, kit, or Strike
+  /// Command; the free livery is always allowed). Accepts legacy IDs.
   /// Pushes the choice to the backend so it survives reinstall/device-switch.
-  Future<void> selectSkin(String skinId) async {
+  Future<void> selectSkin(String id) async {
+    final livery = LiveryType.fromId(id);
+    final skinId = livery.id;
     if (state.selectedSkinId == skinId) return;
-    if (skinId != 'classic' && !state.isSkinOwned(skinId)) {
-      AppLogger.warning('Attempted to select unowned skin: $skinId');
+    if (!state.isLiveryUnlocked(livery)) {
+      AppLogger.warning('Attempted to equip locked livery: $skinId');
       return;
     }
 
     emit(state.copyWith(selectedSkinId: skinId));
     await _storageService.setSelectedSkinId(skinId);
-    _analytics.trackCosmeticEquipped(cosmeticType: 'skin', cosmeticId: skinId);
+    _analytics.trackCosmeticEquipped(cosmeticType: 'livery', cosmeticId: skinId);
     unawaited(ApiService().setEquippedCosmetics(skinId: skinId));
   }
 
-  /// Select trail (validates ownership — 'none' is always allowed).
+  /// Equip an exhaust (validates it's unlocked — the stock thruster is
+  /// always allowed). Accepts legacy IDs.
   /// Pushes the choice to the backend so it survives reinstall/device-switch.
-  Future<void> selectTrail(String trailId) async {
+  Future<void> selectTrail(String id) async {
+    final exhaust = ExhaustType.fromId(id);
+    final trailId = exhaust.id;
     if (state.selectedTrailId == trailId) return;
-    if (trailId != 'none' && !state.isTrailOwned(trailId)) {
-      AppLogger.warning('Attempted to select unowned trail: $trailId');
+    if (!state.isExhaustUnlocked(exhaust)) {
+      AppLogger.warning('Attempted to equip locked exhaust: $trailId');
       return;
     }
 
     emit(state.copyWith(selectedTrailId: trailId));
     await _storageService.setSelectedTrailId(trailId);
-    _analytics.trackCosmeticEquipped(cosmeticType: 'trail', cosmeticId: trailId);
+    _analytics.trackCosmeticEquipped(cosmeticType: 'exhaust', cosmeticId: trailId);
     unawaited(ApiService().setEquippedCosmetics(trailId: trailId));
 
-    // Equipping a real trail flips the 'Engine Trail Effects' master
-    // gate on — it defaults to off, and a buyer who equips a trail
-    // expects to SEE it in-game, not to hunt down a second toggle.
-    if (trailId != 'none') {
+    // Equipping a real exhaust flips the engine-effects master gate on —
+    // it defaults to off, and a buyer who equips an exhaust expects to SEE
+    // it in-game, not to hunt down a second toggle.
+    if (exhaust != ExhaustType.stock) {
       try {
         unawaited(getIt<ThemeCubit>().setTrailSystemEnabled(true));
       } catch (e) {
-        AppLogger.warning('Could not auto-enable trail effects: $e');
+        AppLogger.warning('Could not auto-enable exhaust effects: $e');
       }
     }
   }
@@ -434,7 +384,7 @@ class PremiumCubit extends Cubit<PremiumState> {
     unawaited(ApiService().setEquippedCosmetics(themeId: themeName));
   }
 
-  /// Unlock a theme
+  /// Unlock a sector
   Future<void> unlockTheme(GameTheme theme) async {
     final updatedThemes = {...state.ownedThemes, theme};
     emit(state.copyWith(ownedThemes: updatedThemes));
@@ -443,15 +393,25 @@ class PremiumCubit extends Cubit<PremiumState> {
     await _storageService.unlockItem(theme.name, 'theme');
   }
 
-  /// Unlock a skin
-  Future<void> unlockSkin(String skinId) async {
+  /// Unlock a livery (legacy IDs are folded onto the new catalog).
+  Future<void> unlockSkin(String id) async {
+    final skinId = LiveryType.normalizeId(id);
+    if (skinId == null) {
+      AppLogger.warning('Ignoring unknown livery unlock: $id');
+      return;
+    }
     final updatedSkins = {...state.ownedSkins, skinId};
     emit(state.copyWith(ownedSkins: updatedSkins));
     await _storageService.unlockItem(skinId, 'skin');
   }
 
-  /// Unlock a trail
-  Future<void> unlockTrail(String trailId) async {
+  /// Unlock an exhaust (legacy IDs are folded onto the new catalog).
+  Future<void> unlockTrail(String id) async {
+    final trailId = ExhaustType.normalizeId(id);
+    if (trailId == null) {
+      AppLogger.warning('Ignoring unknown exhaust unlock: $id');
+      return;
+    }
     final updatedTrails = {...state.ownedTrails, trailId};
     emit(state.copyWith(ownedTrails: updatedTrails));
     await _storageService.unlockItem(trailId, 'trail');
@@ -465,34 +425,34 @@ class PremiumCubit extends Cubit<PremiumState> {
     AppLogger.info('Power-up unlocked: $powerUpId');
   }
 
-  /// Unlock a bundle (and all its contents — cosmetic or power-up)
-  Future<void> unlockBundle(String bundleId) async {
+  /// Unlock a bundle (and all its contents — Fleet Kit cosmetics)
+  Future<void> unlockBundle(String id) async {
+    final bundleId = FleetKit.normalizeBundleId(id) ?? id;
     if (state.ownedBundles.contains(bundleId)) return;
 
     final updatedBundles = {...state.ownedBundles, bundleId};
     emit(state.copyWith(ownedBundles: updatedBundles));
     await _storageService.unlockItem(bundleId, 'bundle');
 
-    // Unlock cosmetic bundle contents (skins + trails)
-    final cosmeticBundle = CosmeticBundle.availableBundles
-        .where((b) => b.id == bundleId)
-        .firstOrNull;
-    if (cosmeticBundle != null) {
-      for (final skin in cosmeticBundle.skins) {
-        await unlockSkin(skin.id);
+    // Unlock Fleet Kit contents (liveries + exhausts)
+    final kit = FleetKit.byId(bundleId);
+    if (kit != null) {
+      for (final livery in kit.liveries) {
+        await unlockSkin(livery.id);
       }
-      for (final trail in cosmeticBundle.trails) {
-        await unlockTrail(trail.id);
+      for (final exhaust in kit.exhausts) {
+        await unlockTrail(exhaust.id);
       }
     }
 
-    // Power-up bundles are consumable count packs (PowerUpCubit grants
-    // the uses at purchase time) — no permanent unlock rows.
+    // Gear bundles are consumable count packs (PowerUpCubit grants the
+    // uses at purchase time) — no permanent unlock rows.
 
     AppLogger.info('Bundle unlocked: $bundleId');
   }
 
-  /// Add tournament entry
+  /// Add Cup Passes of a wire tier (bronze = Scout, silver = Strike,
+  /// gold = Ace)
   Future<void> addTournamentEntry(
     String tournamentType, {
     int count = 1,
@@ -524,7 +484,7 @@ class PremiumCubit extends Cubit<PremiumState> {
     AppLogger.info('Tournament entry added: $tournamentType x$count');
   }
 
-  /// Use tournament entry
+  /// Use Cup Passes of a wire tier
   Future<void> useTournamentEntry(String tournamentType, {int count = 1}) async {
     switch (tournamentType.toLowerCase()) {
       case 'bronze':
@@ -569,8 +529,8 @@ class PremiumCubit extends Cubit<PremiumState> {
 
   // Convenience checker methods (delegate to state)
   bool isThemeUnlocked(GameTheme theme) => state.isThemeUnlocked(theme);
-  bool isSkinUnlocked(String skinId) => state.isSkinOwned(skinId);
-  bool isTrailUnlocked(String trailId) => state.isTrailOwned(trailId);
+  bool isSkinUnlocked(String liveryId) => state.isSkinOwned(liveryId);
+  bool isTrailUnlocked(String exhaustId) => state.isTrailOwned(exhaustId);
   bool isPowerUpUnlocked(String powerUpId) =>
       state.isPowerUpUnlocked(powerUpId);
   bool isBundleOwned(String bundleId) => state.isBundleOwned(bundleId);
@@ -651,8 +611,8 @@ class PremiumCubit extends Cubit<PremiumState> {
   /// AUTHORITATIVE sync: the server is the source of truth for ownership.
   /// If a refund/chargeback/revocation removes an item server-side, the
   /// local owned-set is pruned to match, and any currently-equipped item
-  /// that's no longer owned falls back to the default (Classic skin /
-  /// "none" trail / Classic theme). Without this, a user whose payment
+  /// that's no longer owned falls back to the default (Standard Issue
+  /// livery / Stock Thruster / Prism Noir sector). Without this, a user whose payment
   /// was reversed would keep using premium cosmetics indefinitely.
   ///
   /// Defensive: only prune a list if the server actually sent it. A
@@ -661,13 +621,8 @@ class PremiumCubit extends Cubit<PremiumState> {
   Future<void> _applyBackendEntitlements(Map<String, dynamic> data) async {
     // ---- Owned themes ----
     if (data['owned_themes'] is List) {
-      final serverThemeNames =
-          (data['owned_themes'] as List).whereType<String>().toSet();
-      final serverThemes = serverThemeNames
-          .map((name) =>
-              GameTheme.values.where((t) => t.name == name).firstOrNull)
-          .whereType<GameTheme>()
-          .toSet();
+      final serverThemes =
+          _parseThemes((data['owned_themes'] as List).whereType<String>());
       if (serverThemes != state.ownedThemes) {
         emit(state.copyWith(ownedThemes: serverThemes));
         // Merge-only: locally-owned themes the server doesn't know
@@ -682,7 +637,7 @@ class PremiumCubit extends Cubit<PremiumState> {
     // ---- Owned skins ----
     if (data['owned_skins'] is List) {
       final serverSkins =
-          (data['owned_skins'] as List).whereType<String>().toSet();
+          _parseLiveries((data['owned_skins'] as List).whereType<String>());
       if (serverSkins != state.ownedSkins) {
         emit(state.copyWith(ownedSkins: serverSkins));
         await _storageService.applyUnlockedSkinsFromServer(
@@ -694,7 +649,7 @@ class PremiumCubit extends Cubit<PremiumState> {
     // ---- Owned trails ----
     if (data['owned_trails'] is List) {
       final serverTrails =
-          (data['owned_trails'] as List).whereType<String>().toSet();
+          _parseExhausts((data['owned_trails'] as List).whereType<String>());
       if (serverTrails != state.ownedTrails) {
         emit(state.copyWith(ownedTrails: serverTrails));
         await _storageService.applyUnlockedTrailsFromServer(
@@ -706,7 +661,7 @@ class PremiumCubit extends Cubit<PremiumState> {
     // ---- Owned bundles ----
     if (data['owned_bundles'] is List) {
       final serverBundles =
-          (data['owned_bundles'] as List).whereType<String>().toSet();
+          _parseBundles((data['owned_bundles'] as List).whereType<String>());
       if (serverBundles != state.ownedBundles) {
         emit(state.copyWith(ownedBundles: serverBundles));
         await _storageService.applyUnlockedBundlesFromServer(
@@ -728,7 +683,7 @@ class PremiumCubit extends Cubit<PremiumState> {
       }
     }
 
-    // ---- Pro power-up perk (per-subscription-period grant) ----
+    // ---- Strike Command gear perk (per-subscription-period grant) ----
     // The backend delivers the grant with a deterministic id derived from
     // the subscription expiry; PowerUpCubit applies it exactly once per
     // id, so repeated syncs are no-ops and each renewal delivers fresh.
@@ -743,7 +698,7 @@ class PremiumCubit extends Cubit<PremiumState> {
       final applied =
           await getIt<PowerUpCubit>().applyServerGrant(grantId, grant);
       if (applied) {
-        AppLogger.info('Applied Pro power-up grant $grantId: $grant');
+        AppLogger.info('Applied Strike Command gear grant $grantId: $grant');
       }
     }
 
@@ -859,19 +814,19 @@ class PremiumCubit extends Cubit<PremiumState> {
     // ---- Equipped-cosmetic restore (reinstall / device-switch) ----
     // Same rules as before: only adopt backend's selection if the local
     // choice is still at the default.
-    final backendSkinId = data['selected_skin_id'] as String?;
-    if (backendSkinId != null &&
-        backendSkinId.isNotEmpty &&
-        state.selectedSkinId == 'classic' &&
-        backendSkinId != 'classic') {
-      await selectSkin(backendSkinId);
+    final backendLivery =
+        LiveryType.tryParse(data['selected_skin_id'] as String?);
+    if (backendLivery != null &&
+        state.selectedSkinId == LiveryType.standard.id &&
+        backendLivery != LiveryType.standard) {
+      await selectSkin(backendLivery.id);
     }
-    final backendTrailId = data['selected_trail_id'] as String?;
-    if (backendTrailId != null &&
-        backendTrailId.isNotEmpty &&
-        state.selectedTrailId == 'none' &&
-        backendTrailId != 'none') {
-      await selectTrail(backendTrailId);
+    final backendExhaust =
+        ExhaustType.tryParse(data['selected_trail_id'] as String?);
+    if (backendExhaust != null &&
+        state.selectedTrailId == ExhaustType.stock.id &&
+        backendExhaust != ExhaustType.stock) {
+      await selectTrail(backendExhaust.id);
     }
     final backendThemeId = data['selected_theme_id'] as String?;
     if (backendThemeId != null && backendThemeId.isNotEmpty) {
@@ -885,20 +840,18 @@ class PremiumCubit extends Cubit<PremiumState> {
     // ---- Revocation fallback ----
     // If the user was equipped on a cosmetic they no longer own (refund,
     // chargeback, etc.), drop back to the default so the game doesn't
-    // keep rendering a paid item they shouldn't have. Pro subscribers
-    // implicitly own all premium themes, so the theme fallback only
+    // keep rendering a paid item they shouldn't have. Strike Command
+    // implicitly includes every premium cosmetic, so the fallback only
     // applies to free-tier users.
-    if (state.selectedSkinId != 'classic' &&
-        !state.isSkinOwned(state.selectedSkinId)) {
+    if (!state.isLiveryUnlocked(LiveryType.fromId(state.selectedSkinId))) {
       AppLogger.info(
-          'Equipped skin "${state.selectedSkinId}" no longer owned — falling back to classic');
-      await selectSkin('classic');
+          'Equipped livery "${state.selectedSkinId}" no longer owned — falling back to standard');
+      await selectSkin(LiveryType.standard.id);
     }
-    if (state.selectedTrailId != 'none' &&
-        !state.isTrailOwned(state.selectedTrailId)) {
+    if (!state.isExhaustUnlocked(ExhaustType.fromId(state.selectedTrailId))) {
       AppLogger.info(
-          'Equipped trail "${state.selectedTrailId}" no longer owned — falling back to none');
-      await selectTrail('none');
+          'Equipped exhaust "${state.selectedTrailId}" no longer owned — falling back to stock');
+      await selectTrail(ExhaustType.stock.id);
     }
     try {
       await getIt<ThemeCubit>().applyFallbackIfThemeRevoked(state);

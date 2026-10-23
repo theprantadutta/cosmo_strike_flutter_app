@@ -79,7 +79,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (context, _) => BlocBuilder<AuthCubit, AuthState>(
           builder: (context, authState) {
             return CsScaffold(
-              title: 'Profile',
+              title: 'Pilot File',
               washes: const [CsWash.violetTopRight],
               trailing: [
                 if (authState.isSignedIn && !authState.isLoading)
@@ -158,7 +158,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           SizedBox(width: cs(6)),
           Flexible(
             child: Text(
-              guest ? 'GUEST PLAYER' : '${_accountType(authState).toUpperCase()} · VERIFIED ACCOUNT',
+              guest ? 'GUEST PILOT' : '${_accountType(authState).toUpperCase()} · VERIFIED PILOT',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: t.mono(11, color: guest ? CsColors.gold : CsColors.mint),
@@ -180,7 +180,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: EdgeInsets.only(bottom: cs(12)),
       children: [
         _SectionHeader(
-          'Statistics',
+          'Service Record',
           action: _isLoading ? null : CsButton.text(
             label: 'View all',
             size: CsButtonSize.small,
@@ -191,18 +191,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (_isLoading)
           Padding(
             padding: EdgeInsets.symmetric(vertical: cs(28)),
-            child: const CsLoadingState(label: 'Loading stats'),
+            child: const CsLoadingState(label: 'Pulling record'),
           )
         else
           CsStatGrid(
             columns: 3,
             valueSize: 22,
             stats: [
-              CsStat(_num('highScore'), 'High score'),
-              CsStat(_num('totalGames'), 'Games played'),
-              CsStat('${_displayStats['totalPlayTime'] ?? '0s'}', 'Play time'),
-              CsStat(_num('averageScore'), 'Average score'),
-              CsStat(_num('enemiesKilled'), 'Enemies'),
+              CsStat(_num('highScore'), 'Best score'),
+              CsStat(_num('totalGames'), 'Runs flown'),
+              CsStat('${_displayStats['totalPlayTime'] ?? '0s'}', 'Flight time'),
+              CsStat(_num('averageScore'), 'Avg score'),
+              CsStat(_num('enemiesKilled'), 'Kills'),
               CsStat(_num('bossesKilled'), 'Bosses'),
             ],
           ),
@@ -212,8 +212,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           CsListRow(
             dividerTop: true,
             leading: const CsIconDisc(Symbols.cloud_upload_rounded, color: CsColors.gold),
-            title: 'Save your progress',
-            subtitle: 'Sign in to sync across devices',
+            title: 'Secure your pilot file',
+            subtitle: 'Sign in to carry it to any device',
             trailing: CsButton.primary(
               label: 'Sign in',
               icon: Symbols.login_rounded,
@@ -230,19 +230,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onTap: () => _showSignOutDialog(context),
         ),
         SizedBox(height: cs.groupGap),
-        const _SectionHeader('Explore'),
+        const _SectionHeader('Records'),
         CsListRow(
           dividerTop: true,
           leading: const CsIconDisc(Symbols.monitoring_rounded, color: CsColors.cyan),
-          title: 'Statistics',
-          subtitle: 'Performance, trends and play patterns',
+          title: 'Service Record',
+          subtitle: 'Combat stats, form and flight log',
           trailing: _chevron(context),
           onTap: () => _navigateToStatistics(context),
         ),
         CsListRow(
           leading: const CsIconDisc(Symbols.emoji_events_rounded, color: CsColors.gold),
-          title: 'Achievements',
-          subtitle: 'Awards, rewards and progress',
+          title: 'Commendations',
+          subtitle: 'Earned and in progress',
           trailing: _chevron(context),
           onTap: () => _navigateToAchievements(context),
         ),
@@ -250,7 +250,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (_recentAchievements.isNotEmpty) ...[
           SizedBox(height: cs.groupGap),
           _SectionHeader(
-            'Recent awards',
+            'Latest commendations',
             action: CsButton.text(
               label: 'View all',
               size: CsButtonSize.small,
@@ -272,19 +272,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final count = (_appCache.replayKeys ?? []).length;
     return CsListRow(
       leading: const CsIconDisc(Symbols.movie_rounded, color: CsColors.violet),
-      title: 'Replays',
-      subtitle: count == 0 ? 'No replays yet. Play some games!' : '$count replays saved',
+      title: 'Flight Recorder',
+      subtitle: count == 0 ? 'No recordings yet. Fly a run.' : '$count recordings saved',
       trailing: _chevron(context),
       onTap: () => _navigateToReplays(context),
     );
   }
 
   String _rarityName(AchievementRarity rarity) => switch (rarity) {
-        AchievementRarity.common => 'Common',
-        AchievementRarity.rare => 'Rare',
-        AchievementRarity.epic => 'Epic',
-        AchievementRarity.legendary => 'Legendary',
-        AchievementRarity.diamond => 'Diamond',
+        AchievementRarity.common => 'Service',
+        AchievementRarity.rare => 'Bronze Star',
+        AchievementRarity.epic => 'Silver Star',
+        AchievementRarity.legendary => 'Gold Star',
+        AchievementRarity.diamond => 'Nova',
       };
 
   Widget _buildAchievementRow(Achievement achievement, {required bool first}) {
@@ -331,8 +331,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       eyebrow: 'Account',
       title: 'Sign out?',
-      message: 'Are you sure you want to sign out?\n\n'
-          'Your progress will be saved if you\'re signed in.',
+      message: 'Your progress stays backed up to your account.',
       confirmLabel: 'Sign out',
       destructive: true,
     );
@@ -340,7 +339,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final authCubit = context.read<AuthCubit>();
     await authCubit.signOut();
     if (context.mounted) {
-      showCsToast(context, 'Signed out successfully');
+      showCsToast(context, 'Signed out.');
     }
   }
 }

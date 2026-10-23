@@ -45,9 +45,9 @@ const _kSections = <(IconData, String)>[
   (Symbols.volume_up_rounded, 'Audio'),
   (Symbols.palette_rounded, 'Visual'),
   (Symbols.notifications_rounded, 'Notifications'),
-  (Symbols.person_rounded, 'Profile'),
+  (Symbols.person_rounded, 'Pilot'),
   (Symbols.help_rounded, 'Help'),
-  (Symbols.workspace_premium_rounded, 'Premium'),
+  (Symbols.workspace_premium_rounded, 'Command'),
   (Symbols.accessibility_new_rounded, 'Access'),
 ];
 
@@ -73,7 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // singleton, so its value is authoritative by the time this screen builds.
   bool _reduceMotion = PreferencesService().reduceMotion;
   DPadPosition _dPadPosition = DPadPosition.bottomCenter;
-  GameMode _selectedGameMode = GameMode.classic;
+  GameMode _selectedGameMode = GameMode.sortie;
 
   // Notification preferences. Mirrored from NotificationService at init
   // and on every toggle; service is the source of truth (persists to
@@ -304,7 +304,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (!cs.isCompact) SizedBox(height: cs(10)),
         if (!cs.isCompact) CsButton.secondary(
           onPressed: () => context.pop(),
-          label: 'Back to Game',
+          label: 'Back to flight',
           icon: Symbols.arrow_back_rounded,
           // Phones: the compact pill so the label never truncates.
           size: cs.isTablet ? CsButtonSize.regular : CsButtonSize.small,
@@ -330,7 +330,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSwitchRow(
             icon: Symbols.gamepad_rounded,
             title: 'D-Pad Controls',
-            subtitle: 'Show an on-screen analog pad for steering during gameplay',
+            subtitle: 'On-screen analog pad for steering in flight',
             value: _dPadEnabled,
             first: true,
             onChanged: (value) async {
@@ -443,8 +443,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildThemeSelector(theme),
           _buildSwitchRow(
             icon: Symbols.auto_awesome_rounded,
-            title: 'Engine Trail Effects',
-            subtitle: 'Enable particle trails behind your ship',
+            title: 'Exhaust Effects',
+            subtitle: 'Particle exhaust behind your ship',
             value: themeState.isTrailSystemEnabled,
             onChanged: (value) async {
               await context.read<ThemeCubit>().setTrailSystemEnabled(value);
@@ -467,8 +467,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           _buildSwitchRow(
-            icon: Symbols.emoji_events_rounded,
-            title: 'Tournament Alerts',
+            icon: Symbols.military_tech_rounded,
+            title: 'Sector Cup Alerts',
             value: _notifTournament,
             onChanged: (v) => _toggleNotification(
               NotificationType.tournament,
@@ -478,7 +478,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           _buildSwitchRow(
             icon: Symbols.military_tech_rounded,
-            title: 'Achievement Unlocks',
+            title: 'Commendations',
             value: _notifAchievement,
             onChanged: (v) => _toggleNotification(
               NotificationType.achievement,
@@ -488,7 +488,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           _buildSwitchRow(
             icon: Symbols.group_rounded,
-            title: 'Social Updates',
+            title: 'Squadron Updates',
             value: _notifSocial,
             onChanged: (v) => _toggleNotification(
               NotificationType.social,
@@ -498,7 +498,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           _buildSwitchRow(
             icon: Symbols.celebration_rounded,
-            title: 'Special Events',
+            title: 'Championships',
             value: _notifSpecialEvent,
             onChanged: (v) => _toggleNotification(
               NotificationType.specialEvent,
@@ -546,7 +546,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return [
             SizedBox(
               height: context.cs(160),
-              child: const CsLoadingState(label: 'Loading premium status'),
+              child: const CsLoadingState(label: 'Checking Command status'),
             ),
           ];
         }
@@ -572,11 +572,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// One-tap color-blind friendly skin. Toggling on applies the high-contrast
-  /// blue↔orange [GameTheme.accessible] palette through the normal ThemeCubit
-  /// path (persisted + synced); toggling off returns to Classic.
+  /// One-tap color-blind friendly sector. Toggling on applies the high-contrast
+  /// blue↔orange [GameTheme.highContrast] palette through the normal ThemeCubit
+  /// path (persisted + synced); toggling off returns to Prism Noir.
   Widget _buildColorBlindControl(ThemeState themeState) {
-    final isOn = themeState.currentTheme == GameTheme.accessible;
+    final isOn = themeState.currentTheme == GameTheme.highContrast;
     return _buildSwitchRow(
       icon: Symbols.contrast_rounded,
       title: 'Color-Blind Friendly',
@@ -586,7 +586,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       first: true,
       onChanged: (value) async {
         await context.read<ThemeCubit>().setTheme(
-          value ? GameTheme.accessible : GameTheme.classic,
+          value ? GameTheme.highContrast : GameTheme.prismNoir,
         );
         _analytics.trackSettingChanged(
           settingName: 'color_blind_mode',
@@ -603,7 +603,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return _buildSwitchRow(
       icon: Symbols.motion_photos_off_rounded,
       title: 'Reduce Motion',
-      subtitle: 'Dials down screen shake, engine trails, and busy background motion.',
+      subtitle: 'Dials down screen shake, exhaust effects and busy background motion.',
       value: _reduceMotion,
       onChanged: (value) async {
         // Capture cubits before any await so we never touch context across
@@ -670,26 +670,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Purchased colour themes now tint GAMEPLAY only — menus always use
-  /// Prism Noir. The picker still lives in the store's Themes tab.
+  /// Sectors tint GAMEPLAY only — menus always use Prism Noir. The picker
+  /// lives in the Armory's Sectors tab.
   Widget _buildThemeSelector(GameTheme theme) {
     final cs = context.cs;
     return _SettingRow(
-      icon: Symbols.palette_rounded,
-      title: 'Gameplay Theme · ${theme.name}',
-      subtitle: 'Colours your ship, enemies and effects in flight. '
+      icon: Symbols.public_rounded,
+      title: 'Sector · ${theme.displayName}',
+      subtitle: 'Colours your ship, hostiles and effects in flight. '
           'Menus always use Prism Noir.',
       first: true,
-      onTap: () => context.push('${AppRoutes.store}?tab=2'),
+      onTap: () => context.push('${AppRoutes.store}?tab=4'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           _ThemeSwatch(theme: theme),
           SizedBox(width: cs(12)),
-          // Routes to the Themes tab of the unified store (tab index 2:
-          // Pro / Coins / Themes / Skins / Trails / Power-Ups).
+          // Routes to the Armory's Sectors tab (index 4: Command / Credits /
+          // Liveries / Exhausts / Sectors / Gear / Cup Passes).
           CsButton.secondary(
-            onPressed: () => context.push('${AppRoutes.store}?tab=2'),
+            onPressed: () => context.push('${AppRoutes.store}?tab=4'),
             label: 'Browse',
             size: CsButtonSize.small,
           ),
@@ -733,14 +733,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         const CsLabel('Flight controls'),
         SizedBox(height: cs(6)),
-        _buildControlItem('Drag', 'Slide anywhere — your ship mirrors the movement', first: true),
+        _buildControlItem('Drag', 'Slide anywhere. The ship tracks your finger', first: true),
         _buildControlItem('D-Pad', 'Analog steering (when enabled)'),
         _buildControlItem('Double Tap', 'Fire a missile (uses ammo)'),
         _buildControlItem('Missile Button', 'Fire a missile (uses ammo)'),
         _buildControlItem('Pause Button', 'Pause / resume the run'),
         SizedBox(height: cs(10)),
         Text(
-          'Your ship fires automatically — focus on flying.'.toUpperCase(),
+          'Guns fire automatically. Fly the ship.'.toUpperCase(),
           style: cs.type.micro,
         ),
       ],
@@ -776,7 +776,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const CsLabel('Game mode'),
+        const CsLabel('Flight mode'),
         SizedBox(height: cs(8)),
         Row(
           children: [
@@ -814,7 +814,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     await context.read<GameSettingsCubit>().updateGameMode(mode);
                     _analytics.trackSettingChanged(
                       settingName: 'game_mode',
-                      value: mode.name,
+                      value: mode.wireName,
                     );
                   },
                   child: ConstrainedBox(
@@ -901,7 +901,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   SizedBox(height: cs(4)),
                   CsMeta(
-                    isGuest ? 'Guest Account' : 'Authenticated Account',
+                    isGuest ? 'Guest pilot' : 'Verified pilot',
                     icon: isGuest ? Symbols.person_rounded : Symbols.verified_user_rounded,
                     iconColor: isGuest ? CsColors.gold : CsColors.mint,
                     size: 10,
@@ -919,8 +919,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           icon: Symbols.edit_rounded,
           title: 'Change Username',
           subtitle: isGuest
-              ? 'Sign in to keep your progress and play with friends'
-              : 'Your username is visible to friends and on leaderboards',
+              ? 'Sign in to secure your pilot file and fly with a squadron'
+              : 'Your callsign shows to your squadron and on Standings',
           first: true,
           onTap: () => _showUsernameDialog(authState),
         ),
@@ -936,8 +936,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           iconColor: CsColors.pink,
           title: 'Delete Account',
           titleColor: CsColors.pink,
-          subtitle: 'Permanently deletes your account and all game data. '
-              'This cannot be undone.',
+          subtitle: 'Deletes your account and every record. Permanent.',
           first: true,
           onTap: _showDeleteAccountDialog,
         ),
@@ -974,9 +973,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SizedBox(height: cs(8)),
                 Text(
                   '• Your account and sign-in identity\n'
-                  '• All progress, scores and statistics\n'
-                  '• Coins, cosmetics and unlocked content\n'
-                  '• Friends, achievements and quest history',
+                  '• All progress, scores and your Service Record\n'
+                  '• Credits, liveries, exhausts and unlocked gear\n'
+                  '• Squadron, Commendations and Weekly Ops history',
                   style: t.body.copyWith(height: 1.6),
                 ),
                 SizedBox(height: cs(12)),
@@ -1018,7 +1017,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _performAccountDeletion() async {
-    showCsToast(context, 'Deleting your account...', icon: Symbols.delete_forever_rounded);
+    showCsToast(context, 'Deleting account…', icon: Symbols.delete_forever_rounded);
 
     final ok = await context.read<AuthCubit>().deleteAccount();
     if (!mounted) return;
@@ -1030,7 +1029,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       showCsToast(
         context,
         context.read<AuthCubit>().state.errorMessage ??
-            'Could not delete your account. Please try again.',
+            'Account deletion failed. Try again.',
         kind: CsToastKind.error,
       );
     }
@@ -1258,8 +1257,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return _buildActionRow(
       icon: Symbols.star_rate_rounded,
       iconColor: CsColors.gold,
-      title: 'Rate This Game',
-      subtitle: 'Enjoying Cosmo Strike? Leave us a rating',
+      title: 'Rate Cosmo Strike',
+      subtitle: 'Flying well? Leave a rating',
       onTap: () => getIt<ReviewService>().rateAppManually(),
     );
   }
@@ -1268,8 +1267,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildShareButton() {
     return _buildActionRow(
       icon: Symbols.share_rounded,
-      title: 'Share with Friends',
-      subtitle: 'Invite friends to join the fight',
+      title: 'Recruit Pilots',
+      subtitle: 'Send Cosmo Strike to a friend',
       onTap: () => ShareService().shareApp(),
     );
   }
@@ -1286,8 +1285,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildReplayTutorialButton() {
     return _buildActionRow(
       icon: Symbols.school_rounded,
-      title: 'Replay Tutorial',
-      subtitle: 'Watch the home tour or game tutorial again',
+      title: 'Replay Briefing',
+      subtitle: 'Run the home tour or flight training again',
       first: true,
       onTap: _showReplayTutorialDialog,
     );
@@ -1299,8 +1298,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (dialogContext) => CsDialog(
         icon: Symbols.school_rounded,
         eyebrow: 'Help',
-        title: 'Replay Tutorial',
-        message: 'Which tutorial would you like to replay?',
+        title: 'Replay Briefing',
+        message: 'Which briefing?',
         actions: [
           CsButton.text(
             label: 'Cancel',
@@ -1323,7 +1322,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           CsButton.primary(
-            label: 'Game Tutorial',
+            label: 'Flight Training',
             onPressed: () async {
               Navigator.of(dialogContext).pop();
               final walkthroughService = WalkthroughService();
@@ -1360,7 +1359,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final cs = dialogContext.cs;
             final t = cs.type;
             return CsDialog(
-              eyebrow: 'Profile',
+              eyebrow: 'Pilot File',
               title: 'Change Username',
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1383,7 +1382,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     SizedBox(height: cs(10)),
                   ],
                   Text(
-                    'Choose a unique username that represents you in the game.',
+                    'Pick a unique callsign. Squadron and Standings will show it.',
                     style: t.body,
                   ),
                   SizedBox(height: cs(10)),
@@ -1508,11 +1507,11 @@ extension _SettingsPremium on _SettingsScreenState {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   pro
-                      ? CsHeadline(const ['Cosmo Strike ', 'Pro'], prismIndex: 1, style: t.display(20, em: -0.02))
-                      : Text('Premium Status', style: t.display(20, em: -0.02)),
+                      ? CsHeadline(const ['Strike ', 'Command'], prismIndex: 1, style: t.display(20, em: -0.02))
+                      : Text('Strike Command', style: t.display(20, em: -0.02)),
                   SizedBox(height: cs(3)),
                   Text(
-                    pro ? 'Active subscription' : 'Unlock premium features',
+                    pro ? 'Membership active' : 'Not enlisted',
                     style: t.body,
                   ),
                   if (pro && premiumState.renewalLabel != null) ...[
@@ -1525,7 +1524,7 @@ extension _SettingsPremium on _SettingsScreenState {
                 ],
               ),
             ),
-            if (pro) const CsChip('PRO', kind: CsChipKind.gold),
+            if (pro) const CsChip('COMMAND', kind: CsChipKind.gold),
           ],
         ),
       ),
@@ -1541,7 +1540,7 @@ extension _SettingsPremium on _SettingsScreenState {
       padding: EdgeInsets.only(bottom: context.cs(14)),
       child: CsButton.premium(
         onPressed: () => context.push(AppRoutes.premiumBenefits),
-        label: 'Upgrade to Pro',
+        label: 'Join Strike Command',
         icon: Symbols.workspace_premium_rounded,
         expand: true,
       ),
@@ -1569,7 +1568,7 @@ extension _SettingsPremium on _SettingsScreenState {
     final cs = context.cs;
     return _buildActionRow(
       icon: Symbols.rocket_rounded,
-      title: 'Ship Cosmetics',
+      title: 'Liveries & Exhausts',
       onTap: () => _openCosmeticsSelector(),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1588,7 +1587,7 @@ extension _SettingsPremium on _SettingsScreenState {
     return _buildActionRow(
       icon: Symbols.military_tech_rounded,
       iconColor: CsColors.violet,
-      title: 'Battle Pass',
+      title: 'Frontline',
       onTap: () => _openBattlePass(),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1621,7 +1620,7 @@ extension _SettingsPremium on _SettingsScreenState {
     }
 
     try {
-      showCsToast(context, 'Restoring purchases...', icon: Symbols.restore_rounded);
+      showCsToast(context, 'Restoring purchases…', icon: Symbols.restore_rounded);
 
       final purchaseService = PurchaseService();
       await purchaseService.restorePurchases();
@@ -1631,7 +1630,7 @@ extension _SettingsPremium on _SettingsScreenState {
         // confirms the restore REQUEST went through, not that items landed.
         showCsToast(
           context,
-          'Restore requested — any purchases will appear in a moment.',
+          'Restore requested. Purchases will appear shortly.',
           kind: CsToastKind.success,
         );
       }
@@ -1639,7 +1638,7 @@ extension _SettingsPremium on _SettingsScreenState {
       if (mounted) {
         showCsToast(
           context,
-          'Failed to restore purchases. Please try again.',
+          'Restore failed. Try again.',
           kind: CsToastKind.error,
         );
       }
@@ -1658,7 +1657,7 @@ extension _SettingsPremium on _SettingsScreenState {
         builder: (context) {
           final cs = context.cs;
           return CsDialog(
-            eyebrow: 'Premium',
+            eyebrow: 'Armory',
             title: 'Purchase History',
             content: SizedBox(
               height: cs(220),
@@ -1695,7 +1694,7 @@ extension _SettingsPremium on _SettingsScreenState {
                           return CsListRow(
                             dividerTop: index == 0,
                             title: 'Purchase #${index + 1}',
-                            subtitle: 'Data parsing error',
+                            subtitle: 'Unreadable record',
                           );
                         }
                       },
@@ -1714,7 +1713,7 @@ extension _SettingsPremium on _SettingsScreenState {
       if (mounted) {
         showCsToast(
           context,
-          'Failed to load purchase history',
+          'Purchase history failed to load',
           kind: CsToastKind.error,
         );
       }
@@ -1734,7 +1733,7 @@ extension _SettingsPremium on _SettingsScreenState {
       case 'bundle':
         return Symbols.shopping_bag_rounded;
       case 'battlepass':
-        return Symbols.emoji_events_rounded;
+        return Symbols.military_tech_rounded;
       case 'tournament':
         return Symbols.sports_esports_rounded;
       default:
@@ -1754,21 +1753,27 @@ extension _SettingsPremium on _SettingsScreenState {
   String _getTypeFromProductId(String productId) {
     // Strip store prefix before checking
     final bare = ProductIds.stripPrefix(productId);
-    if (bare.contains('pro_monthly') || bare.contains('pro_yearly')) {
+    // New 3.2 ids first, then the retired pre-3.2 ids (history rows).
+    if (bare.startsWith('command_') ||
+        bare.contains('pro_monthly') ||
+        bare.contains('pro_yearly')) {
       return 'subscription';
-    } else if (bare.contains('theme')) {
+    } else if (bare.startsWith('sector_') || bare.contains('theme')) {
       return 'theme';
-    } else if (bare.contains('skin')) {
+    } else if (bare.startsWith('livery_') || bare.contains('skin')) {
       return 'skin';
-    } else if (bare.contains('trail')) {
+    } else if (bare.startsWith('exhaust_') || bare.contains('trail')) {
       return 'trail';
-    } else if (bare.contains('bundle') ||
+    } else if (bare.startsWith('kit_') ||
+        bare.startsWith('credits_') ||
+        bare.contains('bundle') ||
         bare.contains('pack') ||
         bare.contains('collection')) {
       return 'bundle';
     } else if (bare.contains('battle_pass')) {
       return 'battlepass';
-    } else if (bare.contains('tournament') ||
+    } else if (bare.startsWith('cup_') ||
+        bare.contains('tournament') ||
         bare.contains('championship') ||
         bare.contains('vip')) {
       return 'tournament';
@@ -1780,7 +1785,7 @@ extension _SettingsPremium on _SettingsScreenState {
     // Strip store prefix before formatting
     final bare = ProductIds.stripPrefix(productId);
     return bare
-        .replaceAll('skin_', '')
+        .replaceAll(RegExp(r'^(skin|livery|exhaust|sector|kit|cup)_'), '')
         .replaceAll('_', ' ')
         .split(' ')
         .map(
@@ -1925,8 +1930,8 @@ class _SettingRow extends StatelessWidget {
   }
 }
 
-/// Small preview of a gameplay colour theme: its background fill with the
-/// ship + pickup colours as dots. Reads [GameTheme] purely as data.
+/// Small preview of a sector palette: its background fill with the
+/// primary + secondary colours as dots. Reads [GameTheme] purely as data.
 class _ThemeSwatch extends StatelessWidget {
   const _ThemeSwatch({required this.theme});
   final GameTheme theme;
@@ -1953,7 +1958,7 @@ class _ThemeSwatch extends StatelessWidget {
           Container(
             width: cs(7),
             height: cs(7),
-            decoration: BoxDecoration(color: theme.foodColor, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: theme.secondaryColor, shape: BoxShape.circle),
           ),
         ],
       ),

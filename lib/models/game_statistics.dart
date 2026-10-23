@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:cosmo_strike_flutter_app/utils/constants.dart' show GameMode;
+
 /// Lifetime player statistics for the Cosmo Strike shoot-'em-up.
 ///
 /// Cumulative counters + maxes are folded in [updateWithGameResult] from each
@@ -10,7 +12,7 @@ import 'dart:convert';
 class GameStatistics {
   /// Catalog size used for the local `achievementProgress` ratio. Keep in sync
   /// with Achievement.getDefaultAchievements() in `lib/models/achievement.dart`.
-  static const int kTotalAchievements = 110;
+  static const int kTotalAchievements = 72;
 
   /// A run counts as "survived" (for [survivalRate]) at or beyond this many
   /// seconds — long enough to be a real attempt, not an instant death.
@@ -29,6 +31,10 @@ class GameStatistics {
   final int totalLevelsCleared;
   final int totalGrazes;
   final int totalRevivesUsed;
+  final int totalOverdrives; // Overdrive activations
+  final int totalFormationWipes; // formations wiped inside the bonus window
+  final int dailyRunsPlayed; // runs flown on the date-seeded Daily Run
+  final int cupRunsPlayed; // runs attributed to a Sector Cup
   final int victories; // campaign completions (final boss felled)
   final int noHitClears; // levels cleared without taking a hit
   final int gamesSurvived60s;
@@ -66,6 +72,10 @@ class GameStatistics {
     this.totalLevelsCleared = 0,
     this.totalGrazes = 0,
     this.totalRevivesUsed = 0,
+    this.totalOverdrives = 0,
+    this.totalFormationWipes = 0,
+    this.dailyRunsPlayed = 0,
+    this.cupRunsPlayed = 0,
     this.victories = 0,
     this.noHitClears = 0,
     this.gamesSurvived60s = 0,
@@ -106,6 +116,18 @@ class GameStatistics {
 
   int get totalPlayTimeHours => (totalPlayTimeSeconds / 3600).round();
 
+  /// Folds legacy mode keys (`classic`, `Speed Challenge`…) into the current
+  /// wire identifiers so pre-3.2 stats merge with new runs.
+  static Map<String, int> _normalizeModeCounts(Object? raw) {
+    final out = <String, int>{};
+    if (raw is! Map) return out;
+    raw.forEach((k, v) {
+      final key = GameMode.normalizeWire(k.toString());
+      out[key] = (out[key] ?? 0) + ((v as num?)?.toInt() ?? 0);
+    });
+    return out;
+  }
+
   String get favoriteMode {
     if (gamesPerMode.isEmpty) return 'none';
     final sorted = gamesPerMode.entries.toList()
@@ -138,7 +160,11 @@ class GameStatistics {
     int noHitClears = 0,
     int maxCombo = 0,
     int grazeCount = 0,
-    String gameMode = 'classic',
+    int overdrives = 0,
+    int formationWipes = 0,
+    bool dailyRun = false,
+    bool cupRun = false,
+    String gameMode = 'sortie',
   }) {
     final newTotalGames = totalGamesPlayed + 1;
     final newTotalScore = totalScore + score;
@@ -161,7 +187,8 @@ class GameStatistics {
     }
 
     final newPerMode = Map<String, int>.from(gamesPerMode);
-    newPerMode[gameMode] = (newPerMode[gameMode] ?? 0) + 1;
+    final modeKey = GameMode.normalizeWire(gameMode);
+    newPerMode[modeKey] = (newPerMode[modeKey] ?? 0) + 1;
 
     return copyWith(
       totalGamesPlayed: newTotalGames,
@@ -174,6 +201,10 @@ class GameStatistics {
       totalLevelsCleared: totalLevelsCleared + levelsCleared,
       totalGrazes: totalGrazes + grazeCount,
       totalRevivesUsed: totalRevivesUsed + revivesUsed,
+      totalOverdrives: totalOverdrives + overdrives,
+      totalFormationWipes: totalFormationWipes + formationWipes,
+      dailyRunsPlayed: dailyRunsPlayed + (dailyRun ? 1 : 0),
+      cupRunsPlayed: cupRunsPlayed + (cupRun ? 1 : 0),
       victories: victories + (victory ? 1 : 0),
       noHitClears: noHitClears + this.noHitClears,
       gamesSurvived60s: durationSeconds >= kSurvivalThresholdSeconds
@@ -218,6 +249,10 @@ class GameStatistics {
     int? totalLevelsCleared,
     int? totalGrazes,
     int? totalRevivesUsed,
+    int? totalOverdrives,
+    int? totalFormationWipes,
+    int? dailyRunsPlayed,
+    int? cupRunsPlayed,
     int? victories,
     int? noHitClears,
     int? gamesSurvived60s,
@@ -247,6 +282,10 @@ class GameStatistics {
       totalLevelsCleared: totalLevelsCleared ?? this.totalLevelsCleared,
       totalGrazes: totalGrazes ?? this.totalGrazes,
       totalRevivesUsed: totalRevivesUsed ?? this.totalRevivesUsed,
+      totalOverdrives: totalOverdrives ?? this.totalOverdrives,
+      totalFormationWipes: totalFormationWipes ?? this.totalFormationWipes,
+      dailyRunsPlayed: dailyRunsPlayed ?? this.dailyRunsPlayed,
+      cupRunsPlayed: cupRunsPlayed ?? this.cupRunsPlayed,
       victories: victories ?? this.victories,
       noHitClears: noHitClears ?? this.noHitClears,
       gamesSurvived60s: gamesSurvived60s ?? this.gamesSurvived60s,
@@ -281,6 +320,10 @@ class GameStatistics {
         'totalLevelsCleared': totalLevelsCleared,
         'totalGrazes': totalGrazes,
         'totalRevivesUsed': totalRevivesUsed,
+        'totalOverdrives': totalOverdrives,
+        'totalFormationWipes': totalFormationWipes,
+        'dailyRunsPlayed': dailyRunsPlayed,
+        'cupRunsPlayed': cupRunsPlayed,
         'victories': victories,
         'noHitClears': noHitClears,
         'gamesSurvived60s': gamesSurvived60s,
@@ -318,6 +361,10 @@ class GameStatistics {
       totalLevelsCleared: i('totalLevelsCleared'),
       totalGrazes: i('totalGrazes'),
       totalRevivesUsed: i('totalRevivesUsed'),
+      totalOverdrives: i('totalOverdrives'),
+      totalFormationWipes: i('totalFormationWipes'),
+      dailyRunsPlayed: i('dailyRunsPlayed'),
+      cupRunsPlayed: i('cupRunsPlayed'),
       victories: i('victories'),
       noHitClears: i('noHitClears'),
       gamesSurvived60s: i('gamesSurvived60s'),
@@ -336,7 +383,7 @@ class GameStatistics {
           : null,
       recentScores: List<int>.from(json['recentScores'] ?? const []),
       dailyPlayTime: Map<String, int>.from(json['dailyPlayTime'] ?? const {}),
-      gamesPerMode: Map<String, int>.from(json['gamesPerMode'] ?? const {}),
+      gamesPerMode: _normalizeModeCounts(json['gamesPerMode']),
       achievementsUnlocked: i('achievementsUnlocked'),
       totalAchievements: i('totalAchievements', kTotalAchievements),
     );

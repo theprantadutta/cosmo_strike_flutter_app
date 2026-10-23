@@ -10,6 +10,7 @@ import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
+import 'package:cosmo_strike_flutter_app/utils/constants.dart' show GameMode;
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:uuid/uuid.dart';
 
@@ -326,7 +327,7 @@ class TournamentService {
       await GetIt.I<CoinsCubit>().earnCoins(
         CoinEarningSource.tournamentReward,
         customAmount: prizeCoins,
-        itemName: 'Tournament prize',
+        itemName: 'Sector Cup prize',
         metadata: {'tournament_id': tournamentId},
       );
     }
@@ -383,11 +384,11 @@ class TournamentService {
       // Minimal fallback so the UI doesn't crash on a corrupted row.
       return Tournament(
         id: row.id,
-        name: 'Unknown tournament',
+        name: 'Unknown Cup',
         description: '',
         type: TournamentType.daily,
         status: TournamentStatus.upcoming,
-        gameMode: TournamentGameMode.classic,
+        gameMode: GameMode.sortie,
         startDate: row.endDate,
         endDate: row.endDate,
       );

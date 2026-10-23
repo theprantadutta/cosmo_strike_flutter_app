@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
 import '../models/level_run_result.dart';
-import '../models/premium_cosmetics.dart' show TrailEffectType;
+import '../models/premium_cosmetics.dart' show ExhaustType;
 import '../services/haptic_service.dart';
 import '../utils/campaign_catalog.dart';
 import '../utils/constants.dart' show GameMode;
@@ -19,7 +19,7 @@ import 'components/enemy.dart';
 import 'components/fx.dart';
 import 'components/player_ship.dart';
 import 'components/power_up.dart';
-import 'components/ship_trail.dart';
+import 'components/ship_exhaust.dart';
 import 'components/starfield.dart';
 import 'components/terrain.dart';
 import 'components/wingman.dart';
@@ -121,15 +121,15 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     this.onGameOver,
     this.onLevelCleared,
     this.autoFire = true,
-    this.mode = GameMode.classic,
+    this.mode = GameMode.sortie,
     this.startLevel = 1,
     this.armedLoadoutKey,
     this.screenShake = false,
     this.tutorial = false,
     this.dPadControls = false,
     this.onTutorialOutcome,
-    this.selectedSkinId = 'classic',
-    this.selectedTrailId = 'none',
+    this.selectedSkinId = 'standard',
+    this.selectedTrailId = 'stock',
     this.trailEffectsEnabled = false,
     this.seed,
     this.hangar = const HangarLoadout(),
@@ -182,15 +182,15 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// `false` = skipped. Never fired when [tutorial] is false.
   final void Function(bool completed)? onTutorialOutcome;
 
-  /// Equipped cosmetic skin id ([ShipSkinType.id]); 'classic' = the
-  /// stock, untinted render.
+  /// Equipped livery id ([LiveryType.id]); 'standard' = the stock,
+  /// untinted render.
   final String selectedSkinId;
 
-  /// Equipped trail id ([TrailEffectType.id]); 'none' = no trail.
+  /// Equipped exhaust id ([ExhaustType.id]); 'stock' = no extra effect.
   final String selectedTrailId;
 
-  /// Master gate for the cosmetic trail stream (the 'Engine Trail
-  /// Effects' setting, ThemeCubit.trailSystemEnabled).
+  /// Master gate for the cosmetic exhaust (the engine-effects setting,
+  /// ThemeCubit.trailSystemEnabled).
   final bool trailEffectsEnabled;
 
   late final math.Random rng = seed == null ? math.Random() : math.Random(seed);
@@ -255,6 +255,9 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   int enemiesKilled = 0;
   int bossesKilled = 0;
   int missilesFired = 0;
+  // Formations wiped inside their bonus window this run. Read-only counter
+  // for commendations / Service Record (bumped by FormationUnit._awardWipe).
+  int formationWipes = 0;
   // Lifetime power-ups collected this run — a monotonic baseline the
   // tutorial reads to detect a pickup (mirrors enemiesKilled/missilesFired).
   int powerUpsCollected = 0;
@@ -384,15 +387,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     await add(_starfield);
     player = PlayerShip();
     await add(player);
-    // Cosmetic trail stream — only when the equipped trail exists AND
-    // the 'Engine Trail Effects' setting allows it.
-    if (trailEffectsEnabled && selectedTrailId != 'none') {
-      final trailType = TrailEffectType.values
-          .where((t) => t.id == selectedTrailId)
-          .firstOrNull;
-      if (trailType != null && trailType != TrailEffectType.none) {
-        await add(ShipTrail(trailType));
-      }
+    // Cosmetic exhaust — only when a non-stock exhaust is equipped AND
+    // the engine-effects setting allows it (legacy IDs fold via fromId).
+    final exhaust = ExhaustType.fromId(selectedTrailId);
+    if (trailEffectsEnabled && exhaust != ExhaustType.stock) {
+      await add(ShipExhaust(exhaust));
     }
     await add(BoundaryGlow());
     await add(_scriptRunner);

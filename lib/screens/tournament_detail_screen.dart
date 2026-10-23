@@ -16,6 +16,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/screens/gameplay_screen.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/utils/constants.dart' show GameMode;
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 
 enum _Tab { overview, standings, rules }
@@ -92,7 +93,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           _maybeClaimPrize();
         } else {
           setState(() {
-            _loadError = 'Tournament not found';
+            _loadError = 'Cup not found';
             _isLoadingTournament = false;
           });
         }
@@ -100,7 +101,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _loadError = 'Failed to load tournament';
+          _loadError = 'Cup failed to load';
           _isLoadingTournament = false;
         });
       }
@@ -168,9 +169,9 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     if (coins > 0 && mounted) {
       showCsToast(
         context,
-        'Tournament prize claimed: +$coins coins!',
+        'Cup prize claimed. +$coins CR.',
         kind: CsToastKind.reward,
-        icon: Symbols.emoji_events_rounded,
+        icon: Symbols.military_tech_rounded,
       );
     }
   }
@@ -178,7 +179,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return CsScaffold(
-      title: _tournament == null ? 'Event' : 'Events · ${_tournament!.type.displayName}',
+      title: _tournament == null ? 'Sector Cup' : 'Sector Cups · ${_tournament!.type.displayName}',
       trailing: [
         if (_tournament != null)
           CsIconButton(
@@ -197,15 +198,15 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   Widget _buildContent() {
     // Show loading state when fetching tournament from deep link
     if (_isLoadingTournament) {
-      return const CsLoadingState(label: 'Loading tournament');
+      return const CsLoadingState(label: 'Loading Cup');
     }
 
     // Show error state
     if (_loadError != null || _tournament == null) {
       return CsEmptyState.error(
-        title: _loadError ?? 'Tournament not found',
+        title: _loadError ?? 'Cup not found',
         action: CsButton.secondary(
-          label: 'Go Back',
+          label: 'Back',
           icon: Symbols.arrow_back_rounded,
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -248,7 +249,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     final info = <Widget>[
       Wrap(spacing: cs(8), runSpacing: cs(6), children: [
         _statusChip(tournament.status),
-        CsChip(tournament.gameMode.displayName, icon: _modeIcon(tournament.gameMode)),
+        CsChip(tournament.gameMode.name, icon: _modeIcon(tournament.gameMode)),
       ]),
       SizedBox(height: cs(12)),
       CsHeadline(
@@ -280,7 +281,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
         if (tournament.userBestScore != null && tournament.userAttempts != null) ...[
           SizedBox(height: cs(6)),
           Text(
-            'BEST ${tournament.userBestScore} · ${tournament.userAttempts} ATTEMPTS',
+            'BEST ${tournament.userBestScore} · ${tournament.userAttempts} RUNS',
             style: t.mono(10, color: CsColors.ink45),
           ),
         ],
@@ -307,7 +308,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
         SizedBox(height: cs(14)),
         _Ticking(
           builder: (_) => CsMeta(
-            'Starts in ${tournament.timeRemainingFormatted}',
+            'Opens in ${tournament.timeRemainingFormatted}',
             icon: Symbols.schedule_rounded,
             color: CsColors.cyan,
           ),
@@ -317,8 +318,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   }
 
   String _timeLabel(Tournament t) => switch (t.status) {
-        TournamentStatus.active => 'ENDS IN ${t.timeRemainingFormatted.toUpperCase()}',
-        TournamentStatus.upcoming => 'STARTS IN ${t.timeRemainingFormatted.toUpperCase()}',
+        TournamentStatus.active => 'CLOSES IN ${t.timeRemainingFormatted.toUpperCase()}',
+        TournamentStatus.upcoming => 'OPENS IN ${t.timeRemainingFormatted.toUpperCase()}',
         TournamentStatus.ended => 'ENDED ${t.formattedDateRange}',
       };
 
@@ -328,7 +329,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     return [
       if (!tournament.hasJoined && tournament.status.canJoin)
         CsButton.primary(
-          label: _isJoining ? 'Joining…' : 'Join tournament',
+          label: _isJoining ? 'Entering…' : 'Enter Cup',
           icon: Symbols.person_add_rounded,
           loading: _isJoining,
           expand: true,
@@ -336,7 +337,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
         )
       else if (tournament.status.canSubmitScore)
         CsButton.primary(
-          label: 'Play now',
+          label: 'Launch',
           icon: Symbols.play_arrow_rounded,
           expand: true,
           onPressed: _playTournament,
@@ -347,13 +348,13 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           builder: (context) {
             final premiumCubit = context.read<PremiumCubit>();
             if (premiumCubit.state.hasPremium) {
-              return const CsMeta('Pro · Unlimited entries', icon: Symbols.diamond_rounded, color: CsColors.gold);
+              return const CsMeta('Strike Command · Unlimited entries', icon: Symbols.workspace_premium_rounded, color: CsColors.gold);
             }
             final tier = _getTournamentTier(tournament.type);
             final count = premiumCubit.state.getTournamentEntryCount(tier);
             return count > 0
-                ? CsMeta('Entries remaining: $count', icon: Symbols.confirmation_number_rounded, color: CsColors.mint)
-                : const CsMeta('No entries — tap Join to buy', icon: Symbols.error_rounded, color: CsColors.pink);
+                ? CsMeta('Cup Passes: $count', icon: Symbols.confirmation_number_rounded, color: CsColors.mint)
+                : const CsMeta('No Cup Pass. Tap Enter to get one', icon: Symbols.error_rounded, color: CsColors.pink);
           },
         ),
       ],
@@ -368,7 +369,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
 
     return SingleChildScrollView(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const CsLabel('Description'),
+        const CsLabel('Briefing'),
         SizedBox(height: cs(8)),
         Text(tournament.description, style: t.body.copyWith(color: CsColors.ink70, fontSize: cs(14))),
         SizedBox(height: cs(10)),
@@ -392,12 +393,12 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             ),
         ],
         SizedBox(height: cs(24)),
-        const CsLabel('Game mode'),
+        const CsLabel('Mode'),
         SizedBox(height: cs(8)),
         Row(children: [
           Icon(_modeIcon(tournament.gameMode), size: cs(20), color: CsColors.ink),
           SizedBox(width: cs(10)),
-          Flexible(child: Text(tournament.gameMode.displayName, style: t.rowTitle)),
+          Flexible(child: Text(tournament.gameMode.name, style: t.rowTitle)),
         ]),
         SizedBox(height: cs(6)),
         Text(tournament.gameMode.description, style: t.body),
@@ -408,7 +409,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
 
   Widget _buildLeaderboardTab() {
     if (_isLoading) {
-      return const CsLoadingState(label: 'Loading leaderboard');
+      return const CsLoadingState(label: 'Loading standings');
     }
 
     // Explicit load-failure state. Distinguishes "fetch crashed" from
@@ -416,7 +417,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     // instead of a misleading "no participants" screen.
     if (_leaderboardLoadFailed) {
       return CsEmptyState.offline(
-        title: "Couldn't load the leaderboard",
+        title: "Couldn't load standings",
         message: 'Check your connection and try again.',
         action: CsButton.secondary(label: 'Retry', icon: Symbols.refresh_rounded, onPressed: _loadLeaderboard),
       );
@@ -425,8 +426,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     if (_leaderboard.isEmpty) {
       return const CsEmptyState(
         icon: Symbols.leaderboard_rounded,
-        title: 'No participants yet',
-        message: 'Be the first to join!',
+        title: 'No pilots yet',
+        message: 'Be the first pilot in.',
       );
     }
 
@@ -442,7 +443,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
           rank: index + 1,
           name: participant.displayName,
           photoUrl: participant.photoUrl,
-          subtitle: participant.attempts == 1 ? '1 ATTEMPT' : '${participant.attempts} ATTEMPTS',
+          subtitle: participant.attempts == 1 ? '1 RUN' : '${participant.attempts} RUNS',
           score: '${participant.highScore}',
           isYou: uid != null && participant.userId == uid,
         );
@@ -456,7 +457,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     final rules = _getTournamentRules();
     return SingleChildScrollView(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const CsLabel('Tournament rules'),
+        const CsLabel('Cup rules'),
         SizedBox(height: cs(4)),
         for (var i = 0; i < rules.length; i++)
           Container(
@@ -471,10 +472,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             ]),
           ),
         SizedBox(height: cs(24)),
-        const CsLabel('Scoring system'),
+        const CsLabel('Scoring'),
         SizedBox(height: cs(8)),
         Text(
-          'Your highest score during the tournament period will count towards the final ranking. You can play multiple times to improve your score.',
+          'Your best score while the Cup is open sets your standing. Fly as many runs as you like.',
           style: t.body.copyWith(color: CsColors.ink70, fontSize: cs(14)),
         ),
         SizedBox(height: cs(8)),
@@ -484,38 +485,14 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
 
   List<String> _getTournamentRules() {
     final tournament = _tournament!;
-    final baseRules = [
-      'Play during the tournament period to have your scores counted',
-      'You can play multiple times - only your highest score counts',
-      'Must be signed in to participate',
-      'Final rankings are determined at tournament end',
+    final mode = tournament.gameMode;
+    return [
+      'Only runs flown while the Cup is open count',
+      'Fly as many runs as you like. Your best score stands',
+      'Sign in to post a score',
+      'Final standings lock when the Cup closes',
+      '${mode.name}: ${mode.description}',
     ];
-
-    // Add game mode specific rules
-    switch (tournament.gameMode) {
-      case TournamentGameMode.speedRun:
-        baseRules.add('Game speed increases rapidly every 10 points');
-        break;
-      case TournamentGameMode.survival:
-        baseRules.add('Score is based on survival time, not food consumed');
-        break;
-      case TournamentGameMode.noWalls:
-        baseRules.add(
-          'Ship wraps around screen edges instead of hitting walls',
-        );
-        break;
-      case TournamentGameMode.powerUpMadness:
-        baseRules.add('Power-ups spawn every 5 seconds');
-        break;
-      case TournamentGameMode.perfectGame:
-        baseRules.add('Any collision immediately ends the game');
-        break;
-      case TournamentGameMode.classic:
-        baseRules.add('Standard Ship rules apply');
-        break;
-    }
-
-    return baseRules;
   }
 
   Color _rankColor(int rank) => switch (rank) {
@@ -595,14 +572,14 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
         // refresh — no more brittle ProviderScope.containerOf dance.
 
         if (!mounted) return;
-        showCsToast(context, 'Successfully joined tournament!', kind: CsToastKind.success);
+        showCsToast(context, 'Cup locked in.', kind: CsToastKind.success);
         await _refreshTournament();
       } else if (mounted) {
-        showCsToast(context, 'Failed to join tournament', kind: CsToastKind.error);
+        showCsToast(context, 'Cup entry failed. Try again.', kind: CsToastKind.error);
       }
     } catch (e) {
       if (mounted) {
-        showCsToast(context, 'Error joining tournament', kind: CsToastKind.error);
+        showCsToast(context, 'Cup entry failed. Check your connection.', kind: CsToastKind.error);
       }
     }
 
@@ -618,19 +595,24 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
     String productId;
     switch (tier) {
       case 'bronze':
-        productId = ProductIds.tournamentBronze;
+        productId = ProductIds.cupScout;
         break;
       case 'silver':
-        productId = ProductIds.tournamentSilver;
+        productId = ProductIds.cupStrike;
         break;
       case 'gold':
-        productId = ProductIds.tournamentGold;
+        productId = ProductIds.cupAce;
         break;
       default:
         return;
     }
 
-    final tierName = '${tier[0].toUpperCase()}${tier.substring(1)}';
+    // Wire tiers stay bronze/silver/gold; players see Scout/Strike/Ace.
+    final tierName = switch (tier) {
+      'bronze' => 'Scout',
+      'silver' => 'Strike',
+      _ => 'Ace',
+    };
 
     // Free Bronze entry via rewarded ad (free users only, bronze tier only —
     // never devalue the paid Silver/Gold entries). Daily-capped (2/day) so the
@@ -648,22 +630,22 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
         return CsDialog(
           icon: Symbols.confirmation_number_rounded,
           iconColor: CsColors.gold,
-          eyebrow: '$tierName tier',
-          title: 'Entry Required',
-          message: 'You need a $tierName tournament entry to join this tournament.',
+          eyebrow: '$tierName Cup Pass',
+          title: 'Cup Pass required',
+          message: 'This Cup takes a $tierName Cup Pass.',
           content: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text(
-              'CURRENT $tierName ENTRIES: $entryCount'.toUpperCase(),
+              '$tierName PASSES ON HAND: $entryCount'.toUpperCase(),
               style: t.mono(11, color: entryCount > 0 ? CsColors.mint : CsColors.pink),
             ),
             SizedBox(height: cs(10)),
-            Text('Pro subscribers get unlimited tournament access.', style: t.body.copyWith(color: CsColors.ink45)),
+            Text('Strike Command members enter every Cup free.', style: t.body.copyWith(color: CsColors.ink45)),
           ]),
           actions: [
             CsButton.text(label: 'Cancel', onPressed: () => Navigator.of(ctx).pop()),
-            // Store's Entries tab also sells the Championship / VIP bundles.
+            // Armory's Cup Passes tab also sells the multi-pass bundles.
             CsButton.text(
-              label: 'More entry options',
+              label: 'More Cup Passes',
               onPressed: () {
                 Navigator.of(ctx).pop();
                 context.push('${AppRoutes.store}?tab=6');
@@ -671,7 +653,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
             ),
             if (showAdEntry)
               CsButton.secondary(
-                label: 'Free entry (ad) · '
+                label: 'Free pass (ad) · '
                     '${getIt<AdService>().dailyRemaining(AdService.capTournamentEntry)} left today',
                 icon: Symbols.smart_display_rounded,
                 onPressed: () {
@@ -681,16 +663,16 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
                     onReward: () {
                       premiumCubit.addTournamentEntry('bronze');
                       RewardToast.show(
-                        icon: Symbols.emoji_events_rounded,
-                        title: 'ENTRY GRANTED',
-                        amount: '+1 BRONZE ENTRY',
+                        icon: Symbols.confirmation_number_rounded,
+                        title: 'PASS GRANTED',
+                        amount: '+1 SCOUT CUP PASS',
                       );
                     },
                   );
                 },
               ),
             CsButton.premium(
-              label: 'Buy $tierName Entry · '
+              label: 'Buy $tierName Cup Pass · '
                   '${PurchaseService().getStorePrice(productId) ?? _getDefaultPrice(tier)}',
               onPressed: () async {
                 Navigator.of(ctx).pop();
@@ -746,14 +728,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen> {
   }
 }
 
-IconData _modeIcon(TournamentGameMode mode) => switch (mode) {
-      TournamentGameMode.classic => Symbols.rocket_rounded,
-      TournamentGameMode.speedRun => Symbols.speed_rounded,
-      TournamentGameMode.survival => Symbols.timer_rounded,
-      TournamentGameMode.noWalls => Symbols.all_inclusive_rounded,
-      TournamentGameMode.powerUpMadness => Symbols.bolt_rounded,
-      TournamentGameMode.perfectGame => Symbols.diamond_rounded,
-    };
+IconData _modeIcon(GameMode mode) => mode.icon;
 
 Widget _statusChip(TournamentStatus status) => switch (status) {
       TournamentStatus.active => const CsChip('Live', kind: CsChipKind.mint),

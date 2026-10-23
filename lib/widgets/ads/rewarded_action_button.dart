@@ -84,10 +84,10 @@ class _RewardedActionButtonState extends State<RewardedActionButton> {
     final remaining =
         widget.capKey != null ? ads.dailyRemaining(widget.capKey!) : null;
     final subtitle = enabled
-        ? (remaining != null ? '$remaining left today' : 'Opt-in — watch to earn')
+        ? (remaining != null ? '$remaining left today' : 'Optional. Watch to earn')
         : (remaining == 0
-            ? 'Come back tomorrow for more'
-            : 'No ad available right now');
+            ? 'Resets tomorrow'
+            : 'No ad available');
 
     // Secondary-pill styling: 1px outlined stadium, play glyph, Syne label
     // with the cap status in mono beneath, the reward glyph trailing.

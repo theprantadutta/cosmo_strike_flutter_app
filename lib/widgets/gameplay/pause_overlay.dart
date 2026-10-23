@@ -112,7 +112,7 @@ class _PauseOverlayState extends State<PauseOverlay> {
                   CsStat('${partial.enemiesKilled}', 'Kills'),
                   CsStat('×${partial.maxCombo}', 'Max combo'),
                   CsStat('${partial.grazeCount}', 'Grazes'),
-                  CsStat('$coinsEst', 'Coins (est.)', color: CsColors.gold),
+                  CsStat('$coinsEst', 'Credits (est.)', color: CsColors.gold),
                 ],
               ),
               SizedBox(height: cs(18)),
@@ -128,7 +128,7 @@ class _PauseOverlayState extends State<PauseOverlay> {
                   // Pro users, who can't watch ads).
                   if (widget.lifeAdReady)
                     CsButton.secondary(
-                      label: 'Watch ad · +1 life',
+                      label: 'Watch ad · +1 ship',
                       icon: Symbols.favorite_rounded,
                       size: CsButtonSize.small,
                       onPressed: widget.onWatchAdForLife,
@@ -161,7 +161,7 @@ class _PauseOverlayState extends State<PauseOverlay> {
       children: [
         Row(
           children: [
-            const Expanded(child: CsLabel('Daily directives')),
+            const Expanded(child: CsLabel('Daily Directives')),
             SizedBox(width: cs(10)),
             const ChallengeClaimAllButton(),
           ],

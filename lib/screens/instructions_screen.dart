@@ -35,7 +35,7 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
     _Section(Symbols.flare_rounded, 'Power-Ups', ['Fly into the ', 'orbs.']),
     _Section(Symbols.warning_rounded, 'Bosses & Terrain', ['Read the ', 'tell.'],
         sprite: 'assets/game/bosses/boss_mothership.png'),
-    _Section(Symbols.lightbulb_rounded, 'Pro Tips', ['Fly like a ', 'pro.']),
+    _Section(Symbols.lightbulb_rounded, 'Field Notes', ['Fly like an ', 'ace.']),
   ];
 
   @override
@@ -117,12 +117,12 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
             first: true,
           ),
           _RuleRow(
-            'Game modes (Settings) change the rules: lives, pacing, '
-            'enemy fire, one-hit runs, or a Time Attack clock',
+            'Flight modes (Settings) change the rules: Sortie, Cruise, '
+            'Afterburn, Swarm, Holdout, Blitz, Overload and Knife Edge',
             index: 2,
           ),
           _RuleRow(
-            'Earn coins every run — more for kills, bosses, and '
+            'Every run pays credits: more for kills, bosses and '
             'first-time level clears',
             index: 3,
           ),
@@ -171,25 +171,31 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
           _InfoRow(
             leading: CsIconDisc(Symbols.near_me_rounded, color: CsColors.cyan),
             title: 'Graze',
-            chip: '+15 & meter',
-            body: 'Let enemy bullets just miss your hull: each near miss pays '
-                'points and charges the graze meter — a full meter loads '
-                '+1 missile',
+            chip: '+15 & Overdrive',
+            body: 'Let enemy bullets skim your hull: each near miss scores with '
+                'your combo, keeps the chain alive and charges Overdrive',
+          ),
+          _InfoRow(
+            leading: CsIconDisc(Symbols.bolt_rounded, color: CsColors.violet),
+            title: 'Overdrive',
+            chip: '5s · ×2 score',
+            body: 'Tap a full meter: a piercing beam, double score and an aura '
+                'that vaporises nearby bullets. Formation wipes charge it too',
           ),
           _InfoRow(
             leading: CsIconDisc(Symbols.my_location_rounded, color: CsColors.mint),
             title: 'Counter Fire',
-            chip: 'shoot bullets',
-            body: 'Your cannon can shoot incoming fire out of the sky for points. '
-                'Boss energy bolts are tougher — land about 3 hits on one to '
-                'break it and clear a path',
+            chip: 'laser + Overdrive',
+            body: 'The basic cannon passes through enemy fire, so dodge it. '
+                'Laser-tier shots and Overdrive knock bullets out of the sky '
+                'for points. Boss bolts take about 3 hits',
           ),
           _InfoRow(
             leading: CsIconDisc(Symbols.grid_view_rounded, color: CsColors.gold),
             title: 'Formation Wipe',
             chip: 'bonus + orb',
-            body: 'Destroy an entire enemy formation quickly for a wipe bonus '
-                'and a guaranteed power-up drop',
+            body: 'Destroy an entire formation fast for a wipe bonus, '
+                'Overdrive charge and a guaranteed power-up drop',
           ),
         ];
       case 3:
@@ -217,8 +223,8 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
             first: true,
           ),
           _RuleRow(
-            'Arm a store-bought power-up before launch from the loadout chip '
-            'on the home screen for an instant head start',
+            'Arm Tactical Gear from the Armory before launch (gear chip on '
+            'the home screen) for an instant head start',
             index: 2,
           ),
         ];
@@ -251,8 +257,8 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
             index: 5,
           ),
           _RuleRow(
-            'Out of lives? You get ONE revive per run — watch an ad or '
-            'spend 200 coins to keep the run alive',
+            'Hull lost? You get ONE revive per run: watch an ad or '
+            'spend 200 CR to keep flying',
             index: 6,
           ),
         ];
@@ -266,7 +272,7 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
           ),
           _RuleRow(
             'Graze on purpose: skimming bullet streams is the fastest '
-            'way to bank missiles',
+            'way to charge Overdrive',
             tip: true,
           ),
           _RuleRow('Save missiles for armored hulls and boss phases', tip: true),
@@ -276,8 +282,8 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
             tip: true,
           ),
           _RuleRow(
-            'Arm a store power-up before launch for a head start '
-            '(loadout chip on the home screen)',
+            'Arm Tactical Gear before launch for a head start '
+            '(gear chip on the home screen)',
             tip: true,
           ),
           _RuleRow(

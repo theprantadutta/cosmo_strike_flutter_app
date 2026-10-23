@@ -41,6 +41,9 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/tournament/tournament
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/battle_pass_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/power_up/power_up_cubit.dart';
+import 'package:cosmo_strike_flutter_app/services/rebrand/legacy_achievement_migration.dart';
+import 'package:cosmo_strike_flutter_app/services/rebrand/legacy_catalog_migration.dart';
+import 'package:cosmo_strike_flutter_app/services/rebrand/legacy_mode_migration.dart';
 
 /// Global GetIt instance for dependency injection
 final getIt = GetIt.instance;
@@ -173,6 +176,17 @@ Future<void> configureDependencies() async {
   // batch endpoints). Registered as a lazy singleton; `initialize`
   // is kicked off from main.dart after the DB is ready.
   getIt.registerLazySingleton<SyncEngine>(() => SyncEngine());
+
+  // ==================== 3.2 rebrand data migrations ====================
+  // One-time, idempotent rewrites of legacy (pre-3.2) mode, cosmetic,
+  // sector, gear and achievement IDs in Drift + prefs. Every registration
+  // above is lazy, so this runs before any cubit, service or the SyncEngine
+  // reads the data or pushes it. OfflineCacheService is resolved first so
+  // the achievement migration can drop its progress cache.
+  getIt<OfflineCacheService>();
+  await migrateLegacyModes(database);
+  await migrateLegacyCatalog(database);
+  await migrateLegacyAchievements(database);
 }
 
 /// Reset all dependencies (useful for testing)

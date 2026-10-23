@@ -82,7 +82,7 @@ class GameOverOverlay extends StatelessWidget {
         Expanded(
           child: CsFitColumn(
             children: [
-              CsLabel('${victory ? 'Victory' : 'Game over'} · L$lv / W$wv', color: accent),
+              CsLabel('${victory ? 'Mission complete' : 'Ship lost'} · L$lv / W$wv', color: accent),
               SizedBox(height: cs(10)),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -149,7 +149,7 @@ class GameOverOverlay extends StatelessWidget {
                       ),
                     if (coinsDoubled)
                       CsChip(
-                        '+$runCoinsEarned bonus coins claimed',
+                        '+$runCoinsEarned bonus credits claimed',
                         kind: CsChipKind.outline,
                         icon: Symbols.check_rounded,
                         size: 10,
@@ -176,7 +176,7 @@ class GameOverOverlay extends StatelessWidget {
             // tap handles an ad that isn't loaded yet.
             if (showDouble)
               CsButton.premium(
-                label: 'Watch ad · 2× coins',
+                label: 'Watch ad · 2× credits',
                 icon: Symbols.play_arrow_rounded,
                 trailing: Text(
                   '+$runCoinsEarned',
@@ -194,7 +194,7 @@ class GameOverOverlay extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(child: CsLabel('Daily directives')),
+            const Expanded(child: CsLabel('Daily Directives')),
             SizedBox(width: cs(10)),
             const ChallengeClaimAllButton(),
           ],
@@ -290,12 +290,12 @@ class _Rewards extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = context.cs;
     if (coins <= 0 && xp <= 0) {
-      return Text('TALLYING REWARDS…', style: cs.type.mono(12, em: 0.1, color: CsColors.ink45));
+      return Text('TALLYING PAYOUT…', style: cs.type.mono(12, em: 0.1, color: CsColors.ink45));
     }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        CsCoins(coins, prefix: '+', suffix: ' COINS', size: 12),
+        CsCoins(coins, prefix: '+', suffix: ' CR', size: 12),
         SizedBox(width: cs(18)),
         Text('+$xp XP', style: cs.type.mono(12, em: 0.1, color: CsColors.violet)),
       ],
@@ -320,7 +320,7 @@ class _AchievementUnlocks extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(height: cs(18)),
-            const CsLabel('Achievements unlocked'),
+            const CsLabel('Commendations earned'),
             SizedBox(height: cs(4)),
             for (final a in unlocks)
               CsListRow(

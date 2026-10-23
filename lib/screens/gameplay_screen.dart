@@ -26,7 +26,9 @@ import '../presentation/bloc/premium/premium_cubit.dart';
 import '../presentation/bloc/theme/theme_cubit.dart';
 import '../presentation/bloc/tournament/tournament_context_cubit.dart';
 import '../router/routes.dart';
+import '../models/achievement.dart' show RunCommendationStats;
 import '../services/achievement_service.dart';
+import '../utils/campaign_catalog.dart';
 import '../services/ads/ad_service.dart';
 import '../services/analytics/analytics_facade.dart';
 import '../services/audio_service.dart';
@@ -105,8 +107,8 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   /// Game mode name for this run (for the per-mode leaderboard tag). Captured
   /// at run start so the abandoned-run path doesn't need a live context.
-  String _gameModeName = 'classic';
-  GameMode _mode = GameMode.classic;
+  String _gameModeName = GameMode.sortie.wireName;
+  GameMode _mode = GameMode.sortie;
   int? _dailySeed;
 
   /// First-run tutorial: true when this run opened with the guided beats.
@@ -130,6 +132,10 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// Coins this run actually earned (set by _submitRun) — the game-over
   /// "watch ad → 2× coins" offer pays out exactly this amount again.
   int _runCoinsEarned = 0;
+
+  /// Overdrive activations this run (counted from [CosmoStrikeGame.onOverdrive]
+  /// for lifetime stats + commendations).
+  int _runOverdrives = 0;
 
   /// Whether the double-coins reward was already claimed this run.
   bool _coinsDoubled = false;
@@ -170,8 +176,8 @@ class _GameplayScreenState extends State<GameplayScreen>
       _tournamentId = null;
     }
     // A tournament plays under ITS rules, not the player's chosen mode.
-    _mode = _tournamentContext?.state.mode?.toGameMode() ?? settings.gameMode;
-    _gameModeName = _mode.name;
+    _mode = _tournamentContext?.state.mode ?? settings.gameMode;
+    _gameModeName = _mode.wireName;
 
     // First-run bookkeeping: counts toward the onboarding window (gates the
     // deferred asks), and starting a run accepts the privacy notice shown
@@ -255,8 +261,10 @@ class _GameplayScreenState extends State<GameplayScreen>
       selectedTrailId: premium.selectedTrailId,
       trailEffectsEnabled: themeState.trailSystemEnabled,
     );
-    _game.onOverdrive = () =>
-        unawaited(GetIt.I<AnalyticsFacade>().trackPowerUpUsed('overdrive'));
+    _game.onOverdrive = () {
+      _runOverdrives++;
+      unawaited(GetIt.I<AnalyticsFacade>().trackPowerUpUsed('overdrive'));
+    };
   }
 
   /// Tutorial resolved: certified (completed) or skipped. Either way the
@@ -451,12 +459,12 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     // Feed the run into daily challenges + achievements — the debrief
     // panels watch both and update live as these land. Kills ride the
-    // legacy FoodEaten wire type (the kills -> foodEaten challenge mapping).
-    final modeName = _mode.name;
+    // enemies_killed wire type.
+    final modeName = _mode.wireName;
     unawaited(
       DailyChallengeService().updateProgressBatch([
         (type: ChallengeType.score, value: r.score, gameMode: null),
-        (type: ChallengeType.foodEaten, value: r.enemiesKilled, gameMode: null),
+        (type: ChallengeType.enemiesKilled, value: r.enemiesKilled, gameMode: null),
         (
           type: ChallengeType.survival,
           value: r.durationSeconds,
@@ -475,7 +483,7 @@ class _GameplayScreenState extends State<GameplayScreen>
           (type: WeeklyQuestType.score, incrementBy: r.score, gameMode: null),
         if (r.enemiesKilled > 0)
           (
-            type: WeeklyQuestType.foodEaten,
+            type: WeeklyQuestType.enemiesKilled,
             incrementBy: r.enemiesKilled,
             gameMode: null,
           ),
@@ -494,20 +502,6 @@ class _GameplayScreenState extends State<GameplayScreen>
           ),
       ]);
     }());
-    try {
-      AchievementService()
-        ..checkScoreAchievements(
-          r.score,
-          gameMode: modeName,
-          difficulty: 'normal',
-        )
-        ..checkSurvivalAchievements(
-          r.durationSeconds,
-          gameMode: modeName,
-          difficulty: 'normal',
-        );
-    } catch (_) {}
-
     // Engagement funnel: the run's terminal analytics event (pairs with the
     // game_started fired in initState).
     unawaited(
@@ -546,7 +540,34 @@ class _GameplayScreenState extends State<GameplayScreen>
         noHitClears: noHitClears,
         maxCombo: r.maxCombo,
         grazeCount: r.grazeCount,
+        overdrives: _runOverdrives,
+        formationWipes: _game.formationWipes,
+        dailyRun: _dailySeed != null,
+        cupRun: tournamentId != null,
         gameMode: modeName,
+      );
+    } catch (_) {}
+
+    // Commendations: evaluated after the stats fold so lifetime metrics
+    // include this run (the debrief watches AchievementService).
+    try {
+      final cleared = r.levelResults.where((lr) => lr.cleared).toList();
+      await AchievementService().evaluateRun(
+        RunCommendationStats(
+          gameMode: modeName,
+          score: r.score,
+          kills: r.enemiesKilled,
+          bosses: r.bossesKilled,
+          maxChain: r.maxCombo,
+          grazes: r.grazeCount,
+          formationWipes: _game.formationWipes,
+          durationSeconds: r.durationSeconds,
+          levelsCleared: r.levelsCleared,
+          upgradesDrafted: r.upgrades.length,
+          flawlessCampaign: cleared.length >= CampaignCatalog.totalLevels &&
+              cleared.every((lr) => lr.noHit),
+          endedAt: DateTime.now(),
+        ),
       );
     } catch (_) {}
   }
@@ -695,7 +716,7 @@ class _GameplayScreenState extends State<GameplayScreen>
           if (!shown && mounted) {
             showCsToast(
               context,
-              'Ad not ready — try coins instead',
+              'Ad not ready. Use credits instead.',
               kind: CsToastKind.error,
             );
           }
@@ -714,18 +735,18 @@ class _GameplayScreenState extends State<GameplayScreen>
           coins.earnCoins(
             CoinEarningSource.watchedAd,
             customAmount: earned,
-            itemName: 'Game over 2× coins',
+            itemName: 'Debrief 2× credits',
             metadata: const {'placement': 'game_over_double'},
           ),
         );
-        RewardToast.show(title: 'COINS DOUBLED', amount: '+$earned COINS');
+        RewardToast.show(title: 'CREDITS DOUBLED', amount: '+$earned CR');
         if (mounted) setState(() => _coinsDoubled = true);
       },
     );
     if (!shown && mounted) {
       showCsToast(
         context,
-        'Ad not ready — try again in a moment',
+        'Ad not ready. Try again shortly.',
         kind: CsToastKind.error,
       );
     }
@@ -781,13 +802,13 @@ class _GameplayScreenState extends State<GameplayScreen>
       capKey: AdService.capFreePowerUp,
       onReward: () {
         _game.applyPowerUp(PowerUpKind.life);
-        RewardToast.show(title: 'EXTRA LIFE', amount: '+1 SHIP');
+        RewardToast.show(title: 'HULL RESTORED', amount: '+1 SHIP');
       },
     );
     if (!shown && mounted) {
       showCsToast(
         context,
-        'Ad not ready — try again in a moment',
+        'Ad not ready. Try again shortly.',
         kind: CsToastKind.error,
       );
     }
@@ -804,7 +825,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       _game.revive();
       _celebrateRevive();
     } else if (mounted) {
-      showCsToast(context, 'Not enough coins', kind: CsToastKind.error);
+      showCsToast(context, 'Not enough credits.', kind: CsToastKind.error);
     }
   }
 
@@ -1869,7 +1890,7 @@ class _LevelIntroBanner extends StatelessWidget {
                 ValueListenableBuilder<int>(
                   valueListenable: game.levelNotifier,
                   builder: (_, level, _) => CsLabel(
-                    'Level ${_two(level)} · ${game.seed != null ? 'Daily run' : game.mode.name}',
+                    'Level ${_two(level)} · ${game.seed != null ? 'Daily Run' : game.mode.name}',
                     color: CsColors.ink60,
                     size: 12,
                   ),
@@ -2033,14 +2054,14 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
       );
     } else if (widget.adReady) {
       primary = CsButton.primary(
-        label: 'Watch ad — revive',
+        label: 'Watch ad · revive',
         icon: Symbols.play_arrow_rounded,
         expand: true,
         onPressed: _watchAd,
       );
     } else {
       primary = const CsButton.primary(
-        label: 'Watch ad — loading',
+        label: 'Watch ad · loading',
         loading: true,
         expand: true,
       );
@@ -2090,9 +2111,9 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
         children: [
           primary,
           SizedBox(height: cs(12)),
-          // Universal coin fallback.
+          // Universal credit fallback.
           CsButton.secondary(
-            label: widget.coinsEnough ? 'Revive' : 'Not enough coins',
+            label: widget.coinsEnough ? 'Revive' : 'Not enough credits',
             expand: true,
             trailing: const CsCoins(200, size: 11),
             onPressed: widget.coinsEnough
@@ -2326,7 +2347,7 @@ class _Flourish extends StatelessWidget {
             Text(title, maxLines: 1, style: t.display(34, height: 1)),
             SizedBox(height: cs(8)),
             if (coins != null)
-              CsCoins(coins!, prefix: '+', suffix: ' COINS', size: 12)
+              CsCoins(coins!, prefix: '+', suffix: ' CR', size: 12)
             else if (caption != null)
               Text(caption!, style: t.mono(12, em: 0.14, color: CsColors.gold)),
           ],

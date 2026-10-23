@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../models/tournament.dart';
+import '../../../utils/constants.dart' show GameMode;
 
 /// The one piece of cross-screen game context: which tournament (if any) the
 /// next Flame run is played for. TournamentDetailScreen sets it before pushing
@@ -13,7 +13,7 @@ import '../../../models/tournament.dart';
 /// snake-era GameCubit — the run itself lives entirely in Flame.
 class TournamentContextState extends Equatable {
   final String? tournamentId;
-  final TournamentGameMode? mode;
+  final GameMode? mode;
 
   /// Set for a Daily Run: seeds the game's RNG so everyone flies the same
   /// spawn layout today. Can be set without a tournament (offline daily run).
@@ -31,12 +31,12 @@ class TournamentContextState extends Equatable {
 class TournamentContextCubit extends Cubit<TournamentContextState> {
   TournamentContextCubit() : super(const TournamentContextState());
 
-  void enterTournament(String tournamentId, TournamentGameMode mode) =>
+  void enterTournament(String tournamentId, GameMode mode) =>
       emit(TournamentContextState(tournamentId: tournamentId, mode: mode));
 
   /// Arm a Daily Run (today's seed), attributed to [tournamentId] when the
   /// daily tournament is known and joined.
-  void enterDailyRun({required int seed, String? tournamentId, TournamentGameMode? mode}) =>
+  void enterDailyRun({required int seed, String? tournamentId, GameMode? mode}) =>
       emit(TournamentContextState(tournamentId: tournamentId, mode: mode, dailySeed: seed));
 
   void exitTournament() => emit(const TournamentContextState());

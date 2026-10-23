@@ -12,7 +12,7 @@ class ThemeState extends Equatable {
 
   const ThemeState({
     this.status = ThemeStatus.initial,
-    this.currentTheme = GameTheme.classic,
+    this.currentTheme = GameTheme.prismNoir,
     this.trailSystemEnabled = false,
   });
 

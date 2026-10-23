@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 /// D-Pad position presets for user preference
 enum DPadPosition {
@@ -17,14 +18,14 @@ enum DPadPosition {
     }
   }
 
-  String get icon {
+  IconData get icon {
     switch (this) {
       case DPadPosition.bottomLeft:
-        return '⬅️';
+        return Symbols.west_rounded;
       case DPadPosition.bottomCenter:
-        return '⬇️';
+        return Symbols.south_rounded;
       case DPadPosition.bottomRight:
-        return '➡️';
+        return Symbols.east_rounded;
     }
   }
 }
@@ -43,37 +44,33 @@ class BoardSize {
     this.name,
     this.description, {
     this.isPremium = false,
-    this.icon = '📐',
+    this.icon = '',
   });
 
   // Static getters for common board sizes
   static const BoardSize small = BoardSize(
     15,
     15,
-    'Small',
-    'Quick games, tight spaces',
-    icon: '🎯',
+    'Compact',
+    'Legacy grid preset',
   );
   static const BoardSize classic = BoardSize(
     20,
     20,
-    'Classic',
-    'The original Ship experience',
-    icon: '🚀',
+    'Standard',
+    'Legacy grid preset',
   );
   static const BoardSize large = BoardSize(
     25,
     25,
-    'Large',
-    'More room to grow',
-    icon: '📏',
+    'Wide',
+    'Legacy grid preset',
   );
   static const BoardSize huge = BoardSize(
     30,
     30,
-    'Huge',
-    'Maximum challenge and space',
-    icon: '🏟️',
+    'Vast',
+    'Legacy grid preset',
   );
 
   // All board sizes list
@@ -103,32 +100,29 @@ class GameConstants {
 
   // Available board sizes
   static const List<BoardSize> availableBoardSizes = [
-    BoardSize(15, 15, 'Small', 'Quick games, tight spaces', icon: '🎯'),
-    BoardSize(20, 20, 'Classic', 'The original Ship experience', icon: '🚀'),
-    BoardSize(25, 25, 'Large', 'More room to grow', icon: '📏'),
-    BoardSize(30, 30, 'Huge', 'Maximum challenge and space', icon: '🏟️'),
+    BoardSize(15, 15, 'Compact', 'Legacy grid preset'),
+    BoardSize(20, 20, 'Standard', 'Legacy grid preset'),
+    BoardSize(25, 25, 'Wide', 'Legacy grid preset'),
+    BoardSize(30, 30, 'Vast', 'Legacy grid preset'),
     // All board sizes are FREE — anyone can pick any size. (The `isPremium`
     // flag is kept on the model for compatibility but is false everywhere.)
     BoardSize(
       35,
       35,
-      'Epic',
-      'A big board for advanced players',
-      icon: '⭐',
+      'Expanse',
+      'Legacy grid preset',
     ),
     BoardSize(
       40,
       40,
-      'Massive',
-      'Enormous board for epic games',
-      icon: '🏆',
+      'Frontier',
+      'Legacy grid preset',
     ),
     BoardSize(
       50,
       50,
-      'Ultimate',
-      'The largest possible board',
-      icon: '👑',
+      'Deep Field',
+      'Legacy grid preset',
     ),
   ];
 
@@ -202,82 +196,69 @@ class GameConstants {
   static const int specialScore = 50;
 
   // ===========================================================================
-  // COMMAND-HUD SKIN PALETTES
-  // Every skin shares a deep indigo / near-black space base and is differentiated
-  // by a neon PRIMARY (ship) + neon SECONDARY (food) + tertiary accent. This is
-  // the "sleek sci-fi command HUD" language — no amber-phosphor, no warm dot-matrix.
-  // Field names are preserved (they back the GameTheme getters + ~1,175 call
-  // sites); only the values change.
+  // SECTOR PALETTES (gameplay colour themes — GameTheme)
+  // Every sector sits on a deep-space base and is differentiated by a PRIMARY
+  // (hull / shots), a SECONDARY (hostile accents / right-hand wash) and a
+  // tertiary accent. These only tint GAMEPLAY via CosmoPalette — menus are
+  // always Prism Noir.
   // ===========================================================================
 
-  // Command Cyan (default skin, `classic` slot) — cyan hull / magenta energy.
-  static const Color classicBackground = Color(0xFF05060F); // deep indigo black
-  static const Color classicShip = Color(0xFF22D3EE);       // neon cyan
-  static const Color classicFood = Color(0xFFF21DC4);       // neon magenta
-  static const Color classicBorder = Color(0xFF38BDF8);     // sky-blue accent
+  // Prism Noir (default) — the stock Prism cyan / pink.
+  static const Color prismNoirBackground = Color(0xFF08080B);
+  static const Color prismNoirPrimary = Color(0xFF7CF5FF); // prism cyan
+  static const Color prismNoirSecondary = Color(0xFFFF8AD8); // prism pink
+  static const Color prismNoirAccent = Color(0xFFA78BFA); // prism violet
 
-  // Azure skin
-  static const Color modernBackground = Color(0xFF070A18);
-  static const Color modernShip = Color(0xFF38BDF8); // sky blue
-  static const Color modernFood = Color(0xFFFB7185); // rose
-  static const Color modernAccent = Color(0xFF60A5FA); // azure
+  // Neon Grid (free)
+  static const Color neonGridBackground = Color(0xFF04040C);
+  static const Color neonGridPrimary = Color(0xFF00FFC6); // aqua-mint
+  static const Color neonGridSecondary = Color(0xFFFF2BD6); // hot magenta
+  static const Color neonGridAccent = Color(0xFF9DFF00); // electric lime
 
-  // Voltage skin
-  static const Color neonBackground = Color(0xFF04040C);
-  static const Color neonShip = Color(0xFF00FFC6); // aqua-mint
-  static const Color neonFood = Color(0xFFFF2BD6); // hot magenta
-  static const Color neonGlow = Color(0xFF9DFF00); // electric lime
+  // Monochrome (free) — graphite and white, zero hue.
+  static const Color monochromeBackground = Color(0xFF0A0A0D);
+  static const Color monochromePrimary = Color(0xFFF4F3F7); // ink white
+  static const Color monochromeSecondary = Color(0xFF9A9AA6); // steel
+  static const Color monochromeAccent = Color(0xFFCFCFD8); // silver
 
-  // Synthwave skin
-  static const Color retroBackground = Color(0xFF0B0518);
-  static const Color retroShip = Color(0xFFFF3CAC); // magenta-pink
-  static const Color retroFood = Color(0xFF36E2FF); // electric cyan
-  static const Color retroAccent = Color(0xFFFFC53D); // amber-gold marquee
+  // High Contrast (free, accessibility / colour-blind friendly). Built on a
+  // blue↔orange axis — the one pair that stays distinguishable across
+  // deuteranopia, protanopia, and tritanopia — over a near-black base.
+  // Surfaced via Settings → Accessibility, not the Armory.
+  static const Color highContrastBackground = Color(0xFF05070D);
+  static const Color highContrastPrimary = Color(0xFF4DA3FF); // vivid blue
+  static const Color highContrastSecondary = Color(0xFFFF9E1B); // vivid orange
+  static const Color highContrastAccent = Color(0xFFFFFFFF); // pure white
 
-  // Nebula skin (premium)
-  static const Color spaceBackground = Color(0xFF070A20);
-  static const Color spaceShip = Color(0xFF8B5CF6); // violet
-  static const Color spaceFood = Color(0xFF22D3EE); // cyan
-  static const Color spaceAccent = Color(0xFF6366F1); // indigo
+  // Aurora Reach (premium) — green / violet aurora sky.
+  static const Color auroraBackground = Color(0xFF050C12);
+  static const Color auroraPrimary = Color(0xFF5CFFB0); // aurora green
+  static const Color auroraSecondary = Color(0xFFB57BFF); // aurora violet
+  static const Color auroraAccent = Color(0xFF7CF5D0); // pale jade
 
-  // Abyssal skin (premium)
-  static const Color oceanBackground = Color(0xFF03101E);
-  static const Color oceanShip = Color(0xFF2DD4BF); // teal
-  static const Color oceanFood = Color(0xFF38BDF8); // sky
-  static const Color oceanAccent = Color(0xFF0EA5E9); // cerulean
+  // Solar Forge (premium) — orange / gold, sun-scorched.
+  static const Color solarBackground = Color(0xFF120A06);
+  static const Color solarPrimary = Color(0xFFFF8A3D); // forge orange
+  static const Color solarSecondary = Color(0xFFFFD166); // solar gold
+  static const Color solarAccent = Color(0xFFFFB347); // amber
 
-  // Override skin (premium)
-  static const Color cyberpunkBackground = Color(0xFF0A0118);
-  static const Color cyberpunkShip = Color(0xFFFF2BD6); // neon magenta
-  static const Color cyberpunkFood = Color(0xFFFCEE0A); // electric yellow
-  static const Color cyberpunkAccent = Color(0xFF9D4EDD); // vivid purple
+  // Abyssal Rift (premium) — deep blue / black, bioluminescent.
+  static const Color abyssBackground = Color(0xFF02060F);
+  static const Color abyssPrimary = Color(0xFF2EF2D0); // bio teal
+  static const Color abyssSecondary = Color(0xFF4D7CFF); // trench blue
+  static const Color abyssAccent = Color(0xFF1E3A8A); // abyss navy
 
-  // Bio Lab skin (premium)
-  static const Color forestBackground = Color(0xFF04130D);
-  static const Color forestShip = Color(0xFF34D399); // emerald neon
-  static const Color forestFood = Color(0xFF22D3EE); // cyan
-  static const Color forestAccent = Color(0xFFA3E635); // lime
+  // Ion Storm (premium) — electric cyan / indigo.
+  static const Color ionBackground = Color(0xFF060718);
+  static const Color ionPrimary = Color(0xFF3DE8FF); // arc cyan
+  static const Color ionSecondary = Color(0xFF6366F1); // storm indigo
+  static const Color ionAccent = Color(0xFF818CF8); // static violet
 
-  // Solar Flare skin (premium) — warm neon, still on the deep-space base.
-  static const Color desertBackground = Color(0xFF120A08);
-  static const Color desertShip = Color(0xFFFF7849); // warm orange-neon
-  static const Color desertFood = Color(0xFF2DE2E6); // cyan counterpoint
-  static const Color desertAccent = Color(0xFFFFC24B); // solar gold
-
-  // Prism Core skin (premium)
-  static const Color crystalBackground = Color(0xFF0A0820);
-  static const Color crystalShip = Color(0xFFA5F3FC); // icy cyan
-  static const Color crystalFood = Color(0xFFF0ABFC); // orchid
-  static const Color crystalAccent = Color(0xFFC4B5FD); // lavender
-
-  // High Contrast skin (accessibility / color-blind friendly). Built on a
-  // blue↔orange axis — the one neon pair that stays distinguishable across
-  // deuteranopia, protanopia, and tritanopia — over a near-black base for
-  // maximum contrast. Surfaced only via Settings → Accessibility, not the store.
-  static const Color accessibleBackground = Color(0xFF05070D); // near-black
-  static const Color accessibleShip = Color(0xFF4DA3FF);       // vivid blue
-  static const Color accessibleFood = Color(0xFFFF9E1B);       // vivid orange
-  static const Color accessibleAccent = Color(0xFFFFFFFF);     // pure white
+  // Crimson Expanse (premium) — red nebula.
+  static const Color crimsonBackground = Color(0xFF12050A);
+  static const Color crimsonPrimary = Color(0xFFFF4D5E); // nebula red
+  static const Color crimsonSecondary = Color(0xFFFF9A8B); // coral dust
+  static const Color crimsonAccent = Color(0xFFB3123A); // deep crimson
 
   // Animation durations
   static const Duration shortAnimation = Duration(milliseconds: 150);
@@ -307,213 +288,271 @@ class GameConstants {
   static const String reduceMotionKey = 'reduce_motion';
 }
 
+/// Sectors — the gameplay colour palettes (UI name "Sectors"). Only tint
+/// gameplay via CosmoPalette; menus are always Prism Noir.
+///
+/// ⚠️ Declaration ORDER is persisted: Drift `theme_index`, the prefs
+/// `selected_theme` int and the synced settings row all store [index].
+/// The order is chosen so pre-3.2 indices 0 and 2–8 land on their mapped
+/// sector unchanged (classic→prismNoir, neon→neonGrid, retro→monochrome,
+/// space→crimson, ocean→abyss, cyberpunk→ion, forest→aurora,
+/// desert→solar). Old 9/10 are decoded by [fromIndex]; old 1 (modern) is
+/// remapped by the one-time `migrateLegacyCatalog`. Only APPEND new sectors.
 enum GameTheme {
-  classic,
-  modern,
-  neon,
-  retro,
-  space,
-  ocean,
-  cyberpunk,
-  forest,
-  desert,
-  crystal,
-  accessible;
+  prismNoir,
+  highContrast,
+  neonGrid,
+  monochrome,
+  crimson,
+  abyss,
+  ion,
+  aurora,
+  solar;
 
-  String get name {
+  /// Persisted / synced ID (prefs, owned-item rows, backend
+  /// `selected_theme_id` / `owned_themes`). Premium sectors use their store
+  /// product suffix. Shadows `Enum.name` on purpose — every existing
+  /// persistence call site writes `theme.name`. UI shows [displayName].
+  String get name => id;
+
+  String get id {
     switch (this) {
-      case GameTheme.classic:
-        return 'Amber Phosphor';
-      case GameTheme.modern:
-        return 'Modern';
-      case GameTheme.neon:
-        return 'Neon';
-      case GameTheme.retro:
-        return 'Retro';
-      case GameTheme.space:
-        return 'Space';
-      case GameTheme.ocean:
-        return 'Ocean';
-      case GameTheme.cyberpunk:
-        return 'Cyberpunk';
-      case GameTheme.forest:
-        return 'Forest';
-      case GameTheme.desert:
-        return 'Desert';
-      case GameTheme.crystal:
-        return 'Crystal';
-      case GameTheme.accessible:
-        return 'Accessible';
+      case GameTheme.prismNoir:
+        return 'prism_noir';
+      case GameTheme.highContrast:
+        return 'high_contrast';
+      case GameTheme.neonGrid:
+        return 'neon_grid';
+      case GameTheme.monochrome:
+        return 'monochrome';
+      case GameTheme.crimson:
+        return 'sector_crimson';
+      case GameTheme.abyss:
+        return 'sector_abyss';
+      case GameTheme.ion:
+        return 'sector_ion';
+      case GameTheme.aurora:
+        return 'sector_aurora';
+      case GameTheme.solar:
+        return 'sector_solar';
     }
+  }
+
+  /// Store product suffix for purchasable sectors; null for free ones.
+  String? get productId => isPremium ? id : null;
+
+  /// Parse a persisted / synced ID — current IDs, enum identifiers and every
+  /// pre-3.2 form (`space`, `Space`, `space_theme`, old display names).
+  static GameTheme? fromId(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    var key = raw.trim();
+    const prefix = 'com.pranta.cosmostrike.';
+    if (key.startsWith(prefix)) key = key.substring(prefix.length);
+    for (final t in GameTheme.values) {
+      if (t.id == key || t.enumName == key) return t;
+    }
+    key = key.toLowerCase();
+    if (key.endsWith('_theme')) {
+      key = key.substring(0, key.length - '_theme'.length);
+    }
+    for (final t in GameTheme.values) {
+      if (t.id == key || t.enumName.toLowerCase() == key) return t;
+    }
+    return _legacy[key];
+  }
+
+  /// Like [fromId] with a Prism Noir fallback.
+  static GameTheme parse(String? raw) => fromId(raw) ?? GameTheme.prismNoir;
+
+  /// Identifier of the enum member (`Enum.name` is shadowed by [name]).
+  String get enumName => EnumName(this).name;
+
+  /// Pre-3.2 theme names / old display labels (REBRAND_SPEC §2.8).
+  static const Map<String, GameTheme> _legacy = {
+    'classic': GameTheme.prismNoir,
+    'amber phosphor': GameTheme.prismNoir,
+    'command cyan': GameTheme.prismNoir,
+    'modern': GameTheme.prismNoir,
+    'azure': GameTheme.prismNoir,
+    'retro': GameTheme.monochrome,
+    'synthwave': GameTheme.monochrome,
+    'accessible': GameTheme.highContrast,
+    'high contrast': GameTheme.highContrast,
+    'neon': GameTheme.neonGrid,
+    'voltage': GameTheme.neonGrid,
+    'forest': GameTheme.aurora,
+    'bio lab': GameTheme.aurora,
+    'desert': GameTheme.solar,
+    'solar flare': GameTheme.solar,
+    'ocean': GameTheme.abyss,
+    'abyssal': GameTheme.abyss,
+    'cyberpunk': GameTheme.ion,
+    'override': GameTheme.ion,
+    'crystal': GameTheme.ion,
+    'prism core': GameTheme.ion,
+    'space': GameTheme.crimson,
+    'nebula': GameTheme.crimson,
+  };
+
+  /// Decode a persisted [index]. 0–8 are current; 9/10 can only be pre-3.2
+  /// (crystal / accessible) and are folded here. Anything else → default.
+  static GameTheme fromIndex(int index) {
+    if (index >= 0 && index < GameTheme.values.length) {
+      return GameTheme.values[index];
+    }
+    if (index == 9) return GameTheme.ion; // legacy crystal
+    if (index == 10) return GameTheme.highContrast; // legacy accessible
+    return GameTheme.prismNoir;
+  }
+
+  /// Decode an index KNOWN to be pre-3.2 (old 11-theme order). Used once by
+  /// the legacy catalog migration.
+  static GameTheme fromLegacyIndex(int index) {
+    const legacyOrder = [
+      GameTheme.prismNoir, // classic
+      GameTheme.prismNoir, // modern
+      GameTheme.neonGrid, // neon
+      GameTheme.monochrome, // retro
+      GameTheme.crimson, // space
+      GameTheme.abyss, // ocean
+      GameTheme.ion, // cyberpunk
+      GameTheme.aurora, // forest
+      GameTheme.solar, // desert
+      GameTheme.ion, // crystal
+      GameTheme.highContrast, // accessible
+    ];
+    if (index < 0 || index >= legacyOrder.length) return GameTheme.prismNoir;
+    return legacyOrder[index];
   }
 
   Color get backgroundColor {
     switch (this) {
-      case GameTheme.classic:
-        return GameConstants.classicBackground;
-      case GameTheme.modern:
-        return GameConstants.modernBackground;
-      case GameTheme.neon:
-        return GameConstants.neonBackground;
-      case GameTheme.retro:
-        return GameConstants.retroBackground;
-      case GameTheme.space:
-        return GameConstants.spaceBackground;
-      case GameTheme.ocean:
-        return GameConstants.oceanBackground;
-      case GameTheme.cyberpunk:
-        return GameConstants.cyberpunkBackground;
-      case GameTheme.forest:
-        return GameConstants.forestBackground;
-      case GameTheme.desert:
-        return GameConstants.desertBackground;
-      case GameTheme.crystal:
-        return GameConstants.crystalBackground;
-      case GameTheme.accessible:
-        return GameConstants.accessibleBackground;
+      case GameTheme.prismNoir:
+        return GameConstants.prismNoirBackground;
+      case GameTheme.highContrast:
+        return GameConstants.highContrastBackground;
+      case GameTheme.neonGrid:
+        return GameConstants.neonGridBackground;
+      case GameTheme.monochrome:
+        return GameConstants.monochromeBackground;
+      case GameTheme.crimson:
+        return GameConstants.crimsonBackground;
+      case GameTheme.abyss:
+        return GameConstants.abyssBackground;
+      case GameTheme.ion:
+        return GameConstants.ionBackground;
+      case GameTheme.aurora:
+        return GameConstants.auroraBackground;
+      case GameTheme.solar:
+        return GameConstants.solarBackground;
     }
   }
 
+  /// Hull / player-shot colour.
   Color get shipColor {
     switch (this) {
-      case GameTheme.classic:
-        return GameConstants.classicShip;
-      case GameTheme.modern:
-        return GameConstants.modernShip;
-      case GameTheme.neon:
-        return GameConstants.neonShip;
-      case GameTheme.retro:
-        return GameConstants.retroShip;
-      case GameTheme.space:
-        return GameConstants.spaceShip;
-      case GameTheme.ocean:
-        return GameConstants.oceanShip;
-      case GameTheme.cyberpunk:
-        return GameConstants.cyberpunkShip;
-      case GameTheme.forest:
-        return GameConstants.forestShip;
-      case GameTheme.desert:
-        return GameConstants.desertShip;
-      case GameTheme.crystal:
-        return GameConstants.crystalShip;
-      case GameTheme.accessible:
-        return GameConstants.accessibleShip;
+      case GameTheme.prismNoir:
+        return GameConstants.prismNoirPrimary;
+      case GameTheme.highContrast:
+        return GameConstants.highContrastPrimary;
+      case GameTheme.neonGrid:
+        return GameConstants.neonGridPrimary;
+      case GameTheme.monochrome:
+        return GameConstants.monochromePrimary;
+      case GameTheme.crimson:
+        return GameConstants.crimsonPrimary;
+      case GameTheme.abyss:
+        return GameConstants.abyssPrimary;
+      case GameTheme.ion:
+        return GameConstants.ionPrimary;
+      case GameTheme.aurora:
+        return GameConstants.auroraPrimary;
+      case GameTheme.solar:
+        return GameConstants.solarPrimary;
     }
   }
 
-  Color get foodColor {
+  /// Secondary sector colour (stripe tail, right-hand wash, hostile pops).
+  Color get secondaryColor {
     switch (this) {
-      case GameTheme.classic:
-        return GameConstants.classicFood;
-      case GameTheme.modern:
-        return GameConstants.modernFood;
-      case GameTheme.neon:
-        return GameConstants.neonFood;
-      case GameTheme.retro:
-        return GameConstants.retroFood;
-      case GameTheme.space:
-        return GameConstants.spaceFood;
-      case GameTheme.ocean:
-        return GameConstants.oceanFood;
-      case GameTheme.cyberpunk:
-        return GameConstants.cyberpunkFood;
-      case GameTheme.forest:
-        return GameConstants.forestFood;
-      case GameTheme.desert:
-        return GameConstants.desertFood;
-      case GameTheme.crystal:
-        return GameConstants.crystalFood;
-      case GameTheme.accessible:
-        return GameConstants.accessibleFood;
+      case GameTheme.prismNoir:
+        return GameConstants.prismNoirSecondary;
+      case GameTheme.highContrast:
+        return GameConstants.highContrastSecondary;
+      case GameTheme.neonGrid:
+        return GameConstants.neonGridSecondary;
+      case GameTheme.monochrome:
+        return GameConstants.monochromeSecondary;
+      case GameTheme.crimson:
+        return GameConstants.crimsonSecondary;
+      case GameTheme.abyss:
+        return GameConstants.abyssSecondary;
+      case GameTheme.ion:
+        return GameConstants.ionSecondary;
+      case GameTheme.aurora:
+        return GameConstants.auroraSecondary;
+      case GameTheme.solar:
+        return GameConstants.solarSecondary;
     }
   }
 
   Color get accentColor {
     switch (this) {
-      case GameTheme.classic:
-        return GameConstants.classicBorder;
-      case GameTheme.modern:
-        return GameConstants.modernAccent;
-      case GameTheme.neon:
-        return GameConstants.neonGlow;
-      case GameTheme.retro:
-        return GameConstants.retroAccent;
-      case GameTheme.space:
-        return GameConstants.spaceAccent;
-      case GameTheme.ocean:
-        return GameConstants.oceanAccent;
-      case GameTheme.cyberpunk:
-        return GameConstants.cyberpunkAccent;
-      case GameTheme.forest:
-        return GameConstants.forestAccent;
-      case GameTheme.desert:
-        return GameConstants.desertAccent;
-      case GameTheme.crystal:
-        return GameConstants.crystalAccent;
-      case GameTheme.accessible:
-        return GameConstants.accessibleAccent;
+      case GameTheme.prismNoir:
+        return GameConstants.prismNoirAccent;
+      case GameTheme.highContrast:
+        return GameConstants.highContrastAccent;
+      case GameTheme.neonGrid:
+        return GameConstants.neonGridAccent;
+      case GameTheme.monochrome:
+        return GameConstants.monochromeAccent;
+      case GameTheme.crimson:
+        return GameConstants.crimsonAccent;
+      case GameTheme.abyss:
+        return GameConstants.abyssAccent;
+      case GameTheme.ion:
+        return GameConstants.ionAccent;
+      case GameTheme.aurora:
+        return GameConstants.auroraAccent;
+      case GameTheme.solar:
+        return GameConstants.solarAccent;
     }
   }
 
-  Color get primaryColor {
-    switch (this) {
-      case GameTheme.classic:
-        return GameConstants.classicShip;
-      case GameTheme.modern:
-        return GameConstants.modernShip;
-      case GameTheme.neon:
-        return GameConstants.neonShip;
-      case GameTheme.retro:
-        return GameConstants.retroShip;
-      case GameTheme.space:
-        return GameConstants.spaceShip;
-      case GameTheme.ocean:
-        return GameConstants.oceanShip;
-      case GameTheme.cyberpunk:
-        return GameConstants.cyberpunkShip;
-      case GameTheme.forest:
-        return GameConstants.forestShip;
-      case GameTheme.desert:
-        return GameConstants.desertShip;
-      case GameTheme.crystal:
-        return GameConstants.crystalShip;
-      case GameTheme.accessible:
-        return GameConstants.accessibleShip;
-    }
-  }
+  Color get primaryColor => shipColor;
 
-  /// Every command-HUD skin sits on a deep-space base, so body text is a single
-  /// icy white across all skins (see also [textPrimary]/[textMuted]).
+  /// Every sector sits on a deep-space base, so body text is a single icy
+  /// white across all sectors (see also [textPrimary]/[textMuted]).
   Color get textColor => const Color(0xFFEAF3FF);
 
-  /// Surface panel color: a subtly skin-tinted dark glass derived from the
-  /// background + a hint of the neon primary. Used by legacy `cardColor` call
+  /// Surface panel color: a subtly sector-tinted dark glass derived from the
+  /// background + a hint of the primary. Used by legacy `cardColor` call
   /// sites; new UI should prefer [surface] / [surfaceGlass].
   Color get cardColor =>
       Color.alphaBlend(shipColor.withValues(alpha: 0.06), backgroundColor);
 
   // ---------------------------------------------------------------------------
-  // Command-HUD semantic tokens (new design language). Implemented in terms of
-  // the existing skin getters so only the ~30 palette constants ever change.
+  // Semantic tokens, implemented in terms of the palette getters so only the
+  // palette constants ever change.
   // ---------------------------------------------------------------------------
 
-  /// Primary neon accent (cyan/violet/etc. per skin) — hulls, key strokes, CTAs.
+  /// Primary neon accent — hulls, key strokes, CTAs.
   Color get neonPrimary => shipColor;
 
   /// Secondary neon accent — highlights, energy nodes, contrast pops.
-  Color get neonSecondary => foodColor;
+  Color get neonSecondary => secondaryColor;
 
   /// Glow color for shadows/halos (matches the primary neon).
   Color get glow => shipColor;
 
-  /// Hairline stroke for glass panels / holographic borders.
+  /// Hairline stroke for panels / holographic borders.
   Color get stroke => shipColor.withValues(alpha: 0.35);
 
-  /// Opaque elevated surface (slightly skin-tinted dark).
+  /// Opaque elevated surface (slightly sector-tinted dark).
   Color get surface =>
       Color.alphaBlend(shipColor.withValues(alpha: 0.05), backgroundColor);
 
-  /// Frosted-glass fill (translucent) for panels rendered over the starfield.
+  /// Translucent fill for panels rendered over the starfield.
   Color get surfaceGlass => backgroundColor.withValues(alpha: 0.55);
 
   /// Primary body/label text — icy white.
@@ -525,144 +564,212 @@ enum GameTheme {
   /// Thin holographic grid line color.
   Color get gridLine => shipColor.withValues(alpha: 0.10);
 
-  /// Player-facing skin label (cockpit naming). [name] is kept stable for
-  /// persistence/backend sync; UI should show [displayName].
+  /// Player-facing sector name. [name]/[id] is kept stable for
+  /// persistence/backend sync; UI shows this.
   String get displayName {
     switch (this) {
-      case GameTheme.classic:
-        return 'Command Cyan';
-      case GameTheme.modern:
-        return 'Azure';
-      case GameTheme.neon:
-        return 'Voltage';
-      case GameTheme.retro:
-        return 'Synthwave';
-      case GameTheme.space:
-        return 'Nebula';
-      case GameTheme.ocean:
-        return 'Abyssal';
-      case GameTheme.cyberpunk:
-        return 'Override';
-      case GameTheme.forest:
-        return 'Bio Lab';
-      case GameTheme.desert:
-        return 'Solar Flare';
-      case GameTheme.crystal:
-        return 'Prism Core';
-      case GameTheme.accessible:
+      case GameTheme.prismNoir:
+        return 'Prism Noir';
+      case GameTheme.highContrast:
         return 'High Contrast';
+      case GameTheme.neonGrid:
+        return 'Neon Grid';
+      case GameTheme.monochrome:
+        return 'Monochrome';
+      case GameTheme.crimson:
+        return 'Crimson Expanse';
+      case GameTheme.abyss:
+        return 'Abyssal Rift';
+      case GameTheme.ion:
+        return 'Ion Storm';
+      case GameTheme.aurora:
+        return 'Aurora Reach';
+      case GameTheme.solar:
+        return 'Solar Forge';
     }
   }
 
-  /// Whether this theme is a Pro / IAP-gated premium theme. The premium set
-  /// matches the ProductCatalog.Themes entries on the backend (six themes
-  /// included with the Pro subscription). Used by `AppBackground` to render
-  /// distinctive theme-specific decoration layers so paying users see a
-  /// meaningful visual upgrade over the free themes.
+  /// One-line Armory blurb.
+  String get description {
+    switch (this) {
+      case GameTheme.prismNoir:
+        return 'Stock prism on black. The default.';
+      case GameTheme.highContrast:
+        return 'Blue and orange. Colour-blind friendly.';
+      case GameTheme.neonGrid:
+        return 'Aqua and magenta on a dark grid.';
+      case GameTheme.monochrome:
+        return 'Graphite and white. Zero hue.';
+      case GameTheme.crimson:
+        return 'Red nebula, coral dust.';
+      case GameTheme.abyss:
+        return 'Deep-blue void, bioluminescent glow.';
+      case GameTheme.ion:
+        return 'Arc cyan through a storm of indigo.';
+      case GameTheme.aurora:
+        return 'Green and violet aurora skies.';
+      case GameTheme.solar:
+        return 'Sun-scorched orange and gold.';
+    }
+  }
+
+  /// Purchasable sectors (also included with Strike Command). Matches the
+  /// backend ProductCatalog sector entries. Used by `AppBackground` to render
+  /// sector-specific decoration layers.
   bool get isPremium {
     switch (this) {
-      case GameTheme.space:
-      case GameTheme.ocean:
-      case GameTheme.cyberpunk:
-      case GameTheme.forest:
-      case GameTheme.desert:
-      case GameTheme.crystal:
+      case GameTheme.aurora:
+      case GameTheme.solar:
+      case GameTheme.abyss:
+      case GameTheme.ion:
+      case GameTheme.crimson:
         return true;
-      case GameTheme.classic:
-      case GameTheme.modern:
-      case GameTheme.neon:
-      case GameTheme.retro:
-      case GameTheme.accessible:
+      case GameTheme.prismNoir:
+      case GameTheme.highContrast:
+      case GameTheme.neonGrid:
+      case GameTheme.monochrome:
         return false;
     }
   }
 }
 
 enum GameMode {
-  classic,
-  zen,
-  speedChallenge,
-  onslaught,
-  survival,
-  timeAttack,
-  powerUpMadness,
-  perfectGame;
+  // ORDER IS PERSISTED: GameSettings.gameModeIndex stores the index. Never
+  // reorder or insert in the middle — append new modes at the end.
+  sortie,
+  cruise,
+  afterburn,
+  swarm,
+  holdout,
+  blitz,
+  overload,
+  knifeEdge;
 
-  /// The enum identifier (`speedChallenge`), which the backend's GameMode
-  /// enum parses case-insensitively. [name] is overridden with display
-  /// labels ("Speed Challenge") that the API rejects — never send it.
+  /// The enum identifier (`afterburn`), which the backend's GameMode enum
+  /// parses case-insensitively. [name] is overridden with display labels
+  /// ("Knife Edge") that the API rejects — never send it.
   String get wireName => toString().split('.').last;
+
+  /// Normalised (lower-case, no separators) identifiers accepted by
+  /// [tryFromWire]: the current enum names plus every legacy spelling that
+  /// may still sit in Drift rows, SharedPreferences, replays, deep links or
+  /// older backend payloads (pre-3.2 GameMode names, their display labels,
+  /// and the retired tournament-mode names).
+  static const Map<String, GameMode> _wireAliases = {
+    // current
+    'sortie': GameMode.sortie,
+    'cruise': GameMode.cruise,
+    'afterburn': GameMode.afterburn,
+    'swarm': GameMode.swarm,
+    'holdout': GameMode.holdout,
+    'blitz': GameMode.blitz,
+    'overload': GameMode.overload,
+    'knifeedge': GameMode.knifeEdge,
+    // legacy GameMode identifiers (≤ 3.1)
+    'classic': GameMode.sortie,
+    'zen': GameMode.cruise,
+    'zenmode': GameMode.cruise,
+    'speedchallenge': GameMode.afterburn,
+    'onslaught': GameMode.swarm,
+    'survival': GameMode.holdout,
+    'timeattack': GameMode.blitz,
+    'powerupmadness': GameMode.overload,
+    'perfectgame': GameMode.knifeEdge,
+    // legacy tournament-mode identifiers
+    'speedrun': GameMode.afterburn,
+    'nowalls': GameMode.cruise,
+    'bossrush': GameMode.sortie,
+  };
+
+  /// Parses a persisted / wire mode string. Accepts the new identifiers and
+  /// every legacy alias, in any case and with `_`, `-` or spaces
+  /// (`knife_edge`, `PerfectGame`, `Speed Challenge`). Returns null when the
+  /// string is not a known mode.
+  static GameMode? tryFromWire(String? raw) {
+    if (raw == null) return null;
+    final key = raw.trim().toLowerCase().replaceAll(RegExp(r'[\s_\-]'), '');
+    if (key.isEmpty) return null;
+    return _wireAliases[key];
+  }
+
+  /// [tryFromWire] with a fallback (default [GameMode.sortie]).
+  static GameMode fromWire(String? raw, {GameMode fallback = GameMode.sortie}) =>
+      tryFromWire(raw) ?? fallback;
+
+  /// Rewrites any known mode string (new or legacy) to the current wire
+  /// identifier; unknown strings are returned unchanged.
+  static String normalizeWire(String raw) => tryFromWire(raw)?.wireName ?? raw;
 
   String get name {
     switch (this) {
-      case GameMode.classic:
-        return 'Classic';
-      case GameMode.zen:
-        return 'Zen Mode';
-      case GameMode.speedChallenge:
-        return 'Speed Challenge';
-      case GameMode.onslaught:
-        return 'Onslaught';
-      case GameMode.survival:
-        return 'Survival';
-      case GameMode.timeAttack:
-        return 'Time Attack';
-      case GameMode.powerUpMadness:
-        return 'Power-Up Madness';
-      case GameMode.perfectGame:
-        return 'Perfect Game';
+      case GameMode.sortie:
+        return 'Sortie';
+      case GameMode.cruise:
+        return 'Cruise';
+      case GameMode.afterburn:
+        return 'Afterburn';
+      case GameMode.swarm:
+        return 'Swarm';
+      case GameMode.holdout:
+        return 'Holdout';
+      case GameMode.blitz:
+        return 'Blitz';
+      case GameMode.overload:
+        return 'Overload';
+      case GameMode.knifeEdge:
+        return 'Knife Edge';
     }
   }
 
   String get description {
     switch (this) {
-      case GameMode.classic:
-        return 'Blast through enemy waves and clear the stage';
-      case GameMode.zen:
-        return 'Relaxed flight — no pressure, just fly and shoot';
-      case GameMode.speedChallenge:
-        return 'Speed increases rapidly for maximum challenge';
-      case GameMode.onslaught:
-        return 'Endless enemy swarms — survive the onslaught';
-      case GameMode.survival:
-        return 'Survive as long as possible with limited lives';
-      case GameMode.timeAttack:
-        return 'Score as much as possible in limited time';
-      case GameMode.powerUpMadness:
-        return 'Power-ups spawn far more often — embrace the chaos';
-      case GameMode.perfectGame:
-        return 'Take a single hit and the run ends. Flawless flying only.';
+      case GameMode.sortie:
+        return 'The standard run: waves, formations, a boss.';
+      case GameMode.cruise:
+        return 'Lighter fire, no score pressure. Learn the patterns.';
+      case GameMode.afterburn:
+        return 'Scroll speed climbs every wave.';
+      case GameMode.swarm:
+        return 'Endless dense formations. Hold the line.';
+      case GameMode.holdout:
+        return 'Three hulls, no repairs. How long can you last?';
+      case GameMode.blitz:
+        return 'Three minutes. Score everything.';
+      case GameMode.overload:
+        return 'Gear drops everywhere. Chaos encouraged.';
+      case GameMode.knifeEdge:
+        return 'One hit ends the run.';
     }
   }
 
-  String get icon {
+  /// Material Symbol for the mode (no emoji in the UI).
+  IconData get icon {
     switch (this) {
-      case GameMode.classic:
-        return '🚀';
-      case GameMode.zen:
-        return '🧘';
-      case GameMode.speedChallenge:
-        return '⚡';
-      case GameMode.onslaught:
-        return '💥';
-      case GameMode.survival:
-        return '❤️';
-      case GameMode.timeAttack:
-        return '⏰';
-      case GameMode.powerUpMadness:
-        return '✨';
-      case GameMode.perfectGame:
-        return '🎯';
+      case GameMode.sortie:
+        return Symbols.rocket_launch_rounded;
+      case GameMode.cruise:
+        return Symbols.explore_rounded;
+      case GameMode.afterburn:
+        return Symbols.local_fire_department_rounded;
+      case GameMode.swarm:
+        return Symbols.hive_rounded;
+      case GameMode.holdout:
+        return Symbols.shield_rounded;
+      case GameMode.blitz:
+        return Symbols.timer_rounded;
+      case GameMode.overload:
+        return Symbols.bolt_rounded;
+      case GameMode.knifeEdge:
+        return Symbols.target_rounded;
     }
   }
 
   // Game modes are uniformly free — premium subscription does not gate any
-  // specific mode. Selection lives in Settings; the store no longer surfaces
-  // a "Modes" tab.
+  // specific mode. Selection lives in Settings.
 
   Duration? get timeLimit {
     switch (this) {
-      case GameMode.timeAttack:
+      case GameMode.blitz:
         return const Duration(minutes: 3);
       default:
         return null;
@@ -671,118 +778,42 @@ enum GameMode {
 
   // ---------------------------------------------------------------------
   // SHOOTER rules — consumed by CosmoStrikeGame (the real Flame game).
-  // The legacy grid getters below (hasWalls / hasMultipleFood / etc.) are
-  // legacy grid mechanics still referenced by the old GameCubit grid engine;
-  // do NOT use them for the shooter.
   // ---------------------------------------------------------------------
 
-  /// Ships per run. Survival and Perfect Game are single-ship modes.
+  /// Ships per run. Holdout and Knife Edge are single-ship modes.
   int get runLives {
     switch (this) {
-      case GameMode.survival:
-      case GameMode.perfectGame:
+      case GameMode.holdout:
+      case GameMode.knifeEdge:
         return 1;
       default:
         return 3;
     }
   }
 
-  /// Whether enemies and bosses shoot back. Zen is collision-threat only.
-  bool get enemiesFire => this != GameMode.zen;
+  /// Whether enemies and bosses shoot back. Cruise is collision-threat only.
+  bool get enemiesFire => this != GameMode.cruise;
 
   /// Global pacing multiplier applied to enemy speed.
   double get difficultyMultiplier {
     switch (this) {
-      case GameMode.zen:
+      case GameMode.cruise:
         return 0.75;
-      case GameMode.speedChallenge:
+      case GameMode.afterburn:
         return 1.5;
-      case GameMode.timeAttack:
+      case GameMode.blitz:
         return 1.25;
       default:
         return 1.0;
     }
   }
 
-  /// Extra enemies added to every wave (Onslaught's swarms).
-  int get extraEnemiesPerWave => this == GameMode.onslaught ? 4 : 0;
+  /// Extra enemies added to every wave (Swarm's dense formations).
+  int get extraEnemiesPerWave => this == GameMode.swarm ? 4 : 0;
 
   /// Chance a destroyed enemy drops a power-up.
-  double get powerUpDropChance =>
-      this == GameMode.powerUpMadness ? 0.35 : 0.12;
+  double get powerUpDropChance => this == GameMode.overload ? 0.35 : 0.12;
 
-  /// Perfect Game: any hit that lands ends the run outright.
-  bool get oneHitRun => this == GameMode.perfectGame;
-
-  int get initialLives {
-    switch (this) {
-      case GameMode.survival:
-        return 3;
-      default:
-        return 1;
-    }
-  }
-
-  bool get hasWalls {
-    switch (this) {
-      case GameMode.zen:
-        return false;
-      default:
-        return true;
-    }
-  }
-
-  bool get hasMultipleFood {
-    switch (this) {
-      case GameMode.onslaught:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  int get speedIncreaseRate {
-    switch (this) {
-      case GameMode.speedChallenge:
-        return 15; // Faster speed increase
-      case GameMode.timeAttack:
-        return 20; // Very fast speed increase
-      default:
-        return 10; // Normal speed increase
-    }
-  }
-
-  // Per-mode power-up spawn override. Returns null to fall back to
-  // GameConstants.powerUpSpawnIntervalSeconds.
-  int? get powerUpSpawnIntervalSecondsOverride {
-    switch (this) {
-      case GameMode.powerUpMadness:
-        return 8;
-      default:
-        return null;
-    }
-  }
-
-  // Per-mode power-up spawn probability override (0.0–1.0). Null falls back
-  // to the default 0.5 chance inside _trySpawnPowerUp.
-  double? get powerUpSpawnChanceOverride {
-    switch (this) {
-      case GameMode.powerUpMadness:
-        return 0.9;
-      default:
-        return null;
-    }
-  }
-
-  // PerfectGame rule: the ship's head must never re-enter any cell its
-  // body has previously occupied. The cubit tracks visited cells in a Set
-  // and crashes the run when this returns true and the head re-enters one.
-  bool get enforcesNoRevisit {
-    switch (this) {
-      case GameMode.perfectGame:
-        return true;
-      default:
-        return false;
-    }
-  }
+  /// Knife Edge: any hit that lands ends the run outright.
+  bool get oneHitRun => this == GameMode.knifeEdge;
 }

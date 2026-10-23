@@ -122,7 +122,7 @@ class WalkthroughTooltip extends StatelessWidget {
         ],
       );
     }
-    final label = step.actionLabel ?? (isLastStep ? 'Got it!' : 'Next');
+    final label = step.actionLabel ?? (isLastStep ? 'Copy that' : 'Next');
     return CsButton.primary(
       label: label,
       size: CsButtonSize.small,

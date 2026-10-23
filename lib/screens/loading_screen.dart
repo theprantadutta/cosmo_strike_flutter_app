@@ -52,24 +52,24 @@ class _LoadingScreenState extends State<LoadingScreen>
       // Step 1: Initialize Core Services
       await _updateProgress(
         0.1,
-        'Initializing core systems...',
-        'Setting up Server connection',
+        'Powering up flight systems…',
+        'Opening the uplink',
       );
       await _initializeCoreServices();
 
       // Step 2: Initialize User System
       await _updateProgress(
         0.25,
-        'Creating your player profile...',
-        'Generating unique username',
+        'Preparing your Pilot File…',
+        'Assigning a call sign',
       );
       await _initializeUserSystem();
 
       // Step 3: Load User Preferences
       await _updateProgress(
         0.4,
-        'Loading your preferences...',
-        'Syncing themes and settings',
+        'Loading cockpit settings…',
+        'Controls, audio, Sectors',
       );
       await _initializePreferences();
 
@@ -77,8 +77,8 @@ class _LoadingScreenState extends State<LoadingScreen>
       // preload because preload paths call into the sync service.
       await _updateProgress(
         0.50,
-        'Syncing with cloud...',
-        'Ensuring data is up to date',
+        'Syncing flight data…',
+        'Checking the uplink',
       );
       await _initializeDataSyncService();
 
@@ -87,19 +87,19 @@ class _LoadingScreenState extends State<LoadingScreen>
       // preload, adding its full duration to the loading screen even
       // though the two operations don't depend on each other (drain is
       // POST-to-server, preload is GET-from-server).
-      await _updateProgress(0.60, 'Loading game data...', 'Fetching Game Data');
+      await _updateProgress(0.60, 'Loading mission data…', 'Campaign, Cups, Directives');
       await Future.wait([_preloadAllDataConcurrently(), _drainSyncQueue()]);
 
       // Step 6: Initialize Audio System
       await _updateProgress(
         0.90,
-        'Configuring audio system...',
-        'Loading sound effects',
+        'Arming audio…',
+        'Loading weapons and engine sounds',
       );
       await _initializeAudio();
 
       // Step 8: Check for first-time user
-      await _updateProgress(0.98, 'Checking setup status...', 'Almost ready!');
+      await _updateProgress(0.98, 'Pre-flight checks…', 'Nearly cleared');
 
       if (mounted) {
         final authCubit = context.read<AuthCubit>();
@@ -161,8 +161,8 @@ class _LoadingScreenState extends State<LoadingScreen>
       // Step 9: Complete (for returning users)
       await _updateProgress(
         1.0,
-        'Ready to play!',
-        'Welcome back to Cosmo Strike',
+        'Cleared for launch',
+        'Welcome back, pilot',
       );
       await Future.delayed(
         const Duration(milliseconds: 50),

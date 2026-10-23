@@ -81,7 +81,7 @@ class ChallengePanel extends ConsumerWidget {
               if (ok) {
                 RewardToast.show(
                   title: 'DIRECTIVE COMPLETE',
-                  amount: '+${c.coinReward} COINS · +${c.xpReward} XP',
+                  amount: '+${c.coinReward} CR · +${c.xpReward} XP',
                 );
               }
             },
@@ -111,7 +111,7 @@ class ChallengeClaimAllButton extends ConsumerWidget {
         if (total > 0) {
           RewardToast.show(
             title: 'ALL DIRECTIVES CLAIMED',
-            amount: '+$total COINS',
+            amount: '+$total CR',
           );
         }
       },
@@ -164,7 +164,7 @@ class _ChallengeRow extends StatelessWidget {
     );
 
     final reward = Text(
-      '+${c.coinReward}C · ${c.xpReward}XP',
+      '+${c.coinReward} CR · ${c.xpReward} XP',
       maxLines: 1,
       style: t.mono(11, em: 0.06, color: CsColors.gold),
     );
@@ -181,7 +181,7 @@ class _ChallengeRow extends StatelessWidget {
                 children: [
                   Flexible(
                     child: Text(
-                      c.title,
+                      c.displayTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: t.rowTitle,

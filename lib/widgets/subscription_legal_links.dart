@@ -31,7 +31,7 @@ class SubscriptionLegalLinks extends StatelessWidget {
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        if (!compact) Text('Auto-renews until cancelled  ·  ', style: quiet),
+        if (!compact) Text('Strike Command auto-renews until cancelled  ·  ', style: quiet),
         _Link(
           label: compact ? 'Terms' : 'Terms of Use',
           style: link,

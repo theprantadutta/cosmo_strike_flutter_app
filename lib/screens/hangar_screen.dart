@@ -45,14 +45,14 @@ class _HangarScreenState extends State<HangarScreen> {
     final next = _hangar.level(stat) + 1;
     final cost = HangarCatalog.costForNext(_hangar.level(stat));
     if (!context.read<CoinsCubit>().canAfford(cost)) {
-      showCsToast(context, 'Not enough coins — $cost needed', kind: CsToastKind.error);
+      showCsToast(context, 'Not enough credits. $cost CR needed.', kind: CsToastKind.error);
       return;
     }
     final ok = await showCsConfirm(
       context,
       eyebrow: 'Hangar upgrade',
       title: '${def.name} · L$next',
-      message: '${def.perLevel} per level, for every run. Costs $cost coins.',
+      message: '${def.perLevel} per level, every run. Costs $cost CR.',
       confirmLabel: 'Upgrade · $cost',
     );
     if (!ok || !mounted) return;
@@ -62,7 +62,7 @@ class _HangarScreenState extends State<HangarScreen> {
     setState(() => _buying = null);
     showCsToast(
       context,
-      done ? '${def.name} upgraded to L$next' : 'Upgrade failed — try again',
+      done ? '${def.name} upgraded to L$next.' : 'Upgrade failed. Try again.',
       kind: done ? CsToastKind.success : CsToastKind.error,
     );
   }
@@ -74,7 +74,7 @@ class _HangarScreenState extends State<HangarScreen> {
       title: 'Hangar',
       trailing: [
         CsButton.text(
-          label: 'Skins & trails',
+          label: 'Liveries & exhausts',
           size: CsButtonSize.small,
           icon: Symbols.palette_rounded,
           onPressed: () => context.push(AppRoutes.cosmetics),

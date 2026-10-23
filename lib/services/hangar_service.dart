@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -7,6 +9,7 @@ import '../game/hangar.dart';
 import '../models/ship_coins.dart';
 import '../presentation/bloc/coins/coins_cubit.dart';
 import '../utils/logger.dart';
+import 'achievement_service.dart';
 import 'storage_service.dart';
 
 /// Offline-first Hangar state.
@@ -78,6 +81,8 @@ class HangarService extends ChangeNotifier {
     );
     _levels = {..._levels, stat: current + 1};
     notifyListeners();
+    // Hangar commendations (Retrofit / Fully Refit) — read-only hook.
+    unawaited(AchievementService().evaluateStanding().then<void>((_) {}, onError: (Object _) {}));
     return true;
   }
 

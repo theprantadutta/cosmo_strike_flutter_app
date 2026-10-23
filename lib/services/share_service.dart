@@ -17,8 +17,8 @@ class ShareService {
   /// Pre-filled share message. Kept short so it reads well in messaging apps
   /// and tweets; the link carries the rest.
   static const String _shareMessage =
-      'Blast through the galaxy in Cosmo Strike — a neon space shooter. '
-      'Join me and see how high you can score! $playStoreUrl';
+      'Cosmo Strike: a 12-level space shooter campaign. Graze the fire, '
+      'break the formations, drop the bosses. Beat my score. $playStoreUrl';
 
   /// Show the native share sheet. Fire-and-forget safe — swallows the
   /// platform "share dismissed" path and any errors so callers never crash.

@@ -455,10 +455,8 @@ class CoinsCubit extends Cubit<CoinsState> {
     CoinEarningSource? earningSource;
     CoinSpendingCategory? spendingCategory;
     if (isEarned) {
-      earningSource = CoinEarningSource.values.firstWhere(
-        (s) => s.name == source,
-        orElse: () => CoinEarningSource.gameCompleted,
-      );
+      earningSource = CoinEarningSource.fromWire(source) ??
+          CoinEarningSource.gameCompleted;
     } else {
       spendingCategory = CoinSpendingCategory.values.firstWhere(
         (c) => c.name == source,
@@ -677,7 +675,7 @@ class CoinsCubit extends Cubit<CoinsState> {
       if (sourceCap != null && allowed > 0) {
         final sourceEarnedToday = await StorageService()
             .storeDao
-            .earnedCoinsFromSourceSince(source.name, _utcMidnight());
+            .earnedCoinsFromSourceSince(source.wireName, _utcMidnight());
         final sourceRemaining =
             (sourceCap - sourceEarnedToday).clamp(0, sourceCap);
         if (sourceRemaining < allowed) allowed = sourceRemaining;
@@ -720,7 +718,7 @@ class CoinsCubit extends Cubit<CoinsState> {
     try {
       await StorageService().storeDao.addCoins(
             amount,
-            source.name,
+            source.wireName,
             description: itemName,
           );
     } catch (e) {

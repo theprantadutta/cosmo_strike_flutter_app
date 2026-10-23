@@ -134,11 +134,10 @@ void main() {
         bossesKilled: 3,
         levelsCleared: 4,
         maxCombo: 20,
-        gameMode: 'survival',
+        gameMode: 'holdout',
       );
 
-      final restored =
-          GameStatistics.fromJsonString(original.toJsonString());
+      final restored = GameStatistics.fromJsonString(original.toJsonString());
 
       expect(restored.totalGamesPlayed, original.totalGamesPlayed);
       expect(restored.totalScore, original.totalScore);
@@ -146,7 +145,7 @@ void main() {
       expect(restored.totalEnemiesKilled, original.totalEnemiesKilled);
       expect(restored.highestStageReached, original.highestStageReached);
       expect(restored.bestCombo, original.bestCombo);
-      expect(restored.gamesPerMode['survival'], 1);
+      expect(restored.gamesPerMode['holdout'], 1);
       // derived fields are emitted for the mirror but recomputed on read.
       expect(restored.averageScore, original.averageScore);
     });
@@ -156,6 +155,39 @@ void main() {
     test('is zero-padded YYYY-MM-DD', () {
       expect(GameStatistics.dayKey(DateTime(2026, 1, 5)), '2026-01-05');
       expect(GameStatistics.dayKey(DateTime(2026, 12, 31)), '2026-12-31');
+    });
+  });
+
+  group('commendation counters', () {
+    test('fold Overdrive, formation wipes, Daily Run and Cup runs', () {
+      GameStatistics run(
+        GameStatistics s, {
+        bool daily = false,
+        bool cup = false,
+      }) => s.updateWithGameResult(
+        score: 100,
+        durationSeconds: 60,
+        stageReached: 1,
+        waveReached: 1,
+        enemiesKilled: 5,
+        bossesKilled: 0,
+        levelsCleared: 0,
+        overdrives: 2,
+        formationWipes: 3,
+        dailyRun: daily,
+        cupRun: cup,
+      );
+      final stats = run(run(GameStatistics.initial(), daily: true, cup: true));
+      expect(stats.totalOverdrives, 4);
+      expect(stats.totalFormationWipes, 6);
+      expect(stats.dailyRunsPlayed, 1);
+      expect(stats.cupRunsPlayed, 1);
+
+      final back = GameStatistics.fromJsonString(stats.toJsonString());
+      expect(back.totalOverdrives, 4);
+      expect(back.totalFormationWipes, 6);
+      expect(back.dailyRunsPlayed, 1);
+      expect(back.cupRunsPlayed, 1);
     });
   });
 }

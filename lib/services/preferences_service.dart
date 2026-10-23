@@ -23,11 +23,9 @@ class PreferencesService extends ChangeNotifier {
 
   // Specific preference getters
   GameTheme get selectedTheme {
-    final themeName = _preferences['theme'] as String? ?? 'classic';
-    return GameTheme.values.firstWhere(
-      (theme) => theme.name.toLowerCase() == themeName.toLowerCase(),
-      orElse: () => GameTheme.classic,
-    );
+    // Legacy-aware: pre-3.2 values ('classic', 'Amber Phosphor', …) fold
+    // onto their sector.
+    return GameTheme.parse(_preferences['theme'] as String?);
   }
 
   bool get soundEnabled => _preferences['soundEnabled'] as bool? ?? true;
@@ -46,11 +44,11 @@ class PreferencesService extends ChangeNotifier {
       return BoardSize(
         sizeData['width'] ?? 20,
         sizeData['height'] ?? 20,
-        sizeData['name'] ?? 'Classic',
-        sizeData['description'] ?? 'Classic 20x20 grid',
+        sizeData['name'] ?? 'Standard',
+        sizeData['description'] ?? 'Legacy grid preset',
       );
     }
-    return GameConstants.availableBoardSizes[1]; // Default to Classic
+    return GameConstants.availableBoardSizes[1]; // Default to Standard
   }
 
   Duration get crashFeedbackDuration {
@@ -129,8 +127,7 @@ class PreferencesService extends ChangeNotifier {
 
   String _getLocalTheme() {
     final themeIndex = _prefs!.getInt(GameConstants.selectedThemeKey) ?? 0;
-    final clampedIndex = themeIndex.clamp(0, GameTheme.values.length - 1);
-    return GameTheme.values[clampedIndex].name;
+    return GameTheme.fromIndex(themeIndex).name;
   }
 
   Future<Map<String, dynamic>> _getLocalBoardSize() async {
@@ -151,7 +148,7 @@ class PreferencesService extends ChangeNotifier {
 
   Map<String, dynamic> _getDefaultPreferences() {
     return {
-      'theme': 'classic',
+      'theme': GameTheme.prismNoir.name,
       'soundEnabled': true,
       'musicEnabled': true,
       'trailSystemEnabled': false,
@@ -159,8 +156,8 @@ class PreferencesService extends ChangeNotifier {
       'boardSize': {
         'width': 20,
         'height': 20,
-        'name': 'Classic',
-        'description': 'Classic 20x20 grid',
+        'name': 'Standard',
+        'description': 'Legacy grid preset',
       },
       'crashFeedbackDurationSeconds':
           GameConstants.defaultCrashFeedbackDuration.inSeconds,
@@ -204,7 +201,7 @@ class PreferencesService extends ChangeNotifier {
       // Save individual preferences to SharedPreferences for backward compatibility
       await _prefs!.setInt(
         GameConstants.selectedThemeKey,
-        GameTheme.values.indexWhere((t) => t.name == _preferences['theme']),
+        GameTheme.parse(_preferences['theme'] as String?).index,
       );
 
       await _prefs!.setBool(GameConstants.soundEnabledKey, soundEnabled);

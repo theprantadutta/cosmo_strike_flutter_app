@@ -152,7 +152,7 @@ class TournamentsNotifier extends StateNotifier<TournamentsState> {
       state = state.copyWith(
         isLoading: false,
         // Only surface an error when we have nothing to show at all.
-        error: hadCache ? null : 'Failed to load tournaments',
+        error: hadCache ? null : 'Sector Cups failed to load',
       );
     }
   }
@@ -174,7 +174,7 @@ class TournamentsNotifier extends StateNotifier<TournamentsState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: hadCache ? null : 'Failed to refresh tournaments',
+        error: hadCache ? null : 'Sector Cups failed to refresh',
       );
     }
   }

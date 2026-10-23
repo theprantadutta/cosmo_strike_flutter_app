@@ -256,6 +256,7 @@ class Formation extends Component with HasGameReference<CosmoStrikeGame> {
   }
 
   void _awardWipe() {
+    game.formationWipes++;
     final awarded = game.addKillScore(spec.wipeBonus);
     game.chargeOverdrive(GameTuning.wipeOverdriveCharge);
     game.pools.scorePopup(

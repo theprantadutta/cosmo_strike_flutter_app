@@ -93,7 +93,7 @@ class _AccountUpgradeDialogState extends State<_AccountUpgradeDialog> {
     if (ok) {
       showCsToast(
         context,
-        _forPurchase ? 'Signed in. Your purchases now follow you to every device.' : 'Signed in. Your progress is backed up.',
+        _forPurchase ? 'Signed in. Purchases now travel with your account.' : 'Signed in. Pilot File backed up.',
         kind: CsToastKind.success,
       );
       navigator.pop(true);
@@ -123,12 +123,12 @@ class _AccountUpgradeDialogState extends State<_AccountUpgradeDialog> {
     return CsDialog(
       icon: _forPurchase ? Symbols.devices_rounded : Symbols.cloud_upload_rounded,
       eyebrow: _forPurchase ? 'Optional' : 'New personal best',
-      title: _forPurchase ? 'Keep purchases on every device' : 'Save your progress',
+      title: _forPurchase ? 'Carry your purchases' : 'Back up your Pilot File',
       message: _forPurchase
-          ? 'Signing in is optional. It lets you restore your coins, cosmetics '
-              'and Pro on any device. You can keep playing and buying as a guest.'
-          : "You're playing as a guest, so your progress lives only on this device. "
-              'Sign in to back it up, climb the leaderboards and play on any device.',
+          ? 'Signing in is optional. It restores your credits, liveries '
+              'and Strike Command on any device. Guests can keep flying and buying.'
+          : 'Guest pilots keep progress on this device only. '
+              'Sign in to back it up, post to the Standings and fly on any device.',
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -145,7 +145,7 @@ class _AccountUpgradeDialogState extends State<_AccountUpgradeDialog> {
           _UpgradeOption(
             brandIcon: FontAwesomeIcons.google,
             title: 'Continue with Google',
-            subtitle: 'Fastest option. Sign in with your Google account.',
+            subtitle: 'One tap with your Google account.',
             busy: _busy,
             showSpinner: _pending == 'google',
             dividerTop: !appleSignInAvailable,
@@ -153,8 +153,8 @@ class _AccountUpgradeDialogState extends State<_AccountUpgradeDialog> {
           ),
           _UpgradeOption(
             icon: Symbols.mail_rounded,
-            title: 'Use Email',
-            subtitle: 'Any email and a password you choose. Restore on any device.',
+            title: 'Use email',
+            subtitle: 'Email plus a password of your choice.',
             busy: _busy,
             onPressed: _createEmailAccount,
           ),

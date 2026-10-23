@@ -25,7 +25,7 @@ class GameSettingsState extends Equatable {
     this.dPadEnabled = false,
     this.dPadPosition = DPadPosition.bottomCenter,
     this.boardSize = BoardSize.classic,
-    this.gameMode = GameMode.classic,
+    this.gameMode = GameMode.sortie,
     this.gameModeFirstLaunchPrompted = false,
     this.crashFeedbackDuration = GameConstants.defaultCrashFeedbackDuration,
     this.highScore = 0,

@@ -7,7 +7,7 @@ import '../utils/constants.dart' show GameTheme;
 /// used for outlines, cores and FX. Kept separate from the app UI tokens so
 /// the Flame engine stays self-contained.
 ///
-/// The `const` colours below are fixed. The purchased colour THEME only
+/// The `const` colours below are fixed. The purchased SECTOR palette only
 /// tints gameplay, through the mutable "skin" half of this class
 /// ([applySkin] / [applyGameTheme]): player stripe, thrust, shots, muzzle
 /// flashes and the background washes. Components read the cached paints /
@@ -56,7 +56,7 @@ class CosmoPalette {
   static const Color boon = mint;
 
   // =========================================================================
-  // Skin (purchased colour theme → gameplay tint only)
+  // Skin (purchased sector palette → gameplay tint only)
   // =========================================================================
 
   static const Color defaultAccent = cyan;
@@ -95,14 +95,14 @@ class CosmoPalette {
   static void resetSkin() =>
       applySkin(accent: defaultAccent, secondary: defaultSecondary);
 
-  /// Convenience mapping from the app's [GameTheme]: the default `classic`
-  /// slot is Prism Noir itself; every other theme tints with its ship
-  /// colour (accent) + food colour (secondary).
+  /// Convenience mapping from the app's [GameTheme] (Sectors): the default
+  /// Prism Noir sector is the stock palette itself; every other sector tints
+  /// with its primary (accent) + secondary colour.
   static void applyGameTheme(GameTheme theme) {
-    if (theme == GameTheme.classic) {
+    if (theme == GameTheme.prismNoir) {
       resetSkin();
     } else {
-      applySkin(accent: theme.shipColor, secondary: theme.foodColor);
+      applySkin(accent: theme.shipColor, secondary: theme.secondaryColor);
     }
   }
 }

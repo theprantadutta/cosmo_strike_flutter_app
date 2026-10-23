@@ -49,7 +49,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return ListenableBuilder(
       listenable: _appCache,
       builder: (context, _) => CsScaffold(
-        title: 'Statistics',
+        title: 'Service Record',
         washes: const [CsWash.cyanLeft],
         trailing: [
           CsIconButton(
@@ -60,7 +60,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           ),
         ],
         body: _isLoading
-            ? const CsLoadingState(label: 'Loading statistics')
+            ? const CsLoadingState(label: 'Pulling service record')
             : CsSplit(
                 // Inline banner in the summary column (no full-width banners).
                 leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
@@ -81,7 +81,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return CsFitColumn(
       alignment: Alignment.centerLeft,
       children: [
-        const CsLabel('High score'),
+        const CsLabel('Best score'),
         SizedBox(height: cs(8)),
         FittedBox(
           fit: BoxFit.scaleDown,
@@ -90,27 +90,27 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         ),
         SizedBox(height: cs(16)),
         const CsHairline(),
-        _telemetryRow(context, 'Games played', _num('totalGames')),
+        _telemetryRow(context, 'Runs flown', _num('totalGames')),
         const CsHairline(),
-        _telemetryRow(context, 'Play time', '${_displayStats['totalPlayTime'] ?? '0s'}'),
+        _telemetryRow(context, 'Flight time', '${_displayStats['totalPlayTime'] ?? '0s'}'),
         const CsHairline(),
         SizedBox(height: cs(22)),
         CsButton.primary(
-          label: 'View achievements',
+          label: 'Commendations',
           icon: Symbols.emoji_events_rounded,
           expand: true,
           onPressed: () => context.push(AppRoutes.achievements),
         ),
         SizedBox(height: cs(10)),
         CsButton.secondary(
-          label: 'Replays',
+          label: 'Flight Recorder',
           icon: Symbols.movie_rounded,
           expand: true,
           onPressed: () => context.push(AppRoutes.replays),
         ),
         SizedBox(height: cs(6)),
         CsButton.text(
-          label: 'Reset statistics',
+          label: 'Wipe service record',
           icon: Symbols.restart_alt_rounded,
           onPressed: _showResetDialog,
         ),
@@ -141,42 +141,42 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return ListView(
       padding: EdgeInsets.only(bottom: cs(16)),
       children: [
-        const _Section('Performance overview'),
+        const _Section('Service summary'),
         CsStatGrid(columns: cols, valueSize: 22, stats: [
-          CsStat(_num('highScore'), 'High score'),
-          CsStat(_num('totalGames'), 'Total games'),
-          CsStat(_num('averageScore'), 'Average score'),
+          CsStat(_num('highScore'), 'Best score'),
+          CsStat(_num('totalGames'), 'Runs flown'),
+          CsStat(_num('averageScore'), 'Avg score'),
           CsStat(_num('winStreak'), 'Win streak'),
         ]),
-        const _Section('Game activity'),
+        const _Section('Flight log'),
         CsStatGrid(columns: cols, valueSize: 22, stats: [
-          CsStat('${_displayStats['totalPlayTime'] ?? '0s'}', 'Play time'),
-          CsStat('${_displayStats['longestSurvival'] ?? '0s'}', 'Longest game'),
-          CsStat(_num('highestStage'), 'Highest stage'),
+          CsStat('${_displayStats['totalPlayTime'] ?? '0s'}', 'Flight time'),
+          CsStat('${_displayStats['longestSurvival'] ?? '0s'}', 'Longest run'),
+          CsStat(_num('highestStage'), 'Deepest stage'),
           CsStat(_num('highestWave'), 'Furthest wave'),
         ]),
         const _Section('Combat record'),
         CsStatGrid(columns: cols, valueSize: 22, stats: [
-          CsStat(_num('enemiesKilled'), 'Enemies', color: CsColors.pink),
+          CsStat(_num('enemiesKilled'), 'Kills', color: CsColors.pink),
           CsStat(_num('bossesKilled'), 'Bosses'),
           CsStat(_num('stagesCleared'), 'Stages cleared'),
           CsStat(_num('bestCombo'), 'Best combo'),
           CsStat(_num('victories'), 'Victories', color: CsColors.mint),
           CsStat(_num('noHitClears'), 'No-hit clears'),
-          CsStat('${_displayStats['survivalRate'] ?? '0%'}', 'Survival rate'),
+          CsStat('${_displayStats['survivalRate'] ?? '0%'}', 'Clear rate'),
           CsStat(_num('longestStreak'), 'Best streak'),
         ]),
-        _Section('Performance trends', trailing: _trendChip(trend)),
+        _Section('Form', trailing: _trendChip(trend)),
         CsStatGrid(columns: cols, valueSize: 22, stats: [
-          CsStat(trend.toUpperCase(), 'Overall trend', color: _trendColor(trend)),
-          CsStat('${_performanceTrends['averageRecentScore'] ?? 0}', 'Recent average'),
-          CsStat('${_performanceTrends['bestRecentScore'] ?? 0}', 'Best recent'),
+          CsStat(trend.toUpperCase(), 'Direction', color: _trendColor(trend)),
+          CsStat('${_performanceTrends['averageRecentScore'] ?? 0}', 'Recent avg'),
+          CsStat('${_performanceTrends['bestRecentScore'] ?? 0}', 'Recent best'),
           CsStat(_calculateConsistencyRating(recentScores), 'Consistency'),
         ]),
         if (recentScores.isNotEmpty) ...[
           SizedBox(height: cs(16)),
           Row(children: [
-            Expanded(child: CsLabel('Progress · last ${recentScores.length} games', size: 10)),
+            Expanded(child: CsLabel('Last ${recentScores.length} runs', size: 10)),
             _legend(context, 'Scores', CsColors.ink25),
             SizedBox(width: cs(14)),
             _legend(context, 'Trend', CsColors.cyan),
@@ -189,18 +189,18 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           SizedBox(height: cs(16)),
           _buildInsights(context, recentScores, trend),
         ],
-        const _Section('Play patterns · last 7 days'),
+        const _Section('Duty roster · last 7 days'),
         CsStatGrid(columns: 2, valueSize: 22, stats: [
-          CsStat(_formatPlayTime(_playPatterns['totalWeeklyTime'] ?? 0), 'Weekly time'),
-          CsStat('${_playPatterns['mostActiveDay'] ?? 'None'}', 'Most active day'),
+          CsStat(_formatPlayTime(_playPatterns['totalWeeklyTime'] ?? 0), 'Week total'),
+          CsStat('${_playPatterns['mostActiveDay'] ?? 'None'}', 'Busiest day'),
         ]),
         if (dailyPlayTime.isNotEmpty) ...[
           SizedBox(height: cs(16)),
-          const CsLabel('Daily activity', size: 10),
+          const CsLabel('Flight time per day', size: 10),
           SizedBox(height: cs(12)),
           SizedBox(height: cs(70), child: _buildDailyActivityChart(context, dailyPlayTime)),
         ],
-        const _Section('Achievement progress'),
+        const _Section('Commendations'),
         _buildAchievementProgress(context),
       ],
     );
@@ -251,7 +251,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         SizedBox(width: cs(16)),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Achievement progress', maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
+            Text('Commendations earned', maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
             SizedBox(height: cs(4)),
             Text('${_displayStats['achievementProgress'] ?? '0%'} COMPLETE', style: t.label),
           ]),
@@ -336,21 +336,21 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         return CsDialog(
           icon: Symbols.warning_rounded,
           iconColor: CsColors.pink,
-          eyebrow: 'Danger zone',
-          title: 'Reset everything?',
+          eyebrow: 'Irreversible',
+          title: 'Wipe service record?',
           maxWidth: 560,
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('This permanently deletes, on this device and the server:', style: t.body),
+              Text('Deletes for good, on this device and the server:', style: t.body),
               SizedBox(height: cs(10)),
-              bullet('All play statistics — games, enemies, bosses, stages, '
-                  'combos, survival and win streaks'),
-              bullet('Your high score, total score and total games'),
-              bullet('Every leaderboard score (global, weekly and daily)'),
-              bullet('Achievement progress and unlocks'),
-              bullet('Daily-challenge progress'),
+              bullet('Every logged stat: runs, kills, bosses, stages, combos '
+                  'and streaks'),
+              bullet('Best score, total score and runs flown'),
+              bullet('Every Standings entry (global, weekly and daily)'),
+              bullet('Commendation progress and awards'),
+              bullet('Daily Directive progress'),
               SizedBox(height: cs(10)),
               Text('THIS CANNOT BE UNDONE.', style: t.mono(11, color: CsColors.pink, weight: FontWeight.w600)),
             ],
@@ -358,7 +358,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           actions: [
             CsButton.text(label: 'Cancel', onPressed: () => Navigator.of(ctx).pop()),
             _DangerButton(
-              label: 'Delete everything',
+              label: 'Wipe record',
               onPressed: () async {
                 Navigator.of(ctx).pop();
                 await _performReset();
@@ -379,15 +379,14 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     showCsToast(
       context,
       ok
-          ? 'Everything has been reset.'
-          : 'Couldn\'t reach the server. Connect to the internet and try '
-              'again — nothing was changed.',
+          ? 'Service record wiped.'
+          : 'No uplink. Nothing was changed. Reconnect and try again.',
       kind: ok ? CsToastKind.success : CsToastKind.error,
     );
   }
 
   String _calculateConsistencyRating(List<int> scores) {
-    if (scores.length < 3) return 'N/A';
+    if (scores.length < 3) return '—';
 
     final average = scores.reduce((a, b) => a + b) / scores.length;
     final variance =
@@ -395,10 +394,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     final standardDeviation = sqrt(variance);
     final coefficient = average > 0 ? standardDeviation / average : 0;
 
-    if (coefficient < 0.3) return 'Excellent';
-    if (coefficient < 0.5) return 'Good';
-    if (coefficient < 0.7) return 'Fair';
-    return 'Poor';
+    if (coefficient < 0.3) return 'Locked in';
+    if (coefficient < 0.5) return 'Steady';
+    if (coefficient < 0.7) return 'Patchy';
+    return 'Erratic';
   }
 
   Widget _buildTrendChart(List<int> scores, String trend) {
@@ -423,7 +422,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CsMeta('Performance insights', icon: Symbols.lightbulb_rounded, iconColor: CsColors.gold, size: 10),
+        CsMeta('Debrief notes', icon: Symbols.lightbulb_rounded, iconColor: CsColors.gold, size: 10),
         SizedBox(height: cs(10)),
         for (final insight in insights)
           Padding(
@@ -443,34 +442,34 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   List<String> _generateInsights(List<int> scores, String trend) {
     final insights = <String>[];
 
-    if (scores.isEmpty) return ['Play more games to get performance insights!'];
+    if (scores.isEmpty) return ['Fly a few runs to unlock debrief notes.'];
 
     final average = scores.reduce((a, b) => a + b) / scores.length;
     final recent = scores.length >= 3 ? scores.sublist(scores.length - 3) : scores;
     final recentAvg = recent.reduce((a, b) => a + b) / recent.length;
 
     if (trend == 'improving') {
-      insights.add('Great job! Your performance is on an upward trend.');
+      insights.add('Scores are climbing. Keep the pressure on.');
       if (recentAvg > average * 1.2) {
-        insights.add('Your recent games are significantly above your average.');
+        insights.add('Last three runs beat your average by 20%+.');
       }
     } else if (trend == 'declining') {
-      insights.add('Your performance has declined recently. Consider practicing more.');
-      insights.add('Try focusing on avoiding collisions and planning your moves ahead.');
+      insights.add('Scores are slipping. Run Cruise to drill the patterns.');
+      insights.add('Graze more, chain kills, and save Overdrive for formations.');
     } else {
-      insights.add('Your performance is stable. Challenge yourself to improve!');
+      insights.add('Holding steady. Push for a longer combo chain.');
     }
 
     final maxScore = scores.reduce((a, b) => a > b ? a : b);
     final minScore = scores.reduce((a, b) => a < b ? a : b);
     if (maxScore > minScore * 3) {
-      insights.add('You have potential for high scores - work on consistency.');
+      insights.add('Big swings between runs. Consistency is the next upgrade.');
     }
 
     if (scores.length >= 5) {
       final lastFive = scores.sublist(scores.length - 5);
       if (lastFive.every((score) => score > average * 0.8)) {
-        insights.add('You\'re maintaining solid performance across recent games.');
+        insights.add('Five solid sorties in a row. Combat-ready.');
       }
     }
 

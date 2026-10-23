@@ -58,7 +58,7 @@ class _CreditsBody extends StatelessWidget {
         SizedBox(height: cs(14)),
         const CsWordmark(size: 18),
         SizedBox(height: cs(8)),
-        Text('A premium space shooter experience.', style: t.body),
+        Text('A 12-level space shooter campaign.', style: t.body),
         SizedBox(height: cs(14)),
         CsChip(version),
       ],

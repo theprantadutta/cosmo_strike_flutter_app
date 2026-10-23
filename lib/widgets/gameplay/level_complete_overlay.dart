@@ -105,7 +105,7 @@ class LevelCompleteOverlay extends StatelessWidget {
         Expanded(
           child: CsFitColumn(
             children: [
-              CsLabel('Level $lv complete · ${game.mode.name}', color: CsColors.mint),
+              CsLabel('Level $lv clear · ${game.mode.name}', color: CsColors.mint),
               SizedBox(height: cs(8)),
               // Title case like every other headline; scales down rather
               // than truncating long names ("Shattered Light").

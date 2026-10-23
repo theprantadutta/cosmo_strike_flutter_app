@@ -89,21 +89,6 @@ class HapticService {
     await lightImpact();
   }
 
-  /// Feedback for food consumption
-  Future<void> foodEaten() async {
-    await mediumImpact();
-  }
-
-  /// Feedback for bonus food consumption
-  Future<void> bonusFoodEaten() async {
-    await _doubleImpact(HapticFeedback.mediumImpact);
-  }
-
-  /// Feedback for special food consumption
-  Future<void> specialFoodEaten() async {
-    await _tripleImpact(HapticFeedback.heavyImpact);
-  }
-
   /// Feedback for power-up collection
   Future<void> powerUpCollected() async {
     await _successPattern();
@@ -155,22 +140,6 @@ class HapticService {
   }
 
   /// Private helper methods for complex patterns
-
-  Future<void> _doubleImpact(Function hapticFunction) async {
-    if (!_isEnabled) return;
-    await hapticFunction();
-    await Future.delayed(const Duration(milliseconds: 50));
-    await hapticFunction();
-  }
-
-  Future<void> _tripleImpact(Function hapticFunction) async {
-    if (!_isEnabled) return;
-    await hapticFunction();
-    await Future.delayed(const Duration(milliseconds: 50));
-    await hapticFunction();
-    await Future.delayed(const Duration(milliseconds: 50));
-    await hapticFunction();
-  }
 
   Future<void> _successPattern() async {
     if (!_isEnabled) return;

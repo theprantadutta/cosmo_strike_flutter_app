@@ -10,24 +10,14 @@ enum TournamentType {
   String get displayName {
     switch (this) {
       case TournamentType.daily:
-        return 'Daily Challenge';
+        return 'Daily Cup';
       case TournamentType.weekly:
-        return 'Weekly Tournament';
+        return 'Weekly Cup';
       case TournamentType.special:
-        return 'Special Event';
+        return 'Championship';
     }
   }
 
-  String get emoji {
-    switch (this) {
-      case TournamentType.daily:
-        return '📅';
-      case TournamentType.weekly:
-        return '🏆';
-      case TournamentType.special:
-        return '⭐';
-    }
-  }
 
   Duration get duration {
     switch (this) {
@@ -59,86 +49,6 @@ enum TournamentStatus {
 
   bool get canJoin => this == TournamentStatus.active;
   bool get canSubmitScore => this == TournamentStatus.active;
-}
-
-enum TournamentGameMode {
-  classic,
-  speedRun,
-  survival,
-  noWalls,
-  powerUpMadness,
-  perfectGame;
-
-  String get displayName {
-    switch (this) {
-      case TournamentGameMode.classic:
-        return 'Classic';
-      case TournamentGameMode.speedRun:
-        return 'Speed Run';
-      case TournamentGameMode.survival:
-        return 'Survival';
-      case TournamentGameMode.noWalls:
-        return 'No Walls';
-      case TournamentGameMode.powerUpMadness:
-        return 'Power-up Madness';
-      case TournamentGameMode.perfectGame:
-        return 'Perfect Game';
-    }
-  }
-
-  String get description {
-    switch (this) {
-      case TournamentGameMode.classic:
-        return 'Standard Ship game rules';
-      case TournamentGameMode.speedRun:
-        return 'Game speed increases rapidly';
-      case TournamentGameMode.survival:
-        return 'Survive as long as possible';
-      case TournamentGameMode.noWalls:
-        return 'Ship wraps around screen edges';
-      case TournamentGameMode.powerUpMadness:
-        return 'Frequent power-ups spawn';
-      case TournamentGameMode.perfectGame:
-        return 'No mistakes allowed - one hit ends game';
-    }
-  }
-
-  String get emoji {
-    switch (this) {
-      case TournamentGameMode.classic:
-        return '🚀';
-      case TournamentGameMode.speedRun:
-        return '⚡';
-      case TournamentGameMode.survival:
-        return '⏱️';
-      case TournamentGameMode.noWalls:
-        return '🌐';
-      case TournamentGameMode.powerUpMadness:
-        return '🎆';
-      case TournamentGameMode.perfectGame:
-        return '💎';
-    }
-  }
-
-  // Maps the tournament's declared mode to the single-player engine's
-  // GameMode so the game cubit can honor it at tick time. Previously the
-  // cubit always used settings.gameMode regardless of tournament rules.
-  GameMode toGameMode() {
-    switch (this) {
-      case TournamentGameMode.classic:
-        return GameMode.classic;
-      case TournamentGameMode.speedRun:
-        return GameMode.speedChallenge;
-      case TournamentGameMode.survival:
-        return GameMode.survival;
-      case TournamentGameMode.noWalls:
-        return GameMode.zen;
-      case TournamentGameMode.powerUpMadness:
-        return GameMode.powerUpMadness;
-      case TournamentGameMode.perfectGame:
-        return GameMode.perfectGame;
-    }
-  }
 }
 
 class TournamentReward {
@@ -243,7 +153,7 @@ class Tournament {
   final String description;
   final TournamentType type;
   final TournamentStatus status;
-  final TournamentGameMode gameMode;
+  final GameMode gameMode;
   final DateTime startDate;
   final DateTime endDate;
   final int maxParticipants;
@@ -301,7 +211,7 @@ class Tournament {
   String get timeRemainingFormatted {
     final duration = timeRemaining;
     if (duration.isNegative || duration == Duration.zero) {
-      return status == TournamentStatus.upcoming ? 'Starting...' : 'Ended';
+      return status == TournamentStatus.upcoming ? 'Starting' : 'Ended';
     }
 
     if (duration.inDays > 0) {
@@ -364,7 +274,7 @@ class Tournament {
       'description': description,
       'type': type.name,
       'status': status.name,
-      'gameMode': gameMode.name,
+      'gameMode': gameMode.wireName,
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
       'maxParticipants': maxParticipants,
@@ -426,13 +336,8 @@ class Tournament {
         if (raw == 'active') return TournamentStatus.active;
         return TournamentStatus.upcoming;
       }(),
-      gameMode: TournamentGameMode.values.firstWhere(
-        (m) =>
-            m.name == json['game_mode'] ||
-            m.name == json['gameMode'] ||
-            shipFromCamel(m.name) == json['game_mode'] ||
-            shipFromCamel(m.name) == json['gameMode'],
-        orElse: () => TournamentGameMode.classic,
+      gameMode: GameMode.fromWire(
+        (json['game_mode'] ?? json['gameMode'])?.toString(),
       ),
       startDate: DateTime.parse(
         pick<String>('start_date', 'startDate') ??
@@ -461,7 +366,7 @@ class Tournament {
                 TournamentReward(
                   id: 'r$k',
                   name: 'Rank $k',
-                  description: 'Coin reward for rank $k',
+                  description: 'Credit reward for rank $k',
                   type: 'coins',
                   coins: v is int ? v : (v is num ? v.toInt() : 0),
                 ),
@@ -507,7 +412,7 @@ class Tournament {
     String? description,
     TournamentType? type,
     TournamentStatus? status,
-    TournamentGameMode? gameMode,
+    GameMode? gameMode,
     DateTime? startDate,
     DateTime? endDate,
     int? maxParticipants,

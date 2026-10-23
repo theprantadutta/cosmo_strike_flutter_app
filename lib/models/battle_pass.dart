@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../utils/constants.dart' show GameTheme;
+import 'premium_cosmetics.dart';
+import 'premium_power_up.dart';
+
 enum BattlePassRewardType {
   xp,
   coins,
@@ -15,50 +19,52 @@ enum BattlePassRewardType {
   String get displayName {
     switch (this) {
       case BattlePassRewardType.xp:
-        return 'XP Boost';
+        return 'Frontline XP';
       case BattlePassRewardType.coins:
-        return 'Coins';
+        return 'Credits';
       case BattlePassRewardType.theme:
-        return 'Theme';
+        return 'Sector';
       case BattlePassRewardType.skin:
-        return 'Ship Skin';
+        return 'Livery';
       case BattlePassRewardType.trail:
-        return 'Trail Effect';
+        return 'Exhaust';
       case BattlePassRewardType.powerUp:
-        return 'Power-Up';
+        return 'Tactical Gear';
       case BattlePassRewardType.tournamentEntry:
-        return 'Tournament Entry';
+        return 'Cup Pass';
       case BattlePassRewardType.title:
-        return 'Player Title';
+        return 'Pilot Title';
       case BattlePassRewardType.avatar:
         return 'Avatar';
       case BattlePassRewardType.special:
-        return 'Special Reward';
+        return 'Special Issue';
     }
   }
 
+  /// Material Symbols glyph name for the reward type (no emoji in the UI;
+  /// the reward record stores this key, the UI maps types to icons).
   String get icon {
     switch (this) {
       case BattlePassRewardType.xp:
-        return '⭐';
+        return 'star';
       case BattlePassRewardType.coins:
-        return '🪙';
+        return 'paid';
       case BattlePassRewardType.theme:
-        return '🎨';
+        return 'public';
       case BattlePassRewardType.skin:
-        return '🚀';
+        return 'rocket';
       case BattlePassRewardType.trail:
-        return '✨';
+        return 'local_fire_department';
       case BattlePassRewardType.powerUp:
-        return '⚡';
+        return 'bolt';
       case BattlePassRewardType.tournamentEntry:
-        return '🏆';
+        return 'confirmation_number';
       case BattlePassRewardType.title:
-        return '👑';
+        return 'military_tech';
       case BattlePassRewardType.avatar:
-        return '🖼️';
+        return 'account_circle';
       case BattlePassRewardType.special:
-        return '🎁';
+        return 'redeem';
     }
   }
 }
@@ -70,9 +76,9 @@ enum BattlePassTier {
   String get displayName {
     switch (this) {
       case BattlePassTier.free:
-        return 'Free';
+        return 'Frontline track';
       case BattlePassTier.premium:
-        return 'Premium';
+        return 'Command lane';
     }
   }
 
@@ -109,7 +115,7 @@ class BattlePassReward {
     String? icon,
     Color? color,
     this.isSpecial = false,
-  }) : icon = icon ?? '🎁',
+  }) : icon = icon ?? 'redeem',
        color = color ?? Colors.blue;
 
   bool get isPremium => tier == BattlePassTier.premium;
@@ -144,7 +150,7 @@ class BattlePassReward {
       ),
       quantity: json['quantity'] ?? 1,
       itemId: json['item_id'],
-      icon: json['icon'] ?? '🎁',
+      icon: json['icon'] ?? 'redeem',
       // Tolerate ARGB-int OR "#RRGGBB"/"#AARRGGBB" hex string — backend
       // generator emits int, but season templates / legacy data may pass hex.
       color: BattlePassSeason._parseColor(json['color'], const Color(0xFF2196F3)),
@@ -371,15 +377,16 @@ class BattlePassSeason {
         // Free rewards every 5 levels
         final freeType = _getRewardTypeForLevel(i, false);
         final freeQty = _getQuantityForLevel(i, false);
+        final freeItem = _getItemIdForReward(i, freeType, false);
         freeReward = BattlePassReward(
           id: 'free_$i',
-          name: _getRewardName(i, freeType, false, freeQty),
+          name: _getRewardName(i, freeType, false, freeQty, freeItem),
           description: _getRewardDescription(freeType, false),
           type: freeType,
           tier: BattlePassTier.free,
           quantity: freeQty,
           icon: freeType.icon,
-          itemId: _getItemIdForReward(i, freeType, false),
+          itemId: freeItem,
         );
       }
 
@@ -387,9 +394,10 @@ class BattlePassSeason {
         // Premium rewards every 3 levels
         final premType = _getRewardTypeForLevel(i, true);
         final premQty = _getQuantityForLevel(i, true);
+        final premItem = _getItemIdForReward(i, premType, true);
         premiumReward = BattlePassReward(
           id: 'premium_$i',
-          name: _getRewardName(i, premType, true, premQty),
+          name: _getRewardName(i, premType, true, premQty, premItem),
           description: _getRewardDescription(premType, true),
           type: premType,
           tier: BattlePassTier.premium,
@@ -397,7 +405,7 @@ class BattlePassSeason {
           isSpecial: isMilestone,
           icon: premType.icon,
           color: Colors.amber,
-          itemId: _getItemIdForReward(i, premType, true),
+          itemId: premItem,
         );
       }
 
@@ -414,9 +422,9 @@ class BattlePassSeason {
 
     return BattlePassSeason(
       id: 'season_1',
-      name: 'Cosmic Serpent Season',
-      description: 'Explore the cosmos with exclusive space-themed rewards',
-      theme: 'cosmic',
+      name: 'Operation Glasswing',
+      description: 'Fly the Glasswing sorties for Frontline rewards.',
+      theme: 'glasswing',
       startDate: startDate,
       endDate: endDate,
       levels: levels,
@@ -424,9 +432,9 @@ class BattlePassSeason {
       bannerImage: 'assets/images/battle_pass_cosmic_banner.png',
       themeColor: const Color(0xFF4B0082),
       metadata: {
-        'featured_skins': ['galaxy', 'cosmic', 'crystal'],
-        'featured_themes': ['space', 'cyberpunk'],
-        'special_events': ['cosmic_tournament', 'starlight_challenge'],
+        'featured_liveries': ['livery_viridian', 'livery_prism', 'livery_glacier'],
+        'featured_sectors': ['sector_crimson', 'sector_ion'],
+        'special_events': ['glasswing_cup', 'starlight_directive'],
       },
     );
   }
@@ -459,32 +467,38 @@ class BattlePassSeason {
   }
 
   static const _freeRewardNames = <BattlePassRewardType, List<String>>{
-    BattlePassRewardType.xp: ['XP Boost', 'Star Dust', 'Energy Pack'],
-    BattlePassRewardType.coins: ['50 Coins', '75 Coins', '100 Coins'],
-    BattlePassRewardType.tournamentEntry: ['Bronze Entry', 'Silver Entry'],
+    BattlePassRewardType.xp: ['XP Boost', 'Star Dust', 'Energy Cell'],
+    BattlePassRewardType.coins: ['50 Credits', '75 Credits', '100 Credits'],
+    BattlePassRewardType.tournamentEntry: ['Scout Cup Pass', 'Strike Cup Pass'],
     BattlePassRewardType.title: ['Stargazer', 'Voyager'],
-    BattlePassRewardType.theme: ['Nebula Theme'],
-    BattlePassRewardType.trail: ['Stardust Trail'],
-    BattlePassRewardType.special: ['Legendary Crate'],
+    BattlePassRewardType.special: ['Legendary Cache'],
   };
 
   static const _premiumRewardNames = <BattlePassRewardType, List<String>>{
-    BattlePassRewardType.xp: ['Mega XP', 'Cosmic Charge', 'Nova Burst'],
-    BattlePassRewardType.coins: ['200 Coins', '350 Coins', '500 Coins'],
-    BattlePassRewardType.skin: ['Galaxy Skin', 'Crystal Serpent'],
-    BattlePassRewardType.trail: ['Neon Trail', 'Plasma Wake', 'Cosmic Aura'],
-    BattlePassRewardType.theme: ['Cyberpunk Theme', 'Crystal Theme'],
-    BattlePassRewardType.powerUp: ['Speed Boost', 'Score Shield', 'Ghost Mode'],
-    BattlePassRewardType.special: ['Season Trophy', 'Cosmic Crown'],
-    BattlePassRewardType.title: ['Cosmic Legend', 'Star Commander'],
+    BattlePassRewardType.xp: ['Mega XP', 'Nova Charge', 'Nova Burst'],
+    BattlePassRewardType.coins: ['200 Credits', '350 Credits', '500 Credits'],
+    BattlePassRewardType.special: ['Season Medal', 'Flagship Crest'],
+    BattlePassRewardType.title: ['Ace of Aces', 'Star Commander'],
   };
 
+  /// Catalog rewards (livery / exhaust / sector / gear) are named after the
+  /// item they grant; everything else uses the season's name lists.
   static String _getRewardName(
     int level,
     BattlePassRewardType type,
     bool isPremium,
     int quantity,
+    String? itemId,
   ) {
+    final catalogName = switch (type) {
+      BattlePassRewardType.skin => LiveryType.tryParse(itemId)?.displayName,
+      BattlePassRewardType.trail => ExhaustType.tryParse(itemId)?.displayName,
+      BattlePassRewardType.theme => GameTheme.fromId(itemId)?.displayName,
+      BattlePassRewardType.powerUp =>
+        PremiumPowerUpType.fromKey(itemId)?.displayName,
+      _ => null,
+    };
+    if (catalogName != null) return catalogName;
     final names = isPremium
         ? _premiumRewardNames[type]
         : _freeRewardNames[type];
@@ -497,8 +511,8 @@ class BattlePassSeason {
   }
 
   static String _getRewardDescription(BattlePassRewardType type, bool isPremium) {
-    final prefix = isPremium ? 'Exclusive premium' : 'Free';
-    return '$prefix ${type.displayName.toLowerCase()} reward';
+    final lane = isPremium ? 'Command lane' : 'Frontline track';
+    return '$lane reward: ${type.displayName}';
   }
 
   /// Maps cosmetic reward types to actual item IDs from the catalog.
@@ -511,20 +525,25 @@ class BattlePassSeason {
   ) {
     switch (type) {
       case BattlePassRewardType.skin:
-        const skins = ['galaxy', 'cosmic', 'crystal', 'golden', 'rainbow'];
-        return skins[(level ~/ 25) % skins.length];
-      case BattlePassRewardType.trail:
-        const trails = [
-          'trail_cosmic', 'trail_neon', 'trail_crystal',
-          'trail_particle', 'trail_rainbow',
+        const liveries = [
+          'livery_viridian', 'livery_prism', 'livery_glacier',
+          'livery_aurum', 'livery_solstice',
         ];
-        return trails[(level ~/ 15) % trails.length];
+        return liveries[(level ~/ 25) % liveries.length];
+      case BattlePassRewardType.trail:
+        const exhausts = [
+          'exhaust_plasma', 'exhaust_nova', 'exhaust_comet',
+          'exhaust_ion', 'exhaust_pulse',
+        ];
+        return exhausts[(level ~/ 15) % exhausts.length];
       case BattlePassRewardType.theme:
-        const themes = ['space', 'cyberpunk', 'crystal', 'ocean'];
-        return themes[(level ~/ 20) % themes.length];
+        const sectors = [
+          'sector_crimson', 'sector_ion', 'sector_aurora', 'sector_abyss',
+        ];
+        return sectors[(level ~/ 20) % sectors.length];
       case BattlePassRewardType.powerUp:
-        const powerUps = ['speed_boost', 'score_shield', 'ghost_mode'];
-        return powerUps[(level ~/ 10) % powerUps.length];
+        const gear = ['gear_afterburner', 'gear_laststand', 'gear_cloak'];
+        return gear[(level ~/ 10) % gear.length];
       default:
         return null; // XP, coins, titles, tournament entries, specials
     }

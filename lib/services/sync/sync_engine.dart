@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
@@ -12,12 +13,18 @@ import 'package:cosmo_strike_flutter_app/data/daos/settings_dao.dart';
 import 'package:cosmo_strike_flutter_app/data/daos/store_dao.dart';
 import 'package:cosmo_strike_flutter_app/data/daos/sync_dao.dart';
 import 'package:cosmo_strike_flutter_app/models/achievement.dart' as ach_model;
+import 'package:cosmo_strike_flutter_app/services/rebrand/legacy_achievement_migration.dart'
+    show kLegacyAchievementMap;
+import 'package:cosmo_strike_flutter_app/models/premium_cosmetics.dart';
+import 'package:cosmo_strike_flutter_app/models/premium_power_up.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
 import 'package:cosmo_strike_flutter_app/services/haptic_service.dart';
+import 'package:cosmo_strike_flutter_app/services/rebrand/legacy_catalog_migration.dart'
+    show normalizeUnlockedItemId;
 import 'package:cosmo_strike_flutter_app/utils/constants.dart'
     show GameMode, GameTheme;
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
@@ -1169,8 +1176,7 @@ class SyncEngine {
     try {
       final row = await _settingsDao?.getSettings();
       if (row == null) return;
-      final theme = GameTheme
-          .values[row.themeIndex.clamp(0, GameTheme.values.length - 1)];
+      final theme = GameTheme.fromIndex(row.themeIndex);
       final mode = GameMode
           .values[row.gameModeIndex.clamp(0, GameMode.values.length - 1)];
       await GetIt.I<ThemeCubit>().applyRestoredSettings(
@@ -1243,8 +1249,14 @@ class SyncEngine {
                 Value(settings['trail_system_enabled'] as bool? ?? false),
             screenShakeEnabled:
                 Value(settings['screen_shake_enabled'] as bool? ?? false),
-            selectedSkinId: Value(settings['selected_skin_id'] as String?),
-            selectedTrailId: Value(settings['selected_trail_id'] as String?),
+            // Legacy-aware: a not-yet-migrated server row may still carry
+            // pre-3.2 skin / trail IDs.
+            selectedSkinId: Value(LiveryType.tryParse(
+                    settings['selected_skin_id'] as String?)
+                ?.id),
+            selectedTrailId: Value(ExhaustType.tryParse(
+                    settings['selected_trail_id'] as String?)
+                ?.id),
             gameModeIndex: Value(settings['game_mode_index'] as int? ?? 0),
             hapticsEnabled: Value(settings['haptics_enabled'] as bool? ?? true),
             lastUpdated: Value(_parseDate(settings['updated_at']) ?? DateTime.now()),
@@ -1328,7 +1340,11 @@ class SyncEngine {
         final rawInv = powerUps['inventory'];
         if (rawInv is Map) {
           rawInv.forEach((k, v) {
-            if (v is int && v > 0) cloudInv[k as String] = v;
+            if (v is int && v > 0) {
+              // Fold pre-3.2 keys (speed_boost, …) onto gear_* keys.
+              final key = PremiumPowerUpType.normalizeKey(k as String);
+              cloudInv[key] = (cloudInv[key] ?? 0) + v;
+            }
           });
         }
         final cloudUpdated = _parseDate(powerUps['updated_at']);
@@ -1422,8 +1438,7 @@ class SyncEngine {
         // per-call overhead adds up, even though each lookup is cheap.
         final existingRows = await _gameDao!.getAllAchievements();
         final existingById = {for (final r in existingRows) r.id: r};
-        for (final raw in achievements) {
-          if (raw is! Map<String, dynamic>) continue;
+        for (final raw in _foldLegacyAchievements(achievements)) {
           final id = raw['id'] as String?;
           if (id == null) continue;
 
@@ -1493,9 +1508,12 @@ class SyncEngine {
       if (unlocked is List) {
         for (final raw in unlocked) {
           if (raw is! Map<String, dynamic>) continue;
-          final itemId = raw['item_id'] as String?;
+          final rawId = raw['item_id'] as String?;
           final itemType = raw['item_type'] as String?;
-          if (itemId == null || itemType == null) continue;
+          if (rawId == null || itemType == null) continue;
+          // Legacy catalog IDs fold onto the 3.2 catalog (null = retired).
+          final itemId = normalizeUnlockedItemId(itemType, rawId);
+          if (itemId == null) continue;
           await _storeDao!.unlockItem(
             itemId,
             itemType,
@@ -1748,6 +1766,46 @@ class SyncEngine {
     String source,
   ) =>
       '${createdAt.toUtc().toIso8601String()}|$amount|$type|$source';
+
+  /// Translate pre-3.2 achievement ids in a cloud snapshot to their
+  /// commendation via [kLegacyAchievementMap] (a server that hasn't run the
+  /// rebrand SQL yet still returns them). Several legacy rows can fold into
+  /// one commendation: unlocked if any was, highest progress, earliest
+  /// unlock, claimed only if an unlocked source was claimed. Unmapped legacy
+  /// ids pass through and are skipped by the caller as unknown.
+  List<Map<String, dynamic>> _foldLegacyAchievements(List<dynamic> raws) {
+    final out = <String, Map<String, dynamic>>{};
+    for (final raw in raws) {
+      if (raw is! Map<String, dynamic>) continue;
+      final rawId = raw['id'] as String?;
+      if (rawId == null) continue;
+      final id = kLegacyAchievementMap[rawId] ?? rawId;
+      final row = {...raw, 'id': id};
+      final prev = out[id];
+      if (prev == null) {
+        out[id] = row;
+        continue;
+      }
+      final prevUnlocked = prev['is_unlocked'] as bool? ?? false;
+      final rowUnlocked = row['is_unlocked'] as bool? ?? false;
+      final prevAt = _parseDate(prev['unlocked_at']);
+      final rowAt = _parseDate(row['unlocked_at']);
+      final earliest = prevAt == null
+          ? rowAt
+          : (rowAt == null || prevAt.isBefore(rowAt) ? prevAt : rowAt);
+      out[id] = {
+        ...prev,
+        'is_unlocked': prevUnlocked || rowUnlocked,
+        'current_progress': math.max(prev['current_progress'] as int? ?? 0,
+            row['current_progress'] as int? ?? 0),
+        'unlocked_at': earliest?.toIso8601String(),
+        'reward_claimed':
+            (prevUnlocked && (prev['reward_claimed'] as bool? ?? false)) ||
+                (rowUnlocked && (row['reward_claimed'] as bool? ?? false)),
+      };
+    }
+    return out.values.toList();
+  }
 
   DateTime? _parseDate(dynamic raw) {
     if (raw == null) return null;

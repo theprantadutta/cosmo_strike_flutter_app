@@ -18,7 +18,6 @@ class AudioService {
   // ship in assets/audio/. Preload failures stay non-fatal regardless —
   // playSound() no-ops silently for a missing key (see _playSystemSound).
   static const List<String> _soundsToPreload = [
-    'eat',
     'level_up',
     'game_over',
     'game_start',
@@ -113,7 +112,6 @@ class AudioService {
   // would be unbearable while the .wav files are still missing.
   void _playSystemSound(String soundName) {
     switch (soundName) {
-      case 'eat':
       case 'button_click':
         SystemSound.play(SystemSoundType.click);
         break;

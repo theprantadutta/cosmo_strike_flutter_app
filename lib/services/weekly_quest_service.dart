@@ -12,6 +12,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/battle_pass_c
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
+import 'package:cosmo_strike_flutter_app/utils/constants.dart' show GameMode;
 
 /// Weekly quests service.
 ///
@@ -269,7 +270,8 @@ class WeeklyQuestService extends ChangeNotifier {
       if (type == WeeklyQuestType.gameMode &&
           quest.requiredGameMode != null &&
           gameMode != null &&
-          quest.requiredGameMode!.toLowerCase() != gameMode.toLowerCase()) {
+          GameMode.tryFromWire(quest.requiredGameMode) !=
+              GameMode.tryFromWire(gameMode)) {
         continue;
       }
 

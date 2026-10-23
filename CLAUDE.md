@@ -44,7 +44,7 @@ When adding a new piece of user state: add a Drift table/DAO, read it in the UI,
 write-through to Drift, enqueue it for push in `SyncEngine`. Don't bolt on a
 one-off API call.
 
-## ⚠️ Onboarding: NO GATES, DEFERRED ASKS (mirrors Snake Classic)
+## ⚠️ Onboarding: NO GATES, DEFERRED ASKS
 A fresh install goes loading → **Home**, as the silent local guest
 `UnifiedUserService` creates (no Firebase/backend until they sign in). Never
 put sign-in, privacy, notifications or setup choices in front of the first run.
@@ -70,20 +70,21 @@ put sign-in, privacy, notifications or setup choices in front of the first run.
   Firebase-anonymous account so the backend can verify the purchase. Never
   put the account sheet in front of a purchase.
 
-## ⚠️ Pending App Store items — do this for the next iOS release
-App Store review of 3.1.1 (16) went in WITHOUT two in-app purchases: Apple
-won't add items back into a submission once it's "Unresolved Issues".
-- **Championship Entry** (`com.pranta.cosmostrike.championship_entry`, 3 gold
-  tickets, $9.99) and **VIP Tournament Pack**
-  (`com.pranta.cosmostrike.tournament_vip_entry`, 5 gold + 5 silver, $19.99)
-  are set up in App Store Connect (name, price, review note, screenshot) but
-  not approved yet.
-- The Store's Entries tab hides their tiles until the store returns the
-  product (`_TournamentEntryOffer.requiresStoreProduct` in `store_screen.dart`),
-  so they appear automatically once approved — no new build needed.
-- **Next step:** once the app is approved, submit both products for review
-  (standalone from In-App Purchases, or with the next version). After they're
-  approved, the `requiresStoreProduct` flag can be dropped.
+## ⚠️ Identity: never drift back toward Snake Classic
+3.1.1 was rejected under App Store guideline 4.3(a) (spam): the app was forked
+from the developer's Snake Classic and still mirrored its catalog, modes,
+achievements and copy. 3.2 rebranded everything — the source of truth is
+`docs/rebrand/REBRAND_SPEC.md` (vocabulary, 35-product catalog, modes,
+commendations, legacy-ID migrations). Use its vocabulary: Credits, Strike
+Command, Armory, Liveries / Exhausts / Sectors / Fleet Kits / Tactical Gear /
+Cup Passes, Frontline, Sector Cups, Daily Directives, Weekly Ops,
+Commendations, Standings, Squadron. Never copy features, strings, IDs or
+word lists from Snake Classic.
+- Legacy IDs are migrated once on startup (`lib/services/rebrand/*`, wired at
+  the end of `configureDependencies`) and parsed tolerantly everywhere
+  (`GameMode.fromWire`, `LiveryType/ExhaustType.fromId`, `GameTheme.fromId`).
+- The Store's Cup Passes tab hides `cup_ace_trio` / `cup_squadron` until the
+  store returns them (`_TournamentEntryOffer.requiresStoreProduct`).
 
 ## Stack & conventions
 - **State management:** `flutter_bloc` Cubits/Blocs in `lib/presentation/bloc/`

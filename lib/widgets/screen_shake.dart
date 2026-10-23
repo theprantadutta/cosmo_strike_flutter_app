@@ -207,30 +207,6 @@ class GameJuiceController extends ChangeNotifier {
   }
 
   // Specific game event effects
-  void foodEaten() {
-    shakeScreen(
-      intensity: ShakeIntensity.light,
-      duration: const Duration(milliseconds: 100),
-    );
-    triggerScalePunch(intensity: 0.05);
-  }
-
-  void bonusFoodEaten() {
-    shakeScreen(
-      intensity: ShakeIntensity.medium,
-      duration: const Duration(milliseconds: 200),
-    );
-    triggerScalePunch(intensity: 0.08);
-  }
-
-  void specialFoodEaten() {
-    shakeScreen(
-      intensity: ShakeIntensity.heavy,
-      duration: const Duration(milliseconds: 300),
-    );
-    triggerScalePunch(intensity: 0.12);
-  }
-
   void powerUpCollected() {
     shakeScreen(
       intensity: ShakeIntensity.medium,

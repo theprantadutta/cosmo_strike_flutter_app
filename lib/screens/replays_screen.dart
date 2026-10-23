@@ -9,6 +9,7 @@ import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/utils/constants.dart' show GameMode;
 
 enum _ReplayTab { recent, best, crashes }
 
@@ -94,7 +95,7 @@ class _ReplaysScreenState extends State<ReplaysScreen> {
   @override
   Widget build(BuildContext context) {
     return CsScaffold(
-      title: 'Game replays',
+      title: 'Flight Recorder',
       washes: const [CsWash.violetTopRight],
       trailing: [
         if (!_isLoading && _replays.isNotEmpty) CsMeta('${_replays.length} saved'),
@@ -105,7 +106,7 @@ class _ReplaysScreenState extends State<ReplaysScreen> {
         // Inline banner in the summary column (no full-width banners).
         leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
         left: _buildSummary(context),
-        right: _isLoading ? const CsLoadingState(label: 'Loading replays') : _buildList(context),
+        right: _isLoading ? const CsLoadingState(label: 'Loading recordings') : _buildList(context),
       ),
     );
   }
@@ -126,14 +127,14 @@ class _ReplaysScreenState extends State<ReplaysScreen> {
             segments: const {
               _ReplayTab.recent: 'Recent',
               _ReplayTab.best: 'Best',
-              _ReplayTab.crashes: 'Crashes',
+              _ReplayTab.crashes: 'Lost',
             },
             selected: _tab,
             onChanged: (v) => setState(() => _tab = v),
           ),
         ),
         SizedBox(height: cs(28)),
-        const CsLabel('Best replay'),
+        const CsLabel('Best recording'),
         SizedBox(height: cs(8)),
         FittedBox(
           fit: BoxFit.scaleDown,
@@ -142,22 +143,22 @@ class _ReplaysScreenState extends State<ReplaysScreen> {
         ),
         SizedBox(height: cs(12)),
         Text(
-          '${_replays.length} SAVED · ${_crashReplays.length} CRASHES',
+          '${_replays.length} SAVED · ${_crashReplays.length} SHIPS LOST',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: t.label,
         ),
         SizedBox(height: cs(18)),
-        Text('Tap a run to watch it frame by frame.', style: t.body),
+        Text('Tap a run to review it frame by frame.', style: t.body),
       ],
     );
   }
 
   Widget _buildList(BuildContext context) {
     final (List<GameReplay> list, String empty) = switch (_tab) {
-      _ReplayTab.recent => (_recentReplays, 'No recent replays'),
-      _ReplayTab.best => (_highScoreReplays, 'No high-score replays'),
-      _ReplayTab.crashes => (_crashReplays, 'No crash replays'),
+      _ReplayTab.recent => (_recentReplays, 'No recent recordings'),
+      _ReplayTab.best => (_highScoreReplays, 'No high-score recordings'),
+      _ReplayTab.crashes => (_crashReplays, 'No lost-ship recordings'),
     };
     return AnimatedSwitcher(
       duration: CsMotion.base,
@@ -168,7 +169,7 @@ class _ReplaysScreenState extends State<ReplaysScreen> {
             ? CsEmptyState(
                 icon: Symbols.videocam_off_rounded,
                 title: empty,
-                message: 'Play some games to generate replays!',
+                message: 'Fly a run. The recorder logs it automatically.',
               )
             : ListView.builder(
                 padding: EdgeInsets.only(bottom: context.cs(12)),
@@ -193,7 +194,7 @@ class _ReplaysScreenState extends State<ReplaysScreen> {
     final meta = [
       _formatDate(replay.createdAt).toUpperCase(),
       '${summary['duration']}',
-      '${summary['foodConsumed']} KILLS',
+      '${summary['kills']} KILLS',
       '${replay.totalFrames} FRAMES',
       '${summary['powerUpsCollected']} PWR',
     ].join(' · ');
@@ -259,7 +260,7 @@ class _ReplaysScreenState extends State<ReplaysScreen> {
             bordered: false,
             color: CsColors.pink,
             size: 36,
-            tooltip: 'Delete replay',
+            tooltip: 'Delete recording',
             onPressed: () => _deleteReplay(replay),
           ),
         ]),
@@ -267,9 +268,7 @@ class _ReplaysScreenState extends State<ReplaysScreen> {
     );
   }
 
-  String _prettyMode(String raw) => raw
-      .replaceAllMapped(RegExp(r'([a-z])([A-Z])'), (m) => '${m[1]} ${m[2]}')
-      .replaceAll('_', ' ');
+  String _prettyMode(String raw) => GameMode.fromWire(raw).name;
 
   String _formatScore(int v) {
     final s = v.abs().toString();
@@ -302,9 +301,9 @@ class _ReplaysScreenState extends State<ReplaysScreen> {
   Future<void> _deleteReplay(GameReplay replay) async {
     final confirmed = await showCsConfirm(
       context,
-      eyebrow: 'Replays',
-      title: 'Delete replay?',
-      message: 'Delete replay from ${_formatDate(replay.createdAt)}?',
+      eyebrow: 'Flight Recorder',
+      title: 'Delete recording?',
+      message: 'Delete the recording from ${_formatDate(replay.createdAt)}?',
       confirmLabel: 'Delete',
       destructive: true,
     );
@@ -314,11 +313,11 @@ class _ReplaysScreenState extends State<ReplaysScreen> {
         // Drift watch re-emits automatically — no manual reload.
         await _storageService.deleteReplay(replay.id);
         if (mounted) {
-          showCsToast(context, 'Replay deleted', kind: CsToastKind.success);
+          showCsToast(context, 'Recording deleted.', kind: CsToastKind.success);
         }
       } catch (e) {
         if (mounted) {
-          showCsToast(context, 'Failed to delete replay', kind: CsToastKind.error);
+          showCsToast(context, 'Delete failed. Try again.', kind: CsToastKind.error);
         }
       }
     }

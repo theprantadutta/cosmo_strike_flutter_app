@@ -88,7 +88,7 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen> {
     final cs = context.cs;
 
     return CsScaffold(
-      title: 'Friend ranks',
+      title: 'Squadron Standings',
       trailing: [
         CsIconButton(
           icon: Symbols.refresh_rounded,
@@ -106,7 +106,7 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen> {
         gap: cs(40),
         left: _SideColumn(children: _buildLeft(currentUid)),
         right: _isLoading
-            ? const CsLoadingState(label: 'Loading leaderboard')
+            ? const CsLoadingState(label: 'Loading standings')
             : _buildLeaderboard(currentUid),
       ),
     );
@@ -139,7 +139,7 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen> {
       ]);
     } else {
       hero = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        const CsLabel('Friends'),
+        const CsLabel('Wingmates'),
         SizedBox(height: cs(4)),
         FittedBox(
           fit: BoxFit.scaleDown,
@@ -159,18 +159,18 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen> {
     }
 
     return [
-      Text('Compete with your friends', style: t.display(26, em: -0.03, height: 1.05)),
+      Text('Outfly your squadron', style: t.display(26, em: -0.03, height: 1.05)),
       SizedBox(height: cs(22)),
       hero,
       SizedBox(height: cs(22)),
       Text(
-        'Ranked by highest single-run score.',
+        'Best single run, all time.',
         style: t.display(12, weight: FontWeight.w400, em: 0, height: 1.4, color: CsColors.ink45),
       ),
       const Spacer(),
       SizedBox(height: cs(16)),
       CsButton.secondary(
-        label: 'Add friends',
+        label: 'Add wingmates',
         icon: Symbols.person_add_rounded,
         size: CsButtonSize.small,
         onPressed: () => context.push(AppRoutes.friends),
@@ -182,10 +182,10 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen> {
     if (_leaderboard.isEmpty) {
       return CsEmptyState(
         icon: Symbols.group_rounded,
-        title: 'No Friends Yet',
-        message: 'Add friends to see your private leaderboard!',
+        title: 'No wingmates yet',
+        message: 'Add wingmates to open your squadron board.',
         action: CsButton.primary(
-          label: 'Add Friends',
+          label: 'Add wingmates',
           icon: Symbols.person_add_rounded,
           onPressed: () => context.push(AppRoutes.friends),
         ),

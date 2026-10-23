@@ -77,7 +77,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
 
     final cs = context.cs;
     return CsScaffold(
-      title: 'Ranks',
+      title: 'Standings',
       trailing: [
         ?_freshness(leaderboardState),
         CsIconButton(
@@ -170,7 +170,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
         Text('#—', style: t.scoreGiant.copyWith(height: 1.05, color: CsColors.ink25)),
         SizedBox(height: cs(6)),
         Text(
-          authState.isSignedIn ? 'NOT ON THIS BOARD YET' : 'SIGN IN TO GET RANKED',
+          authState.isSignedIn ? 'NOT POSTED ON THIS BOARD' : 'SIGN IN TO POST A SCORE',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: t.mono(12, em: 0.06, color: CsColors.ink45),
@@ -181,15 +181,15 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     // What the active board ranks by. Mirrors the backend handlers: global =
     // lifetime max single-run score; weekly = scores since Sunday.
     final caption = _weekly
-        ? 'Ranked by best single-run score this week. Resets Sunday.'
-        : 'Ranked by highest single-run score.';
+        ? 'Best single run this week. Board resets Sunday.'
+        : 'Best single run, all time.';
 
     return [
       FittedBox(
         fit: BoxFit.scaleDown,
         alignment: Alignment.centerLeft,
         child: CsSegmented<_Board>(
-          segments: const {_Board.global: 'Global', _Board.weekly: 'Weekly', _Board.friends: 'Friends'},
+          segments: const {_Board.global: 'Global', _Board.weekly: 'Weekly', _Board.friends: 'Squadron'},
           selected: _board,
           onChanged: _selectBoard,
         ),
@@ -204,11 +204,11 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
 
   Widget _buildGlobalLeaderboard(AuthState authState, CombinedLeaderboardState state) {
     if (state.isLoadingGlobal) {
-      return const CsLoadingState(label: 'Loading global leaderboard');
+      return const CsLoadingState(label: 'Loading global standings');
     }
     if (state.globalError != null) {
       return CsEmptyState.error(
-        title: "Couldn't load the leaderboard",
+        title: "Couldn't load standings",
         message: state.globalError,
         action: CsButton.secondary(label: 'Retry', icon: Symbols.refresh_rounded, onPressed: _loadGlobalLeaderboard),
       );
@@ -216,8 +216,8 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     if (state.globalEntries.isEmpty) {
       return const CsEmptyState(
         icon: Symbols.emoji_events_rounded,
-        title: 'No scores yet',
-        message: 'Be the first to set a high score!',
+        title: 'Board is empty',
+        message: 'Post the first score.',
       );
     }
     return _buildList(state.globalEntries, authState, _loadGlobalLeaderboard);
@@ -225,11 +225,11 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
 
   Widget _buildWeeklyLeaderboard(AuthState authState, CombinedLeaderboardState state) {
     if (state.isLoadingWeekly) {
-      return const CsLoadingState(label: 'Loading weekly leaderboard');
+      return const CsLoadingState(label: 'Loading weekly standings');
     }
     if (state.weeklyError != null) {
       return CsEmptyState.error(
-        title: "Couldn't load the leaderboard",
+        title: "Couldn't load standings",
         message: state.weeklyError,
         action: CsButton.secondary(label: 'Retry', icon: Symbols.refresh_rounded, onPressed: _loadWeeklyLeaderboard),
       );
@@ -237,8 +237,8 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     if (state.weeklyEntries.isEmpty) {
       return const CsEmptyState(
         icon: Symbols.calendar_today_rounded,
-        title: 'No weekly scores yet',
-        message: 'Play this week to appear here!',
+        title: 'No runs logged this week',
+        message: 'Fly a run to post on this board.',
       );
     }
     return _buildList(state.weeklyEntries, authState, _loadWeeklyLeaderboard);
@@ -259,7 +259,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
               authState.isSignedIn && authState.userId != null && player['uid'] == authState.userId;
           // Prefer the stable username over the display name, which can be
           // missing for anonymous users and changes with the Google profile.
-          final name = (player['username'] ?? player['displayName'] ?? 'Anonymous') as String;
+          final name = (player['username'] ?? player['displayName'] ?? 'Unknown pilot') as String;
           return _RankRow(
             rank: index + 1,
             name: name,

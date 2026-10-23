@@ -58,12 +58,12 @@ class _ChallengesHubScreenState extends ConsumerState<ChallengesHubScreen> {
         final weeklyBadge = weekly.claimableCount;
 
         return CsScaffold(
-          title: 'Challenges',
+          title: 'Directives',
           trailing: [
             CsSegmented<int>(
               segments: {
-                0: 'Daily',
-                1: weeklyBadge > 0 ? 'Weekly · $weeklyBadge' : 'Weekly',
+                0: 'Daily Directives',
+                1: weeklyBadge > 0 ? 'Weekly Ops · $weeklyBadge' : 'Weekly Ops',
               },
               selected: _tab,
               onChanged: (i) => setState(() => _tab = i),

@@ -72,11 +72,11 @@ class DailyBonusStatus {
   static const List<DailyBonusReward> _defaultWeekRewards = [
     DailyBonusReward(day: 1, coins: 10),
     DailyBonusReward(day: 2, coins: 15),
-    DailyBonusReward(day: 3, coins: 20, bonusItem: 'Speed Boost'),
+    DailyBonusReward(day: 3, coins: 20, bonusItem: 'Afterburner'),
     DailyBonusReward(day: 4, coins: 25),
-    DailyBonusReward(day: 5, coins: 30, bonusItem: '2x XP Boost'),
+    DailyBonusReward(day: 5, coins: 30, bonusItem: 'XP Surge'),
     DailyBonusReward(day: 6, coins: 40),
-    DailyBonusReward(day: 7, coins: 50, bonusItem: 'Premium Theme'),
+    DailyBonusReward(day: 7, coins: 50, bonusItem: 'Sector Pass'),
   ];
 }
 
@@ -202,10 +202,10 @@ class _DailyBonusPopupState extends State<DailyBonusPopup> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('DAILY BONUS', style: t.mono(11, em: .16)),
+                Text('SUPPLY DROP', style: t.mono(11, em: .16)),
                 SizedBox(height: cs(6)),
                 Text(
-                  status.canClaim ? 'Claim your daily reward!' : 'Come back tomorrow!',
+                  status.canClaim ? 'Supply Drop inbound.' : 'Next drop tomorrow.',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: t.display(24, em: -0.03, height: 1.05),
@@ -218,7 +218,7 @@ class _DailyBonusPopupState extends State<DailyBonusPopup> {
             Padding(
               padding: EdgeInsets.only(top: cs(12)),
               child: CsChip(
-                '${status.currentStreak} day streak',
+                '${status.currentStreak}-day streak',
                 kind: CsChipKind.pink,
                 icon: Symbols.local_fire_department_rounded,
               ),
@@ -244,7 +244,7 @@ class _DailyBonusPopupState extends State<DailyBonusPopup> {
           if (todayReward != null) _TodayReward(reward: todayReward),
           if (!status.canClaim) ...[
             SizedBox(height: cs(10)),
-            const CsMeta('Already claimed today', icon: Symbols.schedule_rounded),
+            const CsMeta('Today\'s drop collected', icon: Symbols.schedule_rounded),
           ],
         ],
       ),
@@ -252,12 +252,12 @@ class _DailyBonusPopupState extends State<DailyBonusPopup> {
           ? [
               if (widget.onClaimDoubled != null)
                 CsButton.secondary(
-                  label: 'Claim 2× · watch ad',
+                  label: 'Double it · watch ad',
                   icon: Symbols.play_circle_rounded,
                   onPressed: busy ? null : _handleClaimDoubled,
                 ),
               CsButton.primary(
-                label: 'Claim reward',
+                label: 'Collect drop',
                 icon: Symbols.redeem_rounded,
                 loading: widget.isLoading,
                 onPressed: busy ? null : _handleClaim,
@@ -337,7 +337,7 @@ class _WeekRow extends StatelessWidget {
   }
 }
 
-/// "TODAY'S REWARD" caption + gold coins (+ bonus item chip).
+/// "TODAY'S DROP" caption + gold credits (+ bonus item chip).
 class _TodayReward extends StatelessWidget {
   const _TodayReward({required this.reward});
   final DailyBonusReward reward;
@@ -350,7 +350,7 @@ class _TodayReward extends StatelessWidget {
       spacing: cs(14),
       runSpacing: cs(8),
       children: [
-        const CsLabel("Today's reward"),
+        const CsLabel("Today's drop"),
         CsCoins(reward.coins, prefix: '+', size: 14),
         if (reward.bonusItem != null)
           CsChip(reward.bonusItem!, kind: CsChipKind.gold, icon: Symbols.redeem_rounded, size: 10),

@@ -84,7 +84,7 @@ class StorageService {
   Future<GameTheme> getSelectedTheme() async {
     final settings = await _settingsDao?.getSettings();
     final themeIndex = settings?.themeIndex ?? 0;
-    return GameTheme.values[themeIndex.clamp(0, GameTheme.values.length - 1)];
+    return GameTheme.fromIndex(themeIndex);
   }
 
   Future<void> saveSelectedTheme(GameTheme theme) async {
@@ -290,7 +290,9 @@ class StorageService {
         score: Value(data['score'] ?? 0),
         shipLength: Value(data['shipLength'] ?? 0),
         gameDurationSeconds: Value(data['gameDurationSeconds'] ?? 0),
-        gameMode: Value(data['gameMode'] ?? 'classic'),
+        gameMode: Value(
+          GameMode.fromWire(data['gameMode'] as String?).wireName,
+        ),
         boardSize: Value(data['boardSize'] ?? '20x20'),
         replayData: Value(json.encode(data['replayData'] ?? [])),
         isFavorite: Value(data['isFavorite'] ?? false),
@@ -523,13 +525,9 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     final legacy = prefs.getString(_gameModeKey);
     if (legacy != null) {
-      var mode = GameMode.classic;
-      for (final m in GameMode.values) {
-        if (m.name == legacy) {
-          mode = m;
-          break;
-        }
-      }
+      // fromWire accepts legacy display names ('Zen Mode', 'Speed
+      // Challenge'…) as well as old and new identifiers.
+      final mode = GameMode.fromWire(legacy);
       await _settingsDao?.updateGameMode(mode.index);
       await prefs.remove(_gameModeKey);
       return mode;

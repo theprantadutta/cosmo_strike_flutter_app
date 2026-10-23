@@ -13,11 +13,11 @@ import 'data_sync_service.dart';
 import 'navigation_service.dart';
 
 enum NotificationType {
-  tournament('tournament', 'Tournament Update'),
-  social('social', 'Social Notification'),
-  achievement('achievement', 'Achievement Unlocked'),
-  dailyReminder('daily_reminder', 'Daily Challenge'),
-  specialEvent('special_event', 'Special Event');
+  tournament('tournament', 'Sector Cups'),
+  social('social', 'Squadron'),
+  achievement('achievement', 'Commendations'),
+  dailyReminder('daily_reminder', 'Daily Directives'),
+  specialEvent('special_event', 'Operations');
 
   const NotificationType(this.key, this.displayName);
   final String key;
@@ -32,7 +32,7 @@ class NotificationService {
   static const String _channelId = 'cosmo_strike_notifications';
   static const String _channelName = 'Cosmo Strike Notifications';
   static const String _channelDescription =
-      'Notifications for Cosmo Strike game events';
+      'Cup alerts, directives and squadron traffic';
 
   // SharedPreferences key for the Hangfire job id of a pending backend-
   // scheduled test push. Persisted by scheduleTestNotificationAt so
@@ -287,7 +287,7 @@ class NotificationService {
     // Show local notification for foreground messages
     await _showLocalNotification(
       title: message.notification?.title ?? 'Cosmo Strike',
-      body: message.notification?.body ?? 'You have a new notification',
+      body: message.notification?.body ?? 'New transmission received.',
       payload: jsonEncode(message.data),
     );
   }
@@ -566,7 +566,7 @@ class NotificationService {
   // Game-specific notification methods
   Future<void> showAchievementNotification(String achievementName) async {
     await _showLocalNotification(
-      title: '🏆 Achievement Unlocked!',
+      title: 'Commendation earned',
       body: achievementName,
       type: NotificationType.achievement,
       payload: jsonEncode({
@@ -582,7 +582,7 @@ class NotificationService {
     String? tournamentId,
   }) async {
     await _showLocalNotification(
-      title: '🏆 $title',
+      title: title,
       body: body,
       type: NotificationType.tournament,
       payload: jsonEncode({
@@ -598,7 +598,7 @@ class NotificationService {
     String? userId,
   }) async {
     await _showLocalNotification(
-      title: '👥 $title',
+      title: title,
       body: body,
       type: NotificationType.social,
       payload: jsonEncode({'route': 'friends_screen', 'user_id': userId}),
@@ -607,8 +607,8 @@ class NotificationService {
 
   Future<void> showDailyReminderNotification() async {
     await _showLocalNotification(
-      title: '🚀 Time to play Cosmo Strike!',
-      body: 'Complete your daily challenge and climb the leaderboard!',
+      title: 'New orders, pilot',
+      body: 'Daily Directives are live. Fly a sortie and climb the Standings.',
       type: NotificationType.dailyReminder,
       payload: jsonEncode({'route': 'home'}),
     );
@@ -632,7 +632,7 @@ class NotificationService {
     final fireAtUtc = fireAt.toUtc();
     final jobId = await ApiService().scheduleTestNotification(
       fireAtUtc: fireAtUtc,
-      title: '⏰ Scheduled test fired',
+      title: 'Scheduled test fired',
       body: 'If you\'re seeing this, Hangfire BackgroundJob.Schedule + FCM end-to-end work.',
     );
     if (jobId == null) {
@@ -874,7 +874,7 @@ class NotificationService {
   Future<bool> sendTestNotificationViaBackend() async {
     AppLogger.info('🧪 Requesting test push via backend');
     final ok = await ApiService().sendTestPushToMe(
-      title: '🧪 Test push from backend',
+      title: 'Test push from backend',
       body: 'If you\'re seeing this, FCM delivery + your token registration both work.',
     );
     if (ok) {
@@ -911,7 +911,7 @@ class NotificationService {
   Future<void> sendTestLocalNotification() async {
     AppLogger.info('🧪 Firing test local notification');
     await _showLocalNotification(
-      title: '🚀 Cosmo Strike Test',
+      title: 'Cosmo Strike test',
       body: 'If you see this, local notifications work end-to-end.',
       payload: jsonEncode({'route': 'home', 'source': 'test'}),
     );

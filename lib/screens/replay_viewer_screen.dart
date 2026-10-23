@@ -63,7 +63,7 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
           });
         } else {
           setState(() {
-            _loadError = 'Replay not found';
+            _loadError = 'Recording not found';
             _isLoadingReplay = false;
           });
         }
@@ -71,7 +71,7 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _loadError = 'Failed to load replay';
+          _loadError = 'Recording failed to load';
           _isLoadingReplay = false;
         });
       }
@@ -95,7 +95,7 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
   @override
   Widget build(BuildContext context) {
     return CsScaffold(
-      title: _replay != null ? 'Replay · ${_replay!.playerName}' : 'Loading replay',
+      title: _replay != null ? 'Flight Recorder · ${_replay!.playerName}' : 'Flight Recorder',
       trailing: [
         if (_replay != null) CsMeta(_replay!.formattedDuration, icon: Symbols.timer_rounded),
       ],
@@ -106,15 +106,15 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
   Widget _buildContent(BuildContext context) {
     // Show loading state when fetching replay from deep link
     if (_isLoadingReplay) {
-      return const CsLoadingState(label: 'Loading replay');
+      return const CsLoadingState(label: 'Loading recording');
     }
 
     // Show error state
     if (_loadError != null || _replay == null) {
       return CsEmptyState.error(
-        title: _loadError ?? 'Replay not found',
+        title: _loadError ?? 'Recording not found',
         action: CsButton.secondary(
-          label: 'Go back',
+          label: 'Back',
           icon: Symbols.arrow_back_rounded,
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -307,7 +307,7 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
   Widget _eventChip(Map<String, dynamic> event) {
     final type = event['type'] as String;
     final icon = switch (type) {
-      'food_consumed' => Symbols.explosion_rounded,
+      'enemy_destroyed' || 'food_consumed' => Symbols.explosion_rounded,
       'power_up_collected' => Symbols.bolt_rounded,
       _ => Symbols.info_rounded,
     };
@@ -390,10 +390,11 @@ class _ReplayViewerScreenState extends State<ReplayViewerScreen> {
   String _formatGameEvent(Map<String, dynamic> event) {
     final type = event['type'] as String;
     switch (type) {
+      case 'enemy_destroyed':
       case 'food_consumed':
-        return 'Destroyed ${event['foodType']} enemy';
+        return 'Hostile destroyed';
       case 'power_up_collected':
-        return 'Collected ${event['powerUpType']} power-up';
+        return 'Pickup collected';
       default:
         return event.toString();
     }
@@ -491,9 +492,9 @@ class ReplayBoardPainter extends CustomPainter {
     }
 
     // Draw enemy target
-    if (frame.foodPosition != null) {
+    if (frame.pickupPosition != null) {
       paint.color = CsColors.pink;
-      final pos = frame.foodPosition!;
+      final pos = frame.pickupPosition!;
       final rect = Rect.fromLTWH(
         pos[0] * cellSize + 1,
         pos[1] * cellSize + 1,

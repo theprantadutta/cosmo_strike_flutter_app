@@ -44,7 +44,7 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
       // brings its own sound + haptic.
       RewardToast.show(
         title: 'DIRECTIVE COMPLETE',
-        amount: '+${challenge.coinReward} COINS · +${challenge.xpReward} XP',
+        amount: '+${challenge.coinReward} CR · +${challenge.xpReward} XP',
       );
     }
   }
@@ -59,7 +59,7 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
       // its own sound + haptic.
       RewardToast.show(
         title: 'ALL DIRECTIVES CLAIMED',
-        amount: '+$totalClaimed COINS',
+        amount: '+$totalClaimed CR',
       );
       if (!mounted) return;
       // The toast is non-interactive, so the rewarded "2×" entry point is
@@ -81,10 +81,10 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
         coins.earnCoins(
           CoinEarningSource.dailyChallenge,
           customAmount: amount,
-          itemName: 'Daily Challenges 2x',
+          itemName: 'Daily Directives 2x',
           metadata: const {'doubled': true},
         );
-        RewardToast.show(title: 'COINS DOUBLED', amount: '+$amount COINS');
+        RewardToast.show(title: 'CREDITS DOUBLED', amount: '+$amount CR');
       },
     );
   }
@@ -102,14 +102,14 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
     Widget? action;
     if (state.hasUnclaimedRewards) {
       action = CsButton.primary(
-        label: 'Claim all · ${claimCoins}C + ${claimXp}XP',
+        label: 'Claim all · $claimCoins CR + $claimXp XP',
         icon: Symbols.redeem_rounded,
         expand: true,
         onPressed: _claimAllRewards,
       );
     } else if (_doubleOfferCoins != null) {
       action = CsButton.secondary(
-        label: 'Watch to 2× · $_doubleOfferCoins coins',
+        label: 'Watch to 2× · $_doubleOfferCoins CR',
         icon: Symbols.play_circle_rounded,
         expand: true,
         onPressed: _watchToDouble,
@@ -125,10 +125,10 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
         ringLabel: 'Today',
         action: action,
         rules: const [
-          'New set every midnight',
-          'Coins + XP per challenge',
-          'XP levels up your profile',
-          'Finish all 3 for a bonus reward',
+          'New orders at 00:00',
+          'Credits + XP per directive',
+          'XP raises your Pilot Rank',
+          'Clear all 3 for a bonus',
         ],
       ),
       right: RefreshIndicator(
@@ -141,7 +141,7 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
             Widget? placeholder;
             if (challenges.isEmpty) {
               if (state.isLoading) {
-                placeholder = const CsLoadingState(label: 'Loading challenges');
+                placeholder = const CsLoadingState(label: 'Loading directives');
               } else if (state.error != null && !online) {
                 placeholder = CsEmptyState.offline(
                   action: CsButton.secondary(
@@ -162,8 +162,8 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
               } else {
                 placeholder = const CsEmptyState(
                   icon: Symbols.calendar_today_rounded,
-                  title: 'No challenges available',
-                  message: 'Check back later for new daily challenges!',
+                  title: 'No directives issued',
+                  message: 'New orders post at 00:00. Stand by.',
                 );
               }
             }
@@ -180,8 +180,8 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
                 const CsHairline(),
                 for (final ch in challenges)
                   ChallengeRow(
-                    title: ch.title,
-                    description: ch.description,
+                    title: ch.displayTitle,
+                    description: ch.displayDescription,
                     difficulty: ch.difficulty,
                     currentProgress: ch.currentProgress,
                     targetValue: ch.targetValue,
@@ -228,7 +228,7 @@ class _BonusRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'All challenges complete',
+                  'All directives complete',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: t.display(19, weight: FontWeight.w700, em: -0.01, height: 1.2),
@@ -237,7 +237,7 @@ class _BonusRow extends StatelessWidget {
                 Text(
                   claimed
                       ? 'Bonus reward claimed'
-                      : 'Bonus reward pending — claim any challenge',
+                      : 'Bonus pending. Claim a directive.',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: t.body,
@@ -491,7 +491,7 @@ class ChallengeRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '+${coinReward}C · $xpReward$xpUnit',
+                  '+$coinReward CR · $xpReward$xpUnit',
                   maxLines: 1,
                   style: t.mono(11, weight: FontWeight.w600, em: 0.06, color: CsColors.gold),
                 ),

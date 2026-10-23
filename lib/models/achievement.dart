@@ -1,11 +1,148 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
+/// Wire/storage category of a commendation. The enum names are persisted
+/// (Drift `achievements.category`) and mirror the backend
+/// `AchievementCategory` (Score/Games/Survival/Special/Streak/General), so
+/// they stay as-is; the player-facing grouping is [CommendationCategory].
 enum AchievementType { score, games, streak, survival, special, general }
 
-// Maps to backend AchievementTier (Bronze/Silver/Gold/Platinum/Diamond).
-// `diamond` is the apex tier for genuinely rare unlocks (Score God,
-// Decamillionaire, Dreadnought, Touch Grass, etc.).
+/// Rarity, mapped 1:1 to the backend `AchievementTier`
+/// (Bronze/Silver/Gold/Platinum/Diamond). Player-facing names come from
+/// [Achievement.rarityName]: Service / Bronze Star / Silver Star /
+/// Gold Star / Nova.
 enum AchievementRarity { common, rare, epic, legendary, diamond }
+
+/// Player-facing commendation groups (UI only — never persisted).
+enum CommendationCategory {
+  combat,
+  precision,
+  campaign,
+  endurance,
+  service,
+  modes,
+  feats;
+
+  String get label => switch (this) {
+    CommendationCategory.combat => 'Combat',
+    CommendationCategory.precision => 'Precision',
+    CommendationCategory.campaign => 'Campaign',
+    CommendationCategory.endurance => 'Endurance',
+    CommendationCategory.service => 'Service',
+    CommendationCategory.modes => 'Modes',
+    CommendationCategory.feats => 'Feats',
+  };
+}
+
+/// The tracked stat a commendation compares against its [Achievement.targetValue].
+/// `run*` metrics are single-run bests (progress = best run so far); the
+/// rest are lifetime / standing values. Evaluated by
+/// `AchievementService.evaluateRun` / `evaluateStanding`.
+enum CommendationMetric {
+  // Single run (from the finished run's GameResult).
+  runScore,
+  runKills,
+  runBosses,
+  runChain,
+  runGrazes,
+  runWipes,
+  runDuration,
+  runLevelsCleared,
+  runUpgrades,
+  flawlessCampaign,
+  nightOps,
+
+  // Lifetime (GameStatistics after the run is folded in).
+  totalScore,
+  totalKills,
+  totalBosses,
+  totalMissiles,
+  totalGrazes,
+  totalOverdrives,
+  totalWipes,
+  totalGames,
+  totalPlayTime,
+  noHitClears,
+  victories,
+  revives,
+  dailyRuns,
+  cupRuns,
+  dayStreak,
+  gamesInMode,
+  distinctModes,
+
+  // Standing state (Drift campaign progress / Hangar).
+  campaignLevels,
+  campaignStars,
+  hangarLevels;
+
+  bool get isPerRun => index <= CommendationMetric.nightOps.index;
+}
+
+/// Everything a finished run contributes to commendations that isn't
+/// already folded into lifetime GameStatistics.
+class RunCommendationStats {
+  const RunCommendationStats({
+    required this.gameMode,
+    required this.score,
+    required this.kills,
+    required this.bosses,
+    required this.maxChain,
+    required this.grazes,
+    required this.formationWipes,
+    required this.durationSeconds,
+    required this.levelsCleared,
+    required this.upgradesDrafted,
+    required this.flawlessCampaign,
+    required this.endedAt,
+  });
+
+  /// Mode wire name (`sortie`, `knifeEdge`…). Legacy spellings are accepted.
+  final String gameMode;
+  final int score;
+  final int kills;
+  final int bosses;
+  final int maxChain;
+  final int grazes;
+  final int formationWipes;
+  final int durationSeconds;
+  final int levelsCleared;
+  final int upgradesDrafted;
+
+  /// All 12 campaign levels cleared in this run without taking a hit.
+  final bool flawlessCampaign;
+  final DateTime endedAt;
+}
+
+/// Length of the consecutive-day streak ending today (or yesterday, so a
+/// streak isn't shown as broken before today's first run). Reads the
+/// GameStatistics `dailyPlayTime` map and accepts both zero-padded
+/// (`2026-01-05`) and legacy unpadded (`2026-1-5`) day keys.
+int consecutiveDayStreak(Map<String, int> dailyPlayTime, {DateTime? now}) {
+  final played = <DateTime>{};
+  for (final e in dailyPlayTime.entries) {
+    if (e.value <= 0) continue;
+    final parts = e.key.split('-');
+    if (parts.length != 3) continue;
+    final y = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    final d = int.tryParse(parts[2]);
+    if (y == null || m == null || d == null) continue;
+    played.add(DateTime(y, m, d));
+  }
+  if (played.isEmpty) return 0;
+  final today = now ?? DateTime.now();
+  var day = DateTime(today.year, today.month, today.day);
+  if (!played.contains(day)) {
+    day = DateTime(day.year, day.month, day.day - 1);
+  }
+  var streak = 0;
+  while (played.contains(day)) {
+    streak++;
+    day = DateTime(day.year, day.month, day.day - 1);
+  }
+  return streak;
+}
 
 class Achievement {
   final String id;
@@ -13,37 +150,35 @@ class Achievement {
   final String description;
   final IconData icon;
   final AchievementType type;
+  final CommendationCategory category;
+  final CommendationMetric metric;
   final AchievementRarity rarity;
   final int targetValue;
   final int points;
   final bool isUnlocked;
   final DateTime? unlockedAt;
   final int currentProgress;
-  /// True once the backend has granted the XP + coin reward for this
-  /// unlock. Independent of [isUnlocked]: an achievement can be unlocked
-  /// locally but unclaimed until the next online sync flushes a POST to
-  /// /achievements/claim. Used to drive the auto-claim flow and to gate
-  /// the "Claim" UX surface.
+
+  /// True once the reward (credits) for this unlock has been granted.
+  /// Independent of [isUnlocked]: a commendation can be unlocked locally
+  /// but unclaimed until the reward credit lands.
   final bool rewardClaimed;
-  /// Backend-side XP reward credited to User.Experience by the claim
-  /// endpoint. Distinct from the frontend BattlePass XP buffered on unlock.
-  /// Defaults match the seeded backend catalog; sync overlays the
-  /// authoritative values from GetUserAchievementsQuery.
+
+  /// Backend-side XP reward. Defaults match the seeded backend catalog
+  /// (SeedAchievementsCommandHandler); keep both lists identical.
   final int xpReward;
-  /// Backend-side coin reward credited to User.Coins by the claim endpoint.
+
+  /// Credit reward (internal name stays `coin`).
   final int coinReward;
-  /// Per-game mode filter. When set, the local Score/Time/Survival check
-  /// only unlocks this achievement if the finished game was in this mode.
-  /// Mirrors AchievementAutoEvaluator's `a.game_mode_filter` guard so
-  /// offline reveals match server evaluation exactly (no phantom unlocks
-  /// for mode-gated rows like classic_1000 firing on a Zen run).
-  /// Stored as the lowercase Dart enum name (`classic`, `zen`, `survival`,
-  /// `speedChallenge`, `multiFood`, `timeAttack`, `powerUpMadness`,
-  /// `perfectGame`) so case-insensitive comparison to GameState.gameMode
-  /// works out of the box.
+
+  /// Mode filter as a GameMode wire name (`sortie`, `knifeEdge`…). When set,
+  /// `run*` metrics only count runs flown in this mode and
+  /// [CommendationMetric.gamesInMode] counts this mode's runs. Mirrors the
+  /// backend `GameModeFilter`; compared case/legacy-insensitively via
+  /// `GameMode.tryFromWire`.
   final String? gameModeFilter;
-  /// Per-game difficulty filter — analogous to [gameModeFilter] but for
-  /// the Difficulty enum (`easy`, `normal`, `hard`).
+
+  /// Difficulty filter (unused by the current catalog; kept for the wire).
   final String? difficultyFilter;
 
   const Achievement({
@@ -52,6 +187,8 @@ class Achievement {
     required this.description,
     required this.icon,
     required this.type,
+    this.category = CommendationCategory.feats,
+    this.metric = CommendationMetric.totalGames,
     required this.rarity,
     required this.targetValue,
     required this.points,
@@ -71,6 +208,8 @@ class Achievement {
     String? description,
     IconData? icon,
     AchievementType? type,
+    CommendationCategory? category,
+    CommendationMetric? metric,
     AchievementRarity? rarity,
     int? targetValue,
     int? points,
@@ -89,6 +228,8 @@ class Achievement {
       description: description ?? this.description,
       icon: icon ?? this.icon,
       type: type ?? this.type,
+      category: category ?? this.category,
+      metric: metric ?? this.metric,
       rarity: rarity ?? this.rarity,
       targetValue: targetValue ?? this.targetValue,
       points: points ?? this.points,
@@ -111,30 +252,30 @@ class Achievement {
   Color get rarityColor {
     switch (rarity) {
       case AchievementRarity.common:
-        return Colors.grey;
+        return const Color(0xFF9A9AA3);
       case AchievementRarity.rare:
-        return Colors.blue;
+        return const Color(0xFFD9A066);
       case AchievementRarity.epic:
-        return Colors.purple;
+        return const Color(0xFFC9D3E0);
       case AchievementRarity.legendary:
-        return Colors.orange;
+        return const Color(0xFFFFD58A);
       case AchievementRarity.diamond:
-        return Colors.cyanAccent;
+        return const Color(0xFF7CF5FF);
     }
   }
 
   String get rarityName {
     switch (rarity) {
       case AchievementRarity.common:
-        return 'Common';
+        return 'Service';
       case AchievementRarity.rare:
-        return 'Rare';
+        return 'Bronze Star';
       case AchievementRarity.epic:
-        return 'Epic';
+        return 'Silver Star';
       case AchievementRarity.legendary:
-        return 'Legendary';
+        return 'Gold Star';
       case AchievementRarity.diamond:
-        return 'Diamond';
+        return 'Nova';
     }
   }
 
@@ -143,7 +284,6 @@ class Achievement {
       'id': id,
       'title': title,
       'description': description,
-      'iconCodePoint': icon.codePoint,
       'type': type.name,
       'rarity': rarity.name,
       'targetValue': targetValue,
@@ -157,50 +297,63 @@ class Achievement {
     };
   }
 
+  /// Rebuilds a commendation from JSON. Catalog metadata (icon, category,
+  /// metric, filters) always comes from [getDefaultAchievements] when the id
+  /// is known — only progress fields are taken from the payload.
   factory Achievement.fromJson(Map<String, dynamic> json) {
-    return Achievement(
-      id: json['id'] ?? '',
-      title: json['title'] ?? '',
-      description: json['description'] ?? '',
-      icon: IconData(
-        // ignore: non_const_argument_for_const_parameter
-        json['iconCodePoint'] ?? Icons.star.codePoint,
-        fontFamily: 'MaterialIcons',
-      ),
-      type: AchievementType.values.firstWhere(
-        (e) => e.name == json['type'],
-        orElse: () => AchievementType.score,
-      ),
-      rarity: AchievementRarity.values.firstWhere(
-        (e) => e.name == json['rarity'],
-        orElse: () => AchievementRarity.common,
-      ),
-      targetValue: json['targetValue'] ?? 0,
-      points: json['points'] ?? 0,
+    final id = (json['id'] ?? '').toString();
+    Achievement? catalog;
+    for (final a in getDefaultAchievements()) {
+      if (a.id == id) {
+        catalog = a;
+        break;
+      }
+    }
+    final base =
+        catalog ??
+        Achievement(
+          id: id,
+          title: json['title'] ?? '',
+          description: json['description'] ?? '',
+          icon: Symbols.military_tech_rounded,
+          type: AchievementType.values.firstWhere(
+            (e) => e.name == json['type'],
+            orElse: () => AchievementType.general,
+          ),
+          rarity: AchievementRarity.values.firstWhere(
+            (e) => e.name == json['rarity'],
+            orElse: () => AchievementRarity.common,
+          ),
+          targetValue: json['targetValue'] ?? 0,
+          points: json['points'] ?? 0,
+          xpReward: json['xpReward'] ?? 0,
+          coinReward: json['coinReward'] ?? 0,
+        );
+    return base.copyWith(
       isUnlocked: json['isUnlocked'] ?? false,
       unlockedAt: json['unlockedAt'] != null
-          ? DateTime.parse(json['unlockedAt'])
+          ? DateTime.tryParse(json['unlockedAt'].toString())
           : null,
       currentProgress: json['currentProgress'] ?? 0,
       rewardClaimed: json['rewardClaimed'] ?? false,
-      xpReward: json['xpReward'] ?? 0,
-      coinReward: json['coinReward'] ?? 0,
     );
   }
 
+  /// The 72 commendations. IDs, targets and rewards MUST match the backend
+  /// seed (SeedAchievementsCommandHandler) exactly — the server
+  /// auto-evaluates the Score/Time/kill/play-time/games rows from score
+  /// submissions and accepts client unlocks for the rest by id.
   static List<Achievement> getDefaultAchievements() {
-    // XP / coin rewards mirror SeedAchievementsCommandHandler so the UI
-    // shows accurate values before the first backend sync. Backend remains
-    // authoritative — _updateAchievementsFromBackend overlays server values
-    // when they arrive.
     return [
-      // Score Achievements (IDs match backend)
+      // ---- Combat ----
       const Achievement(
-        id: 'first_bite',
-        title: 'First Blood',
-        description: 'Score your first point',
-        icon: Icons.star,
-        type: AchievementType.score,
+        id: 'cmd_first_contact',
+        title: 'First Contact',
+        description: 'Destroy your first hostile.',
+        icon: Symbols.my_location_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.combat,
+        metric: CommendationMetric.totalKills,
         rarity: AchievementRarity.common,
         targetValue: 1,
         points: 10,
@@ -208,61 +361,210 @@ class Achievement {
         coinReward: 5,
       ),
       const Achievement(
-        id: 'getting_started',
-        title: 'Getting Started',
-        description: 'Score 100 points',
-        icon: Icons.emoji_events,
-        type: AchievementType.score,
-        rarity: AchievementRarity.common,
-        targetValue: 100,
-        points: 25,
-        xpReward: 25,
-        coinReward: 10,
+        id: 'cmd_hostiles_1k',
+        title: 'Line Breaker',
+        description: 'Destroy 1,000 hostiles.',
+        icon: Symbols.target_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.combat,
+        metric: CommendationMetric.totalKills,
+        rarity: AchievementRarity.rare,
+        targetValue: 1000,
+        points: 75,
+        xpReward: 75,
+        coinReward: 40,
       ),
       const Achievement(
-        id: 'high_scorer',
-        title: 'High Scorer',
-        description: 'Score 500 points in a single game',
-        icon: Icons.trending_up,
-        type: AchievementType.score,
+        id: 'cmd_hostiles_10k',
+        title: 'Fleet Breaker',
+        description: 'Destroy 10,000 hostiles.',
+        icon: Symbols.crisis_alert_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.combat,
+        metric: CommendationMetric.totalKills,
+        rarity: AchievementRarity.epic,
+        targetValue: 10000,
+        points: 175,
+        xpReward: 175,
+        coinReward: 90,
+      ),
+      const Achievement(
+        id: 'cmd_hostiles_50k',
+        title: 'Armada Breaker',
+        description: 'Destroy 50,000 hostiles.',
+        icon: Symbols.blur_on_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.combat,
+        metric: CommendationMetric.totalKills,
+        rarity: AchievementRarity.diamond,
+        targetValue: 50000,
+        points: 400,
+        xpReward: 400,
+        coinReward: 200,
+      ),
+      const Achievement(
+        id: 'cmd_run_kills_50',
+        title: 'Hot Barrel',
+        description: 'Destroy 50 hostiles in a single run.',
+        icon: Symbols.local_fire_department_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.combat,
+        metric: CommendationMetric.runKills,
+        rarity: AchievementRarity.common,
+        targetValue: 50,
+        points: 25,
+        xpReward: 25,
+        coinReward: 12,
+      ),
+      const Achievement(
+        id: 'cmd_run_kills_150',
+        title: 'Kill Box',
+        description: 'Destroy 150 hostiles in a single run.',
+        icon: Symbols.whatshot_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.combat,
+        metric: CommendationMetric.runKills,
+        rarity: AchievementRarity.epic,
+        targetValue: 150,
+        points: 100,
+        xpReward: 100,
+        coinReward: 50,
+      ),
+      const Achievement(
+        id: 'cmd_boss_first',
+        title: 'Giant Slayer',
+        description: 'Bring down your first boss.',
+        icon: Symbols.skull_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.combat,
+        metric: CommendationMetric.totalBosses,
+        rarity: AchievementRarity.common,
+        targetValue: 1,
+        points: 25,
+        xpReward: 25,
+        coinReward: 12,
+      ),
+      const Achievement(
+        id: 'cmd_boss_10',
+        title: 'Capital Hunter',
+        description: 'Bring down 10 bosses.',
+        icon: Symbols.swords_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.combat,
+        metric: CommendationMetric.totalBosses,
+        rarity: AchievementRarity.rare,
+        targetValue: 10,
+        points: 75,
+        xpReward: 75,
+        coinReward: 40,
+      ),
+      const Achievement(
+        id: 'cmd_boss_50',
+        title: 'Dreadnought Breaker',
+        description: 'Bring down 50 bosses.',
+        icon: Symbols.military_tech_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.combat,
+        metric: CommendationMetric.totalBosses,
+        rarity: AchievementRarity.legendary,
+        targetValue: 50,
+        points: 250,
+        xpReward: 250,
+        coinReward: 125,
+      ),
+      const Achievement(
+        id: 'cmd_run_bosses_3',
+        title: 'Triple Takedown',
+        description: 'Bring down 3 bosses in a single run.',
+        icon: Symbols.destruction_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.combat,
+        metric: CommendationMetric.runBosses,
+        rarity: AchievementRarity.epic,
+        targetValue: 3,
+        points: 125,
+        xpReward: 125,
+        coinReward: 60,
+      ),
+      const Achievement(
+        id: 'cmd_missile_500',
+        title: 'Ordnance Officer',
+        description: 'Fire 500 missiles.',
+        icon: Symbols.rocket_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.combat,
+        metric: CommendationMetric.totalMissiles,
         rarity: AchievementRarity.rare,
         targetValue: 500,
         points: 50,
         xpReward: 50,
         coinReward: 25,
       ),
+      // ---- Precision ----
       const Achievement(
-        id: 'master_scorer',
-        title: 'Master Scorer',
-        description: 'Score 1000 points in a single game',
-        icon: Icons.military_tech,
-        type: AchievementType.score,
+        id: 'cmd_chain_10',
+        title: 'Chain Reaction',
+        description: 'Build a 10-kill chain.',
+        icon: Symbols.link_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.runChain,
+        rarity: AchievementRarity.common,
+        targetValue: 10,
+        points: 20,
+        xpReward: 20,
+        coinReward: 10,
+      ),
+      const Achievement(
+        id: 'cmd_chain_30',
+        title: 'Rolling Thunder',
+        description: 'Build a 30-kill chain.',
+        icon: Symbols.bolt_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.runChain,
+        rarity: AchievementRarity.rare,
+        targetValue: 30,
+        points: 50,
+        xpReward: 50,
+        coinReward: 25,
+      ),
+      const Achievement(
+        id: 'cmd_chain_75',
+        title: 'Unbroken',
+        description: 'Build a 75-kill chain.',
+        icon: Symbols.electric_bolt_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.runChain,
         rarity: AchievementRarity.epic,
-        targetValue: 1000,
-        points: 100,
-        xpReward: 100,
-        coinReward: 50,
+        targetValue: 75,
+        points: 125,
+        xpReward: 125,
+        coinReward: 60,
       ),
       const Achievement(
-        id: 'legendary_scorer',
-        title: 'Legendary Scorer',
-        description: 'Score 2000 points in a single game',
-        icon: Icons.diamond,
-        type: AchievementType.score,
+        id: 'cmd_chain_150',
+        title: 'Endless Chain',
+        description: 'Build a 150-kill chain.',
+        icon: Symbols.flash_on_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.runChain,
         rarity: AchievementRarity.legendary,
-        targetValue: 2000,
-        points: 200,
-        xpReward: 200,
-        coinReward: 100,
+        targetValue: 150,
+        points: 250,
+        xpReward: 250,
+        coinReward: 125,
       ),
-
-      // Games Played Achievements (IDs match backend)
       const Achievement(
-        id: 'first_game',
-        title: 'First Game',
-        description: 'Play your first game',
-        icon: Icons.play_arrow,
-        type: AchievementType.games,
+        id: 'cmd_graze_first',
+        title: 'Close Shave',
+        description: 'Graze an enemy shot.',
+        icon: Symbols.air_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.totalGrazes,
         rarity: AchievementRarity.common,
         targetValue: 1,
         points: 10,
@@ -270,11 +572,408 @@ class Achievement {
         coinReward: 5,
       ),
       const Achievement(
-        id: 'regular_player',
-        title: 'Regular Player',
-        description: 'Play 10 games',
-        icon: Icons.videogame_asset,
+        id: 'cmd_graze_1000',
+        title: 'Paint Scraper',
+        description: 'Graze 1,000 enemy shots.',
+        icon: Symbols.motion_blur_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.totalGrazes,
+        rarity: AchievementRarity.rare,
+        targetValue: 1000,
+        points: 75,
+        xpReward: 75,
+        coinReward: 40,
+      ),
+      const Achievement(
+        id: 'cmd_graze_5000',
+        title: 'Skin of Your Teeth',
+        description: 'Graze 5,000 enemy shots.',
+        icon: Symbols.cyclone_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.totalGrazes,
+        rarity: AchievementRarity.epic,
+        targetValue: 5000,
+        points: 175,
+        xpReward: 175,
+        coinReward: 90,
+      ),
+      const Achievement(
+        id: 'cmd_run_graze_60',
+        title: 'Needle Threader',
+        description: 'Graze 60 shots in a single run.',
+        icon: Symbols.tornado_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.runGrazes,
+        rarity: AchievementRarity.epic,
+        targetValue: 60,
+        points: 125,
+        xpReward: 125,
+        coinReward: 60,
+      ),
+      const Achievement(
+        id: 'cmd_overdrive_first',
+        title: 'Overdrive Online',
+        description: 'Trigger Overdrive.',
+        icon: Symbols.speed_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.totalOverdrives,
+        rarity: AchievementRarity.common,
+        targetValue: 1,
+        points: 15,
+        xpReward: 15,
+        coinReward: 8,
+      ),
+      const Achievement(
+        id: 'cmd_overdrive_100',
+        title: 'Redline Reactor',
+        description: 'Trigger Overdrive 100 times.',
+        icon: Symbols.all_out_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.totalOverdrives,
+        rarity: AchievementRarity.rare,
+        targetValue: 100,
+        points: 75,
+        xpReward: 75,
+        coinReward: 40,
+      ),
+      const Achievement(
+        id: 'cmd_wipe_first',
+        title: 'Clean Sweep',
+        description: 'Wipe out a full formation.',
+        icon: Symbols.grid_view_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.totalWipes,
+        rarity: AchievementRarity.common,
+        targetValue: 1,
+        points: 15,
+        xpReward: 15,
+        coinReward: 8,
+      ),
+      const Achievement(
+        id: 'cmd_wipe_250',
+        title: 'Formation Breaker',
+        description: 'Wipe out 250 formations.',
+        icon: Symbols.scatter_plot_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.totalWipes,
+        rarity: AchievementRarity.epic,
+        targetValue: 250,
+        points: 150,
+        xpReward: 150,
+        coinReward: 75,
+      ),
+      const Achievement(
+        id: 'cmd_run_wipe_10',
+        title: 'Total Coverage',
+        description: 'Wipe out 10 formations in a single run.',
+        icon: Symbols.grain_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.precision,
+        metric: CommendationMetric.runWipes,
+        rarity: AchievementRarity.rare,
+        targetValue: 10,
+        points: 60,
+        xpReward: 60,
+        coinReward: 30,
+      ),
+      // ---- Campaign ----
+      const Achievement(
+        id: 'cmd_level_1',
+        title: 'Wheels Up',
+        description: 'Clear your first campaign level.',
+        icon: Symbols.flight_takeoff_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.campaign,
+        metric: CommendationMetric.campaignLevels,
+        rarity: AchievementRarity.common,
+        targetValue: 1,
+        points: 15,
+        xpReward: 15,
+        coinReward: 8,
+      ),
+      const Achievement(
+        id: 'cmd_levels_3',
+        title: 'Belt Secured',
+        description: 'Clear 3 campaign levels.',
+        icon: Symbols.flag_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.campaign,
+        metric: CommendationMetric.campaignLevels,
+        rarity: AchievementRarity.common,
+        targetValue: 3,
+        points: 30,
+        xpReward: 30,
+        coinReward: 15,
+      ),
+      const Achievement(
+        id: 'cmd_levels_6',
+        title: 'Halfway Home',
+        description: 'Clear 6 campaign levels.',
+        icon: Symbols.explore_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.campaign,
+        metric: CommendationMetric.campaignLevels,
+        rarity: AchievementRarity.rare,
+        targetValue: 6,
+        points: 75,
+        xpReward: 75,
+        coinReward: 40,
+      ),
+      const Achievement(
+        id: 'cmd_levels_12',
+        title: 'Campaign Complete',
+        description: 'Clear all 12 campaign levels.',
+        icon: Symbols.sports_score_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.campaign,
+        metric: CommendationMetric.campaignLevels,
+        rarity: AchievementRarity.legendary,
+        targetValue: 12,
+        points: 250,
+        xpReward: 250,
+        coinReward: 125,
+      ),
+      const Achievement(
+        id: 'cmd_stars_12',
+        title: 'Decorated',
+        description: 'Earn 12 campaign stars.',
+        icon: Symbols.star_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.campaign,
+        metric: CommendationMetric.campaignStars,
+        rarity: AchievementRarity.rare,
+        targetValue: 12,
+        points: 60,
+        xpReward: 60,
+        coinReward: 30,
+      ),
+      const Achievement(
+        id: 'cmd_stars_24',
+        title: 'Highly Decorated',
+        description: 'Earn 24 campaign stars.',
+        icon: Symbols.hotel_class_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.campaign,
+        metric: CommendationMetric.campaignStars,
+        rarity: AchievementRarity.epic,
+        targetValue: 24,
+        points: 150,
+        xpReward: 150,
+        coinReward: 75,
+      ),
+      const Achievement(
+        id: 'cmd_stars_36',
+        title: 'Full Constellation',
+        description: 'Earn all 36 campaign stars.',
+        icon: Symbols.auto_awesome_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.campaign,
+        metric: CommendationMetric.campaignStars,
+        rarity: AchievementRarity.diamond,
+        targetValue: 36,
+        points: 400,
+        xpReward: 400,
+        coinReward: 200,
+      ),
+      const Achievement(
+        id: 'cmd_perfect_1',
+        title: 'Untouched',
+        description: 'Clear a level without taking a hit.',
+        icon: Symbols.shield_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.campaign,
+        metric: CommendationMetric.noHitClears,
+        rarity: AchievementRarity.rare,
+        targetValue: 1,
+        points: 50,
+        xpReward: 50,
+        coinReward: 25,
+      ),
+      const Achievement(
+        id: 'cmd_perfect_10',
+        title: 'Ghost Pilot',
+        description: 'Clear 10 levels without taking a hit.',
+        icon: Symbols.verified_user_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.campaign,
+        metric: CommendationMetric.noHitClears,
+        rarity: AchievementRarity.epic,
+        targetValue: 10,
+        points: 125,
+        xpReward: 125,
+        coinReward: 60,
+      ),
+      const Achievement(
+        id: 'cmd_perfect_50',
+        title: 'Phantom',
+        description: 'Clear 50 levels without taking a hit.',
+        icon: Symbols.health_and_safety_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.campaign,
+        metric: CommendationMetric.noHitClears,
+        rarity: AchievementRarity.legendary,
+        targetValue: 50,
+        points: 300,
+        xpReward: 300,
+        coinReward: 150,
+      ),
+      const Achievement(
+        id: 'cmd_victory_1',
+        title: 'Victory Roll',
+        description: 'Bring down the campaign\'s final boss.',
+        icon: Symbols.emoji_events_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.campaign,
+        metric: CommendationMetric.victories,
+        rarity: AchievementRarity.epic,
+        targetValue: 1,
+        points: 150,
+        xpReward: 150,
+        coinReward: 75,
+      ),
+      const Achievement(
+        id: 'cmd_victory_10',
+        title: 'Hero of the Line',
+        description: 'Bring down the campaign\'s final boss 10 times.',
+        icon: Symbols.workspace_premium_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.campaign,
+        metric: CommendationMetric.victories,
+        rarity: AchievementRarity.diamond,
+        targetValue: 10,
+        points: 400,
+        xpReward: 400,
+        coinReward: 200,
+      ),
+      // ---- Endurance ----
+      const Achievement(
+        id: 'cmd_time_120',
+        title: 'Holding Pattern',
+        description: 'Stay in the fight for 2 minutes in a single run.',
+        icon: Symbols.timer_rounded,
+        type: AchievementType.survival,
+        category: CommendationCategory.endurance,
+        metric: CommendationMetric.runDuration,
+        rarity: AchievementRarity.common,
+        targetValue: 120,
+        points: 15,
+        xpReward: 15,
+        coinReward: 8,
+      ),
+      const Achievement(
+        id: 'cmd_time_300',
+        title: 'Long Patrol',
+        description: 'Stay in the fight for 5 minutes in a single run.',
+        icon: Symbols.hourglass_top_rounded,
+        type: AchievementType.survival,
+        category: CommendationCategory.endurance,
+        metric: CommendationMetric.runDuration,
+        rarity: AchievementRarity.rare,
+        targetValue: 300,
+        points: 50,
+        xpReward: 50,
+        coinReward: 25,
+      ),
+      const Achievement(
+        id: 'cmd_time_600',
+        title: 'Iron Hull',
+        description: 'Stay in the fight for 10 minutes in a single run.',
+        icon: Symbols.avg_time_rounded,
+        type: AchievementType.survival,
+        category: CommendationCategory.endurance,
+        metric: CommendationMetric.runDuration,
+        rarity: AchievementRarity.epic,
+        targetValue: 600,
+        points: 125,
+        xpReward: 125,
+        coinReward: 60,
+      ),
+      const Achievement(
+        id: 'cmd_hours_1',
+        title: 'Flight Hours',
+        description: 'Log 1 hour of flight time.',
+        icon: Symbols.schedule_rounded,
+        type: AchievementType.general,
+        category: CommendationCategory.endurance,
+        metric: CommendationMetric.totalPlayTime,
+        rarity: AchievementRarity.common,
+        targetValue: 3600,
+        points: 25,
+        xpReward: 25,
+        coinReward: 10,
+      ),
+      const Achievement(
+        id: 'cmd_hours_10',
+        title: 'Seasoned Flyer',
+        description: 'Log 10 hours of flight time.',
+        icon: Symbols.history_rounded,
+        type: AchievementType.general,
+        category: CommendationCategory.endurance,
+        metric: CommendationMetric.totalPlayTime,
+        rarity: AchievementRarity.rare,
+        targetValue: 36000,
+        points: 75,
+        xpReward: 75,
+        coinReward: 40,
+      ),
+      const Achievement(
+        id: 'cmd_hours_50',
+        title: 'Long-Range Veteran',
+        description: 'Log 50 hours of flight time.',
+        icon: Symbols.all_inclusive_rounded,
+        type: AchievementType.general,
+        category: CommendationCategory.endurance,
+        metric: CommendationMetric.totalPlayTime,
+        rarity: AchievementRarity.legendary,
+        targetValue: 180000,
+        points: 250,
+        xpReward: 250,
+        coinReward: 125,
+      ),
+      const Achievement(
+        id: 'cmd_revive_first',
+        title: 'Second Wind',
+        description: 'Revive and get back in the fight.',
+        icon: Symbols.ecg_heart_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.endurance,
+        metric: CommendationMetric.revives,
+        rarity: AchievementRarity.common,
+        targetValue: 1,
+        points: 15,
+        xpReward: 15,
+        coinReward: 8,
+      ),
+      // ---- Service ----
+      const Achievement(
+        id: 'cmd_games_1',
+        title: 'Enlisted',
+        description: 'Fly your first run.',
+        icon: Symbols.rocket_launch_rounded,
         type: AchievementType.games,
+        category: CommendationCategory.service,
+        metric: CommendationMetric.totalGames,
+        rarity: AchievementRarity.common,
+        targetValue: 1,
+        points: 10,
+        xpReward: 10,
+        coinReward: 5,
+      ),
+      const Achievement(
+        id: 'cmd_games_10',
+        title: 'Squadron Regular',
+        description: 'Fly 10 runs.',
+        icon: Symbols.flight_rounded,
+        type: AchievementType.games,
+        category: CommendationCategory.service,
+        metric: CommendationMetric.totalGames,
         rarity: AchievementRarity.common,
         targetValue: 10,
         points: 25,
@@ -282,11 +981,13 @@ class Achievement {
         coinReward: 10,
       ),
       const Achievement(
-        id: 'dedicated_player',
-        title: 'Dedicated Player',
-        description: 'Play 50 games',
-        icon: Icons.sports_esports,
+        id: 'cmd_games_50',
+        title: 'Line Pilot',
+        description: 'Fly 50 runs.',
+        icon: Symbols.badge_rounded,
         type: AchievementType.games,
+        category: CommendationCategory.service,
+        metric: CommendationMetric.totalGames,
         rarity: AchievementRarity.rare,
         targetValue: 50,
         points: 50,
@@ -294,310 +995,380 @@ class Achievement {
         coinReward: 25,
       ),
       const Achievement(
-        id: 'ship_enthusiast',
-        title: 'Pilot Enthusiast',
-        description: 'Play 100 games',
-        icon: Icons.gamepad,
+        id: 'cmd_games_250',
+        title: 'Veteran Pilot',
+        description: 'Fly 250 runs.',
+        icon: Symbols.trending_up_rounded,
         type: AchievementType.games,
+        category: CommendationCategory.service,
+        metric: CommendationMetric.totalGames,
         rarity: AchievementRarity.epic,
-        targetValue: 100,
-        points: 100,
-        xpReward: 100,
-        coinReward: 50,
+        targetValue: 250,
+        points: 150,
+        xpReward: 150,
+        coinReward: 75,
       ),
       const Achievement(
-        id: 'ship_addict',
-        title: 'Combat Addict',
-        description: 'Play 500 games',
-        icon: Icons.sports_esports,
-        type: AchievementType.games,
+        id: 'cmd_streak_3',
+        title: 'On Station',
+        description: 'Fly on 3 days in a row.',
+        icon: Symbols.today_rounded,
+        type: AchievementType.streak,
+        category: CommendationCategory.service,
+        metric: CommendationMetric.dayStreak,
+        rarity: AchievementRarity.rare,
+        targetValue: 3,
+        points: 50,
+        xpReward: 50,
+        coinReward: 25,
+      ),
+      const Achievement(
+        id: 'cmd_streak_7',
+        title: 'Tour of Duty',
+        description: 'Fly on 7 days in a row.',
+        icon: Symbols.calendar_month_rounded,
+        type: AchievementType.streak,
+        category: CommendationCategory.service,
+        metric: CommendationMetric.dayStreak,
+        rarity: AchievementRarity.epic,
+        targetValue: 7,
+        points: 125,
+        xpReward: 125,
+        coinReward: 60,
+      ),
+      const Achievement(
+        id: 'cmd_streak_30',
+        title: 'Standing Watch',
+        description: 'Fly on 30 days in a row.',
+        icon: Symbols.event_repeat_rounded,
+        type: AchievementType.streak,
+        category: CommendationCategory.service,
+        metric: CommendationMetric.dayStreak,
         rarity: AchievementRarity.legendary,
-        targetValue: 500,
-        points: 250,
-        xpReward: 250,
-        coinReward: 125,
+        targetValue: 30,
+        points: 300,
+        xpReward: 300,
+        coinReward: 150,
       ),
-
-      // Survival Achievements (IDs match backend)
       const Achievement(
-        id: 'survivor',
-        title: 'Survivor',
-        description: 'Survive for 60 seconds',
-        icon: Icons.timer,
-        type: AchievementType.survival,
+        id: 'cmd_daily_1',
+        title: 'Daily Orders',
+        description: 'Fly a Daily Run.',
+        icon: Symbols.radar_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.service,
+        metric: CommendationMetric.dailyRuns,
         rarity: AchievementRarity.common,
-        targetValue: 60,
+        targetValue: 1,
+        points: 20,
+        xpReward: 20,
+        coinReward: 10,
+      ),
+      const Achievement(
+        id: 'cmd_cup_1',
+        title: 'Cup Contender',
+        description: 'Fly a run in a Sector Cup.',
+        icon: Symbols.trophy_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.service,
+        metric: CommendationMetric.cupRuns,
+        rarity: AchievementRarity.common,
+        targetValue: 1,
+        points: 20,
+        xpReward: 20,
+        coinReward: 10,
+      ),
+      const Achievement(
+        id: 'cmd_hangar_1',
+        title: 'Retrofit',
+        description: 'Install your first Hangar upgrade.',
+        icon: Symbols.build_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.service,
+        metric: CommendationMetric.hangarLevels,
+        rarity: AchievementRarity.common,
+        targetValue: 1,
         points: 15,
         xpReward: 15,
         coinReward: 8,
       ),
       const Achievement(
-        id: 'endurance',
-        title: 'Endurance',
-        description: 'Survive for 2 minutes',
-        icon: Icons.schedule,
-        type: AchievementType.survival,
-        rarity: AchievementRarity.rare,
-        targetValue: 120,
-        points: 30,
-        xpReward: 30,
-        coinReward: 15,
+        id: 'cmd_hangar_25',
+        title: 'Fully Refit',
+        description: 'Max out every Hangar upgrade.',
+        icon: Symbols.precision_manufacturing_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.service,
+        metric: CommendationMetric.hangarLevels,
+        rarity: AchievementRarity.legendary,
+        targetValue: 25,
+        points: 250,
+        xpReward: 250,
+        coinReward: 125,
+      ),
+      // ---- Modes ----
+      const Achievement(
+        id: 'cmd_mode_sortie',
+        title: 'Sortie Wings',
+        description: 'Complete 10 Sortie runs.',
+        icon: Symbols.rocket_launch_rounded,
+        type: AchievementType.games,
+        category: CommendationCategory.modes,
+        metric: CommendationMetric.gamesInMode,
+        rarity: AchievementRarity.common,
+        targetValue: 10,
+        points: 25,
+        xpReward: 25,
+        coinReward: 12,
+        gameModeFilter: 'sortie',
       ),
       const Achievement(
-        id: 'marathon',
-        title: 'Marathon',
-        description: 'Survive for 5 minutes',
-        icon: Icons.hourglass_full,
+        id: 'cmd_mode_cruise',
+        title: 'Cruise Control',
+        description: 'Complete 10 Cruise runs.',
+        icon: Symbols.explore_rounded,
+        type: AchievementType.games,
+        category: CommendationCategory.modes,
+        metric: CommendationMetric.gamesInMode,
+        rarity: AchievementRarity.common,
+        targetValue: 10,
+        points: 25,
+        xpReward: 25,
+        coinReward: 12,
+        gameModeFilter: 'cruise',
+      ),
+      const Achievement(
+        id: 'cmd_mode_afterburn',
+        title: 'Burn Rate',
+        description: 'Stay in the fight for 3 minutes in Afterburn.',
+        icon: Symbols.local_fire_department_rounded,
         type: AchievementType.survival,
+        category: CommendationCategory.modes,
+        metric: CommendationMetric.runDuration,
+        rarity: AchievementRarity.rare,
+        targetValue: 180,
+        points: 60,
+        xpReward: 60,
+        coinReward: 30,
+        gameModeFilter: 'afterburn',
+      ),
+      const Achievement(
+        id: 'cmd_mode_swarm',
+        title: 'Hold the Line',
+        description: 'Destroy 150 hostiles in a single Swarm run.',
+        icon: Symbols.hive_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.modes,
+        metric: CommendationMetric.runKills,
+        rarity: AchievementRarity.rare,
+        targetValue: 150,
+        points: 60,
+        xpReward: 60,
+        coinReward: 30,
+        gameModeFilter: 'swarm',
+      ),
+      const Achievement(
+        id: 'cmd_mode_holdout',
+        title: 'Last Hull Standing',
+        description: 'Stay in the fight for 5 minutes in Holdout.',
+        icon: Symbols.shield_rounded,
+        type: AchievementType.survival,
+        category: CommendationCategory.modes,
+        metric: CommendationMetric.runDuration,
         rarity: AchievementRarity.epic,
         targetValue: 300,
+        points: 100,
+        xpReward: 100,
+        coinReward: 50,
+        gameModeFilter: 'holdout',
+      ),
+      const Achievement(
+        id: 'cmd_mode_blitz',
+        title: 'Full Clock',
+        description: 'Fly the full 3 minutes in Blitz.',
+        icon: Symbols.timer_rounded,
+        type: AchievementType.survival,
+        category: CommendationCategory.modes,
+        metric: CommendationMetric.runDuration,
+        rarity: AchievementRarity.rare,
+        targetValue: 180,
+        points: 75,
+        xpReward: 75,
+        coinReward: 35,
+        gameModeFilter: 'blitz',
+      ),
+      const Achievement(
+        id: 'cmd_mode_overload',
+        title: 'Controlled Chaos',
+        description: 'Destroy 100 hostiles in a single Overload run.',
+        icon: Symbols.bolt_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.modes,
+        metric: CommendationMetric.runKills,
+        rarity: AchievementRarity.rare,
+        targetValue: 100,
+        points: 60,
+        xpReward: 60,
+        coinReward: 30,
+        gameModeFilter: 'overload',
+      ),
+      const Achievement(
+        id: 'cmd_mode_knife_edge',
+        title: 'Edge Walker',
+        description: 'Clear a level in Knife Edge.',
+        icon: Symbols.target_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.modes,
+        metric: CommendationMetric.runLevelsCleared,
+        rarity: AchievementRarity.epic,
+        targetValue: 1,
+        points: 125,
+        xpReward: 125,
+        coinReward: 60,
+        gameModeFilter: 'knifeEdge',
+      ),
+      const Achievement(
+        id: 'cmd_modes_all',
+        title: 'Full Spectrum',
+        description: 'Fly a run in all 8 modes.',
+        icon: Symbols.filter_tilt_shift_rounded,
+        type: AchievementType.general,
+        category: CommendationCategory.modes,
+        metric: CommendationMetric.distinctModes,
+        rarity: AchievementRarity.rare,
+        targetValue: 8,
         points: 75,
         xpReward: 75,
         coinReward: 40,
       ),
-
-      // Special Achievements
+      // ---- Feats ----
       const Achievement(
-        id: 'no_walls',
-        title: 'Evasive Maneuvers',
-        description: 'Play 5 games without crashing into asteroids',
-        icon: Icons.shield,
-        type: AchievementType.special,
+        id: 'cmd_score_5k',
+        title: 'Bounty Hunter',
+        description: 'Score 5,000 in a single run.',
+        icon: Symbols.paid_rounded,
+        type: AchievementType.score,
+        category: CommendationCategory.feats,
+        metric: CommendationMetric.runScore,
+        rarity: AchievementRarity.common,
+        targetValue: 5000,
+        points: 20,
+        xpReward: 20,
+        coinReward: 10,
+      ),
+      const Achievement(
+        id: 'cmd_score_25k',
+        title: 'Big Game',
+        description: 'Score 25,000 in a single run.',
+        icon: Symbols.monetization_on_rounded,
+        type: AchievementType.score,
+        category: CommendationCategory.feats,
+        metric: CommendationMetric.runScore,
         rarity: AchievementRarity.rare,
-        targetValue: 5,
+        targetValue: 25000,
         points: 60,
         xpReward: 60,
         coinReward: 30,
       ),
       const Achievement(
-        id: 'speedster',
-        title: 'Speedster',
-        description: 'Reach level 10 (max speed)',
-        icon: Icons.speed,
-        type: AchievementType.special,
-        rarity: AchievementRarity.epic,
-        targetValue: 10,
-        points: 80,
-        xpReward: 80,
-        coinReward: 40,
+        id: 'cmd_score_100k',
+        title: 'Top of the Board',
+        description: 'Score 100,000 in a single run.',
+        icon: Symbols.stars_rounded,
+        type: AchievementType.score,
+        category: CommendationCategory.feats,
+        metric: CommendationMetric.runScore,
+        rarity: AchievementRarity.legendary,
+        targetValue: 100000,
+        points: 250,
+        xpReward: 250,
+        coinReward: 125,
       ),
       const Achievement(
-        id: 'perfectionist',
-        title: 'Perfectionist',
-        description: 'Complete a game without taking damage',
-        icon: Icons.verified,
-        type: AchievementType.special,
-        rarity: AchievementRarity.epic,
-        targetValue: 1,
-        points: 90,
-        xpReward: 90,
-        coinReward: 45,
+        id: 'cmd_career_100k',
+        title: 'Paid in Full',
+        description: 'Earn 100,000 points across all runs.',
+        icon: Symbols.savings_rounded,
+        type: AchievementType.score,
+        category: CommendationCategory.feats,
+        metric: CommendationMetric.totalScore,
+        rarity: AchievementRarity.common,
+        targetValue: 100000,
+        points: 25,
+        xpReward: 25,
+        coinReward: 10,
       ),
       const Achievement(
-        id: 'all_food_types',
-        title: 'Full Arsenal',
-        description: 'Destroy all 3 enemy types in a single game',
-        icon: Icons.restaurant,
-        type: AchievementType.special,
-        rarity: AchievementRarity.rare,
-        targetValue: 1,
-        points: 40,
-        xpReward: 40,
-        coinReward: 20,
+        id: 'cmd_career_1m',
+        title: 'Million-Point Pilot',
+        description: 'Earn 1,000,000 points across all runs.',
+        icon: Symbols.stacked_line_chart_rounded,
+        type: AchievementType.score,
+        category: CommendationCategory.feats,
+        metric: CommendationMetric.totalScore,
+        rarity: AchievementRarity.epic,
+        targetValue: 1000000,
+        points: 150,
+        xpReward: 150,
+        coinReward: 75,
       ),
-
-      // ============================================================
-      // A. Single-Game Score (5 NEW)
-      // ============================================================
-      const Achievement(id: 'half_grand', title: 'Half Grand', description: 'Score 5,000 in a single game', icon: Icons.looks_5, type: AchievementType.score, rarity: AchievementRarity.legendary, targetValue: 5000, points: 250, xpReward: 250, coinReward: 125),
-      const Achievement(id: 'score_sniper', title: 'Score Sniper', description: 'Score 10,000 in a single game', icon: Icons.my_location, type: AchievementType.score, rarity: AchievementRarity.legendary, targetValue: 10000, points: 350, xpReward: 350, coinReward: 175),
-      const Achievement(id: 'five_digit_club', title: 'Five-Digit Club', description: 'Score 25,000 in a single game', icon: Icons.format_list_numbered, type: AchievementType.score, rarity: AchievementRarity.diamond, targetValue: 25000, points: 400, xpReward: 400, coinReward: 200),
-      const Achievement(id: 'score_tycoon', title: 'Score Tycoon', description: 'Score 50,000 in a single game', icon: Icons.attach_money, type: AchievementType.score, rarity: AchievementRarity.diamond, targetValue: 50000, points: 450, xpReward: 450, coinReward: 225),
-      const Achievement(id: 'score_god', title: 'Score God', description: 'Score 100,000 in a single game', icon: Icons.auto_awesome, type: AchievementType.score, rarity: AchievementRarity.diamond, targetValue: 100000, points: 500, xpReward: 500, coinReward: 250),
-
-      // ============================================================
-      // B. Lifetime Total Score (5 NEW)
-      // ============================================================
-      const Achievement(id: 'point_collector', title: 'Point Collector', description: 'Accumulate 10,000 points lifetime', icon: Icons.savings, type: AchievementType.score, rarity: AchievementRarity.common, targetValue: 10000, points: 25, xpReward: 25, coinReward: 10),
-      const Achievement(id: 'point_hoarder', title: 'Point Hoarder', description: 'Accumulate 100,000 points lifetime', icon: Icons.account_balance, type: AchievementType.score, rarity: AchievementRarity.rare, targetValue: 100000, points: 75, xpReward: 75, coinReward: 40),
-      const Achievement(id: 'half_million_club', title: 'Half Million Club', description: 'Accumulate 500,000 points lifetime', icon: Icons.paid, type: AchievementType.score, rarity: AchievementRarity.epic, targetValue: 500000, points: 150, xpReward: 150, coinReward: 75),
-      const Achievement(id: 'point_millionaire', title: 'Point Millionaire', description: 'Accumulate 1,000,000 points lifetime', icon: Icons.monetization_on, type: AchievementType.score, rarity: AchievementRarity.legendary, targetValue: 1000000, points: 300, xpReward: 300, coinReward: 150),
-      const Achievement(id: 'decamillionaire', title: 'Decamillionaire', description: 'Accumulate 10,000,000 points lifetime', icon: Icons.diamond, type: AchievementType.score, rarity: AchievementRarity.diamond, targetValue: 10000000, points: 500, xpReward: 500, coinReward: 250),
-
-      // ============================================================
-      // C. Games Played (2 NEW)
-      // ============================================================
-      const Achievement(id: 'ship_veteran', title: 'Ace Veteran', description: 'Play 1,000 games', icon: Icons.military_tech, type: AchievementType.games, rarity: AchievementRarity.legendary, targetValue: 1000, points: 350, xpReward: 350, coinReward: 175),
-      const Achievement(id: 'ship_legend', title: 'Pilot Legend', description: 'Play 5,000 games', icon: Icons.workspace_premium, type: AchievementType.games, rarity: AchievementRarity.diamond, targetValue: 5000, points: 500, xpReward: 500, coinReward: 250),
-
-      // ============================================================
-      // D. Single-Game Survival (3 NEW)
-      // ============================================================
-      const Achievement(id: 'iron_will', title: 'Iron Will', description: 'Survive 10 minutes in a single game', icon: Icons.fitness_center, type: AchievementType.survival, rarity: AchievementRarity.legendary, targetValue: 600, points: 150, xpReward: 150, coinReward: 75),
-      const Achievement(id: 'eternal_ship', title: 'Eternal Pilot', description: 'Survive 20 minutes in a single game', icon: Icons.all_inclusive, type: AchievementType.survival, rarity: AchievementRarity.diamond, targetValue: 1200, points: 250, xpReward: 250, coinReward: 125),
-      const Achievement(id: 'time_lord', title: 'Time Lord', description: 'Survive 30 minutes in a single game', icon: Icons.hourglass_top, type: AchievementType.survival, rarity: AchievementRarity.diamond, targetValue: 1800, points: 400, xpReward: 400, coinReward: 200),
-
-      // ============================================================
-      // E. Single-Game Enemies Destroyed (6 NEW)
-      // ============================================================
-      const Achievement(id: 'first_bite_snack', title: 'First Kills', description: 'Destroy 5 enemies in one game', icon: Icons.lunch_dining, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 5, points: 15, xpReward: 15, coinReward: 8),
-      const Achievement(id: 'hungry_ship', title: 'Trigger Happy', description: 'Destroy 20 enemies in one game', icon: Icons.ramen_dining, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 20, points: 25, xpReward: 25, coinReward: 12),
-      const Achievement(id: 'famished', title: 'Sharpshooter', description: 'Destroy 50 enemies in one game', icon: Icons.dining, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 50, points: 50, xpReward: 50, coinReward: 25),
-      const Achievement(id: 'ravenous', title: 'Onslaught', description: 'Destroy 100 enemies in one game', icon: Icons.set_meal, type: AchievementType.special, rarity: AchievementRarity.epic, targetValue: 100, points: 100, xpReward: 100, coinReward: 50),
-      const Achievement(id: 'insatiable', title: 'Annihilator', description: 'Destroy 200 enemies in one game', icon: Icons.fastfood, type: AchievementType.special, rarity: AchievementRarity.legendary, targetValue: 200, points: 200, xpReward: 200, coinReward: 100),
-      const Achievement(id: 'black_hole_stomach', title: 'Void Devourer', description: 'Destroy 500 enemies in one game', icon: Icons.blur_on, type: AchievementType.special, rarity: AchievementRarity.diamond, targetValue: 500, points: 350, xpReward: 350, coinReward: 175),
-
-      // ============================================================
-      // F. Lifetime Kills (4 NEW)
-      // ============================================================
-      const Achievement(id: 'foodie_apprentice', title: 'Gunner Apprentice', description: 'Destroy 100 enemies lifetime', icon: Icons.egg, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 100, points: 25, xpReward: 25, coinReward: 10),
-      const Achievement(id: 'foodie_pro', title: 'Gunner Pro', description: 'Destroy 1,000 enemies lifetime', icon: Icons.local_dining, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 1000, points: 75, xpReward: 75, coinReward: 40),
-      const Achievement(id: 'foodie_master', title: 'Gunner Master', description: 'Destroy 10,000 enemies lifetime', icon: Icons.restaurant_menu, type: AchievementType.special, rarity: AchievementRarity.epic, targetValue: 10000, points: 175, xpReward: 175, coinReward: 90),
-      const Achievement(id: 'foodie_god', title: 'War God', description: 'Destroy 50,000 enemies lifetime', icon: Icons.icecream, type: AchievementType.special, rarity: AchievementRarity.diamond, targetValue: 50000, points: 350, xpReward: 350, coinReward: 175),
-
-      // ============================================================
-      // G. Lifetime Play Time (5 NEW)
-      // ============================================================
-      const Achievement(id: 'quick_player', title: 'Quick Player', description: 'Play for 1 hour total', icon: Icons.schedule, type: AchievementType.general, rarity: AchievementRarity.common, targetValue: 3600, points: 25, xpReward: 25, coinReward: 10),
-      const Achievement(id: 'engaged_player', title: 'Engaged Player', description: 'Play for 10 hours total', icon: Icons.watch_later, type: AchievementType.general, rarity: AchievementRarity.rare, targetValue: 36000, points: 75, xpReward: 75, coinReward: 40),
-      const Achievement(id: 'hardcore_player', title: 'Hardcore Player', description: 'Play for 50 hours total', icon: Icons.self_improvement, type: AchievementType.general, rarity: AchievementRarity.epic, targetValue: 180000, points: 175, xpReward: 175, coinReward: 90),
-      const Achievement(id: 'ship_obsessed', title: 'Combat Obsessed', description: 'Play for 100 hours total', icon: Icons.psychology, type: AchievementType.general, rarity: AchievementRarity.legendary, targetValue: 360000, points: 300, xpReward: 300, coinReward: 150),
-      const Achievement(id: 'touch_grass', title: 'Touch Grass', description: 'Play for 250 hours total — maybe step outside?', icon: Icons.grass, type: AchievementType.general, rarity: AchievementRarity.diamond, targetValue: 900000, points: 500, xpReward: 500, coinReward: 250),
-
-      // ============================================================
-      // H. Player Level (5 NEW)
-      // ============================================================
-      const Achievement(id: 'level_5', title: 'Apprentice', description: 'Reach Level 5', icon: Icons.trending_up, type: AchievementType.general, rarity: AchievementRarity.common, targetValue: 5, points: 25, xpReward: 25, coinReward: 10),
-      const Achievement(id: 'level_10', title: 'Journeyman', description: 'Reach Level 10', icon: Icons.stars, type: AchievementType.general, rarity: AchievementRarity.rare, targetValue: 10, points: 50, xpReward: 50, coinReward: 25),
-      const Achievement(id: 'level_25', title: 'Expert', description: 'Reach Level 25', icon: Icons.verified_user, type: AchievementType.general, rarity: AchievementRarity.epic, targetValue: 25, points: 150, xpReward: 150, coinReward: 75),
-      const Achievement(id: 'level_50', title: 'Master', description: 'Reach Level 50', icon: Icons.shield, type: AchievementType.general, rarity: AchievementRarity.legendary, targetValue: 50, points: 300, xpReward: 300, coinReward: 150),
-      const Achievement(id: 'level_100', title: 'Grandmaster', description: 'Reach Level 100', icon: Icons.auto_awesome, type: AchievementType.general, rarity: AchievementRarity.diamond, targetValue: 100, points: 500, xpReward: 500, coinReward: 250),
-
-      // ============================================================
-      // I. Game Mode — CLASSIC (4 NEW)
-      // ============================================================
-      const Achievement(id: 'classic_initiate', title: 'Classic Initiate', description: 'Finish 10 Classic-mode games', icon: Icons.videogame_asset, type: AchievementType.games, rarity: AchievementRarity.common, targetValue: 10, points: 25, xpReward: 25, coinReward: 12, gameModeFilter: 'classic'),
-      const Achievement(id: 'classic_veteran', title: 'Classic Veteran', description: 'Finish 100 Classic-mode games', icon: Icons.sports_esports, type: AchievementType.games, rarity: AchievementRarity.epic, targetValue: 100, points: 125, xpReward: 125, coinReward: 60, gameModeFilter: 'classic'),
-      const Achievement(id: 'classic_1000', title: 'Classic Connoisseur', description: 'Score 1,000 in Classic mode', icon: Icons.emoji_events, type: AchievementType.score, rarity: AchievementRarity.rare, targetValue: 1000, points: 60, xpReward: 60, coinReward: 30, gameModeFilter: 'classic'),
-      const Achievement(id: 'classic_5000', title: 'Classic Maestro', description: 'Score 5,000 in Classic mode', icon: Icons.military_tech, type: AchievementType.score, rarity: AchievementRarity.legendary, targetValue: 5000, points: 200, xpReward: 200, coinReward: 100, gameModeFilter: 'classic'),
-
-      // ============================================================
-      // J. Game Mode — ZEN (3 NEW)
-      // ============================================================
-      const Achievement(id: 'zen_initiate', title: 'Zen Initiate', description: 'Finish 10 Zen games', icon: Icons.spa, type: AchievementType.games, rarity: AchievementRarity.common, targetValue: 10, points: 25, xpReward: 25, coinReward: 12, gameModeFilter: 'zen'),
-      const Achievement(id: 'zen_garden', title: 'Zen Garden', description: 'Score 500 in Zen mode', icon: Icons.local_florist, type: AchievementType.score, rarity: AchievementRarity.rare, targetValue: 500, points: 50, xpReward: 50, coinReward: 25, gameModeFilter: 'zen'),
-      const Achievement(id: 'zen_master', title: 'Zen Master', description: 'Score 5,000 in Zen mode', icon: Icons.self_improvement, type: AchievementType.score, rarity: AchievementRarity.epic, targetValue: 5000, points: 150, xpReward: 150, coinReward: 75, gameModeFilter: 'zen'),
-
-      // ============================================================
-      // K. Game Mode — SPEED CHALLENGE (3 NEW)
-      // ============================================================
-      const Achievement(id: 'speed_initiate', title: 'Need For Speed', description: 'Finish 10 Speed Challenge games', icon: Icons.speed, type: AchievementType.games, rarity: AchievementRarity.common, targetValue: 10, points: 25, xpReward: 25, coinReward: 12, gameModeFilter: 'speedChallenge'),
-      const Achievement(id: 'speedrunner', title: 'Speedrunner', description: 'Score 500 in Speed Challenge', icon: Icons.directions_run, type: AchievementType.score, rarity: AchievementRarity.rare, targetValue: 500, points: 60, xpReward: 60, coinReward: 30, gameModeFilter: 'speedChallenge'),
-      const Achievement(id: 'lightning', title: 'Lightning', description: 'Score 2,000 in Speed Challenge', icon: Icons.bolt, type: AchievementType.score, rarity: AchievementRarity.epic, targetValue: 2000, points: 150, xpReward: 150, coinReward: 75, gameModeFilter: 'speedChallenge'),
-
-      // ============================================================
-      // L. Game Mode — ONSLAUGHT (3 NEW)
-      // ============================================================
-      const Achievement(id: 'multifood_initiate', title: 'Warzone', description: 'Finish 10 Onslaught games', icon: Icons.rice_bowl, type: AchievementType.games, rarity: AchievementRarity.common, targetValue: 10, points: 25, xpReward: 25, coinReward: 12, gameModeFilter: 'onslaught'),
-      const Achievement(id: 'buffet', title: 'Barrage', description: 'Score 1,000 in Onslaught', icon: Icons.kitchen, type: AchievementType.score, rarity: AchievementRarity.rare, targetValue: 1000, points: 60, xpReward: 60, coinReward: 30, gameModeFilter: 'onslaught'),
-      const Achievement(id: 'smorgasbord', title: 'Bombardment', description: 'Score 5,000 in Onslaught', icon: Icons.tapas, type: AchievementType.score, rarity: AchievementRarity.epic, targetValue: 5000, points: 150, xpReward: 150, coinReward: 75, gameModeFilter: 'onslaught'),
-
-      // ============================================================
-      // M. Game Mode — SURVIVAL (3 NEW)
-      // ============================================================
-      const Achievement(id: 'survival_initiate', title: 'Survival Initiate', description: 'Finish 10 Survival games', icon: Icons.favorite, type: AchievementType.games, rarity: AchievementRarity.common, targetValue: 10, points: 25, xpReward: 25, coinReward: 12, gameModeFilter: 'survival'),
-      const Achievement(id: 'survival_pro', title: 'Survival Pro', description: 'Survive 5 minutes in Survival mode', icon: Icons.health_and_safety, type: AchievementType.survival, rarity: AchievementRarity.epic, targetValue: 300, points: 100, xpReward: 100, coinReward: 50, gameModeFilter: 'survival'),
-      const Achievement(id: 'last_ship_standing', title: 'Last Ship Standing', description: 'Score 2,500 in Survival', icon: Icons.shield_moon, type: AchievementType.score, rarity: AchievementRarity.legendary, targetValue: 2500, points: 200, xpReward: 200, coinReward: 100, gameModeFilter: 'survival'),
-
-      // ============================================================
-      // N. Game Mode — TIME ATTACK (3 NEW)
-      // ============================================================
-      const Achievement(id: 'timeattack_initiate', title: 'Time Attacker', description: 'Finish 10 TimeAttack games', icon: Icons.timer, type: AchievementType.games, rarity: AchievementRarity.common, targetValue: 10, points: 25, xpReward: 25, coinReward: 12, gameModeFilter: 'timeAttack'),
-      const Achievement(id: 'beat_the_clock', title: 'Beat the Clock', description: 'Survive the full 3-minute TimeAttack', icon: Icons.alarm_on, type: AchievementType.survival, rarity: AchievementRarity.rare, targetValue: 180, points: 75, xpReward: 75, coinReward: 35, gameModeFilter: 'timeAttack'),
-      const Achievement(id: 'timeattack_master', title: 'TimeAttack Master', description: 'Score 3,000 in TimeAttack', icon: Icons.av_timer, type: AchievementType.score, rarity: AchievementRarity.epic, targetValue: 3000, points: 150, xpReward: 150, coinReward: 75, gameModeFilter: 'timeAttack'),
-
-      // ============================================================
-      // O. Difficulty-Gated (6 NEW)
-      // ============================================================
-      const Achievement(id: 'hard_mode_hero', title: 'Hard Mode Hero', description: 'Score 500 on Hard difficulty', icon: Icons.fitness_center, type: AchievementType.score, rarity: AchievementRarity.rare, targetValue: 500, points: 75, xpReward: 75, coinReward: 35, difficultyFilter: 'hard'),
-      const Achievement(id: 'hard_mode_master', title: 'Hard Mode Master', description: 'Score 2,000 on Hard difficulty', icon: Icons.military_tech, type: AchievementType.score, rarity: AchievementRarity.epic, targetValue: 2000, points: 150, xpReward: 150, coinReward: 75, difficultyFilter: 'hard'),
-      const Achievement(id: 'hard_mode_god', title: 'Hard Mode God', description: 'Score 5,000 on Hard difficulty', icon: Icons.whatshot, type: AchievementType.score, rarity: AchievementRarity.diamond, targetValue: 5000, points: 300, xpReward: 300, coinReward: 150, difficultyFilter: 'hard'),
-      const Achievement(id: 'hard_veteran', title: 'Hard Veteran', description: 'Finish 50 games on Hard difficulty', icon: Icons.shield, type: AchievementType.games, rarity: AchievementRarity.epic, targetValue: 50, points: 125, xpReward: 125, coinReward: 60, difficultyFilter: 'hard'),
-      const Achievement(id: 'no_easy_way', title: 'No Easy Way', description: 'Finish 100 games on Hard difficulty', icon: Icons.gpp_good, type: AchievementType.games, rarity: AchievementRarity.legendary, targetValue: 100, points: 200, xpReward: 200, coinReward: 100, difficultyFilter: 'hard'),
-      const Achievement(id: 'hardcore_for_life', title: 'Hardcore for Life', description: 'Finish 500 games on Hard difficulty', icon: Icons.local_fire_department, type: AchievementType.games, rarity: AchievementRarity.diamond, targetValue: 500, points: 400, xpReward: 400, coinReward: 200, difficultyFilter: 'hard'),
-
-      // ============================================================
-      // P. Combo (5 NEW)
-      // ============================================================
-      const Achievement(id: 'combo_starter', title: 'Combo Starter', description: 'Hit a 5x combo in a single game', icon: Icons.filter_5, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 5, points: 20, xpReward: 20, coinReward: 10),
-      const Achievement(id: 'combo_master', title: 'Combo Master', description: 'Hit a 10x combo in a single game', icon: Icons.filter_9_plus, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 10, points: 50, xpReward: 50, coinReward: 25),
-      const Achievement(id: 'combo_pro', title: 'Combo Pro', description: 'Hit a 20x combo in a single game', icon: Icons.flash_on, type: AchievementType.special, rarity: AchievementRarity.epic, targetValue: 20, points: 100, xpReward: 100, coinReward: 50),
-      const Achievement(id: 'combo_god', title: 'Combo God', description: 'Hit a 50x combo in a single game', icon: Icons.rocket_launch, type: AchievementType.special, rarity: AchievementRarity.legendary, targetValue: 50, points: 250, xpReward: 250, coinReward: 125),
-      const Achievement(id: 'combo_legend', title: 'Combo Legend', description: 'Hit a 100x combo in a single game', icon: Icons.auto_awesome_motion, type: AchievementType.special, rarity: AchievementRarity.diamond, targetValue: 100, points: 500, xpReward: 500, coinReward: 250),
-
-      // ============================================================
-      // Q. Stage Progress (5 NEW)
-      // ============================================================
-      const Achievement(id: 'growing_ship', title: 'Rising Star', description: 'Reach stage 20', icon: Icons.trending_up, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 20, points: 20, xpReward: 20, coinReward: 10),
-      const Achievement(id: 'big_ship', title: 'Deep Striker', description: 'Reach stage 50', icon: Icons.straighten, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 50, points: 50, xpReward: 50, coinReward: 25),
-      const Achievement(id: 'huge_ship', title: 'Frontline Pilot', description: 'Reach stage 100', icon: Icons.open_in_full, type: AchievementType.special, rarity: AchievementRarity.epic, targetValue: 100, points: 100, xpReward: 100, coinReward: 50),
-      const Achievement(id: 'massive_ship', title: 'Vanguard', description: 'Reach stage 200', icon: Icons.expand, type: AchievementType.special, rarity: AchievementRarity.legendary, targetValue: 200, points: 200, xpReward: 200, coinReward: 100),
-      const Achievement(id: 'anaconda', title: 'Dreadnought', description: 'Reach stage 500', icon: Icons.all_inclusive, type: AchievementType.special, rarity: AchievementRarity.diamond, targetValue: 500, points: 400, xpReward: 400, coinReward: 200),
-
-      // ============================================================
-      // R. Power-Ups (8 NEW)
-      // ============================================================
-      const Achievement(id: 'first_power_up', title: 'Power Up!', description: 'Collect your first power-up', icon: Icons.bolt, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 1, points: 15, xpReward: 15, coinReward: 8),
-      const Achievement(id: 'power_player', title: 'Power Player', description: 'Collect 10 power-ups lifetime', icon: Icons.electric_bolt, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 10, points: 25, xpReward: 25, coinReward: 12),
-      const Achievement(id: 'power_hungry', title: 'Power Hungry', description: 'Collect 50 power-ups lifetime', icon: Icons.battery_charging_full, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 50, points: 60, xpReward: 60, coinReward: 30),
-      const Achievement(id: 'power_addict', title: 'Power Addict', description: 'Collect 200 power-ups lifetime', icon: Icons.offline_bolt, type: AchievementType.special, rarity: AchievementRarity.epic, targetValue: 200, points: 150, xpReward: 150, coinReward: 75),
-      const Achievement(id: 'power_master', title: 'Power Master', description: 'Collect 1,000 power-ups lifetime', icon: Icons.electric_meter, type: AchievementType.special, rarity: AchievementRarity.diamond, targetValue: 1000, points: 350, xpReward: 350, coinReward: 175),
-      const Achievement(id: 'variety_pack', title: 'Variety Pack', description: 'Collect each of the 4 power-up types at least once', icon: Icons.auto_awesome, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 4, points: 75, xpReward: 75, coinReward: 40),
-      const Achievement(id: 'speed_demon', title: 'Speed Demon', description: 'Collect 25 Speed Boost power-ups', icon: Icons.directions_run, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 25, points: 50, xpReward: 50, coinReward: 25),
-      const Achievement(id: 'immortal_streak', title: 'Immortal Streak', description: 'Collect 25 Invincibility power-ups', icon: Icons.shield, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 25, points: 50, xpReward: 50, coinReward: 25),
-
-      // ============================================================
-      // S. Enemy Type Variety (2 NEW)
-      // ============================================================
-      const Achievement(id: 'special_diet', title: 'Elite Hunter', description: 'Destroy 50 elite enemies lifetime', icon: Icons.cake, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 50, points: 60, xpReward: 60, coinReward: 30),
-      const Achievement(id: 'bonus_hunter', title: 'Bounty Hunter', description: 'Destroy 100 bonus targets lifetime', icon: Icons.redeem, type: AchievementType.special, rarity: AchievementRarity.epic, targetValue: 100, points: 100, xpReward: 100, coinReward: 50),
-
-      // ============================================================
-      // T. Perfection / No-Hit (3 NEW)
-      // ============================================================
-      const Achievement(id: 'untouchable_5', title: 'Untouchable', description: 'Complete 5 perfect games (no hits, 30s+)', icon: Icons.verified, type: AchievementType.special, rarity: AchievementRarity.epic, targetValue: 5, points: 100, xpReward: 100, coinReward: 50),
-      const Achievement(id: 'untouchable_20', title: 'Flawless', description: 'Complete 20 perfect games', icon: Icons.diamond, type: AchievementType.special, rarity: AchievementRarity.legendary, targetValue: 20, points: 200, xpReward: 200, coinReward: 100),
-      const Achievement(id: 'untouchable_50', title: 'Untouchable Legend', description: 'Complete 50 perfect games', icon: Icons.workspace_premium, type: AchievementType.special, rarity: AchievementRarity.diamond, targetValue: 50, points: 400, xpReward: 400, coinReward: 200),
-
-      // ============================================================
-      // U. Streaks / Daily (5 NEW)
-      // ============================================================
-      const Achievement(id: 'hot_streak', title: 'Hot Streak', description: '5 consecutive games scoring >0 and lasting 30s+', icon: Icons.whatshot, type: AchievementType.streak, rarity: AchievementRarity.rare, targetValue: 5, points: 50, xpReward: 50, coinReward: 25),
-      const Achievement(id: 'on_fire', title: 'On Fire', description: '10-game streak (30s+ each)', icon: Icons.local_fire_department, type: AchievementType.streak, rarity: AchievementRarity.epic, targetValue: 10, points: 100, xpReward: 100, coinReward: 50),
-      const Achievement(id: 'unstoppable', title: 'Unstoppable', description: '25-game streak (30s+ each)', icon: Icons.speed, type: AchievementType.streak, rarity: AchievementRarity.legendary, targetValue: 25, points: 250, xpReward: 250, coinReward: 125),
-      const Achievement(id: 'daily_three', title: 'Daily Player', description: 'Play on 3 consecutive days', icon: Icons.calendar_today, type: AchievementType.streak, rarity: AchievementRarity.rare, targetValue: 3, points: 50, xpReward: 50, coinReward: 25),
-      const Achievement(id: 'week_warrior', title: 'Week Warrior', description: 'Play on 7 consecutive days', icon: Icons.event_available, type: AchievementType.streak, rarity: AchievementRarity.epic, targetValue: 7, points: 125, xpReward: 125, coinReward: 60),
-
-      // ============================================================
-      // V. In-Game Level (3 NEW)
-      // ============================================================
-      const Achievement(id: 'velocity', title: 'Velocity', description: 'Reach in-game level 15 in one game', icon: Icons.fast_forward, type: AchievementType.special, rarity: AchievementRarity.epic, targetValue: 15, points: 120, xpReward: 120, coinReward: 60),
-      const Achievement(id: 'mach_speed', title: 'Mach Speed', description: 'Reach in-game level 20 in one game', icon: Icons.rocket, type: AchievementType.special, rarity: AchievementRarity.legendary, targetValue: 20, points: 200, xpReward: 200, coinReward: 100),
-      const Achievement(id: 'cosmic_ship', title: 'Cosmic Ace', description: 'Reach in-game level 25 in one game', icon: Icons.satellite_alt, type: AchievementType.special, rarity: AchievementRarity.diamond, targetValue: 25, points: 300, xpReward: 300, coinReward: 150),
-
-      // ============================================================
-      // W. Variety / Exploration (3 NEW)
-      // ============================================================
-      const Achievement(id: 'mode_explorer', title: 'Mode Explorer', description: 'Play at least one game in 3 distinct modes', icon: Icons.explore, type: AchievementType.general, rarity: AchievementRarity.common, targetValue: 3, points: 30, xpReward: 30, coinReward: 15),
-      const Achievement(id: 'all_mode_player', title: 'All-Mode Player', description: 'Play at least one game in every mode (6 modes)', icon: Icons.travel_explore, type: AchievementType.general, rarity: AchievementRarity.epic, targetValue: 6, points: 150, xpReward: 150, coinReward: 75),
-      const Achievement(id: 'difficulty_explorer', title: 'Difficulty Explorer', description: 'Play games on all 3 difficulties', icon: Icons.tune, type: AchievementType.general, rarity: AchievementRarity.rare, targetValue: 3, points: 50, xpReward: 50, coinReward: 25),
-
-      // ============================================================
-      // X. Time-of-Day / Special (3 NEW)
-      // ============================================================
-      const Achievement(id: 'night_owl', title: 'Night Owl', description: 'Finish a game between midnight and 5 AM', icon: Icons.nightlight, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 1, points: 25, xpReward: 25, coinReward: 12),
-      const Achievement(id: 'early_bird', title: 'Early Bird', description: 'Finish a game between 5 and 8 AM', icon: Icons.wb_twilight, type: AchievementType.special, rarity: AchievementRarity.common, targetValue: 1, points: 25, xpReward: 25, coinReward: 12),
-      const Achievement(id: 'weekend_warrior', title: 'Weekend Warrior', description: 'Finish 10 games on weekends', icon: Icons.weekend, type: AchievementType.special, rarity: AchievementRarity.rare, targetValue: 10, points: 50, xpReward: 50, coinReward: 25),
+      const Achievement(
+        id: 'cmd_career_10m',
+        title: 'Living Legend',
+        description: 'Earn 10,000,000 points across all runs.',
+        icon: Symbols.diamond_rounded,
+        type: AchievementType.score,
+        category: CommendationCategory.feats,
+        metric: CommendationMetric.totalScore,
+        rarity: AchievementRarity.diamond,
+        targetValue: 10000000,
+        points: 500,
+        xpReward: 500,
+        coinReward: 250,
+      ),
+      const Achievement(
+        id: 'cmd_flawless_campaign',
+        title: 'Flawless',
+        description:
+            'Clear all 12 levels in a single run without taking a hit.',
+        icon: Symbols.new_releases_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.feats,
+        metric: CommendationMetric.flawlessCampaign,
+        rarity: AchievementRarity.diamond,
+        targetValue: 1,
+        points: 500,
+        xpReward: 500,
+        coinReward: 250,
+      ),
+      const Achievement(
+        id: 'cmd_night_ops',
+        title: 'Night Ops',
+        description: 'Finish a run between midnight and 5 AM.',
+        icon: Symbols.nightlight_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.feats,
+        metric: CommendationMetric.nightOps,
+        rarity: AchievementRarity.common,
+        targetValue: 1,
+        points: 20,
+        xpReward: 20,
+        coinReward: 10,
+      ),
+      const Achievement(
+        id: 'cmd_full_draft',
+        title: 'Fully Loaded',
+        description: 'Draft 8 upgrades in a single run.',
+        icon: Symbols.upgrade_rounded,
+        type: AchievementType.special,
+        category: CommendationCategory.feats,
+        metric: CommendationMetric.runUpgrades,
+        rarity: AchievementRarity.epic,
+        targetValue: 8,
+        points: 125,
+        xpReward: 125,
+        coinReward: 60,
+      ),
     ];
   }
 }

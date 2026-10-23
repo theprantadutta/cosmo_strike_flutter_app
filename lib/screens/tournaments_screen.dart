@@ -8,6 +8,7 @@ import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/providers/tournaments_provider.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/utils/constants.dart' show GameMode;
 
 enum _Tab { active, history, stats }
 
@@ -31,7 +32,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
     final cs = context.cs;
 
     return CsScaffold(
-      title: 'Events',
+      title: 'Sector Cups',
       trailing: [
         if (tournamentsState.isOffline)
           const CsMeta('Offline', icon: Symbols.cloud_off_rounded),
@@ -58,7 +59,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
         gap: cs(40),
         left: _SideColumn(children: _buildLeft(tournamentsState)),
         right: tournamentsState.isLoading
-            ? const CsLoadingState(label: 'Loading tournaments')
+            ? const CsLoadingState(label: 'Loading Cups')
             : AnimatedSwitcher(
                 duration: CsMotion.base,
                 switchInCurve: CsMotion.standard,
@@ -124,12 +125,12 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
       ),
       SizedBox(height: cs(6)),
       Text(
-        live.length == 1 ? 'ACTIVE EVENT' : 'ACTIVE EVENTS',
+        live.length == 1 ? 'CUP LIVE' : 'CUPS LIVE',
         style: t.mono(12, em: 0.06, color: CsColors.ink60),
       ),
       if (next != null) ...[
         SizedBox(height: cs(22)),
-        CsLabel(next.status == TournamentStatus.upcoming ? 'Next event starts in' : 'Next event ends in'),
+        CsLabel(next.status == TournamentStatus.upcoming ? 'Next Cup opens in' : 'Next Cup closes in'),
         SizedBox(height: cs(6)),
         _Ticking(
           builder: (_) => Text(
@@ -157,9 +158,9 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
   Widget _buildActiveTournaments(List<Tournament> activeTournaments) {
     if (activeTournaments.isEmpty) {
       return const CsEmptyState(
-        icon: Symbols.emoji_events_rounded,
-        title: 'No Active Tournaments',
-        message: 'Check back later for new tournaments!',
+        icon: Symbols.military_tech_rounded,
+        title: 'No Cups live',
+        message: 'Next Cup posts soon. Stand by.',
       );
     }
 
@@ -177,8 +178,8 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
     if (historyTournaments.isEmpty) {
       return const CsEmptyState(
         icon: Symbols.history_rounded,
-        title: 'No Tournament History',
-        message: 'Participate in tournaments to see your history!',
+        title: 'No Cup record',
+        message: 'Enter a Cup to log your results here.',
       );
     }
 
@@ -200,8 +201,8 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
     if (userStats.isEmpty) {
       return const CsEmptyState(
         icon: Symbols.bar_chart_rounded,
-        title: 'No Tournament Stats',
-        message: 'Join tournaments to track your progress!',
+        title: 'No Cup stats',
+        message: 'Enter a Cup to start tracking.',
       );
     }
 
@@ -220,24 +221,24 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
 
     return SingleChildScrollView(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const CsLabel('Tournament overview'),
+        const CsLabel('Cup overview'),
         SizedBox(height: cs(8)),
         CsStatGrid(
           columns: cs.isCompact ? 2 : 4,
           valueSize: 28,
           stats: [
-            CsStat('${userStats['totalTournaments'] ?? 0}', 'Tournaments'),
+            CsStat('${userStats['totalTournaments'] ?? 0}', 'Cups'),
             CsStat('${userStats['wins'] ?? 0}', 'Wins', color: CsColors.gold),
             CsStat('${userStats['topThreeFinishes'] ?? 0}', 'Top 3 finishes'),
             CsStat('${userStats['bestScore'] ?? 0}', 'Best score', color: CsColors.cyan),
           ],
         ),
         SizedBox(height: cs(24)),
-        const CsLabel('Detailed statistics'),
+        const CsLabel('Breakdown'),
         SizedBox(height: cs(4)),
-        detail('Total Attempts', '${userStats['totalAttempts'] ?? 0}'),
-        detail('Win Rate', '$winRate%'),
-        detail('Average Performance', 'Top ${100 - winRate}%'),
+        detail('Total runs', '${userStats['totalAttempts'] ?? 0}'),
+        detail('Win rate', '$winRate%'),
+        detail('Average finish', 'Top ${100 - winRate}%'),
       ]),
     );
   }
@@ -249,18 +250,11 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
 
 IconData _typeIcon(TournamentType type) => switch (type) {
       TournamentType.daily => Symbols.today_rounded,
-      TournamentType.weekly => Symbols.emoji_events_rounded,
+      TournamentType.weekly => Symbols.military_tech_rounded,
       TournamentType.special => Symbols.auto_awesome_rounded,
     };
 
-IconData _modeIcon(TournamentGameMode mode) => switch (mode) {
-      TournamentGameMode.classic => Symbols.rocket_rounded,
-      TournamentGameMode.speedRun => Symbols.speed_rounded,
-      TournamentGameMode.survival => Symbols.timer_rounded,
-      TournamentGameMode.noWalls => Symbols.all_inclusive_rounded,
-      TournamentGameMode.powerUpMadness => Symbols.bolt_rounded,
-      TournamentGameMode.perfectGame => Symbols.diamond_rounded,
-    };
+IconData _modeIcon(GameMode mode) => mode.icon;
 
 Widget _statusChip(TournamentStatus status) => switch (status) {
       TournamentStatus.active => const CsChip('Live', kind: CsChipKind.mint),
@@ -312,7 +306,7 @@ class _EventRow extends StatelessWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
               Row(children: [
-                // Two lines: names like "Weekly Championship - Week 42" get
+                // Two lines: long Cup names get
                 // cut mid-word on landscape phones at one line.
                 Flexible(child: Text(tm.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.rowTitle)),
                 SizedBox(width: cs(8)),
@@ -331,7 +325,7 @@ class _EventRow extends StatelessWidget {
               ],
               SizedBox(height: cs(8)),
               Wrap(spacing: cs(14), runSpacing: cs(6), children: [
-                metaItem(_modeIcon(tm.gameMode), tm.gameMode.displayName),
+                metaItem(_modeIcon(tm.gameMode), tm.gameMode.name),
                 metaItem(Symbols.schedule_rounded, tm.timeRemainingFormatted),
                 metaItem(Symbols.group_rounded, '${tm.currentParticipants}/${tm.maxParticipants}'),
                 if (tm.hasJoined) metaItem(Symbols.check_circle_rounded, 'Joined', color: CsColors.mint),
@@ -341,7 +335,7 @@ class _EventRow extends StatelessWidget {
               if (showResults && reward != null) ...[
                 SizedBox(height: cs(10)),
                 Row(children: [
-                  Icon(Symbols.emoji_events_rounded, size: cs(16), color: CsColors.gold),
+                  Icon(Symbols.military_tech_rounded, size: cs(16), color: CsColors.gold),
                   SizedBox(width: cs(8)),
                   Flexible(
                     child: Text(
@@ -368,7 +362,7 @@ class _EventRow extends StatelessWidget {
               SizedBox(height: cs(8)),
             ],
             if (tm.requiresEntry)
-              const CsChip('Ticket', icon: Symbols.confirmation_number_rounded)
+              const CsChip('Cup Pass', icon: Symbols.confirmation_number_rounded)
             else
               Text('FREE ENTRY', style: t.mono(9, color: CsColors.ink45)),
             SizedBox(height: cs(6)),

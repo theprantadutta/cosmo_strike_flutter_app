@@ -10,6 +10,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/battle_pass_c
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
+import 'package:cosmo_strike_flutter_app/utils/constants.dart' show GameMode;
 
 /// Daily challenges service.
 ///
@@ -396,7 +397,8 @@ class DailyChallengeService extends ChangeNotifier {
       if (type == ChallengeType.gameMode &&
           challenge.requiredGameMode != null &&
           gameMode != null &&
-          challenge.requiredGameMode!.toLowerCase() != gameMode.toLowerCase()) {
+          GameMode.tryFromWire(challenge.requiredGameMode) !=
+              GameMode.tryFromWire(gameMode)) {
         continue;
       }
 

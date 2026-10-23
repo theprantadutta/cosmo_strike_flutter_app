@@ -1,20 +1,21 @@
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
+import 'package:cosmo_strike_flutter_app/utils/constants.dart' show GameMode;
 
 enum ChallengeType {
   score,
-  foodEaten,
+  enemiesKilled,
   gameMode,
   survival,
   gamesPlayed;
 
   /// Canonical wire value — the backend serializes its `ChallengeType` enum as
   /// snake_case (JsonStringEnumConverter(SnakeCaseLower)), so we mirror that
-  /// exactly. `foodEaten` maps to the backend's `enemies_killed`.
+  /// exactly. `enemiesKilled` maps to the backend's `enemies_killed`.
   String get apiValue {
     switch (this) {
       case ChallengeType.score:
         return 'score';
-      case ChallengeType.foodEaten:
+      case ChallengeType.enemiesKilled:
         return 'enemies_killed';
       case ChallengeType.gameMode:
         return 'game_mode';
@@ -27,8 +28,8 @@ enum ChallengeType {
 
   /// Parse a backend (snake_case) or legacy (PascalCase / camelCase) type
   /// string. Normalizes by lowercasing and stripping separators so
-  /// `enemies_killed`, `EnemiesKilled` and the legacy `FoodEaten` all resolve
-  /// to [ChallengeType.foodEaten]. Returns null for an unrecognized value so
+  /// `enemies_killed`, `EnemiesKilled` and the legacy pre-3.2 alias all resolve
+  /// to [ChallengeType.enemiesKilled]. Returns null for an unrecognized value so
   /// the caller can log + skip instead of silently miscounting it as a score
   /// challenge.
   static ChallengeType? tryParse(String value) {
@@ -38,7 +39,7 @@ enum ChallengeType {
         return ChallengeType.score;
       case 'enemieskilled':
       case 'foodeaten':
-        return ChallengeType.foodEaten;
+        return ChallengeType.enemiesKilled;
       case 'gamemode':
         return ChallengeType.gameMode;
       case 'survival':
@@ -151,8 +152,8 @@ class DailyChallenge {
           (json['is_completed'] ?? json['isCompleted'] ?? false) as bool,
       coinReward: (json['coin_reward'] ?? json['coinReward']) as int,
       xpReward: (json['xp_reward'] ?? json['xpReward']) as int,
-      requiredGameMode:
-          (json['required_game_mode'] ?? json['requiredGameMode']) as String?,
+      requiredGameMode: _normalizeMode(
+          (json['required_game_mode'] ?? json['requiredGameMode']) as String?),
       claimedReward:
           (json['claimed_reward'] ?? json['claimedReward'] ?? false) as bool,
     );
@@ -238,3 +239,83 @@ class DailyChallengesResponse {
   bool get hasUnclaimedRewards =>
       challenges.any((c) => c.isCompleted && !c.claimedReward);
 }
+
+/// Rewrites a legacy mode id (`classic`, `perfectGame`…) to the 3.2 wire id.
+String? _normalizeMode(String? raw) =>
+    raw == null ? null : GameMode.normalizeWire(raw);
+
+/// Matches server copy written for the old snake-era templates (or naming
+/// retired modes / meta features). Such text is replaced client-side by
+/// copy generated from the directive's type + target until the backend
+/// templates are rewritten.
+final RegExp kLegacyDirectiveCopy = RegExp(
+  r'\b(snakes?|foods?|eat|eats|eaten|eating|bites?|apples?|slither\w*|length|grow\w*|'
+  r'classic|zen|speed challenge|time ?attack|perfect game|power-?up madness|'
+  r'battle ?pass|tournaments?|trophies|coins?)\b',
+  caseSensitive: false,
+);
+
+/// `12500` → `12,500`.
+String formatDirectiveCount(int n) {
+  final s = n.abs().toString();
+  final b = StringBuffer(n < 0 ? '-' : '');
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) b.write(',');
+    b.write(s[i]);
+  }
+  return b.toString();
+}
+
+/// Display name of a (possibly legacy) mode id, e.g. `perfectGame` →
+/// `Knife Edge`. Null when absent/unknown.
+String? directiveModeName(String? raw) => GameMode.tryFromWire(raw)?.name;
+
+extension DailyChallengeCopy on DailyChallenge {
+  bool get _legacyCopy =>
+      kLegacyDirectiveCopy.hasMatch(title) ||
+      kLegacyDirectiveCopy.hasMatch(description);
+
+  /// Title safe to show: server text unless it still uses legacy wording.
+  String get displayTitle => _legacyCopy ? _generatedTitle : title;
+
+  /// Description safe to show (see [displayTitle]).
+  String get displayDescription =>
+      _legacyCopy ? _generatedDescription : description;
+
+  String get _generatedTitle {
+    final n = formatDirectiveCount(targetValue);
+    switch (type) {
+      case ChallengeType.score:
+        return 'Score $n';
+      case ChallengeType.enemiesKilled:
+        return 'Destroy $n hostiles';
+      case ChallengeType.gameMode:
+        final mode = directiveModeName(requiredGameMode);
+        return mode == null ? 'Fly $n runs' : 'Fly $n $mode runs';
+      case ChallengeType.survival:
+        return 'Hold for $n s';
+      case ChallengeType.gamesPlayed:
+        return targetValue == 1 ? 'Fly a run' : 'Fly $n runs';
+    }
+  }
+
+  String get _generatedDescription {
+    final n = formatDirectiveCount(targetValue);
+    switch (type) {
+      case ChallengeType.score:
+        return 'Score $n points in a single run.';
+      case ChallengeType.enemiesKilled:
+        return 'Destroy $n hostiles today.';
+      case ChallengeType.gameMode:
+        final mode = directiveModeName(requiredGameMode);
+        return mode == null
+            ? 'Complete $n runs in any mode.'
+            : 'Complete $n runs in $mode.';
+      case ChallengeType.survival:
+        return 'Stay in the fight for $n seconds in a single run.';
+      case ChallengeType.gamesPlayed:
+        return 'Launch and finish $n runs today.';
+    }
+  }
+}
+

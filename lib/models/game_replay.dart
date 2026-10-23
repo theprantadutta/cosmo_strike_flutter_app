@@ -1,10 +1,11 @@
 import 'dart:convert';
+import 'package:cosmo_strike_flutter_app/utils/constants.dart' show GameMode;
 
 class GameFrame {
   final int frameNumber;
   final int timestamp;
   final List<List<int>> shipPositions;
-  final List<int>? foodPosition;
+  final List<int>? pickupPosition;
   final List<int>? powerUpPosition;
   final String? powerUpType;
   final int score;
@@ -12,13 +13,13 @@ class GameFrame {
   final String direction;
   final List<String> activePowerUps;
   final Map<String, dynamic>?
-  gameEvent; // collision, food consumed, power-up collected, etc.
+  gameEvent; // collision, enemy destroyed, power-up collected, etc.
 
   const GameFrame({
     required this.frameNumber,
     required this.timestamp,
     required this.shipPositions,
-    this.foodPosition,
+    this.pickupPosition,
     this.powerUpPosition,
     this.powerUpType,
     required this.score,
@@ -33,7 +34,7 @@ class GameFrame {
       'frameNumber': frameNumber,
       'timestamp': timestamp,
       'shipPositions': shipPositions,
-      'foodPosition': foodPosition,
+      'pickupPosition': pickupPosition,
       'powerUpPosition': powerUpPosition,
       'powerUpType': powerUpType,
       'score': score,
@@ -53,7 +54,9 @@ class GameFrame {
               ?.map((pos) => (pos as List).cast<int>())
               .toList() ??
           [],
-      foodPosition: (json['foodPosition'] as List?)?.cast<int>(),
+      // 'foodPosition' is the pre-3.2 key.
+      pickupPosition:
+          ((json['pickupPosition'] ?? json['foodPosition']) as List?)?.cast<int>(),
       powerUpPosition: (json['powerUpPosition'] as List?)?.cast<int>(),
       powerUpType: json['powerUpType'],
       score: json['score'] ?? 0,
@@ -102,14 +105,14 @@ class GameReplay {
     if (crashReason != null) {
       switch (crashReason) {
         case 'wall':
-          return 'Hit Wall';
+          return 'Hit terrain';
         case 'self':
-          return 'Hit Self';
+          return 'Collision';
         default:
-          return 'Game Over';
+          return 'Ship lost';
       }
     }
-    return 'Completed';
+    return 'Mission complete';
   }
 
   Map<String, dynamic> toJson() {
@@ -138,7 +141,7 @@ class GameReplay {
       finalScore: json['finalScore'] ?? 0,
       gameTimeSeconds: json['gameTimeSeconds'] ?? 0,
       totalFrames: json['totalFrames'] ?? 0,
-      gameMode: json['gameMode'] ?? 'classic',
+      gameMode: GameMode.fromWire(json['gameMode'] as String?).wireName,
       gameSettings: Map<String, dynamic>.from(json['gameSettings'] ?? {}),
       frames:
           (json['frames'] as List?)
@@ -181,8 +184,8 @@ class GameReplay {
   // `frames.map(...).reduce(...)` throws StateError("No element") which
   // cascades through the entire ReplaysScreen ListView during layout.
   Map<String, dynamic> getSummary() {
-    final totalFood = frames
-        .where((f) => f.gameEvent?['type'] == 'food_consumed')
+    final totalKills = frames
+        .where((f) => _isKillEvent(f.gameEvent?['type']))
         .length;
     final totalPowerUps = frames
         .where((f) => f.gameEvent?['type'] == 'power_up_collected')
@@ -196,7 +199,7 @@ class GameReplay {
     return {
       'duration': formattedDuration,
       'outcome': gameOutcome,
-      'foodConsumed': totalFood,
+      'kills': totalKills,
       'powerUpsCollected': totalPowerUps,
       'maxLength': maxShipLength,
       'averageScore': frames.isNotEmpty ? finalScore / frames.length * 100 : 0,
@@ -220,7 +223,7 @@ class GameRecorder {
 
   void recordFrame({
     required List<List<int>> shipPositions,
-    List<int>? foodPosition,
+    List<int>? pickupPosition,
     List<int>? powerUpPosition,
     String? powerUpType,
     required int score,
@@ -240,7 +243,7 @@ class GameRecorder {
       frameNumber: _frameCounter++,
       timestamp: timestamp,
       shipPositions: shipPositions.map((pos) => [...pos]).toList(),
-      foodPosition: foodPosition != null ? [...foodPosition] : null,
+      pickupPosition: pickupPosition != null ? [...pickupPosition] : null,
       powerUpPosition: powerUpPosition != null ? [...powerUpPosition] : null,
       powerUpType: powerUpType,
       score: score,
@@ -293,3 +296,7 @@ class GameRecorder {
     _gameStartTime = null;
   }
 }
+
+/// Kill events: `enemy_destroyed`, or the pre-3.2 event name.
+bool _isKillEvent(Object? type) =>
+    type == 'enemy_destroyed' || type == 'food_consumed';

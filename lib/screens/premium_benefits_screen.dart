@@ -6,17 +6,19 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_inapp_purchase/flutter_inapp_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:cosmo_strike_flutter_app/models/premium_cosmetics.dart';
+import 'package:cosmo_strike_flutter_app/models/premium_power_up.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/subscription_legal_links.dart';
 
-/// "Cosmo Pro" paywall — Prism Noir mock 10 (Pro panel).
+/// "Strike Command" paywall — Prism Noir mock 10 (subscription panel).
 ///
 ///   • LEFT: every Pro entitlement as a hairline list with Symbols icons
 ///     (scrolls when it can't fit).
-///   • RIGHT: "Cosmo Pro" headline (Pro in prism), mono benefit line, two plan
+///   • RIGHT: "Strike Command" headline (Command in prism), mono benefit line, two plan
 ///     cards — Monthly (outlined, secondary SUBSCRIBE) and Yearly (prism ring,
 ///     SAVE chip, the screen's white primary SUBSCRIBE) — and the
 ///     "Cancel anytime · Restore purchases" footer.
@@ -106,12 +108,12 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
       builder: (context, premiumState) {
         final cs = context.cs;
         return CsScaffold(
-          title: 'Cosmo Strike Pro',
+          title: 'Strike Command',
           trailing: [
             if (premiumState.hasPremium)
               const CsMeta('Active', color: CsColors.mint, icon: Symbols.verified_rounded)
             else
-              const CsMeta('Pro', color: CsColors.gold, icon: Symbols.diamond_rounded),
+              const CsMeta('Command', color: CsColors.gold, icon: Symbols.workspace_premium_rounded),
           ],
           washes: const [CsWash.violetTopRight, CsWash.goldTopRight],
           body: premiumState.hasPremium
@@ -132,10 +134,10 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     );
   }
 
-  /// "Save N%" for yearly vs 12× monthly from live store prices; null
+  /// "Save N%" for annual vs 12× monthly from live store prices; null
   /// (no chip) until both plans have loaded.
   String? _yearlySavingsLabel(PurchaseService purchases) {
-    final pct = purchases.yearlySavingsPercent(ProductIds.proMonthly, ProductIds.proYearly);
+    final pct = purchases.yearlySavingsPercent(ProductIds.commandMonthly, ProductIds.commandAnnual);
     return pct == null ? null : 'Save $pct%';
   }
 
@@ -143,20 +145,20 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     final cs = context.cs;
     final t = cs.type;
     final purchases = PurchaseService();
-    final monthlyPrice = purchases.getStorePriceOrDefault(ProductIds.proMonthly, 4.99);
-    final yearlyPrice = purchases.getStorePriceOrDefault(ProductIds.proYearly, 39.99);
+    final monthlyPrice = purchases.getStorePriceOrDefault(ProductIds.commandMonthly, 4.99);
+    final yearlyPrice = purchases.getStorePriceOrDefault(ProductIds.commandAnnual, 39.99);
 
     final status = _subscribing
-        ? (_sawPurchaseSuccess ? 'Activating Pro…' : 'Connecting to Google Play…')
+        ? (_sawPurchaseSuccess ? 'Activating Command…' : 'Connecting to Google Play…')
         : null;
 
     return CsFitColumn(
       alignment: Alignment.centerLeft,
       children: [
-        CsHeadline(const ['Cosmo ', 'Pro'], prismIndex: 1, maxLines: 1, style: t.display(34, em: -0.03, height: 1)),
+        CsHeadline(const ['Strike ', 'Command'], prismIndex: 1, maxLines: 1, style: t.display(34, em: -0.03, height: 1)),
         SizedBox(height: cs(8)),
         Text(
-          'Premium pass track · No ads · 2× coins · Every premium skin, trail & theme',
+          'Frontline Command lane · No ads · 2× credits · Every livery, exhaust & sector',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: t.mono(11, em: 0.06, color: CsColors.ink55, height: 1.4),
@@ -171,8 +173,8 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
                   label: 'Monthly',
                   price: monthlyPrice,
                   cadence: '/mo',
-                  note: _trialLabel(ProductIds.proMonthly) ?? 'Billed monthly',
-                  noteIsTrial: _trialLabel(ProductIds.proMonthly) != null,
+                  note: _trialLabel(ProductIds.commandMonthly) ?? 'Billed monthly',
+                  noteIsTrial: _trialLabel(ProductIds.commandMonthly) != null,
                   featured: false,
                   busy: _subscribing && !_isYearly,
                   busyLabel: _sawPurchaseSuccess ? 'Activating…' : 'Connecting…',
@@ -182,11 +184,11 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
               SizedBox(width: cs(14)),
               Expanded(
                 child: _PlanCard(
-                  label: 'Yearly',
+                  label: 'Annual',
                   price: yearlyPrice,
                   cadence: '/yr',
-                  note: _trialLabel(ProductIds.proYearly) ?? 'Billed yearly',
-                  noteIsTrial: _trialLabel(ProductIds.proYearly) != null,
+                  note: _trialLabel(ProductIds.commandAnnual) ?? 'Billed annually',
+                  noteIsTrial: _trialLabel(ProductIds.commandAnnual) != null,
                   badge: _yearlySavingsLabel(purchases),
                   featured: true,
                   busy: _subscribing && _isYearly,
@@ -281,7 +283,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     if (!await _ensurePurchaseAccount() || !mounted) return;
 
     final purchaseService = PurchaseService();
-    final productId = _isYearly ? ProductIds.proYearly : ProductIds.proMonthly;
+    final productId = _isYearly ? ProductIds.commandAnnual : ProductIds.commandMonthly;
     final product = purchaseService.getProduct(productId);
 
     if (product != null) {
@@ -318,7 +320,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     // Billing works and products loaded, but this specific subscription isn't
     // configured/active on the store yet.
     _showSubscribeIssue(
-      "Pro subscriptions aren't available right now. Please try again later.",
+      "Strike Command isn't available right now. Try again later.",
     );
   }
 
@@ -368,7 +370,7 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     showCsDialog<void>(
       context,
       builder: (ctx) => CsDialog(
-        eyebrow: 'Store',
+        eyebrow: 'Armory',
         title: 'Store unavailable',
         message: message,
         icon: Symbols.cloud_off_rounded,
@@ -491,32 +493,39 @@ class _Benefit {
 }
 
 /// Honest list — every entry maps to an entitlement the server actually
-/// grants on Pro verify (VerifyPurchaseCommandHandler) or a client-side Pro
-/// gate (spawn boosts snapshot PremiumCubit.hasPremium at game start).
-const _benefits = [
-  _Benefit(Symbols.block_rounded, 'Remove all ads',
-      'No banners, no interstitials — play completely ad-free, forever'),
-  _Benefit(Symbols.palette_rounded, 'All premium themes',
-      'Crystal, Cyberpunk, Space, Ocean, Desert, Forest'),
-  _Benefit(Symbols.rocket_rounded, 'All premium ship skins',
-      'Golden, Galaxy, Dragon, Electric, Fire, Ice & 5 more'),
-  _Benefit(Symbols.auto_awesome_rounded, 'All premium trail effects',
-      'Particle, Glow, Rainbow, Fire, Cosmic, Crystal & 5 more'),
-  _Benefit(Symbols.paid_rounded, '2× coin rewards', 'Double Star Coins from every run'),
-  _Benefit(Symbols.stars_rounded, 'Lucky Magnet — more power-ups',
-      '+50% chance to spawn the rare 50-point power-up in every run'),
-  _Benefit(Symbols.bolt_rounded, 'More in-game power-ups',
-      '+30% spawn rate for in-game power-ups during gameplay'),
-  _Benefit(Symbols.inventory_2_rounded, 'Premium power-up bundle',
-      '5× Warp Escape, Ghost Mode, Orb Magnet, Last Stand & Invincibility every billing cycle'),
-  _Benefit(Symbols.emoji_events_rounded, 'Tournament entries',
-      '1× Bronze + 1× Silver + 1× Gold tournament entry every billing cycle'),
+/// grants on subscription verify (VerifyPurchaseCommandHandler) or a
+/// client-side subscription gate (spawn boosts snapshot
+/// PremiumCubit.hasPremium at game start).
+final _benefits = [
+  const _Benefit(Symbols.block_rounded, 'Remove all ads',
+      'No banners, no interstitials. Fly completely ad-free'),
+  _Benefit(Symbols.public_rounded, 'All premium Sectors',
+      PremiumContent.premiumThemes.map((t) => t.displayName).join(', ')),
+  _Benefit(Symbols.rocket_rounded, 'All premium liveries',
+      LiveryType.values.where((l) => l.isPremium).map((l) => l.displayName).join(', ')),
+  _Benefit(Symbols.local_fire_department_rounded, 'All premium exhausts',
+      ExhaustType.values.where((e) => e.isPremium).map((e) => e.displayName).join(', ')),
+  const _Benefit(Symbols.paid_rounded, '2× credit rewards', 'Double credits from every run'),
+  const _Benefit(Symbols.stars_rounded, 'Lucky draw: rarer pickups',
+      '+50% chance to spawn the rare 50-point pickup in every run'),
+  const _Benefit(Symbols.bolt_rounded, 'More in-flight pickups',
+      '+30% spawn rate for pickups during a run'),
+  _Benefit(Symbols.inventory_2_rounded, 'Tactical Gear resupply',
+      '5× ${[
+        PremiumPowerUpType.teleport,
+        PremiumPowerUpType.ghostMode,
+        PremiumPowerUpType.magneticPickup,
+        PremiumPowerUpType.scoreShield,
+        PremiumPowerUpType.invincibility,
+      ].map((g) => g.displayName).join(', ')} every billing cycle'),
+  const _Benefit(Symbols.confirmation_number_rounded, 'Cup Passes',
+      '1× Scout + 1× Strike + 1× Ace Cup Pass every billing cycle'),
 ];
 
 class _BenefitsList extends StatelessWidget {
   const _BenefitsList({this.owned = false});
 
-  /// Pro owners: "Included with Pro" + a mint check on every row.
+  /// Subscribers: "Unlocked with Strike Command" + a mint check on every row.
   final bool owned;
 
   @override
@@ -525,7 +534,7 @@ class _BenefitsList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        CsLabel(owned ? 'Included with your Pro' : 'Pro includes', color: CsColors.gold),
+        CsLabel(owned ? 'Unlocked with Strike Command' : 'Strike Command includes', color: CsColors.gold),
         SizedBox(height: cs(6)),
         Expanded(
           child: ListView.builder(
@@ -571,12 +580,12 @@ class _PremiumActiveBlock extends StatelessWidget {
     return CsFitColumn(
       alignment: Alignment.centerLeft,
       children: [
-        const CsChip('Pro', kind: CsChipKind.gold, icon: Symbols.diamond_rounded),
+        const CsChip('Command', kind: CsChipKind.gold, icon: Symbols.workspace_premium_rounded),
         SizedBox(height: cs(16)),
-        CsHeadline(const ['Premium\n', 'active.'], prismIndex: 1, maxLines: 2, style: t.title),
+        CsHeadline(const ['Command\n', 'active.'], prismIndex: 1, maxLines: 2, style: t.title),
         SizedBox(height: cs(14)),
         Text(
-          'Thanks for flying Pro. Every perk on the right is unlocked on this account.',
+          'Strike Command is active. Every perk on the right applies to this account.',
           style: t.body.copyWith(fontSize: cs(14)),
         ),
         SizedBox(height: cs(18)),

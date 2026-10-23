@@ -29,102 +29,95 @@ class ProductIds {
     return '$prefix$id';
   }
 
-  /// Convert a bare skin name (e.g. 'golden') to its store product ID.
-  static String skinStoreId(String skinId) => '${prefix}skin_$skinId';
+  // Strike Command (subscription group "Strike Command")
+  static const String commandMonthly = '${prefix}command_monthly';
+  static const String commandAnnual = '${prefix}command_annual';
 
-  // Premium Themes
-  static const String crystalTheme = '${prefix}crystal_theme';
-  static const String cyberpunkTheme = '${prefix}cyberpunk_theme';
-  static const String spaceTheme = '${prefix}space_theme';
-  static const String oceanTheme = '${prefix}ocean_theme';
-  static const String desertTheme = '${prefix}desert_theme';
-  static const String forestTheme = '${prefix}forest_theme';
-  static const String themesBundle = '${prefix}premium_themes_bundle';
+  // Credit Caches (consumable)
+  static const String creditsCache = '${prefix}credits_cache';
+  static const String creditsCrate = '${prefix}credits_crate';
+  static const String creditsVault = '${prefix}credits_vault';
+  static const String creditsReserve = '${prefix}credits_reserve';
 
-  // Ship Coins (Consumable)
-  static const String coinPackSmall = '${prefix}coin_pack_small';
-  static const String coinPackMedium = '${prefix}coin_pack_medium';
-  static const String coinPackLarge = '${prefix}coin_pack_large';
-  static const String coinPackMega = '${prefix}coin_pack_mega';
+  // Liveries (non-consumable)
+  static const String liveryAurum = '${prefix}livery_aurum';
+  static const String liveryVanta = '${prefix}livery_vanta';
+  static const String liveryRedline = '${prefix}livery_redline';
+  static const String liveryGlacier = '${prefix}livery_glacier';
+  static const String liveryIonic = '${prefix}livery_ionic';
+  static const String liverySolstice = '${prefix}livery_solstice';
+  static const String liveryViridian = '${prefix}livery_viridian';
+  static const String liveryPrism = '${prefix}livery_prism';
 
-  // Ship Skins (store IDs use skin_ category prefix)
-  static const String goldenShip = '${prefix}skin_golden';
-  static const String rainbowShip = '${prefix}skin_rainbow';
-  static const String galaxyShip = '${prefix}skin_galaxy';
-  static const String dragonShip = '${prefix}skin_dragon';
-  static const String electricShip = '${prefix}skin_electric';
-  static const String fireShip = '${prefix}skin_fire';
-  static const String iceShip = '${prefix}skin_ice';
-  static const String shadowShip = '${prefix}skin_shadow';
-  static const String neonShip = '${prefix}skin_neon';
-  static const String crystalShip = '${prefix}skin_crystal';
-  static const String cosmicShip = '${prefix}skin_cosmic';
+  // Exhausts (non-consumable)
+  static const String exhaustIon = '${prefix}exhaust_ion';
+  static const String exhaustPlasma = '${prefix}exhaust_plasma';
+  static const String exhaustEmber = '${prefix}exhaust_ember';
+  static const String exhaustComet = '${prefix}exhaust_comet';
+  static const String exhaustPulse = '${prefix}exhaust_pulse';
+  static const String exhaustQuantum = '${prefix}exhaust_quantum';
+  static const String exhaustNova = '${prefix}exhaust_nova';
 
-  // Trail Effects
-  static const String particleTrail = '${prefix}trail_particle';
-  static const String glowTrail = '${prefix}trail_glow';
-  static const String rainbowTrail = '${prefix}trail_rainbow';
-  static const String fireTrail = '${prefix}trail_fire';
-  static const String electricTrail = '${prefix}trail_electric';
-  static const String starTrail = '${prefix}trail_star';
-  static const String cosmicTrail = '${prefix}trail_cosmic';
-  static const String neonTrail = '${prefix}trail_neon';
-  static const String shadowTrail = '${prefix}trail_shadow';
-  static const String crystalTrail = '${prefix}trail_crystal';
-  static const String dragonTrail = '${prefix}trail_dragon';
+  // Sectors (non-consumable)
+  static const String sectorAurora = '${prefix}sector_aurora';
+  static const String sectorSolar = '${prefix}sector_solar';
+  static const String sectorAbyss = '${prefix}sector_abyss';
+  static const String sectorIon = '${prefix}sector_ion';
+  static const String sectorCrimson = '${prefix}sector_crimson';
+  static const String sectorAtlas = '${prefix}sector_atlas';
 
-  // Cosmetic Bundles
-  static const String starterCosmetics = '${prefix}starter_pack';
-  static const String elementalCosmetics = '${prefix}elemental_pack';
-  static const String cosmicCosmetics = '${prefix}cosmic_collection';
-  static const String ultimateCosmetics = '${prefix}ultimate_collection';
+  // Fleet Kits (non-consumable)
+  static const String kitRecruit = '${prefix}kit_recruit';
+  static const String kitVanguard = '${prefix}kit_vanguard';
+  static const String kitFlagship = '${prefix}kit_flagship';
 
-  // Subscriptions
-  static const String proMonthly = '${prefix}pro_monthly';
-  static const String proYearly = '${prefix}pro_yearly';
+  // Cup Passes (consumable)
+  static const String cupScout = '${prefix}cup_scout';
+  static const String cupStrike = '${prefix}cup_strike';
+  static const String cupAce = '${prefix}cup_ace';
+  static const String cupAceTrio = '${prefix}cup_ace_trio';
+  static const String cupSquadron = '${prefix}cup_squadron';
 
-  // Battle Pass — Coming Soon (not registered on stores yet)
-  static const String battlePass = '${prefix}battle_pass_season';
+  /// Cup Pass product suffix → tickets granted per wire tier. MUST match the
+  /// backend's TournamentEntryGrants.
+  static const Map<String, Map<String, int>> cupPassGrants = {
+    'cup_scout': {'bronze': 1},
+    'cup_strike': {'silver': 1},
+    'cup_ace': {'gold': 1},
+    'cup_ace_trio': {'gold': 3},
+    'cup_squadron': {'gold': 5, 'silver': 5},
+  };
 
-  // Tournament Entries (Consumable)
-  static const String tournamentBronze = '${prefix}tournament_bronze';
-  static const String tournamentSilver = '${prefix}tournament_silver';
-  static const String tournamentGold = '${prefix}tournament_gold';
-  static const String championshipEntry = '${prefix}championship_entry';
-  static const String tournamentVipEntry = '${prefix}tournament_vip_entry';
-
-  /// All active store product IDs (44 products).
-  /// Battle Pass and power-up IAPs are excluded.
+  /// All active store product IDs (35 products — REBRAND_SPEC §2 says 36
+  /// but counts the free Stock Thruster among the exhausts).
   static List<String> get allProductIds => [
-    // Themes (7)
-    crystalTheme, cyberpunkTheme, spaceTheme,
-    oceanTheme, desertTheme, forestTheme, themesBundle,
-    // Coins (4)
-    coinPackSmall, coinPackMedium, coinPackLarge, coinPackMega,
-    // Ship skins (11)
-    goldenShip, rainbowShip, galaxyShip, dragonShip, electricShip,
-    fireShip, iceShip, shadowShip, neonShip, crystalShip, cosmicShip,
-    // Trail effects (11)
-    particleTrail, glowTrail, rainbowTrail, fireTrail, electricTrail, starTrail,
-    cosmicTrail, neonTrail, shadowTrail, crystalTrail, dragonTrail,
-    // Bundles (4)
-    starterCosmetics, elementalCosmetics, cosmicCosmetics, ultimateCosmetics,
-    // Subscriptions (2)
-    proMonthly, proYearly,
-    // Tournament entries (5)
-    tournamentBronze, tournamentSilver, tournamentGold,
-    championshipEntry, tournamentVipEntry,
+    // Strike Command (2)
+    commandMonthly, commandAnnual,
+    // Credit Caches (4)
+    creditsCache, creditsCrate, creditsVault, creditsReserve,
+    // Liveries (8)
+    liveryAurum, liveryVanta, liveryRedline, liveryGlacier,
+    liveryIonic, liverySolstice, liveryViridian, liveryPrism,
+    // Exhausts (7)
+    exhaustIon, exhaustPlasma, exhaustEmber, exhaustComet,
+    exhaustPulse, exhaustQuantum, exhaustNova,
+    // Sectors (6)
+    sectorAurora, sectorSolar, sectorAbyss, sectorIon, sectorCrimson,
+    sectorAtlas,
+    // Fleet Kits (3)
+    kitRecruit, kitVanguard, kitFlagship,
+    // Cup Passes (5)
+    cupScout, cupStrike, cupAce, cupAceTrio, cupSquadron,
   ];
 
   static List<String> get consumableIds => [
-    // Coins
-    coinPackSmall, coinPackMedium, coinPackLarge, coinPackMega,
-    // Tournament entries
-    tournamentBronze, tournamentSilver, tournamentGold,
-    championshipEntry, tournamentVipEntry,
+    // Credit Caches
+    creditsCache, creditsCrate, creditsVault, creditsReserve,
+    // Cup Passes
+    cupScout, cupStrike, cupAce, cupAceTrio, cupSquadron,
   ];
 
-  static List<String> get subscriptionIds => [proMonthly, proYearly];
+  static List<String> get subscriptionIds => [commandMonthly, commandAnnual];
 
   /// Every one-time product (consumable or not) — queried separately from
   /// subscriptions, which the store fetches with a different product type.
@@ -238,14 +231,12 @@ class PurchaseService {
     )) {
       return 'subscription';
     }
-    if (id.startsWith('coin_pack_')) return 'coins';
-    if (id.startsWith('skin_')) return 'skin';
-    if (id.startsWith('trail_')) return 'trail';
-    if (id.endsWith('_theme') || id == 'premium_themes_bundle') return 'theme';
-    if (id.contains('tournament') || id.contains('championship')) {
-      return 'tournament_entry';
-    }
-    if (id.endsWith('_pack') || id.endsWith('_collection')) return 'bundle';
+    if (id.startsWith('credits_')) return 'credits';
+    if (id.startsWith('livery_')) return 'livery';
+    if (id.startsWith('exhaust_')) return 'exhaust';
+    if (id.startsWith('sector_')) return 'sector';
+    if (id.startsWith('cup_')) return 'cup_pass';
+    if (id.startsWith('kit_')) return 'fleet_kit';
     return 'other';
   }
 
@@ -441,9 +432,9 @@ class PurchaseService {
       return null;
     }
 
-    final otherProId = product.id == ProductIds.proMonthly
-        ? ProductIds.proYearly
-        : ProductIds.proMonthly;
+    final otherProId = product.id == ProductIds.commandMonthly
+        ? ProductIds.commandAnnual
+        : ProductIds.commandMonthly;
     PurchaseAndroid? oldSub;
     for (final p in _purchases) {
       if (p is PurchaseAndroid &&
@@ -733,7 +724,7 @@ class PurchaseService {
   }
 
   static bool _isCoinPack(Object? productId) =>
-      productId is String && productId.contains('coin_pack');
+      productId is String && productId.contains('credits_');
 
   /// Batch-verify items surface transient server states as `is_valid=false`
   /// with a recognizable message prefix (the single-verify endpoint returns

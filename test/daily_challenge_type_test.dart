@@ -11,7 +11,7 @@ void main() {
   group('ChallengeType.tryParse', () {
     test('maps backend snake_case values', () {
       expect(ChallengeType.tryParse('score'), ChallengeType.score);
-      expect(ChallengeType.tryParse('enemies_killed'), ChallengeType.foodEaten);
+      expect(ChallengeType.tryParse('enemies_killed'), ChallengeType.enemiesKilled);
       expect(ChallengeType.tryParse('game_mode'), ChallengeType.gameMode);
       expect(ChallengeType.tryParse('survival'), ChallengeType.survival);
       expect(ChallengeType.tryParse('games_played'), ChallengeType.gamesPlayed);
@@ -19,7 +19,7 @@ void main() {
 
     test('maps legacy PascalCase / camelCase values', () {
       expect(ChallengeType.tryParse('Score'), ChallengeType.score);
-      expect(ChallengeType.tryParse('FoodEaten'), ChallengeType.foodEaten);
+      expect(ChallengeType.tryParse('FoodEaten'), ChallengeType.enemiesKilled);
       expect(ChallengeType.tryParse('GameMode'), ChallengeType.gameMode);
       expect(ChallengeType.tryParse('GamesPlayed'), ChallengeType.gamesPlayed);
     });
@@ -33,7 +33,7 @@ void main() {
   group('ChallengeType.apiValue', () {
     test('emits backend snake_case', () {
       expect(ChallengeType.score.apiValue, 'score');
-      expect(ChallengeType.foodEaten.apiValue, 'enemies_killed');
+      expect(ChallengeType.enemiesKilled.apiValue, 'enemies_killed');
       expect(ChallengeType.gameMode.apiValue, 'game_mode');
       expect(ChallengeType.survival.apiValue, 'survival');
       expect(ChallengeType.gamesPlayed.apiValue, 'games_played');

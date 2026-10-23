@@ -286,8 +286,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
           if (success) {
             getIt<AnalyticsFacade>().trackDailyBonusCollected();
             RewardToast.show(
-              title: 'DAILY BONUS',
-              amount: '+$bonusCoins COINS',
+              title: 'SUPPLY DROP',
+              amount: '+$bonusCoins CR',
             );
           }
           return success;
@@ -300,8 +300,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                 if (!ok) return;
                 getIt<AnalyticsFacade>().trackDailyBonusCollected();
                 RewardToast.show(
-                  title: 'DAILY BONUS',
-                  amount: '+$bonusCoins COINS',
+                  title: 'SUPPLY DROP',
+                  amount: '+$bonusCoins CR',
                 );
                 // Grant the same amount again on ad completion → 2× total.
                 await ads.showRewarded(
@@ -309,11 +309,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                     coins.earnCoins(
                       CoinEarningSource.dailyLogin,
                       customAmount: bonusCoins,
-                      itemName: 'Daily bonus 2x',
+                      itemName: 'Supply Drop 2x',
                     );
                     RewardToast.show(
-                      title: 'BONUS DOUBLED',
-                      amount: '+$bonusCoins COINS',
+                      title: 'DROP DOUBLED',
+                      amount: '+$bonusCoins CR',
                     );
                   },
                 );
@@ -424,7 +424,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                   SizedBox(width: cs(22)),
                   BlocBuilder<CoinsCubit, CoinsState>(
                     builder: (context, coinsState) => tapText(
-                      'COINS ${_formatCoins(coinsState.total)}',
+                      'CR ${_formatCoins(coinsState.total)}',
                       () => context.push(AppRoutes.store),
                       key: HomeWalkthrough.coinsKey,
                     ),
@@ -434,7 +434,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                     SizedBox(width: cs(12)),
                     CsPressable(
                       onTap: () => _watchForCoins(context),
-                      semanticLabel: 'Watch an ad to earn coins',
+                      semanticLabel: 'Watch an ad to earn credits',
                       child: SizedBox(
                         height: 44,
                         child: Center(
@@ -482,7 +482,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                   SizedBox(width: cs(8)),
                   CsPressable(
                     key: HomeWalkthrough.profileKey,
-                    semanticLabel: 'Profile',
+                    semanticLabel: 'Pilot File',
                     onTap: () => context.push(AppRoutes.profile),
                     child: CsAvatarRing(
                       name: authState.displayName,
@@ -590,7 +590,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
       .join(' ');
 
-  /// "LOADOUT · 03 ▾" / "ARMED · SPEED BOOST ▾". Hidden with no inventory.
+  /// "GEAR · 03 ▾" / "ARMED · AFTERBURNER ▾". Hidden with no inventory.
   Widget _buildLoadoutChip(GameTheme theme) {
     return BlocBuilder<PowerUpCubit, PowerUpState>(
       builder: (context, powerUpState) {
@@ -599,10 +599,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
         final armed = powerUpState.armed;
         final label = armed != null
             ? 'ARMED · ${CsIcons.powerUpLabel(armed).toUpperCase()}'
-            : 'LOADOUT · ${powerUpState.totalOwned.toString().padLeft(2, '0')}';
+            : 'GEAR · ${powerUpState.totalOwned.toString().padLeft(2, '0')}';
         return CsPressable(
           onTap: () => _openLoadoutSheet(theme, powerUpState),
-          semanticLabel: 'Power-up loadout',
+          semanticLabel: 'Tactical Gear',
           child: SizedBox(
             height: 44,
             child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -636,8 +636,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       showCsToast(
         context,
         ads.freeCoinAdsRemainingToday == 0
-            ? "You've hit today's free-coin limit — come back tomorrow!"
-            : 'No ad available right now, try again shortly',
+            ? "Daily free-credit limit reached. Back tomorrow."
+            : 'No ad available. Try again shortly.',
       );
       return;
     }
@@ -651,7 +651,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
           itemName: 'Watched ad',
           metadata: const {'placement': 'home_free_coins'},
         );
-        RewardToast.show(amount: '+$amount COINS');
+        RewardToast.show(amount: '+$amount CR');
       },
     );
   }
@@ -691,28 +691,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       );
     }
 
-    final gap = SizedBox(width: cs(26));
+    final gap = SizedBox(width: cs(22));
     final left = <Widget>[
       item(
-        'DAILY',
+        'DIRECTIVES',
         () => context.push(AppRoutes.dailyChallenges),
         key: HomeWalkthrough.dailyChallengesKey,
         color: CsColors.ink,
         badge: daily.totalCount > 0 ? '${daily.completedCount}/${daily.totalCount}' : null,
         dot: unclaimed != null,
       ),
-      item('PASS', () => context.push(AppRoutes.battlePass),
+      item('FRONTLINE', () => context.push(AppRoutes.battlePass),
           badge: 'T$passTier', badgeColor: CsColors.pink),
-      item('EVENTS', () => context.push(AppRoutes.tournaments)),
-      item('RANKS', () => context.push(AppRoutes.leaderboard)),
-      item('FRIENDS', () => context.push(AppRoutes.friends)),
+      item('CUPS', () => context.push(AppRoutes.tournaments)),
+      item('STANDINGS', () => context.push(AppRoutes.leaderboard)),
+      item('SQUADRON', () => context.push(AppRoutes.friends)),
       item('HANGAR', () => context.push(AppRoutes.hangar), key: HomeWalkthrough.cosmeticsKey),
-      item('AWARDS', () => context.push(AppRoutes.achievements)),
-      item('STATS', () => context.push(AppRoutes.statistics)),
+      item('COMMENDATIONS', () => context.push(AppRoutes.achievements)),
+      item('RECORD', () => context.push(AppRoutes.statistics)),
     ];
     final right = <Widget>[
-      item('PRO', () => context.push(AppRoutes.premiumBenefits)),
-      item('STORE ↗', () => context.push(AppRoutes.store),
+      item('COMMAND', () => context.push(AppRoutes.premiumBenefits)),
+      item('ARMORY ↗', () => context.push(AppRoutes.store),
           key: HomeWalkthrough.storeKey, color: CsColors.gold),
     ];
 
@@ -728,9 +728,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
         child: FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
-          child: SizedBox(
-            width: _navNaturalWidth(context),
-            child: Row(children: [...spaced(left), const Spacer(), ...spaced(right)]),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: _navAvailableWidth(context)),
+            child: IntrinsicWidth(
+              child: Row(children: [...spaced(left), SizedBox(width: cs(32)), const Spacer(), ...spaced(right)]),
+            ),
           ),
         ),
       ),
@@ -738,13 +740,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   }
 
   /// The nav row is laid out at the full content width when it fits, and at
-  /// its natural width (then scaled down) when it doesn't.
-  double _navNaturalWidth(BuildContext context) {
+  /// its intrinsic width (then scaled down by the FittedBox) when it doesn't.
+  double _navAvailableWidth(BuildContext context) {
     final cs = context.cs;
     final mq = MediaQuery.of(context);
-    final avail = mq.size.width - mq.padding.horizontal - cs.screenPadding.horizontal;
-    final natural = cs(880);
-    return avail > natural ? avail : natural;
+    return mq.size.width - mq.padding.horizontal - cs.screenPadding.horizontal;
   }
 
   /// Format coin balance for display (e.g., 1.2K, 1.5M)
@@ -1194,8 +1194,8 @@ class _GameModeFirstLaunchSheetState extends State<_GameModeFirstLaunchSheet> {
     const modes = GameMode.values;
     const cols = 4;
     return _ChoiceDialog(
-      eyebrow: 'Game mode',
-      title: 'Pick a game mode',
+      eyebrow: 'Flight mode',
+      title: 'Choose your mode',
       options: Column(mainAxisSize: MainAxisSize.min, children: [
         for (var r = 0; r * cols < modes.length; r++) ...[
           if (r > 0) SizedBox(height: cs(8)),
@@ -1214,7 +1214,7 @@ class _GameModeFirstLaunchSheetState extends State<_GameModeFirstLaunchSheet> {
         child: Text(_selected.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.body),
       ),
       cta: CsButton.primary(
-        label: 'Confirm',
+        label: 'Lock in',
         onPressed: () => Navigator.of(context).pop(_selected),
       ),
     );
@@ -1258,18 +1258,18 @@ class _LoadoutSheet extends StatelessWidget {
         final entries = state.inventory.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
         return CsDialog(
           maxWidth: 600,
-          eyebrow: 'Loadout',
-          title: 'Power-up loadout',
-          message: 'Pre-load one power-up — it activates 5 seconds into your next game.',
+          eyebrow: 'Tactical Gear',
+          title: 'Arm gear',
+          message: 'Arm one piece of gear. It engages 5 seconds into your next run.',
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Rewarded — grab a free Speed Boost without spending coins.
+              // Rewarded — grab a free Afterburner without spending credits.
               RewardedActionButton(
                 theme: theme,
                 icon: Symbols.bolt_rounded,
-                label: 'Watch ad — free Speed Boost',
+                label: 'Watch ad · free Afterburner',
                 capKey: AdService.capFreePowerUp,
                 onWatch: () async {
                   final powerUps = context.read<PowerUpCubit>();
@@ -1277,7 +1277,7 @@ class _LoadoutSheet extends StatelessWidget {
                     capKey: AdService.capFreePowerUp,
                     onReward: () {
                       powerUps.grantFreePowerUp();
-                      RewardToast.show(icon: Symbols.bolt_rounded, amount: '+1 SPEED BOOST');
+                      RewardToast.show(icon: Symbols.bolt_rounded, amount: '+1 AFTERBURNER');
                     },
                   );
                 },
@@ -1286,14 +1286,14 @@ class _LoadoutSheet extends StatelessWidget {
               if (entries.isEmpty)
                 Padding(
                   padding: EdgeInsets.symmetric(vertical: cs(20)),
-                  child: Text('You have no power-ups. Visit the store to buy some!',
+                  child: Text('No gear in stock. Resupply at the Armory.',
                       textAlign: TextAlign.center, style: t.body),
                 )
               else
                 for (final e in entries)
                   CsListRow(
                     title: CsIcons.powerUpLabel(e.key),
-                    subtitle: 'Owned · ${e.value}',
+                    subtitle: 'In stock · ${e.value}',
                     leading: CsIconDisc(
                       CsIcons.powerUp(e.key),
                       color: state.armed == e.key ? CsColors.gold : CsColors.ink60,

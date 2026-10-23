@@ -252,14 +252,14 @@ GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
       pageBuilder: (context, state) =>
           _zoomPage(state, const PremiumBenefitsScreen()),
     ),
-    // Cosmetics route is preserved as a redirect to the store's Skins tab.
+    // Cosmetics route is preserved as a redirect to the Armory's Liveries tab.
     // The standalone CosmeticsScreen was removed when the store screen
     // inlined its content. Deep links from older builds (or in-game prompts)
     // still resolve cleanly through this redirect.
     GoRoute(
       path: AppRoutes.cosmetics,
       name: 'cosmetics',
-      redirect: (context, state) => '${AppRoutes.store}?tab=3',
+      redirect: (context, state) => '${AppRoutes.store}?tab=2',
     ),
     GoRoute(
       path: AppRoutes.hangar,

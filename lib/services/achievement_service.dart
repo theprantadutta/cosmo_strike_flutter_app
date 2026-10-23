@@ -3,13 +3,18 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart' as db;
+import 'package:cosmo_strike_flutter_app/game/hangar.dart' show HangarCatalog;
 import 'package:cosmo_strike_flutter_app/models/achievement.dart';
+import 'package:cosmo_strike_flutter_app/models/game_statistics.dart';
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
+import 'package:cosmo_strike_flutter_app/services/hangar_service.dart';
 import 'package:cosmo_strike_flutter_app/services/offline_cache_service.dart';
+import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
+import 'package:cosmo_strike_flutter_app/utils/constants.dart' show GameMode;
 
 class AchievementService extends ChangeNotifier {
   static final AchievementService _instance = AchievementService._internal();
@@ -99,15 +104,17 @@ class AchievementService extends ChangeNotifier {
     try {
       await _storageService.seedAchievementCatalog(
         _achievements
-            .map((a) => (
-                  id: a.id,
-                  title: a.title,
-                  description: a.description,
-                  category: a.type.name,
-                  targetValue: a.targetValue,
-                  coinReward: a.coinReward,
-                  iconCodePoint: a.icon.codePoint,
-                ))
+            .map(
+              (a) => (
+                id: a.id,
+                title: a.title,
+                description: a.description,
+                category: a.type.name,
+                targetValue: a.targetValue,
+                coinReward: a.coinReward,
+                iconCodePoint: a.icon.codePoint,
+              ),
+            )
             .toList(growable: false),
       );
     } catch (e) {
@@ -118,6 +125,14 @@ class AchievementService extends ChangeNotifier {
     await _loadUserProgress();
     _wireDriftWatch();
     notifyListeners();
+    // Catch up lifetime / campaign / Hangar commendations from stats that
+    // already exist (older builds, restored data) without waiting for a run.
+    unawaited(
+      evaluateStanding().catchError((Object e) {
+        if (kDebugMode) print('Commendation standing check failed: $e');
+        return <Achievement>[];
+      }),
+    );
   }
 
   /// Subscribe to the `achievements` Drift table so any later write
@@ -127,8 +142,9 @@ class AchievementService extends ChangeNotifier {
   /// as a belt-and-braces re-hydration after [_loadFromLocalStorage].
   void _wireDriftWatch() {
     _achievementsWatch?.cancel();
-    _achievementsWatch =
-        _storageService.gameDao.watchAchievements().listen((_) {
+    _achievementsWatch = _storageService.gameDao.watchAchievements().listen((
+      _,
+    ) {
       // We don't apply the Drift rows directly because the model has
       // a few client-only fields (gameModeFilter, difficultyFilter,
       // type-derived metadata) that the Drift schema doesn't carry.
@@ -156,8 +172,7 @@ class AchievementService extends ChangeNotifier {
         mapData = <String, dynamic>{};
         for (final item in decoded) {
           if (item is Map && item['id'] != null) {
-            mapData[item['id'].toString()] =
-                Map<String, dynamic>.from(item);
+            mapData[item['id'].toString()] = Map<String, dynamic>.from(item);
           }
         }
       }
@@ -323,7 +338,8 @@ class AchievementService extends ChangeNotifier {
     String? idOf(Map<String, dynamic> entry) {
       final nested = entry['achievement'];
       if (nested is Map) {
-        return (nested['achievement_id'] ?? nested['achievementId'])?.toString();
+        return (nested['achievement_id'] ?? nested['achievementId'])
+            ?.toString();
       }
       return (entry['achievement_id'] ?? entry['achievementId'])?.toString();
     }
@@ -363,9 +379,9 @@ class AchievementService extends ChangeNotifier {
         final catalog = catalogOf(backendData);
         final backendXp = catalog['xp_reward'] ?? catalog['xpReward'];
         final backendCoins = catalog['coin_reward'] ?? catalog['coinReward'];
-        // GameMode and Difficulty enum names come from the server as PascalCase
-        // (Classic, Hard, etc.). The Dart enum names are camelCase. Lowercase
-        // both ends so the filter comparison in the local check is reliable.
+        // GameMode / Difficulty names come from the server as PascalCase
+        // (Sortie, KnifeEdge…). _modeMatches normalises both sides through
+        // GameMode.tryFromWire, so lowercasing here is enough.
         final backendModeFilter =
             (catalog['game_mode_filter'] ?? catalog['gameModeFilter'])
                 ?.toString()
@@ -475,14 +491,17 @@ class AchievementService extends ChangeNotifier {
       // Persist pending offline unlocks so they survive an app crash before
       // syncUnlockedAchievements() flushes to the backend.
       if (_pendingUnlocks.isNotEmpty) {
-        progressData[_pendingUnlocksJsonKey] = List<String>.from(_pendingUnlocks);
+        progressData[_pendingUnlocksJsonKey] = List<String>.from(
+          _pendingUnlocks,
+        );
       }
 
       // Persist the celebrated-once set so the game-over screen doesn't
       // repeat reveals across launches.
       if (_shownGameOverIds.isNotEmpty) {
-        progressData[_shownGameOverIdsJsonKey] =
-            List<String>.from(_shownGameOverIds);
+        progressData[_shownGameOverIdsJsonKey] = List<String>.from(
+          _shownGameOverIds,
+        );
       }
 
       // Save to cache
@@ -563,464 +582,186 @@ class AchievementService extends ChangeNotifier {
     await _saveProgress();
   }
 
-  /// Returns true when the achievement's mode/difficulty filters (if any)
-  /// match the current game's mode + difficulty. Mirrors the SQL guards in
-  /// AchievementAutoEvaluator: `(filter IS NULL OR filter = current)`.
-  bool _filterMatches(Achievement a, String gameMode, String difficulty) {
-    final mode = a.gameModeFilter;
-    if (mode != null && mode.toLowerCase() != gameMode.toLowerCase()) {
-      return false;
-    }
-    final diff = a.difficultyFilter;
-    if (diff != null && diff.toLowerCase() != difficulty.toLowerCase()) {
-      return false;
-    }
-    return true;
+  /// True when [a]'s mode filter (if any) matches [gameMode]. Both sides are
+  /// normalised through `GameMode.tryFromWire`, so legacy spellings
+  /// (`classic`, `Speed Challenge`), display labels (`Knife Edge`) and the
+  /// backend's PascalCase (`KnifeEdge`) all compare equal.
+  static bool _modeMatches(String? filter, String? gameMode) {
+    if (filter == null) return true;
+    if (gameMode == null) return false;
+    final a = GameMode.tryFromWire(filter);
+    return a != null && a == GameMode.tryFromWire(gameMode);
   }
 
-  /// Per-game Score evaluator. Honors the gameMode/difficulty filter so a
-  /// 1000-point Zen run doesn't phantom-unlock `classic_1000`. Server-side
-  /// AchievementAutoEvaluator applies the same gate.
-  List<Achievement> checkScoreAchievements(
-    int score, {
-    required String gameMode,
-    required String difficulty,
+  static String _normalizeMode(String raw) =>
+      (GameMode.tryFromWire(raw)?.wireName ?? raw).toLowerCase();
+
+  /// Evaluate every commendation after a finished run. Call AFTER
+  /// `StatisticsService.recordGameResult` so lifetime metrics include the
+  /// run. Returns the commendations unlocked by this call (also exposed via
+  /// [lastGameUnlocks] for the debrief).
+  Future<List<Achievement>> evaluateRun(RunCommendationStats run) async {
+    final hour = run.endedAt.hour;
+    final values = <CommendationMetric, int>{
+      CommendationMetric.runScore: run.score,
+      CommendationMetric.runKills: run.kills,
+      CommendationMetric.runBosses: run.bosses,
+      CommendationMetric.runChain: run.maxChain,
+      CommendationMetric.runGrazes: run.grazes,
+      CommendationMetric.runWipes: run.formationWipes,
+      CommendationMetric.runDuration: run.durationSeconds,
+      CommendationMetric.runLevelsCleared: run.levelsCleared,
+      CommendationMetric.runUpgrades: run.upgradesDrafted,
+      CommendationMetric.flawlessCampaign: run.flawlessCampaign ? 1 : 0,
+      // Night Ops: run finished between 00:00 and 04:59 local time.
+      CommendationMetric.nightOps: hour < 5 ? 1 : 0,
+    };
+    final stats = await _lifetimeStats();
+    if (stats != null) values.addAll(_lifetimeValues(stats));
+    values.addAll(await _standingValues());
+    return _evaluate(
+      values,
+      runMode: run.gameMode,
+      gamesPerMode: stats?.gamesPerMode ?? const {},
+    );
+  }
+
+  /// Re-evaluate lifetime + standing commendations (no run metrics) — at
+  /// startup (so progress carried over from older builds lands without a
+  /// new run) and after Hangar purchases.
+  Future<List<Achievement>> evaluateStanding() async {
+    final stats = await _lifetimeStats();
+    final values = <CommendationMetric, int>{
+      if (stats != null) ..._lifetimeValues(stats),
+      ...await _standingValues(),
+    };
+    return _evaluate(values, gamesPerMode: stats?.gamesPerMode ?? const {});
+  }
+
+  Future<GameStatistics?> _lifetimeStats() async {
+    try {
+      final service = StatisticsService();
+      await service.initialize();
+      return service.statistics;
+    } catch (e) {
+      if (kDebugMode) print('Commendations: statistics unavailable: $e');
+      return null;
+    }
+  }
+
+  Map<CommendationMetric, int> _lifetimeValues(GameStatistics s) {
+    final modes = <String>{
+      for (final e in s.gamesPerMode.entries)
+        if (e.value > 0) _normalizeMode(e.key),
+    };
+    return {
+      CommendationMetric.totalScore: s.totalScore,
+      CommendationMetric.totalKills: s.totalEnemiesKilled,
+      CommendationMetric.totalBosses: s.totalBossesKilled,
+      CommendationMetric.totalMissiles: s.totalMissilesFired,
+      CommendationMetric.totalGrazes: s.totalGrazes,
+      CommendationMetric.totalOverdrives: s.totalOverdrives,
+      CommendationMetric.totalWipes: s.totalFormationWipes,
+      CommendationMetric.totalGames: s.totalGamesPlayed,
+      CommendationMetric.totalPlayTime: s.totalPlayTimeSeconds,
+      CommendationMetric.noHitClears: s.noHitClears,
+      CommendationMetric.victories: s.victories,
+      CommendationMetric.revives: s.totalRevivesUsed,
+      CommendationMetric.dailyRuns: s.dailyRunsPlayed,
+      CommendationMetric.cupRuns: s.cupRunsPlayed,
+      CommendationMetric.dayStreak: consecutiveDayStreak(s.dailyPlayTime),
+      CommendationMetric.distinctModes: modes.length,
+    };
+  }
+
+  /// Campaign (Drift stage progress) + Hangar (owned upgrade levels).
+  Future<Map<CommendationMetric, int>> _standingValues() async {
+    final out = <CommendationMetric, int>{};
+    try {
+      if (GetIt.I.isRegistered<db.AppDatabase>()) {
+        final stages = await GetIt.I<db.AppDatabase>().stageProgressDao
+            .getAll();
+        out[CommendationMetric.campaignLevels] = stages
+            .where((s) => s.cleared)
+            .length;
+        out[CommendationMetric.campaignStars] = stages.fold<int>(
+          0,
+          (sum, s) => sum + s.stars,
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) print('Commendations: campaign progress unavailable: $e');
+    }
+    try {
+      if (_storageService.isInitialized) {
+        final owned = await _storageService.storeDao.getUnlockedItemsByType(
+          HangarService.itemType,
+        );
+        out[CommendationMetric.hangarLevels] = HangarCatalog.levelsFrom(
+          owned,
+        ).values.fold<int>(0, (sum, l) => sum + l);
+      }
+    } catch (e) {
+      if (kDebugMode) print('Commendations: hangar levels unavailable: $e');
+    }
+    return out;
+  }
+
+  /// Core evaluator. Metrics missing from [values] are skipped, so partial
+  /// snapshots (e.g. standing-only) never regress progress. Progress is
+  /// monotonic: `max(current, value)`, capped at the target on unlock.
+  List<Achievement> _evaluate(
+    Map<CommendationMetric, int> values, {
+    String? runMode,
+    Map<String, int> gamesPerMode = const {},
   }) {
     final newUnlocks = <Achievement>[];
+    var progressChanged = false;
 
     for (int i = 0; i < _achievements.length; i++) {
-      final achievement = _achievements[i];
+      final a = _achievements[i];
+      if (a.isUnlocked) continue;
 
-      if (achievement.type == AchievementType.score &&
-          !achievement.isUnlocked &&
-          _filterMatches(achievement, gameMode, difficulty)) {
-        if (score >= achievement.targetValue) {
-          _unlockAchievementLocal(i, achievement);
-          newUnlocks.add(_achievements[i]);
-        } else if (score > achievement.currentProgress) {
-          _achievements[i] =
-              achievement.copyWith(currentProgress: score);
+      int? value;
+      if (a.metric == CommendationMetric.gamesInMode) {
+        final filter = a.gameModeFilter;
+        if (filter == null) continue;
+        final key = _normalizeMode(filter);
+        value = 0;
+        for (final e in gamesPerMode.entries) {
+          if (_normalizeMode(e.key) == key) value = value! + e.value;
         }
-      }
-    }
-
-    if (newUnlocks.isNotEmpty) {
-      _recentUnlocks.addAll(newUnlocks);
-      _trimRecentUnlocks();
-      _saveProgress();
-      notifyListeners();
-    }
-
-    return newUnlocks;
-  }
-
-  /// Per-run Survival/Time evaluator. Same filter pattern as Score.
-  List<Achievement> checkSurvivalAchievements(
-    int survivalTime, {
-    required String gameMode,
-    required String difficulty,
-  }) {
-    final newUnlocks = <Achievement>[];
-
-    for (int i = 0; i < _achievements.length; i++) {
-      final achievement = _achievements[i];
-
-      if (achievement.type == AchievementType.survival &&
-          !achievement.isUnlocked &&
-          _filterMatches(achievement, gameMode, difficulty)) {
-        if (survivalTime >= achievement.targetValue) {
-          _unlockAchievementLocal(i, achievement);
-          newUnlocks.add(_achievements[i]);
-        } else if (survivalTime > achievement.currentProgress) {
-          _achievements[i] = achievement.copyWith(
-            currentProgress: survivalTime,
-          );
-        }
-      }
-    }
-
-    if (newUnlocks.isNotEmpty) {
-      _recentUnlocks.addAll(newUnlocks);
-      _trimRecentUnlocks();
-      _saveProgress();
-      notifyListeners();
-    }
-
-    return newUnlocks;
-  }
-
-  /// Total-games-played evaluator. Only handles the "Count + Games" rows
-  /// (no mode/difficulty filter). The filter-gated GamesInMode /
-  /// GamesInDifficulty rows (classic_initiate, hard_veteran, etc.) need
-  /// per-mode/per-difficulty game counts that the client doesn't track —
-  /// those stay server-authoritative and land via the post-sync diff in
-  /// _updateAchievementsFromBackend. Skipping them here avoids the
-  /// pre-Option-C bug where a Zen player would unlock classic_initiate
-  /// because total-games-played hit 10.
-  List<Achievement> checkGamePlayedAchievements(int totalGames) {
-    final newUnlocks = <Achievement>[];
-
-    for (int i = 0; i < _achievements.length; i++) {
-      final achievement = _achievements[i];
-
-      if (achievement.type == AchievementType.games &&
-          !achievement.isUnlocked &&
-          achievement.gameModeFilter == null &&
-          achievement.difficultyFilter == null) {
-        if (totalGames >= achievement.targetValue) {
-          _unlockAchievementLocal(i, achievement);
-          newUnlocks.add(_achievements[i]);
-        } else if (totalGames > achievement.currentProgress) {
-          _achievements[i] =
-              achievement.copyWith(currentProgress: totalGames);
-        }
-      }
-    }
-
-    if (newUnlocks.isNotEmpty) {
-      _recentUnlocks.addAll(newUnlocks);
-      _trimRecentUnlocks();
-      _saveProgress();
-      notifyListeners();
-    }
-
-    return newUnlocks;
-  }
-
-  /// Per-game achievement checks — peak metrics observable at game-end
-  /// but not derivable from the score submission alone. Called from
-  /// `GameCubit._trackGameEndLocal` immediately after the game ends so
-  /// the toast can fire at the same time as the game-over screen.
-  List<Achievement> checkSpecialAchievements({
-    int? level,
-    bool? hitWall,
-    bool? hitSelf,
-    Set<String>? foodTypesEaten,
-    int? noWallGames,
-    int? maxCombo,
-    int? shipLength,
-    DateTime? gameEndTime,
-  }) {
-    final newUnlocks = <Achievement>[];
-    final hourOfDay = gameEndTime?.hour;
-
-    for (int i = 0; i < _achievements.length; i++) {
-      final achievement = _achievements[i];
-
-      if (achievement.type == AchievementType.special &&
-          !achievement.isUnlocked) {
-        bool shouldUnlock = false;
-        int newProgress = achievement.currentProgress;
-
-        switch (achievement.id) {
-          // -------- existing 4 --------
-          case 'speedster':
-            if (level != null && level >= achievement.targetValue) {
-              shouldUnlock = true;
-              newProgress = achievement.targetValue;
-            } else if (level != null) {
-              newProgress = level;
-            }
-            break;
-
-          case 'no_walls':
-            if (noWallGames != null && noWallGames >= achievement.targetValue) {
-              shouldUnlock = true;
-              newProgress = achievement.targetValue;
-            } else if (noWallGames != null) {
-              newProgress = noWallGames;
-            }
-            break;
-
-          case 'perfectionist':
-            if (hitSelf == false && hitWall != true) {
-              shouldUnlock = true;
-              newProgress = 1;
-            }
-            break;
-
-          case 'all_food_types':
-            if (foodTypesEaten != null && foodTypesEaten.length >= 3) {
-              shouldUnlock = true;
-              newProgress = 1;
-            }
-            break;
-
-          // -------- combo (max combo this game) --------
-          case 'combo_starter':
-          case 'combo_master':
-          case 'combo_pro':
-          case 'combo_god':
-          case 'combo_legend':
-            if (maxCombo != null && maxCombo >= achievement.targetValue) {
-              shouldUnlock = true;
-              newProgress = achievement.targetValue;
-            } else if (maxCombo != null && maxCombo > achievement.currentProgress) {
-              newProgress = maxCombo;
-            }
-            break;
-
-          // -------- ship length (final length this game) --------
-          case 'growing_ship':
-          case 'big_ship':
-          case 'huge_ship':
-          case 'massive_ship':
-          case 'anaconda':
-            if (shipLength != null && shipLength >= achievement.targetValue) {
-              shouldUnlock = true;
-              newProgress = achievement.targetValue;
-            } else if (shipLength != null && shipLength > achievement.currentProgress) {
-              newProgress = shipLength;
-            }
-            break;
-
-          // -------- in-game level (peak level this game) --------
-          // velocity=15, mach_speed=20, cosmic_ship=25
-          case 'velocity':
-          case 'mach_speed':
-          case 'cosmic_ship':
-            if (level != null && level >= achievement.targetValue) {
-              shouldUnlock = true;
-              newProgress = achievement.targetValue;
-            } else if (level != null && level > achievement.currentProgress) {
-              newProgress = level;
-            }
-            break;
-
-          // -------- time of day --------
-          case 'night_owl':
-            if (hourOfDay != null && hourOfDay >= 0 && hourOfDay < 5) {
-              shouldUnlock = true;
-              newProgress = 1;
-            }
-            break;
-
-          case 'early_bird':
-            if (hourOfDay != null && hourOfDay >= 5 && hourOfDay < 8) {
-              shouldUnlock = true;
-              newProgress = 1;
-            }
-            break;
-        }
-
-        if (shouldUnlock) {
-          _unlockAchievementLocal(i, achievement);
-          newUnlocks.add(_achievements[i]);
-        } else if (newProgress != achievement.currentProgress) {
-          _achievements[i] = achievement.copyWith(currentProgress: newProgress);
-        }
-      }
-    }
-
-    if (newUnlocks.isNotEmpty) {
-      _recentUnlocks.addAll(newUnlocks);
-      _trimRecentUnlocks();
-      _saveProgress();
-      notifyListeners();
-    }
-
-    return newUnlocks;
-  }
-
-  /// Lifetime-stat achievement checks — fed by the post-update
-  /// `GameStatistics`. Called from `GameCubit._postGameSync` after
-  /// `recordGameResult` so the values reflect the just-finished game.
-  ///
-  /// Covers categories R/S/T/U/W of the catalog plus weekend tracking:
-  ///   * Power-ups: total + per-type + variety (first_power_up..power_master,
-  ///     variety_pack, speed_demon, immortal_streak)
-  ///   * Food variety: special_diet, bonus_hunter
-  ///   * Perfection: untouchable_5/20/50
-  ///   * Streaks: hot_streak/on_fire/unstoppable (win streak),
-  ///     daily_three/week_warrior (consecutive-day streak)
-  ///   * Weekend warrior
-  List<Achievement> checkLifetimeAchievements({
-    required int totalPowerUps,
-    required Map<String, int> powerUpTypeCount,
-    required Map<String, int> foodTypeCount,
-    required int perfectGames,
-    required int currentWinStreak,
-    required Map<String, int> dailyPlayTime,
-  }) {
-    final newUnlocks = <Achievement>[];
-
-    final distinctPowerUpTypes = powerUpTypeCount.keys
-        .where((k) => (powerUpTypeCount[k] ?? 0) > 0)
-        .length;
-    final speedBoostCount = powerUpTypeCount['speedBoost'] ?? 0;
-    final invincibilityCount = powerUpTypeCount['invincibility'] ?? 0;
-    final totalSpecialFoods = foodTypeCount['special'] ?? 0;
-    final totalBonusFoods = foodTypeCount['bonus'] ?? 0;
-    final consecutiveDays = _consecutiveDayStreak(dailyPlayTime);
-    final weekendDaysPlayed = _weekendDaysPlayed(dailyPlayTime);
-
-    for (int i = 0; i < _achievements.length; i++) {
-      final achievement = _achievements[i];
-      if (achievement.isUnlocked) continue;
-
-      bool shouldUnlock = false;
-      int newProgress = achievement.currentProgress;
-
-      switch (achievement.id) {
-        // Lifetime power-up totals
-        case 'first_power_up':
-        case 'power_player':
-        case 'power_hungry':
-        case 'power_addict':
-        case 'power_master':
-          if (totalPowerUps >= achievement.targetValue) {
-            shouldUnlock = true;
-            newProgress = achievement.targetValue;
-          } else if (totalPowerUps > achievement.currentProgress) {
-            newProgress = totalPowerUps;
-          }
-          break;
-
-        case 'variety_pack':
-          if (distinctPowerUpTypes >= achievement.targetValue) {
-            shouldUnlock = true;
-            newProgress = achievement.targetValue;
-          } else if (distinctPowerUpTypes > achievement.currentProgress) {
-            newProgress = distinctPowerUpTypes;
-          }
-          break;
-
-        case 'speed_demon':
-          if (speedBoostCount >= achievement.targetValue) {
-            shouldUnlock = true;
-            newProgress = achievement.targetValue;
-          } else if (speedBoostCount > achievement.currentProgress) {
-            newProgress = speedBoostCount;
-          }
-          break;
-
-        case 'immortal_streak':
-          if (invincibilityCount >= achievement.targetValue) {
-            shouldUnlock = true;
-            newProgress = achievement.targetValue;
-          } else if (invincibilityCount > achievement.currentProgress) {
-            newProgress = invincibilityCount;
-          }
-          break;
-
-        // Food type variety lifetime
-        case 'special_diet':
-          if (totalSpecialFoods >= achievement.targetValue) {
-            shouldUnlock = true;
-            newProgress = achievement.targetValue;
-          } else if (totalSpecialFoods > achievement.currentProgress) {
-            newProgress = totalSpecialFoods;
-          }
-          break;
-
-        case 'bonus_hunter':
-          if (totalBonusFoods >= achievement.targetValue) {
-            shouldUnlock = true;
-            newProgress = achievement.targetValue;
-          } else if (totalBonusFoods > achievement.currentProgress) {
-            newProgress = totalBonusFoods;
-          }
-          break;
-
-        // Perfection lifetime
-        case 'untouchable_5':
-        case 'untouchable_20':
-        case 'untouchable_50':
-          if (perfectGames >= achievement.targetValue) {
-            shouldUnlock = true;
-            newProgress = achievement.targetValue;
-          } else if (perfectGames > achievement.currentProgress) {
-            newProgress = perfectGames;
-          }
-          break;
-
-        // Game streaks
-        case 'hot_streak':
-        case 'on_fire':
-        case 'unstoppable':
-          if (currentWinStreak >= achievement.targetValue) {
-            shouldUnlock = true;
-            newProgress = achievement.targetValue;
-          } else if (currentWinStreak > achievement.currentProgress) {
-            newProgress = currentWinStreak;
-          }
-          break;
-
-        // Daily streaks
-        case 'daily_three':
-        case 'week_warrior':
-          if (consecutiveDays >= achievement.targetValue) {
-            shouldUnlock = true;
-            newProgress = achievement.targetValue;
-          } else if (consecutiveDays > achievement.currentProgress) {
-            newProgress = consecutiveDays;
-          }
-          break;
-
-        // Weekend warrior — counts weekend days played (each day = at
-        // least one game), close enough to "weekend games" for the spirit
-        // of the achievement without a dedicated counter.
-        case 'weekend_warrior':
-          if (weekendDaysPlayed >= achievement.targetValue) {
-            shouldUnlock = true;
-            newProgress = achievement.targetValue;
-          } else if (weekendDaysPlayed > achievement.currentProgress) {
-            newProgress = weekendDaysPlayed;
-          }
-          break;
-      }
-
-      if (shouldUnlock) {
-        _unlockAchievementLocal(i, achievement);
-        newUnlocks.add(_achievements[i]);
-      } else if (newProgress != achievement.currentProgress) {
-        _achievements[i] = achievement.copyWith(currentProgress: newProgress);
-      }
-    }
-
-    if (newUnlocks.isNotEmpty) {
-      _recentUnlocks.addAll(newUnlocks);
-      _trimRecentUnlocks();
-      _saveProgress();
-      notifyListeners();
-    }
-
-    return newUnlocks;
-  }
-
-  /// Compute the length of the consecutive-day streak ending today
-  /// (inclusive). 0 if today wasn't played.
-  int _consecutiveDayStreak(Map<String, int> dailyPlayTime) {
-    if (dailyPlayTime.isEmpty) return 0;
-    final today = DateTime.now();
-    int streak = 0;
-    for (int back = 0; back < 366; back++) {
-      final d = today.subtract(Duration(days: back));
-      final key = '${d.year}-${d.month}-${d.day}';
-      if (dailyPlayTime.containsKey(key) && (dailyPlayTime[key] ?? 0) > 0) {
-        streak++;
       } else {
-        break;
+        value = values[a.metric];
+        if (value == null) continue;
+        // Mode-gated run metrics only count runs flown in that mode.
+        if (a.metric.isPerRun && !_modeMatches(a.gameModeFilter, runMode)) {
+          continue;
+        }
+      }
+
+      if (value! >= a.targetValue) {
+        _unlockAchievementLocal(i, a);
+        newUnlocks.add(_achievements[i]);
+      } else if (value > a.currentProgress) {
+        _achievements[i] = a.copyWith(currentProgress: value);
+        progressChanged = true;
       }
     }
-    return streak;
-  }
 
-  /// Count distinct Saturdays + Sundays present in [dailyPlayTime].
-  int _weekendDaysPlayed(Map<String, int> dailyPlayTime) {
-    int count = 0;
-    for (final entry in dailyPlayTime.entries) {
-      if ((entry.value) <= 0) continue;
-      final parts = entry.key.split('-');
-      if (parts.length != 3) continue;
-      final y = int.tryParse(parts[0]);
-      final m = int.tryParse(parts[1]);
-      final d = int.tryParse(parts[2]);
-      if (y == null || m == null || d == null) continue;
-      final wd = DateTime(y, m, d).weekday;
-      if (wd == DateTime.saturday || wd == DateTime.sunday) count++;
+    if (newUnlocks.isNotEmpty) {
+      _recentUnlocks.addAll(newUnlocks);
+      _trimRecentUnlocks();
     }
-    return count;
+    if (newUnlocks.isNotEmpty || progressChanged) {
+      _saveProgress();
+      notifyListeners();
+    }
+    if (newUnlocks.isNotEmpty) {
+      // Credit the rewards right away (local-only, idempotent).
+      unawaited(_claimUnclaimedRewards());
+    }
+    return newUnlocks;
   }
 
   /// Force sync with backend (when coming online)

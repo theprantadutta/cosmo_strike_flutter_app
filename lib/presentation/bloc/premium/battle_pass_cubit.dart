@@ -433,26 +433,16 @@ class BattlePassCubit extends Cubit<BattlePassState> {
         }
         break;
       case BattlePassRewardType.theme:
-        // Backend seasons emit premium theme rewards (e.g. itemId
-        // 'space_theme'). Map the id to its GameTheme and unlock it so the
-        // claim actually applies — strip the '_theme' suffix and match by name.
+        // Seasons emit premium sector rewards (itemId 'sector_aurora'; older
+        // seasons 'space_theme'). GameTheme.fromId folds both onto a sector.
         final themeId = reward.itemId;
         if (themeId != null) {
-          final name = themeId.endsWith('_theme')
-              ? themeId.substring(0, themeId.length - '_theme'.length)
-              : themeId;
-          GameTheme? theme;
-          for (final t in GameTheme.values) {
-            if (t.name == name) {
-              theme = t;
-              break;
-            }
-          }
+          final theme = GameTheme.fromId(themeId);
           if (theme != null) {
             unawaited(_premiumCubit.unlockTheme(theme));
           } else {
             AppLogger.warning(
-              'BattlePass: unknown theme reward id "$themeId"',
+              'BattlePass: unknown sector reward id "$themeId"',
             );
           }
         }

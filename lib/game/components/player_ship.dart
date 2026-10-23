@@ -7,11 +7,12 @@ import 'package:flame/flame.dart';
 import 'package:flame/sprite.dart';
 import 'package:flutter/painting.dart';
 
-import '../../models/premium_cosmetics.dart' show ShipSkinType;
+import '../../models/premium_cosmetics.dart' show LiveryDecal, LiveryType;
 import '../cosmo_palette.dart';
 import '../cosmo_strike_game.dart';
 import '../game_assets.dart';
 import '../game_audio.dart';
+import '../livery_decals.dart';
 import 'enemy.dart';
 import 'fx.dart';
 import 'power_up.dart';
@@ -65,17 +66,33 @@ class PlayerShip extends PositionComponent
 
   void flashDamage() => _damageFlash = 0.35;
 
-  // ---- cosmetic skin (tint + glow) ----
-  // srcATop at partial alpha tints the hull in the skin's palette while
+  // ---- livery (tint + glow + hull decal) ----
+  // srcATop at partial alpha tints the hull in the livery's palette while
   // keeping ~45% of the sprite's own shading (full alpha would flatten
   // it to a silhouette; modulate would multiply dark palettes to mud).
-  // Classic = null paints = bitwise-identical stock render.
+  // Standard Issue = null paints = bitwise-identical stock render.
   static const double _skinTintAlpha = 0.55;
   static const double _skinGlowAlpha = 0.30;
-  ShipSkinType _skin = ShipSkinType.classic;
+  static const double _decalAlpha = 0.8;
+  LiveryType _livery = LiveryType.standard;
   Paint? _skinPaint;
   Paint? _skinGlowPaint;
   double _skinTime = 0;
+
+  // Decal pattern clipped to the hull silhouette (geometry shared with the
+  // Armory preview, see livery_decals.dart). Paths are identical for every
+  // ship, so they're built once per pattern and cached statically.
+  static final Path _hullClip = LiveryDecals.hull(_k);
+  static final Path _splitEdgePath = LiveryDecals.splitEdge(_k);
+  static final Rect _pulseRect = LiveryDecals.pulseBand(_k);
+  static final Map<LiveryDecal, Path> _decalPaths = {};
+  static const double _pulsePeriod = 2.4; // s per sweep cycle
+  static const double _pulseTravel = 1.4; // s the band is on the hull
+  Path? _decalPath;
+  Paint? _decalPaint;
+  Paint? _decalEdgePaint;
+  double _pulseX = LiveryDecals.pulseStart;
+  double _pulseTime = 0;
 
   // ---- static render paints (no per-frame allocation) ----
   static final Paint _ghostPaint = Paint()..color = const Color(0x80FFFFFF);
@@ -185,29 +202,66 @@ class PlayerShip extends PositionComponent
     respawn();
     _lastY = position.y;
 
-    // Equipped cosmetic skin → tint + glow paints (classic stays null).
-    _skin = ShipSkinType.values
-            .where((s) => s.id == game.selectedSkinId)
-            .firstOrNull ??
-        ShipSkinType.classic;
-    if (_skin != ShipSkinType.classic && _skin.colors.isNotEmpty) {
-      final c = _skin.colors.first;
-      _skinPaint = Paint()
-        ..colorFilter = ColorFilter.mode(
-            c.withValues(alpha: _skinTintAlpha), BlendMode.srcATop);
-      // Pre-shaped soft halo (radial falloff) instead of a per-frame
-      // MaskFilter blur; the colour rides a modulate filter so cycling
-      // skins only swap an immutable ColorFilter.
-      _skinGlowPaint = Paint()
-        ..shader = ui.Gradient.radial(
-          Offset(size.x / 2, size.y / 2),
-          size.x * 0.62,
-          [
-            const Color(0xFFFFFFFF).withValues(alpha: _skinGlowAlpha),
-            const Color(0x00FFFFFF),
-          ],
-        )
-        ..colorFilter = ColorFilter.mode(c, BlendMode.modulate);
+    // Equipped livery → tint + glow + decal paints (Standard stays null).
+    // fromId folds pre-3.2 skin IDs onto the new catalog.
+    _livery = LiveryType.fromId(game.selectedSkinId);
+    if (_livery != LiveryType.standard) _buildLiveryPaints();
+  }
+
+  void _buildLiveryPaints() {
+    final c = _livery.hullColor;
+    _skinPaint = Paint()
+      ..colorFilter = ColorFilter.mode(
+          c.withValues(alpha: _skinTintAlpha), BlendMode.srcATop);
+    // Pre-shaped soft halo (radial falloff) instead of a per-frame
+    // MaskFilter blur; the colour rides a modulate filter so cycling
+    // liveries only swap an immutable ColorFilter. A near-black hull
+    // (Vanta) glows in its decal colour instead of an invisible black.
+    final glow = c.computeLuminance() < 0.05 ? _livery.decalColor : c;
+    _skinGlowPaint = Paint()
+      ..shader = ui.Gradient.radial(
+        Offset(size.x / 2, size.y / 2),
+        size.x * 0.62,
+        [
+          const Color(0xFFFFFFFF).withValues(alpha: _skinGlowAlpha),
+          const Color(0x00FFFFFF),
+        ],
+      )
+      ..colorFilter = ColorFilter.mode(glow, BlendMode.modulate);
+
+    final decal = _livery.decal;
+    final dc = _livery.decalColor;
+    switch (decal) {
+      case LiveryDecal.none:
+        break;
+      case LiveryDecal.pulse:
+        // White band shader tinted by a modulate filter (palette cycling
+        // swaps the filter, never the shader).
+        _decalPaint = Paint()
+          ..shader = LiveryDecals.pulseShader(_k)
+          ..colorFilter = ColorFilter.mode(dc, BlendMode.modulate);
+      case LiveryDecal.stripe:
+      case LiveryDecal.chevron:
+      case LiveryDecal.split:
+      case LiveryDecal.hex:
+        _decalPath = _decalPaths.putIfAbsent(
+            decal, () => LiveryDecals.pattern(decal, _k));
+        _decalPaint = Paint()
+          ..isAntiAlias = true
+          ..color = dc.withValues(
+              alpha: decal == LiveryDecal.split ? 0.5 : _decalAlpha);
+        if (LiveryDecals.isStroked(decal)) {
+          _decalPaint!
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.4 * _k;
+        }
+        if (decal == LiveryDecal.split) {
+          _decalEdgePaint = Paint()
+            ..isAntiAlias = true
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3 * _k
+            ..color = dc;
+        }
     }
   }
 
@@ -363,20 +417,33 @@ class PlayerShip extends PositionComponent
     _exhaust.update(dt);
     if (_stripeSkinVersion != CosmoPalette.skinVersion) _rebuildStripe();
 
-    // Multi-color skins cycle their palette (rainbow sweeps, golden
-    // shimmers): lerp between consecutive colors, one second per color.
-    // Re-targets the existing Paint objects — no per-frame allocation
-    // beyond the immutable ColorFilter.
-    final skinColors = _skin.colors;
-    if (_skinPaint != null && skinColors.length > 1) {
+    // Multi-stop liveries (Prism) cycle their palette: lerp between
+    // consecutive stops, one second per stop; the decal runs half a cycle
+    // ahead so it always contrasts the hull. Re-targets the existing Paint
+    // objects — no per-frame allocation beyond the immutable ColorFilter.
+    if (_skinPaint != null && _livery.cycles) {
+      final colors = _livery.colors;
       _skinTime += dt;
-      final t = _skinTime % skinColors.length;
-      final i = t.floor();
-      final c = Color.lerp(
-          skinColors[i], skinColors[(i + 1) % skinColors.length], t - i)!;
+      final c = _paletteAt(colors, _skinTime);
       _skinPaint!.colorFilter = ColorFilter.mode(
           c.withValues(alpha: _skinTintAlpha), BlendMode.srcATop);
       _skinGlowPaint!.colorFilter = ColorFilter.mode(c, BlendMode.modulate);
+      final d = _paletteAt(colors, _skinTime + colors.length / 2);
+      final decalPaint = _decalPaint;
+      if (decalPaint != null) {
+        if (decalPaint.shader != null) {
+          decalPaint.colorFilter = ColorFilter.mode(d, BlendMode.modulate);
+        } else {
+          decalPaint.color = d.withValues(alpha: decalPaint.color.a);
+        }
+      }
+    }
+    // Pulse decal: the band sweeps tail → nose, then rests off-hull.
+    if (_livery.decal == LiveryDecal.pulse) {
+      _pulseTime = (_pulseTime + dt) % _pulsePeriod;
+      final f = math.min(1.0, _pulseTime / _pulseTravel);
+      _pulseX = LiveryDecals.pulseStart +
+          (LiveryDecals.pulseEnd - LiveryDecals.pulseStart) * f;
     }
 
     // ---- movement: smoothed velocity toward the desired vector ----
@@ -411,6 +478,12 @@ class PlayerShip extends PositionComponent
         game.phase == GamePhase.playing) {
       fire();
     }
+  }
+
+  static Color _paletteAt(List<Color> colors, double time) {
+    final t = time % colors.length;
+    final i = t.floor();
+    return Color.lerp(colors[i], colors[(i + 1) % colors.length], t - i)!;
   }
 
   void _rebuildStripe() {
@@ -517,8 +590,8 @@ class PlayerShip extends PositionComponent
     final blinkOff = _invuln > 0 && (_invuln * 8 % 1) > 0.5;
 
     // Paint priority: ghost phase > fresh-damage red flash > invuln
-    // blink > cosmetic skin tint. Gameplay feedback always reads over
-    // the cosmetic.
+    // blink > livery tint. Gameplay feedback always reads over the
+    // cosmetic.
     final feedback = ghosted
         ? _ghostPaint
         : _damageFlash > 0
@@ -526,7 +599,7 @@ class PlayerShip extends PositionComponent
             : (blinkOff ? _blinkPaint : null);
     final paint = feedback ?? _skinPaint;
 
-    // Skin glow halo behind everything — suppressed during blink-off
+    // Livery glow halo behind everything — suppressed during blink-off
     // frames so the invulnerability flicker still reads.
     if (_skinGlowPaint != null && !blinkOff) {
       canvas.drawCircle(
@@ -552,6 +625,29 @@ class PlayerShip extends PositionComponent
     final sprite =
         bank < 0 ? _spriteUp : (bank > 0 ? _spriteDown : _spriteLevel);
     sprite.render(canvas, size: size, overridePaint: paint);
+
+    // Livery decal, clipped to the hull. Skipped while any gameplay
+    // feedback paint is active so hits / ghost / blink read clearly.
+    final decalPaint = _decalPaint;
+    if (decalPaint != null && feedback == null) {
+      canvas.save();
+      if (bank != 0) {
+        canvas.translate(98 * _k, 64 * _k);
+        canvas.rotate(bank * _bankAngle);
+        canvas.translate(-98 * _k, -64 * _k);
+      }
+      canvas.clipPath(_hullClip);
+      final decalPath = _decalPath;
+      if (decalPath != null) {
+        canvas.drawPath(decalPath, decalPaint);
+        final edge = _decalEdgePaint;
+        if (edge != null) canvas.drawPath(_splitEdgePath, edge);
+      } else {
+        canvas.translate(_pulseX * _k, 0);
+        canvas.drawRect(_pulseRect, decalPaint);
+      }
+      canvas.restore();
+    }
 
     // Theme-tinted prism stripe along the hull centreline.
     if (!blinkOff) {

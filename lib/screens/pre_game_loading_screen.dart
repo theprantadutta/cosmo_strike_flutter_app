@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/game/game_assets.dart';
-import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/tournament/tournament_context_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
@@ -58,24 +57,24 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
     _Stage(0.18, 'Calibrating controls...'),
     _Stage(0.36, 'Spooling thrusters...'),
     _Stage(0.54, 'Scanning for hostiles...'),
-    _Stage(0.72, 'Charging power-ups...'),
-    _Stage(0.88, 'Almost there...'),
+    _Stage(0.72, 'Arming weapons...'),
+    _Stage(0.88, 'Clear for launch...'),
     _Stage(1.00, 'Go!'),
   ];
 
   static const List<String> _tips = [
-    'Hold fire on a tight cluster to build combo multipliers.',
-    'Bonus Pickups yield more points but vanish quickly.',
-    'Power-ups spawn at random — grab them while you can.',
-    'Read the wave ahead, not just the enemy in front of you.',
-    'Heavy ships steer slower. Ease into tight dodges early.',
-    'Score Multiplier stacks with combos for monster scores.',
-    'Power-Ups are rare — when one appears, prioritize it.',
-    'Time Attack speeds up fast. Pace your maneuvers.',
-    'Zen Mode: enemies never fire — cruise, dodge, and practice.',
-    'Perfect Game: a single hit ends the run — fly flawless.',
+    'Chain kills without taking a hit to climb the ×4 combo.',
+    'Skim enemy fire to graze. Grazes fill the Overdrive meter.',
+    'Full Overdrive: tap it for a piercing beam and double score.',
+    'Wipe a whole formation fast for a bonus and an orb.',
+    'Every boss attack telegraphs. Watch the windup, then move.',
+    'Pick an upgrade after each clear. It stacks for the run.',
+    'Hangar upgrades are permanent. Spend credits between runs.',
+    'Blitz gives you three minutes. Score everything.',
+    'Cruise: enemies hold fire. Learn the patterns.',
+    'Knife Edge: one hit ends the run. Fly clean.',
     'The D-Pad gives precise steering; swipe is faster.',
-    'Pause anytime from the HUD — your timer holds with you.',
+    'Pause anytime from the HUD. The clock holds with you.',
   ];
 
   late final AnimationController _progressController;
@@ -154,10 +153,10 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
     // Active mode = the player's settings choice unless a tournament
     // override is staged on the context (set before they tapped Play).
     final tournamentMode = context
-        .select<TournamentContextCubit, TournamentGameMode?>((c) => c.state.mode);
+        .select<TournamentContextCubit, GameMode?>((c) => c.state.mode);
     final settingsMode =
         context.select<GameSettingsCubit, GameMode>((c) => c.state.gameMode);
-    final activeMode = tournamentMode?.toGameMode() ?? settingsMode;
+    final activeMode = tournamentMode ?? settingsMode;
     final isOverride = activeMode != settingsMode;
     final isDaily =
         context.select<TournamentContextCubit, bool>((c) => c.state.isDailyRun);
@@ -242,7 +241,7 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
                 Row(children: [
                   Flexible(
                     child: Text(
-                      isOverride ? 'TOURNAMENT MODE' : 'GAME MODE',
+                      isOverride ? 'CUP MODE' : 'MODE',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: t.mono(10, color: accent),
@@ -328,14 +327,14 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
         stats: [
           CsStat(pilotLevel.toString().padLeft(2, '0'), 'Pilot LV'),
           CsStat(_compactNumber(highScore), 'Best'),
-          CsStat(_compactNumber(games), 'Games'),
+          CsStat(_compactNumber(games), 'Runs'),
         ],
       ),
       SizedBox(height: cs(20)),
       Row(children: [
         Icon(Symbols.lightbulb_rounded, size: cs(14), color: CsColors.gold),
         SizedBox(width: cs(8)),
-        const CsLabel('Pro tip'),
+        const CsLabel('Field note'),
       ]),
       SizedBox(height: cs(8)),
       // Rotating tip with a short fade; fixed height stops jumps.

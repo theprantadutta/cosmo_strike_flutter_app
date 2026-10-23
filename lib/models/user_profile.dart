@@ -16,16 +16,6 @@ enum UserStatus {
     }
   }
 
-  String get emoji {
-    switch (this) {
-      case UserStatus.online:
-        return '🟢';
-      case UserStatus.offline:
-        return '⚫';
-      case UserStatus.playing:
-        return '🎮';
-    }
-  }
 }
 
 class UserProfile {

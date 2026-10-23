@@ -72,7 +72,7 @@ class PlayerIdentityBadge extends StatelessWidget {
     final avatar = ring - cs(10);
     return CsPressable(
       onTap: onTap,
-      semanticLabel: 'Profile',
+      semanticLabel: 'Pilot File',
       child: ListenableBuilder(
         listenable: progression,
         builder: (context, _) {

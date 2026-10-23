@@ -1,8 +1,14 @@
-import 'package:cosmo_strike_flutter_app/models/daily_challenge.dart' show ChallengeDifficulty;
+import 'package:cosmo_strike_flutter_app/models/daily_challenge.dart'
+    show
+        ChallengeDifficulty,
+        kLegacyDirectiveCopy,
+        formatDirectiveCount,
+        directiveModeName;
+import 'package:cosmo_strike_flutter_app/utils/constants.dart' show GameMode;
 
 enum WeeklyQuestType {
   score,
-  foodEaten,
+  enemiesKilled,
   gamesPlayed,
   survival,
   gameMode,
@@ -15,7 +21,7 @@ enum WeeklyQuestType {
     switch (this) {
       case WeeklyQuestType.score:
         return 'Score';
-      case WeeklyQuestType.foodEaten:
+      case WeeklyQuestType.enemiesKilled:
         return 'EnemiesKilled';
       case WeeklyQuestType.gamesPlayed:
         return 'GamesPlayed';
@@ -40,7 +46,7 @@ enum WeeklyQuestType {
       case 'enemies_killed':
       // Legacy wire/storage name from the snake era.
       case 'foodeaten':
-        return WeeklyQuestType.foodEaten;
+        return WeeklyQuestType.enemiesKilled;
       case 'gamesplayed':
         return WeeklyQuestType.gamesPlayed;
       case 'survival':
@@ -118,8 +124,8 @@ class WeeklyQuest {
       coinReward: (json['coin_reward'] ?? json['coinReward']) as int,
       battlePassXpReward:
           (json['battle_pass_xp_reward'] ?? json['battlePassXpReward']) as int,
-      requiredGameMode:
-          (json['required_game_mode'] ?? json['requiredGameMode']) as String?,
+      requiredGameMode: _normalizeMode(
+          (json['required_game_mode'] ?? json['requiredGameMode']) as String?),
       completedAt: (json['completed_at'] ?? json['completedAt']) != null
           ? DateTime.parse(
               (json['completed_at'] ?? json['completedAt']) as String)
@@ -151,3 +157,70 @@ class WeeklyQuest {
     );
   }
 }
+
+/// Rewrites a legacy mode id (`classic`, `perfectGame`…) to the 3.2 wire id.
+String? _normalizeMode(String? raw) =>
+    raw == null ? null : GameMode.normalizeWire(raw);
+
+extension WeeklyQuestCopy on WeeklyQuest {
+  bool get _legacyCopy =>
+      kLegacyDirectiveCopy.hasMatch(title) ||
+      kLegacyDirectiveCopy.hasMatch(description);
+
+  /// Title safe to show: server text unless it still uses legacy wording
+  /// (replaced by copy generated from type + target).
+  String get displayTitle => _legacyCopy ? _generatedTitle : title;
+
+  /// Description safe to show (see [displayTitle]).
+  String get displayDescription =>
+      _legacyCopy ? _generatedDescription : description;
+
+  String get _generatedTitle {
+    final n = formatDirectiveCount(targetValue);
+    switch (type) {
+      case WeeklyQuestType.score:
+        return 'Score $n';
+      case WeeklyQuestType.enemiesKilled:
+        return 'Destroy $n hostiles';
+      case WeeklyQuestType.gamesPlayed:
+        return 'Fly $n runs';
+      case WeeklyQuestType.survival:
+        return 'Hold for $n s';
+      case WeeklyQuestType.gameMode:
+        final mode = directiveModeName(requiredGameMode);
+        return mode == null ? 'Fly $n runs' : 'Fly $n $mode runs';
+      case WeeklyQuestType.tournamentParticipation:
+        return targetValue == 1 ? 'Enter a Sector Cup' : 'Enter $n Sector Cups';
+      case WeeklyQuestType.dailyChallengesCompleted:
+        return 'Complete $n Daily Directives';
+      case WeeklyQuestType.battlePassTiersReached:
+        return 'Reach Frontline tier $n';
+    }
+  }
+
+  String get _generatedDescription {
+    final n = formatDirectiveCount(targetValue);
+    switch (type) {
+      case WeeklyQuestType.score:
+        return 'Score $n points in a single run this week.';
+      case WeeklyQuestType.enemiesKilled:
+        return 'Destroy $n hostiles this week.';
+      case WeeklyQuestType.gamesPlayed:
+        return 'Launch and finish $n runs this week.';
+      case WeeklyQuestType.survival:
+        return 'Stay in the fight for $n seconds in a single run.';
+      case WeeklyQuestType.gameMode:
+        final mode = directiveModeName(requiredGameMode);
+        return mode == null
+            ? 'Complete $n runs in any mode this week.'
+            : 'Complete $n runs in $mode this week.';
+      case WeeklyQuestType.tournamentParticipation:
+        return 'Fly a scored run in $n Sector Cups this week.';
+      case WeeklyQuestType.dailyChallengesCompleted:
+        return 'Clear $n Daily Directives this week.';
+      case WeeklyQuestType.battlePassTiersReached:
+        return 'Climb to Frontline tier $n this season.';
+    }
+  }
+}
+

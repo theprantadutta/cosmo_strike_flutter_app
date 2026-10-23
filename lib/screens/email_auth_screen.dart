@@ -52,19 +52,19 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
     final link = widget.linkFromAnonymous;
 
     return CsScaffold(
-      title: link ? 'Save Your Progress' : 'Email Sign-In',
+      title: link ? 'Back Up Pilot File' : 'Email Sign-In',
       washes: const [CsWash.cyanLeft],
       body: CsSplit(
         leftFlex: 4,
         gap: cs(44),
         left: _AuthIntro(
-          eyebrow: link ? 'Upgrade guest account' : 'Email & password',
-          headline: link ? const ['Save your\n', 'progress.'] : const ['Sign in with\n', 'email.'],
+          eyebrow: link ? 'Upgrade guest pilot' : 'Email & password',
+          headline: link ? const ['Back up your\n', 'Pilot File.'] : const ['Sign in with\n', 'email.'],
           body: link
-              ? 'Add an email and password to your account so you can buy items, '
-                  'restore on reinstall, and sign in from any device.'
-              : 'Sign in to an existing account or create a new one. Your local '
-                  'progress stays on this device either way.',
+              ? 'Attach an email and password to restore after a reinstall '
+                  'and sign in from any device.'
+              : 'Sign in or create an account. Local progress stays on this '
+                  'device either way.',
         ),
         right: Align(
           alignment: Alignment.topCenter,

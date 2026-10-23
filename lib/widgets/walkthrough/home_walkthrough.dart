@@ -24,10 +24,10 @@ class HomeWalkthrough {
       // short landscape viewport).
       WalkthroughStep(
         id: 'home_play',
-        title: 'Welcome to Cosmo Strike!',
+        title: 'Launch bay',
         message:
-            'This is your launch bay — tap it to deploy. Steer your ship, '
-            'blast through enemy waves, and take down the stage boss.',
+            'Tap to launch. Fly the campaign: break formations, graze '
+            'enemy fire to charge Overdrive, and drop each boss.',
         targetKey: playButtonKey,
         position: TooltipPosition.left,
         icon: Symbols.rocket_launch_rounded,
@@ -35,13 +35,13 @@ class HomeWalkthrough {
         spotlightBorderRadius: 24,
       ),
 
-      // Step 2: Coins display (top bar, centre).
+      // Step 2: Credits display (top bar, centre).
       WalkthroughStep(
         id: 'home_coins',
-        title: 'Your Coins',
+        title: 'Credits',
         message:
-            'Earn coins from every run, daily challenges, and daily bonuses. '
-            'Spend them in the store!',
+            'Every run, Daily Directive and Supply Drop pays out in credits. '
+            'Spend them on Hangar upgrades and Armory gear.',
         targetKey: coinsKey,
         position: TooltipPosition.below,
         icon: Symbols.paid_rounded,
@@ -49,13 +49,13 @@ class HomeWalkthrough {
         spotlightBorderRadius: 20,
       ),
 
-      // Step 3: Daily challenges (nav rail, top row).
+      // Step 3: Daily Directives (nav rail, top row).
       WalkthroughStep(
         id: 'home_daily',
-        title: 'Daily Challenges',
+        title: 'Daily Directives',
         message:
-            'Complete daily challenges for bonus coins and XP. '
-            'Three fresh ones every day!',
+            'Three new orders every day. Complete them for credits and '
+            'Frontline XP.',
         targetKey: dailyChallengesKey,
         position: TooltipPosition.below,
         icon: Symbols.calendar_today_rounded,
@@ -63,13 +63,13 @@ class HomeWalkthrough {
         spotlightBorderRadius: 18,
       ),
 
-      // Step 4: Store (action row under the launch bay).
+      // Step 4: Armory (action row under the launch bay).
       WalkthroughStep(
         id: 'home_store',
-        title: 'The Store',
+        title: 'Armory',
         message:
-            'Buy themes, ship skins, trails, and power-ups with your coins. '
-            'Go Pro for 2× coins, no ads, and every premium cosmetic.',
+            'Liveries, exhausts, Sectors and Tactical Gear. Strike Command '
+            'doubles credit payouts and removes ads.',
         targetKey: storeKey,
         position: TooltipPosition.above,
         icon: Symbols.storefront_rounded,
@@ -80,10 +80,10 @@ class HomeWalkthrough {
       // Step 5: Cosmetics (nav rail, bottom row).
       WalkthroughStep(
         id: 'home_cosmetics',
-        title: 'The Hangar',
+        title: 'Hangar',
         message:
-            'Spend coins on permanent upgrades for every run, and fly new '
-            'ships as you clear the campaign. Skins & trails live here too.',
+            'Permanent ship upgrades for every run. Clear campaign levels '
+            'to unlock new frames.',
         targetKey: cosmeticsKey,
         position: TooltipPosition.above,
         icon: Symbols.palette_rounded,
@@ -94,10 +94,10 @@ class HomeWalkthrough {
       // Step 6: Profile (top bar, right cluster).
       WalkthroughStep(
         id: 'home_profile',
-        title: 'Your Profile',
+        title: 'Pilot File',
         message:
-            'Stats, achievements, and high scores live here. Sign in to keep '
-            'your progress safe across devices.',
+            'Service Record, Commendations and best scores. Sign in to back '
+            'up your progress across devices.',
         targetKey: profileKey,
         position: TooltipPosition.below,
         icon: Symbols.account_circle_rounded,
@@ -110,14 +110,14 @@ class HomeWalkthrough {
         id: 'home_settings',
         title: 'Settings',
         message:
-            'Game modes, controls, audio, themes, and more — '
-            'tune everything to your liking.',
+            'Flight mode, controls, audio and Sectors. Tune the ship to '
+            'your hands.',
         targetKey: settingsKey,
         position: TooltipPosition.below,
         icon: Symbols.settings_rounded,
         spotlightPadding: 8,
         spotlightBorderRadius: 20,
-        actionLabel: 'Start Playing!',
+        actionLabel: 'Launch',
       ),
     ];
   }

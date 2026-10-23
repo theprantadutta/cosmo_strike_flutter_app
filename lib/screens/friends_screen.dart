@@ -46,7 +46,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     final cs = context.cs;
 
     return CsScaffold(
-      title: 'Friends',
+      title: 'Squadron',
       trailing: [
         ?_freshness(friendsState),
         CsIconButton(
@@ -82,7 +82,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
                     child: CsSegmented<_Tab>(
-                      segments: const {_Tab.friends: 'Friends', _Tab.requests: 'Requests', _Tab.add: 'Add'},
+                      segments: const {_Tab.friends: 'Wingmates', _Tab.requests: 'Requests', _Tab.add: 'Recruit'},
                       selected: _tab,
                       onChanged: _setTab,
                     ),
@@ -98,7 +98,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         }),
         // RIGHT — the selected section's list.
         right: friendsState.isLoading
-            ? const CsLoadingState(label: 'Loading friends')
+            ? const CsLoadingState(label: 'Loading squadron')
             : AnimatedSwitcher(
                 duration: CsMotion.base,
                 switchInCurve: CsMotion.standard,
@@ -123,7 +123,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       style: t.body.copyWith(color: CsColors.ink),
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
-        hintText: 'Search by name or email',
+        hintText: 'Pilot name or email',
         prefixIcon: const Icon(Symbols.search_rounded, color: CsColors.ink45, size: 20),
         prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
         suffixIcon: friendsState.searchQuery.isNotEmpty
@@ -155,7 +155,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     final received = state.receivedRequests.length;
     final sent = state.sentRequests.length;
     return [
-      const CsLabel('Your squad'),
+      const CsLabel('Your squadron'),
       SizedBox(height: cs(4)),
       FittedBox(
         fit: BoxFit.scaleDown,
@@ -167,7 +167,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         ),
       ),
       Text(
-        state.friends.length == 1 ? 'FRIEND' : 'FRIENDS',
+        state.friends.length == 1 ? 'WINGMATE' : 'WINGMATES',
         style: t.mono(12, em: 0.06, color: CsColors.ink60),
       ),
       SizedBox(height: cs(14)),
@@ -190,7 +190,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       const Spacer(),
       SizedBox(height: cs(14)),
       Text(
-        'Search pilots by name or email, then tap Add to send a request.',
+        'Find a pilot by name or email, then tap Add to send a request.',
         style: t.display(12, weight: FontWeight.w400, em: 0, height: 1.4, color: CsColors.ink45),
       ),
     ];
@@ -238,17 +238,17 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     if (friends.isEmpty) {
       if (friendsState.error != null) {
         return CsEmptyState.error(
-          title: "Couldn't load friends",
+          title: "Couldn't load squadron",
           message: friendsState.error,
           action: CsButton.secondary(label: 'Retry', icon: Symbols.refresh_rounded, onPressed: _loadData),
         );
       }
       return CsEmptyState(
         icon: Symbols.group_rounded,
-        title: 'No Friends Yet',
-        message: 'Search for users to add as friends!',
+        title: 'No wingmates yet',
+        message: 'Recruit pilots to fly with your squadron.',
         action: CsButton.primary(
-          label: 'Find friends',
+          label: 'Recruit pilots',
           icon: Symbols.person_search_rounded,
           onPressed: () {
             _setTab(_Tab.add);
@@ -269,7 +269,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
           trailing: Row(mainAxisSize: MainAxisSize.min, children: [
             if (!compact)
               CsButton.secondary(
-                label: 'Profile',
+                label: 'Pilot File',
                 size: CsButtonSize.small,
                 onPressed: () => _showUserProfile(friend),
               ),
@@ -278,7 +278,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
               size: 34,
               bordered: false,
               color: CsColors.pink,
-              tooltip: 'Remove friend',
+              tooltip: 'Remove wingmate',
               onPressed: () => _showRemoveFriendDialog(friend),
             ),
           ]),
@@ -295,8 +295,8 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     if (receivedRequests.isEmpty && sentRequests.isEmpty) {
       return const CsEmptyState(
         icon: Symbols.mail_rounded,
-        title: 'No Friend Requests',
-        message: 'Friend requests will appear here',
+        title: 'No requests',
+        message: 'Squadron requests land here.',
       );
     }
 
@@ -313,7 +313,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
               below: _mono('SENT ${request.formattedDate}'.toUpperCase()),
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                 CsButton.text(
-                  label: 'Reject',
+                  label: 'Decline',
                   size: CsButtonSize.small,
                   onPressed: () => _rejectFriendRequest(request.fromUserId),
                 ),
@@ -350,8 +350,8 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     if (searchQuery.isEmpty) {
       return CsEmptyState(
         icon: Symbols.person_search_rounded,
-        title: 'Search for Friends',
-        message: 'Enter a name or email to find friends',
+        title: 'Recruit pilots',
+        message: 'Enter a pilot name or email.',
         action: CsButton.secondary(
           label: 'Start typing',
           icon: Symbols.search_rounded,
@@ -367,8 +367,8 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     if (searchResults.isEmpty) {
       return const CsEmptyState(
         icon: Symbols.search_off_rounded,
-        title: 'No Users Found',
-        message: 'Try searching with a different name or email',
+        title: 'No pilots found',
+        message: 'Try another name or email.',
       );
     }
 
@@ -429,7 +429,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     final hasReceivedRequest = notifier.hasReceivedRequestFrom(user.uid);
 
     if (isFriend) {
-      return const CsChip('Friends', kind: CsChipKind.mint, icon: Symbols.check_rounded);
+      return const CsChip('Wingmate', kind: CsChipKind.mint, icon: Symbols.check_rounded);
     }
 
     if (hasSentRequest) {
@@ -467,7 +467,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     final success = await ref.read(friendsProvider.notifier).sendFriendRequest(userId);
     if (success && mounted) {
       getIt<AnalyticsFacade>().trackFriendAdded();
-      showCsToast(context, 'Friend request sent!', kind: CsToastKind.success);
+      showCsToast(context, 'Request sent.', kind: CsToastKind.success);
     }
   }
 
@@ -475,14 +475,14 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     final success = await ref.read(friendsProvider.notifier).acceptFriendRequest(fromUserId);
     if (success && mounted) {
       getIt<AnalyticsFacade>().trackFriendAdded();
-      showCsToast(context, 'Friend request accepted!', kind: CsToastKind.success);
+      showCsToast(context, 'Wingmate added.', kind: CsToastKind.success);
     }
   }
 
   Future<void> _rejectFriendRequest(String fromUserId) async {
     final success = await ref.read(friendsProvider.notifier).rejectFriendRequest(fromUserId);
     if (success && mounted) {
-      showCsToast(context, 'Friend request rejected');
+      showCsToast(context, 'Request declined.');
     }
   }
 
@@ -492,7 +492,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       builder: (ctx) {
         final cs = ctx.cs;
         return CsDialog(
-          eyebrow: 'Pilot profile',
+          eyebrow: 'Pilot File',
           titleWidget: Row(children: [
             _Avatar(name: friend.username, photoUrl: friend.photoUrl, size: 44),
             SizedBox(width: cs(14)),
@@ -509,10 +509,10 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
             CsStatGrid(
               columns: friend.totalGamesPlayed > 0 ? 3 : 2,
               stats: [
-                CsStat(_formatThousands(friend.highScore), 'High score', color: CsColors.gold),
+                CsStat(_formatThousands(friend.highScore), 'Best score', color: CsColors.gold),
                 // Only some endpoints send a games count; skip a bogus 0.
-                if (friend.totalGamesPlayed > 0) CsStat(_formatThousands(friend.totalGamesPlayed), 'Total games'),
-                CsStat('${friend.level}', 'Level', color: CsColors.violet),
+                if (friend.totalGamesPlayed > 0) CsStat(_formatThousands(friend.totalGamesPlayed), 'Runs flown'),
+                CsStat('${friend.level}', 'Pilot Rank', color: CsColors.violet),
               ],
             ),
             if (friend.statusMessage?.isNotEmpty == true) ...[
@@ -531,9 +531,9 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
   Future<void> _showRemoveFriendDialog(UserProfile friend) async {
     final confirmed = await showCsConfirm(
       context,
-      eyebrow: 'Friends',
-      title: 'Remove Friend',
-      message: 'Remove ${friend.displayName} from your friends list?',
+      eyebrow: 'Squadron',
+      title: 'Remove wingmate?',
+      message: 'Drop ${friend.displayName} from your squadron?',
       confirmLabel: 'Remove',
       destructive: true,
     );
@@ -543,7 +543,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       getIt<AnalyticsFacade>().trackFriendRemoved();
     }
     if (success && mounted) {
-      showCsToast(context, '${friend.displayName} removed from friends');
+      showCsToast(context, '${friend.displayName} left your squadron.');
     }
   }
 }

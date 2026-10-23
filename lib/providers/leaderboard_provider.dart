@@ -221,7 +221,7 @@ class LeaderboardNotifier extends StateNotifier<LeaderboardState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Failed to refresh leaderboard',
+        error: 'Standings failed to refresh',
       );
     }
   }
@@ -471,7 +471,7 @@ class CombinedLeaderboardNotifier
       AppLogger.error('Global leaderboard load failed', e, st);
       state = state.copyWith(
         isLoadingGlobal: false,
-        globalError: cachedWasEmpty ? 'Failed to load leaderboard' : null,
+        globalError: cachedWasEmpty ? 'Standings failed to load' : null,
       );
     } finally {
       // Defense-in-depth: even if the catch above somehow doesn't fire
@@ -522,7 +522,7 @@ class CombinedLeaderboardNotifier
       state = state.copyWith(
         isLoadingWeekly: false,
         weeklyError:
-            cachedWasEmpty ? 'Failed to load weekly leaderboard' : null,
+            cachedWasEmpty ? 'Weekly standings failed to load' : null,
       );
     } finally {
       if (state.isLoadingWeekly) {
@@ -585,7 +585,7 @@ class CombinedLeaderboardNotifier
       state = state.copyWith(
         isLoadingGlobal: false,
         globalError: state.globalEntries.isEmpty
-            ? 'Failed to refresh leaderboard'
+            ? 'Standings failed to refresh'
             : null,
       );
     }
@@ -608,7 +608,7 @@ class CombinedLeaderboardNotifier
       state = state.copyWith(
         isLoadingWeekly: false,
         weeklyError: state.weeklyEntries.isEmpty
-            ? 'Failed to refresh weekly leaderboard'
+            ? 'Weekly standings failed to refresh'
             : null,
       );
     }

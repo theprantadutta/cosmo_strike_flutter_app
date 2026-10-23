@@ -52,7 +52,7 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
   Future<void> _onContinue() async {
     final newUsername = _controller.text.trim();
     if (newUsername.isEmpty) {
-      setState(() => _errorMessage = 'Username cannot be empty');
+      setState(() => _errorMessage = 'Call sign required');
       return;
     }
 
@@ -93,7 +93,7 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
       );
       setState(() {
         _isLoading = false;
-        _errorMessage = validation.error ?? 'Failed to set username';
+        _errorMessage = validation.error ?? 'Call sign not saved';
       });
     }
   }
@@ -125,7 +125,7 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
           ],
           style: t.display(22, weight: FontWeight.w700, em: -0.01),
           decoration: InputDecoration(
-            labelText: 'USERNAME',
+            labelText: 'CALL SIGN',
             prefixIcon: Padding(
               padding: EdgeInsets.only(right: cs(10)),
               child: Icon(Symbols.badge_rounded, size: cs(20), color: CsColors.ink45),
@@ -141,9 +141,9 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
         ),
         SizedBox(height: cs(10)),
         for (final rule in const [
-          '3-20 characters',
-          'Must start with a letter',
-          'Letters, numbers, and underscores only',
+          '3 to 20 characters',
+          'Opens with a letter',
+          'A-Z, 0-9 and _ only',
         ])
           Padding(
             padding: EdgeInsets.only(bottom: cs(4)),
@@ -167,7 +167,7 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
         ),
         SizedBox(height: cs(12)),
         Text(
-          'You can change this anytime in Settings.'.toUpperCase(),
+          'Editable later in Settings'.toUpperCase(),
           textAlign: TextAlign.center,
           style: t.micro,
         ),
@@ -186,11 +186,11 @@ class _UsernameSetupScreenState extends State<UsernameSetupScreen> {
             SizedBox(height: cs(22)),
             const CsLabel('Call sign'),
             SizedBox(height: cs(10)),
-            CsHeadline(const ['Pick your\n', 'username.'], prismIndex: 1, style: t.title),
+            CsHeadline(const ['Choose your\n', 'call sign.'], prismIndex: 1, style: t.title),
             SizedBox(height: cs(14)),
             Text(
-              "It's how you'll show up on the leaderboard. "
-              "We've picked one for you — keep it or change it.",
+              'It is how the Standings will list you. '
+              'One is assigned. Keep it or replace it.',
               style: t.body.copyWith(fontSize: cs(14)),
             ),
           ],

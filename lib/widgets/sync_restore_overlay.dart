@@ -62,9 +62,9 @@ class _SyncRestoreOverlayState extends State<SyncRestoreOverlay> {
       case FirstSignInState.welcoming:
         return (
           eyebrow: 'Step 1 / 3 · Account',
-          title: 'Setting up your account…',
+          title: 'Preparing your Pilot File…',
           body:
-              'Getting things ready for your first session. This only happens once.',
+              'First sign-in on this device. One-time setup.',
           spinning: true,
           icon: null,
           iconColor: CsColors.ink,
@@ -72,9 +72,9 @@ class _SyncRestoreOverlayState extends State<SyncRestoreOverlay> {
       case FirstSignInState.pulling:
         return (
           eyebrow: 'Step 2 / 3 · Cloud',
-          title: 'Loading your previous data…',
+          title: 'Pulling your flight data…',
           body:
-              'Fetching your stats, achievements, coins, and unlocks from the cloud.',
+              'Service Record, Commendations, credits and unlocks, incoming.',
           spinning: true,
           icon: null,
           iconColor: CsColors.ink,
@@ -82,8 +82,8 @@ class _SyncRestoreOverlayState extends State<SyncRestoreOverlay> {
       case FirstSignInState.applying:
         return (
           eyebrow: 'Step 3 / 3 · Device',
-          title: 'Restoring your progress…',
-          body: "Applying everything to this device. Don't close the app.",
+          title: 'Writing to this device…',
+          body: 'Keep the app open until this finishes.',
           spinning: true,
           icon: null,
           iconColor: CsColors.ink,
@@ -91,8 +91,8 @@ class _SyncRestoreOverlayState extends State<SyncRestoreOverlay> {
       case FirstSignInState.restored:
         return (
           eyebrow: 'Restored',
-          title: 'All set!',
-          body: 'Your progress has been restored.',
+          title: 'Pilot File restored',
+          body: 'Cleared for launch.',
           spinning: false,
           icon: Symbols.check_circle_rounded,
           iconColor: CsColors.mint,
@@ -100,11 +100,10 @@ class _SyncRestoreOverlayState extends State<SyncRestoreOverlay> {
       case FirstSignInState.failed:
         return (
           eyebrow: 'Restore failed',
-          title: "Couldn't restore your data",
+          title: 'Restore interrupted',
           body:
-              "We couldn't reach the cloud just now. Check your internet "
-              "connection and try again. You can also continue without "
-              "restoring — we'll retry the next time you open the app.",
+              'No link to the server. Check your connection and retry, or '
+              'continue now. The restore runs again next launch.',
           spinning: false,
           icon: Symbols.cloud_off_rounded,
           iconColor: CsColors.pink,
@@ -181,11 +180,11 @@ class _SyncRestoreOverlayState extends State<SyncRestoreOverlay> {
                               runSpacing: cs(10),
                               children: [
                                 CsButton.text(
-                                  label: 'Continue Anyway',
+                                  label: 'Continue',
                                   onPressed: () => SyncEngine().dismissFirstSignInOverlay(),
                                 ),
                                 CsButton.primary(
-                                  label: 'Try Again',
+                                  label: 'Retry',
                                   icon: Symbols.refresh_rounded,
                                   onPressed: () => SyncEngine().retryFirstSignInPull(),
                                 ),

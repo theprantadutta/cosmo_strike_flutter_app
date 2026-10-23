@@ -70,14 +70,15 @@ class ThemeCubit extends Cubit<ThemeState> {
     unawaited(ApiService().setEquippedCosmetics(themeId: theme.name));
   }
 
-  /// Apply a theme from the backend ONLY if the local choice is still the
-  /// default (classic). Called by PremiumCubit during sync to restore
-  /// the equipped theme after reinstall/device-switch without overriding
+  /// Apply a sector from the backend ONLY if the local choice is still the
+  /// default (Prism Noir). Called by PremiumCubit during sync to restore
+  /// the equipped sector after reinstall/device-switch without overriding
   /// a deliberate local pick. No backend push — the value came FROM there.
+  /// Accepts pre-3.2 theme IDs (legacy-mapped by [GameTheme.fromId]).
   Future<void> applyEquippedThemeFromBackend(String themeName) async {
-    if (state.currentTheme != GameTheme.classic) return;
-    final target = GameTheme.values.where((t) => t.name == themeName).firstOrNull;
-    if (target == null || target == GameTheme.classic) return;
+    if (state.currentTheme != GameTheme.prismNoir) return;
+    final target = GameTheme.fromId(themeName);
+    if (target == null || target == GameTheme.prismNoir) return;
     emit(state.copyWith(currentTheme: target));
     await _preferencesService.setTheme(target);
     // Keep the Drift mirror consistent (echoes a push of a value that
@@ -85,27 +86,27 @@ class ThemeCubit extends Cubit<ThemeState> {
     unawaited(_storageService.saveSelectedTheme(target));
   }
 
-  /// Drop back to Classic if the currently-applied premium theme is no
+  /// Drop back to Prism Noir if the currently-applied premium sector is no
   /// longer in the user's owned set (refund / chargeback / sub lapse).
-  /// Pro subscribers get all premium themes implicitly, so this only
-  /// fires for free-tier users with a previously-purchased theme that
+  /// Strike Command subscribers get all premium sectors implicitly, so this
+  /// only fires for free-tier users with a previously-purchased sector that
   /// got revoked.
   Future<void> applyFallbackIfThemeRevoked(PremiumState premiumState) async {
     final current = state.currentTheme;
     if (!PremiumContent.isPremiumTheme(current)) return;
     if (premiumState.isThemeUnlocked(current)) return;
-    emit(state.copyWith(currentTheme: GameTheme.classic));
-    await _preferencesService.setTheme(GameTheme.classic);
-    unawaited(_storageService.saveSelectedTheme(GameTheme.classic));
+    emit(state.copyWith(currentTheme: GameTheme.prismNoir));
+    await _preferencesService.setTheme(GameTheme.prismNoir);
+    unawaited(_storageService.saveSelectedTheme(GameTheme.prismNoir));
   }
 
-  /// Cycle to the next theme (only free themes; premium themes require explicit
-  /// selection). The accessibility skin is excluded — it's opt-in via Settings,
-  /// not part of the casual free-theme rotation.
+  /// Cycle to the next sector (only free sectors; premium sectors require
+  /// explicit selection). High Contrast is excluded — it's opt-in via
+  /// Settings, not part of the casual free rotation.
   void cycleTheme() {
     final themes = GameTheme.values
         .where((t) =>
-            !PremiumContent.isPremiumTheme(t) && t != GameTheme.accessible)
+            !PremiumContent.isPremiumTheme(t) && t != GameTheme.highContrast)
         .toList();
     if (themes.isEmpty) return;
     final currentIndex = themes.indexOf(state.currentTheme);

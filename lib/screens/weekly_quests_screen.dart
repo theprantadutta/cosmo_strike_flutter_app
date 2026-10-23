@@ -42,7 +42,7 @@ class _WeeklyQuestsBodyState extends State<WeeklyQuestsBody> {
     context.read<CoinsCubit>().earnCoins(
       CoinEarningSource.dailyChallenge, // closest existing source
       customAmount: quest.coinReward,
-      itemName: quest.title,
+      itemName: quest.displayTitle,
       metadata: {
         'questId': quest.id,
         'battlePassXp': quest.battlePassXpReward,
@@ -52,8 +52,8 @@ class _WeeklyQuestsBodyState extends State<WeeklyQuestsBody> {
 
     // The toast brings its own coin sound + haptic.
     RewardToast.show(
-      title: 'QUEST COMPLETE',
-      amount: '+${quest.coinReward} COINS · +${quest.battlePassXpReward} BP XP',
+      title: 'OP COMPLETE',
+      amount: '+${quest.coinReward} CR · +${quest.battlePassXpReward} FRONTLINE XP',
     );
   }
 
@@ -81,13 +81,13 @@ class _WeeklyQuestsBodyState extends State<WeeklyQuestsBody> {
                   )
                 : null,
             rules: const [
-              'New quests every Monday',
-              'Bigger goals, bigger coin rewards',
-              'Quests grant Battle Pass XP too',
+              'New ops every Monday',
+              'Bigger targets, bigger credit payouts',
+              'Ops pay Frontline XP too',
             ],
           ),
           right: _service.isLoading && quests.isEmpty
-              ? const CsLoadingState(label: 'Loading quests')
+              ? const CsLoadingState(label: 'Loading ops')
               : RefreshIndicator(
                   onRefresh: _service.refresh,
                   color: CsColors.ink,
@@ -102,8 +102,8 @@ class _WeeklyQuestsBodyState extends State<WeeklyQuestsBody> {
                               height: c.maxHeight,
                               child: const CsEmptyState(
                                 icon: Symbols.event_repeat_rounded,
-                                title: 'No weekly quests yet',
-                                message: 'Check back Monday for a new set.',
+                                title: 'No Weekly Ops yet',
+                                message: 'New ops post Monday. Stand by.',
                               ),
                             ),
                           ],
@@ -117,8 +117,8 @@ class _WeeklyQuestsBodyState extends State<WeeklyQuestsBody> {
                           if (i == 0) return const CsHairline();
                           final quest = quests[i - 1];
                           return ChallengeRow(
-                            title: quest.title,
-                            description: quest.description,
+                            title: quest.displayTitle,
+                            description: quest.displayDescription,
                             difficulty: quest.difficulty,
                             currentProgress: quest.currentProgress,
                             targetValue: quest.targetValue,
@@ -128,7 +128,7 @@ class _WeeklyQuestsBodyState extends State<WeeklyQuestsBody> {
                             canClaim: quest.canClaim,
                             coinReward: quest.coinReward,
                             xpReward: quest.battlePassXpReward,
-                            xpUnit: ' BP XP',
+                            xpUnit: ' FL XP',
                             onClaim: () => _claimReward(quest),
                           );
                         },

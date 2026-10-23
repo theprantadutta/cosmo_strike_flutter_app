@@ -501,7 +501,7 @@ class CsIconDisc extends StatelessWidget {
 }
 
 /// Re-export so screens can render prism-highlighted headlines in one line:
-/// `CsHeadline(['Cosmic ', 'Serpent'], prismIndex: 1)`.
+/// `CsHeadline(['Strike ', 'Command'], prismIndex: 1)`.
 class CsHeadline extends StatelessWidget {
   const CsHeadline(this.parts, {super.key, this.prismIndex, this.style, this.maxLines = 2, this.textAlign});
   final List<String> parts;

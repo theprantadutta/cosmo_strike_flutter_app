@@ -17,7 +17,7 @@ import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 ///   • Header: season title on one line (last word in prism), T n / max with
 ///     a 3px XP bar + mono XP readout, and the "coming next" reward line.
 ///     Right: gold-bordered premium card (UNLOCK for free players, an
-///     "active" state for Pro) + the rewarded-ad XP pill.
+///     "active" state for Strike Command) + the rewarded-ad XP pill.
 ///   • Body: FREE / PRO rows of tier tiles in one horizontal scroller —
 ///     claimed = done + mint CLAIMED, claimable = prism ring (tap to claim),
 ///     future = faint, pro = gold dashed. Auto-scrolls to the focal tier.
@@ -124,8 +124,8 @@ class _BattlePassScreenState extends State<BattlePassScreen> {
 
         if (bpState.status == BattlePassStatus.loading && season == null) {
           return const CsScaffold(
-            title: 'Battle Pass',
-            body: CsLoadingState(label: 'Loading battle pass'),
+            title: 'Frontline',
+            body: CsLoadingState(label: 'Loading Frontline'),
           );
         }
 
@@ -134,7 +134,7 @@ class _BattlePassScreenState extends State<BattlePassScreen> {
         final cs = context.cs;
         final number = _seasonNumber(season);
         return CsScaffold(
-          title: number == null ? 'Battle Pass' : 'Season ${number.toString().padLeft(2, '0')}',
+          title: number == null ? 'Frontline' : 'Frontline · Season ${number.toString().padLeft(2, '0')}',
           trailing: [
             CsMeta(
               _daysRemainingText(season),
@@ -172,7 +172,7 @@ class _BattlePassScreenState extends State<BattlePassScreen> {
 }
 
 /// Season number for the "SEASON 03" top bar: explicit metadata first, then
-/// any digits in the id / name. Null → generic "BATTLE PASS".
+/// any digits in the id / name. Null → generic "FRONTLINE".
 int? _seasonNumber(BattlePassSeason season) {
   for (final key in const ['number', 'season_number', 'seasonNumber']) {
     final v = season.metadata[key];
@@ -207,15 +207,15 @@ IconData _rewardIcon(BattlePassReward r) => switch (r.type) {
       BattlePassRewardType.special => Symbols.redeem_rounded,
     };
 
-/// Short mono tile label ("80C", "SKIN", "BOOST").
+/// Short mono tile label ("80 CR", "LIVERY", "GEAR").
 String _rewardShort(BattlePassReward r) => switch (r.type) {
-      BattlePassRewardType.coins => '${r.quantity}C',
+      BattlePassRewardType.coins => '${r.quantity} CR',
       BattlePassRewardType.xp => '${r.quantity} XP',
-      BattlePassRewardType.theme => 'THEME',
-      BattlePassRewardType.skin => 'SKIN',
-      BattlePassRewardType.trail => 'TRAIL',
-      BattlePassRewardType.powerUp => r.quantity > 1 ? '${r.quantity}× BOOST' : 'BOOST',
-      BattlePassRewardType.tournamentEntry => 'ENTRY',
+      BattlePassRewardType.theme => 'SECTOR',
+      BattlePassRewardType.skin => 'LIVERY',
+      BattlePassRewardType.trail => 'EXHAUST',
+      BattlePassRewardType.powerUp => r.quantity > 1 ? '${r.quantity}× GEAR' : 'GEAR',
+      BattlePassRewardType.tournamentEntry => 'CUP PASS',
       BattlePassRewardType.title => 'TITLE',
       BattlePassRewardType.avatar => 'AVATAR',
       BattlePassRewardType.special => 'BADGE',
@@ -337,7 +337,7 @@ class _Header extends StatelessWidget {
                         style: t.mono(10, color: next.isPremium ? CsColors.gold : CsColors.ink),
                       ),
                       if (next.isPremium && !state.isActive)
-                        TextSpan(text: ' · PRO', style: t.mono(10, color: CsColors.gold)),
+                        TextSpan(text: ' · COMMAND', style: t.mono(10, color: CsColors.gold)),
                     ]),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -372,8 +372,8 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// Gold-bordered premium card. Free players: "Premium track locked" +
-/// UNLOCK pill. Pro: "Premium track active" + claimable count.
+/// Gold-bordered premium card. Free players: "Command lane locked" +
+/// UNLOCK pill. Strike Command: "Command lane active" + claimable count.
 class _PremiumCard extends StatelessWidget {
   const _PremiumCard({required this.state, required this.season, required this.onUnlock});
 
@@ -395,15 +395,15 @@ class _PremiumCard extends StatelessWidget {
     final String title;
     final String sub;
     if (hasPremium) {
-      title = 'Premium track active';
+      title = 'Command lane active';
       sub = reachedPremium > 0
           ? '$reachedPremium ${reachedPremium == 1 ? 'reward' : 'rewards'} to claim'
-          : (state.isValid ? 'All caught up' : 'Pass expired');
+          : (state.isValid ? 'All caught up' : 'Season closed');
     } else {
-      title = 'Premium track locked';
+      title = 'Command lane locked';
       sub = reachedPremium > 0
           ? '$reachedPremium ${reachedPremium == 1 ? 'reward' : 'rewards'} waiting'
-          : '$totalPremium pro rewards this season';
+          : '$totalPremium Command rewards this season';
     }
 
     return Container(
@@ -446,7 +446,7 @@ class _PremiumCard extends StatelessWidget {
   }
 }
 
-/// Rewarded-ad "+50 pass XP" pill. Same gating as the shared
+/// Rewarded-ad "+50 Frontline XP" pill. Same gating as the shared
 /// RewardedActionButton (self-hides for Pro / ads off, disabled without a
 /// loaded ad or once the daily cap is hit, re-checks every 2s), restyled as a
 /// compact secondary pill so it fits the header.
@@ -487,7 +487,7 @@ class _AdXpButtonState extends State<_AdXpButton> {
         RewardToast.show(
           icon: Symbols.bolt_rounded,
           title: 'XP BOOST',
-          amount: '+50 BP XP',
+          amount: '+50 FRONTLINE XP',
         );
       },
     );
@@ -579,7 +579,7 @@ class _TierStrip extends StatelessWidget {
             SizedBox(height: gap),
             SizedBox(
               height: tileH,
-              child: Align(alignment: Alignment.centerLeft, child: CsLabel('Pro', size: 10, color: CsColors.gold)),
+              child: Align(alignment: Alignment.centerLeft, child: CsLabel('Command', size: 10, color: CsColors.gold)),
             ),
           ],
         ),
@@ -785,7 +785,7 @@ class _RewardDetailDialog extends StatelessWidget {
       maxWidth: 440,
       icon: _rewardIcon(reward),
       iconColor: accent,
-      eyebrow: 'Tier $tier · ${reward.isPremium ? 'Premium' : 'Free'} · ${reward.type.displayName}',
+      eyebrow: 'Tier $tier · ${reward.isPremium ? 'Command lane' : 'Frontline track'} · ${reward.type.displayName}',
       title: reward.name,
       message: reward.description.isNotEmpty ? reward.description : null,
       content: Wrap(spacing: cs(8), runSpacing: cs(8), children: [
@@ -793,11 +793,11 @@ class _RewardDetailDialog extends StatelessWidget {
           const CsChip('Unlocked', kind: CsChipKind.mint, icon: Symbols.check_circle_rounded)
         else if (!unlocked)
           CsChip('Reach tier $tier to unlock', icon: Symbols.lock_rounded),
-        if (lockedBehindPro) const CsChip('Pro only', kind: CsChipKind.gold, icon: Symbols.workspace_premium_rounded),
+        if (lockedBehindPro) const CsChip('Command lane', kind: CsChipKind.gold, icon: Symbols.workspace_premium_rounded),
       ]),
       actions: [
         CsButton.text(label: 'Close', onPressed: () => Navigator.of(context).pop()),
-        if (lockedBehindPro) CsButton.premium(label: 'Unlock with Pro', onPressed: onUnlockPro),
+        if (lockedBehindPro) CsButton.premium(label: 'Unlock Command lane', onPressed: onUnlockPro),
       ],
     );
   }
@@ -812,12 +812,12 @@ class _NoActiveSeasonScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CsScaffold(
-      title: 'Battle Pass',
+      title: 'Frontline',
       washes: const [CsWash.violetTopRight],
       body: CsEmptyState(
         icon: Symbols.hourglass_empty_rounded,
         title: 'Between seasons',
-        message: 'No Battle Pass is running right now — the next season will start automatically. Check back soon.',
+        message: 'No Frontline season is running. The next one deploys automatically. Stand by.',
         action: CsButton.secondary(
           label: 'Check for new season',
           icon: Symbols.refresh_rounded,

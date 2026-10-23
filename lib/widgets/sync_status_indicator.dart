@@ -157,7 +157,7 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator>
     int failedCount,
   ) {
     if (!isOnline) {
-      return 'Offline - Changes will sync when connected';
+      return 'Offline. Changes sync on reconnect';
     }
 
     switch (status) {

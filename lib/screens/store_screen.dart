@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_inapp_purchase/flutter_inapp_purchase.dart' as iap;
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
-import 'package:cosmo_strike_flutter_app/game/cosmo_palette.dart';
+import 'package:cosmo_strike_flutter_app/game/livery_decals.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_cosmetics.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_power_up.dart';
 import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
@@ -45,35 +45,28 @@ class _StoreScreenState extends State<StoreScreen>
   /// True while a "Restore purchases" request is in flight.
   bool _restoring = false;
 
-  // Tab order: Pro / Coins / Themes / Skins / Trails / Power-Ups / Entries.
-  // Keeps Coins at index 1 so existing `?tab=1` deep links still land on
-  // coins. These names are the analytics tab ids — keep them stable.
+  // Armory tab order (REBRAND_SPEC §1): Command / Credits / Liveries /
+  // Exhausts / Sectors / Gear / Cup Passes. `?tab=N` deep links index into
+  // this list (Credits = 1, Liveries = 2, Sectors = 4, Cup Passes = 6).
+  // These names are the analytics tab ids — keep them stable.
   static const _tabNames = [
-    'Pro',
-    'Coins',
-    'Themes',
-    'Skins',
-    'Trails',
-    'Power-Ups',
-    'Entries',
+    'Command',
+    'Credits',
+    'Liveries',
+    'Exhausts',
+    'Sectors',
+    'Gear',
+    'Cup Passes',
   ];
 
-  static const _tabLabels = [
-    'Pro',
-    'Coins',
-    'Themes',
-    'Skins',
-    'Trails',
-    'Power-ups',
-    'Entries',
-  ];
+  static const _tabLabels = _tabNames;
 
   static const _tabIcons = [
-    Symbols.diamond_rounded,
+    Symbols.workspace_premium_rounded,
     Symbols.paid_rounded,
-    Symbols.palette_rounded,
     Symbols.rocket_rounded,
-    Symbols.auto_awesome_rounded,
+    Symbols.local_fire_department_rounded,
+    Symbols.public_rounded,
     Symbols.bolt_rounded,
     Symbols.confirmation_number_rounded,
   ];
@@ -119,14 +112,14 @@ class _StoreScreenState extends State<StoreScreen>
                       CsScaffold(
                         backgroundColor: Colors.transparent,
                         // Back + title passed as the (non-flex) leading so the
-                        // coin balance sits flush right like the mock.
+                        // credit balance sits flush right like the mock.
                         topBarLeading: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const CsBackButton(),
                             SizedBox(width: cs(4)),
                             Text(
-                              'STORE',
+                              'ARMORY',
                               maxLines: 1,
                               style: cs.type.mono(11, color: CsColors.ink, weight: FontWeight.w600),
                             ),
@@ -147,13 +140,13 @@ class _StoreScreenState extends State<StoreScreen>
                           right: TabBarView(
                             controller: _tabController,
                             children: [
-                              _buildProTab(premiumState),
-                              _buildCoinsTab(coinsState),
-                              _buildThemesTab(theme, premiumState),
-                              _buildSkinsTab(theme, premiumState),
-                              _buildTrailsTab(theme, premiumState),
-                              _buildPowerUpsTab(coinsState),
-                              _buildEntriesTab(),
+                              _buildCommandTab(premiumState),
+                              _buildCreditsTab(coinsState),
+                              _buildLiveriesTab(premiumState),
+                              _buildExhaustsTab(theme, premiumState),
+                              _buildSectorsTab(theme, premiumState),
+                              _buildGearTab(coinsState),
+                              _buildCupPassesTab(),
                             ],
                           ),
                         ),
@@ -339,11 +332,11 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
-  /// Banner row atop the cosmetic tabs (themes / skins / trails) telling the
-  /// user a Pro subscription unlocks everything in that tab. Tapping it (when
-  /// not already Pro) jumps to the Pro tab. Power-Ups are intentionally
-  /// excluded — Pro doesn't unlock the power-up catalog.
-  Widget _buildProIncludedRow(PremiumState premiumState, String itemNoun) {
+  /// Banner row atop the cosmetic tabs (liveries / exhausts / sectors)
+  /// telling the user Strike Command unlocks everything in that tab. Tapping
+  /// it (when not subscribed) jumps to the Command tab. Gear is intentionally
+  /// excluded — Strike Command doesn't unlock the gear catalog.
+  Widget _buildCommandIncludedRow(PremiumState premiumState, String itemsNoun) {
     final cs = context.cs;
     final isPro = premiumState.hasPremium;
     return Padding(
@@ -356,10 +349,10 @@ class _StoreScreenState extends State<StoreScreen>
           size: 34,
           color: isPro ? CsColors.mint : CsColors.gold,
         ),
-        title: isPro ? 'Unlocked with Pro' : 'Included with Cosmo Strike Pro',
+        title: isPro ? 'Unlocked by Strike Command' : 'Included with Strike Command',
         subtitle: isPro
-            ? 'Every $itemNoun here is yours with your subscription.'
-            : 'Subscribe to Pro to unlock every $itemNoun here — no separate purchase needed.',
+            ? 'All $itemsNoun are unlocked for your hangar.'
+            : 'Strike Command unlocks all $itemsNoun. No separate purchase.',
         trailing: isPro
             ? null
             : Icon(Symbols.chevron_right_rounded, size: cs(22), color: CsColors.ink45),
@@ -367,7 +360,7 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
-  /// One grid tile for a cosmetic (theme / skin / trail): preview on top,
+  /// One grid tile for a cosmetic (sector / livery / exhaust): preview on top,
   /// Syne name + one-line blurb, then a status/action footer.
   ///
   /// equipped → prism ring (current) · owned → done + mint label + EQUIP ·
@@ -379,7 +372,7 @@ class _StoreScreenState extends State<StoreScreen>
     required bool isEquipped,
     required bool isOwned,
     required bool isPending,
-    required bool showProBadge,
+    required bool showCommandBadge,
     required String priceLabel,
     required VoidCallback onEquip,
     required VoidCallback onBuy,
@@ -435,8 +428,8 @@ class _StoreScreenState extends State<StoreScreen>
       state: state,
       onTap: onTap,
       preview: preview,
-      badge: showProBadge
-          ? const CsChip('Pro', kind: CsChipKind.gold, icon: Symbols.lock_rounded)
+      badge: showCommandBadge
+          ? const CsChip('Command', kind: CsChipKind.gold, icon: Symbols.lock_rounded)
           : null,
       name: name,
       description: description,
@@ -476,22 +469,22 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   // ===========================================================================
-  // PRO TAB
+  // COMMAND TAB (Strike Command subscription)
   // ===========================================================================
 
-  static const _proBenefitsLine =
-      'No ads · All themes, skins & trails · 2× coins · Pass premium track';
+  static const _commandBenefitsLine =
+      'No ads · Every livery, exhaust & sector · 2× credits · Frontline Command lane';
 
-  Widget _buildProTab(PremiumState premiumState) {
-    // Drops any Pro SKU from the pending set once PremiumCubit reports
+  Widget _buildCommandTab(PremiumState premiumState) {
+    // Drops any Command SKU from the pending set once PremiumCubit reports
     // hasPremium=true — the spinner on the plan cards stops the moment the
     // backend's VerifyPurchase response lands.
     _reconcilePendingPurchases(premiumState);
     final cs = context.cs;
     final t = cs.type;
 
-    // Paid Pro → status + benefits only (no plans). Trial → status with a
-    // convert CTA + the plan picker. Free → plan picker.
+    // Paid subscriber → status + benefits only (no plans). Trial → status
+    // with a convert CTA + the plan picker. Free → plan picker.
     final isPaidPro = premiumState.hasPremium && !premiumState.isOnPromo;
     final isTrial = premiumState.hasPremium && premiumState.isOnPromo;
 
@@ -501,14 +494,14 @@ class _StoreScreenState extends State<StoreScreen>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           CsHeadline(
-            const ['Cosmo ', 'Pro'],
+            const ['Strike ', 'Command'],
             prismIndex: 1,
             maxLines: 1,
             style: t.display(34, em: -0.03, height: 1.05),
           ),
           SizedBox(height: cs(8)),
           Text(
-            _proBenefitsLine,
+            _commandBenefitsLine,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: t.mono(11, em: 0.06, color: CsColors.ink55, height: 1.4),
@@ -524,7 +517,7 @@ class _StoreScreenState extends State<StoreScreen>
             SizedBox(height: cs(10)),
           ],
           _buildProFooter(),
-          _sectionLabel('What you get'),
+          _sectionLabel('Clearance includes'),
           _buildProFeatureGrid(),
         ],
       ),
@@ -540,7 +533,7 @@ class _StoreScreenState extends State<StoreScreen>
           Expanded(
             child: _buildProPlanCard(
               title: 'Monthly',
-              productId: ProductIds.proMonthly,
+              productId: ProductIds.commandMonthly,
               fallbackPrice: 4.99,
               cadence: '/mo',
               billedLabel: 'Billed monthly',
@@ -551,11 +544,11 @@ class _StoreScreenState extends State<StoreScreen>
           SizedBox(width: cs(14)),
           Expanded(
             child: _buildProPlanCard(
-              title: 'Yearly',
-              productId: ProductIds.proYearly,
+              title: 'Annual',
+              productId: ProductIds.commandAnnual,
               fallbackPrice: 39.99,
               cadence: '/yr',
-              billedLabel: 'Billed yearly',
+              billedLabel: 'Billed annually',
               // Live from Play / App Store prices; hidden until both load.
               savingsLabel: _yearlySavingsLabel(),
               featured: true,
@@ -585,8 +578,8 @@ class _StoreScreenState extends State<StoreScreen>
     // the user can't kick off a second purchase before the first one's
     // VerifyPurchase response lands — that would double-charge and bug out
     // the PremiumCubit's mid-flight state.
-    final anyProPending = _pendingProductIds.contains(ProductIds.proMonthly) ||
-        _pendingProductIds.contains(ProductIds.proYearly);
+    final anyProPending = _pendingProductIds.contains(ProductIds.commandMonthly) ||
+        _pendingProductIds.contains(ProductIds.commandAnnual);
     final VoidCallback? onBuy = anyProPending
         ? null
         : () => _purchaseSubscription(productId, '$title plan');
@@ -694,35 +687,36 @@ class _StoreScreenState extends State<StoreScreen>
   Widget _buildProStatus(PremiumState premiumState) {
     // Promo trials (welcome bonus / app-wide giveaway) get a gold TRIAL chip
     // + countdown + a convert CTA so the user knows this is a limited window.
-    // Paid Pro keeps the mint "verified" treatment.
+    // Paid subscribers keep the mint "verified" treatment.
     final isPromo = premiumState.isOnPromo;
     final expiry =
         isPromo ? premiumState.promoExpiresAt : premiumState.subscriptionExpiry;
     final expiryLabel = isPromo
         ? (expiry != null ? _formatPromoCountdown(expiry) : 'Free 3-day trial')
         : premiumState.renewalLabel;
-    final anyProPending = _pendingProductIds.contains(ProductIds.proMonthly) ||
-        _pendingProductIds.contains(ProductIds.proYearly);
+    final anyProPending = _pendingProductIds.contains(ProductIds.commandMonthly) ||
+        _pendingProductIds.contains(ProductIds.commandAnnual);
     return CsListRow(
       dividerTop: true,
       leading: CsIconDisc(
         isPromo ? Symbols.redeem_rounded : Symbols.verified_rounded,
         color: isPromo ? CsColors.gold : CsColors.mint,
       ),
-      title: isPromo ? "You're on a free Pro trial!" : "You're Pro!",
+      title: isPromo ? 'Strike Command trial active' : 'Strike Command active',
       titleTrailing: isPromo ? const CsChip('Trial', kind: CsChipKind.gold) : null,
       subtitle: expiryLabel,
       // Convert CTA — fires the monthly purchase, same path as the plan
       // card's Subscribe button.
       trailing: isPromo
           ? CsButton.premium(
-              label: 'Keep Pro — Subscribe',
+              label: 'Keep Command — Subscribe',
               size: CsButtonSize.small,
               icon: Symbols.workspace_premium_rounded,
-              loading: _pendingProductIds.contains(ProductIds.proMonthly),
+              loading: _pendingProductIds.contains(ProductIds.commandMonthly),
               onPressed: anyProPending
                   ? null
-                  : () => _purchaseSubscription(ProductIds.proMonthly, 'Pro Monthly'),
+                  : () => _purchaseSubscription(
+                      ProductIds.commandMonthly, 'Strike Command Monthly'),
             )
           : null,
     );
@@ -789,17 +783,20 @@ class _StoreScreenState extends State<StoreScreen>
 
   Widget _buildProFeatureGrid() {
     // Honest list — every line maps to an entitlement that's actually
-    // granted. 'No ads' is real: AdService is Pro-gated so Pro/trial users
-    // never see banners, interstitials, or rewarded offers.
-    const features = [
-      (Symbols.block_rounded, 'No ads — play completely ad-free'),
-      (Symbols.palette_rounded, 'All 6 premium themes'),
-      (Symbols.rocket_rounded, 'All 11 premium ship skins'),
-      (Symbols.auto_awesome_rounded, 'All 11 premium trail effects'),
-      (Symbols.paid_rounded, '2× coin earnings'),
-      (Symbols.bolt_rounded, '5× premium power-ups every cycle'),
-      (Symbols.emoji_events_rounded, 'Bronze + Silver + Gold tournament entries each cycle'),
-      (Symbols.workspace_premium_rounded, 'Battle Pass Premium track every season'),
+    // granted. 'No ads' is real: AdService is subscription-gated so
+    // subscribers / trial users never see banners, interstitials, or
+    // rewarded offers.
+    final features = [
+      (Symbols.block_rounded, 'No ads. Fly completely ad-free'),
+      (Symbols.public_rounded, 'All ${PremiumContent.premiumThemes.length} premium Sectors'),
+      (Symbols.rocket_rounded,
+          'All ${LiveryType.values.where((l) => l.isPremium).length} premium liveries'),
+      (Symbols.local_fire_department_rounded,
+          'All ${ExhaustType.values.where((e) => e.isPremium).length} premium exhausts'),
+      (Symbols.paid_rounded, '2× credit earnings'),
+      (Symbols.bolt_rounded, '5× Tactical Gear every cycle'),
+      (Symbols.confirmation_number_rounded, 'Scout, Strike and Ace Cup Passes each cycle'),
+      (Symbols.workspace_premium_rounded, 'Frontline Command lane every season'),
     ];
     return LayoutBuilder(
       builder: (context, c) {
@@ -922,14 +919,14 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   // ===========================================================================
-  // COINS TAB
+  // CREDITS TAB
   // ===========================================================================
 
-  Widget _buildCoinsTab(CoinsState coinsState) {
+  Widget _buildCreditsTab(CoinsState coinsState) {
     const options = CoinPurchaseOption.availableOptions;
     return _tabScroll([
-      _box(_tabHeader('Star Coins', subtitle: 'Buy a coin pack, or earn coins free below.')),
-      _box(_sectionLabel('Buy Star Coins', first: true)),
+      _box(_tabHeader('Credits', subtitle: 'Requisition a Credit Cache, or earn credits in the field.')),
+      _box(_sectionLabel('Credit Caches', first: true)),
       _tileGrid(
         count: options.length,
         minTile: 140,
@@ -938,13 +935,13 @@ class _StoreScreenState extends State<StoreScreen>
         maxColumnsTablet: 4,
         itemBuilder: (context, i) => _buildCoinPackTile(options[i]),
       ),
-      _box(_sectionLabel('Earn free coins')),
-      // Rewarded ad — self-hides for Pro / when no ad is available.
+      _box(_sectionLabel('Earn credits in the field')),
+      // Rewarded ad — self-hides for subscribers / when no ad is available.
       const SliverToBoxAdapter(child: _RewardedCoinsRow()),
-      _box(_buildEarnMethodRow('Play Games', '5 coins per game', Symbols.sports_esports_rounded)),
-      _box(_buildEarnMethodRow('Daily Login', '10-50 coins daily', Symbols.calendar_today_rounded)),
-      _box(_buildEarnMethodRow('Achievements', '25-100 coins', Symbols.emoji_events_rounded)),
-      _box(_buildEarnMethodRow('Tournaments', '100+ coins', Symbols.leaderboard_rounded)),
+      _box(_buildEarnMethodRow('Fly sorties', '5 CR per run', Symbols.rocket_launch_rounded)),
+      _box(_buildEarnMethodRow('Supply Drop', '10–50 CR daily', Symbols.calendar_today_rounded)),
+      _box(_buildEarnMethodRow('Commendations', '25–100 CR', Symbols.military_tech_rounded)),
+      _box(_buildEarnMethodRow('Sector Cups', '100+ CR', Symbols.leaderboard_rounded)),
     ]);
   }
 
@@ -955,7 +952,7 @@ class _StoreScreenState extends State<StoreScreen>
         ProductIds.withPrefix(option.id), option.price);
     final confirmed = await showCsConfirm(
       context,
-      eyebrow: 'Star Coins',
+      eyebrow: 'Credits',
       title: 'Buy ${option.name}',
       message: 'Purchase ${option.displayCoins} for $price?',
       confirmLabel: 'Buy · $price',
@@ -1055,27 +1052,19 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   // ===========================================================================
-  // THEMES TAB
+  // SECTORS TAB
   // ===========================================================================
 
-  Widget _buildThemesTab(GameTheme theme, PremiumState premiumState) {
-    // Premium themes — listed as products in the Play Store catalog.
-    const premiumThemes = [
-      GameTheme.crystal,
-      GameTheme.cyberpunk,
-      GameTheme.space,
-      GameTheme.ocean,
-      GameTheme.desert,
-      GameTheme.forest,
-    ];
-    // Free themes — included with every install. Surfaced here so the
-    // user has an obvious way to switch back to their previous theme
-    // after trying a premium one.
-    const freeThemes = [
-      GameTheme.classic,
-      GameTheme.modern,
-      GameTheme.neon,
-      GameTheme.retro,
+  Widget _buildSectorsTab(GameTheme theme, PremiumState premiumState) {
+    // Premium sectors — store products (also included with Strike Command).
+    final premiumSectors = PremiumContent.premiumThemes.toList();
+    // Free sectors — included with every install. Surfaced here so the
+    // player has an obvious way back after trying a premium one. High
+    // Contrast lives in Settings → Accessibility.
+    const freeSectors = [
+      GameTheme.prismNoir,
+      GameTheme.neonGrid,
+      GameTheme.monochrome,
     ];
 
     // Once a pending purchase reflects as owned, drop it from the pending
@@ -1084,22 +1073,23 @@ class _StoreScreenState extends State<StoreScreen>
 
     return _tabScroll([
       _box(_tabHeader(
-        'Themes',
-        subtitle: "Themes change the in-game look — they recolor your ship's trail, "
-            'shots and the battlefield glow.',
+        'Sectors',
+        subtitle: 'Sectors recolour the battlefield in flight: shots, thrust '
+            'and the sector glow. Menus stay Prism Noir.',
       )),
-      _box(_buildProIncludedRow(premiumState, 'theme')),
-      // Pro already includes every theme — don't sell Pro users the bundle.
-      if (!premiumState.hasPremium) _box(_buildThemesBundleTile(premiumState)),
-      _box(_sectionLabel('Premium themes')),
+      _box(_buildCommandIncludedRow(premiumState, 'sectors')),
+      // Strike Command already includes every sector — don't sell subscribers
+      // the bundle.
+      if (!premiumState.hasPremium) _box(_buildSectorAtlasTile(premiumState)),
+      _box(_sectionLabel('Premium sectors')),
       _tileGrid(
-        count: premiumThemes.length,
-        itemBuilder: (context, i) => _buildThemeTile(premiumThemes[i], theme, premiumState),
+        count: premiumSectors.length,
+        itemBuilder: (context, i) => _buildSectorTile(premiumSectors[i], theme, premiumState),
       ),
-      _box(_sectionLabel('Free themes', note: 'Always available — switch back any time.')),
+      _box(_sectionLabel('Free sectors', note: 'Always cleared. Switch back any time.')),
       _tileGrid(
-        count: freeThemes.length,
-        itemBuilder: (context, i) => _buildThemeTile(freeThemes[i], theme, premiumState),
+        count: freeSectors.length,
+        itemBuilder: (context, i) => _buildSectorTile(freeSectors[i], theme, premiumState),
       ),
     ]);
   }
@@ -1121,55 +1111,45 @@ class _StoreScreenState extends State<StoreScreen>
     });
   }
 
-  /// Resolve "is this productId now owned" across themes / skins / trails /
-  /// bundles so the pending spinner clears regardless of the cosmetic type.
+  /// Resolve "is this productId now owned" across sectors / liveries /
+  /// exhausts / kits so the pending spinner clears regardless of type.
   bool _isProductOwned(String productId, PremiumState premiumState) {
-    // Pro subscription SKUs — once PremiumCubit flips to hasPremium=true the
-    // Pro tab swaps to the "you are Pro" status, but we also clear pending
-    // so any leftover spinner state doesn't survive a tab switch.
-    if (productId == ProductIds.proMonthly ||
-        productId == ProductIds.proYearly) {
+    // Strike Command SKUs — once PremiumCubit flips to hasPremium=true the
+    // Command tab swaps to the status row, but we also clear pending so any
+    // leftover spinner state doesn't survive a tab switch.
+    if (productId == ProductIds.commandMonthly ||
+        productId == ProductIds.commandAnnual) {
       return premiumState.hasPremium;
     }
-    // Themes — including the all-themes bundle. Pro subscribers also have
-    // all premium themes implicitly.
-    if (productId == ProductIds.themesBundle) {
-      return premiumState.isBundleOwned('premium_themes_bundle');
+    final stripped = ProductIds.stripPrefix(productId);
+    // Star Atlas — owned once recorded, or once every sector is unlocked.
+    if (stripped == FleetKit.sectorAtlasId) {
+      return premiumState.isBundleOwned(FleetKit.sectorAtlasId) ||
+          PremiumContent.premiumThemes.every(premiumState.isThemeUnlocked);
     }
-    for (final t in GameTheme.values) {
-      if (_productIdForTheme(t) == productId) {
-        return premiumState.isThemeUnlocked(t);
-      }
+    final sector = GameTheme.fromId(stripped);
+    if (sector != null && sector.productId == stripped) {
+      return premiumState.isThemeUnlocked(sector);
     }
-    // Skins: store ID is `${prefix}skin_<id>`
-    final stripped = productId.startsWith(ProductIds.prefix)
-        ? productId.substring(ProductIds.prefix.length)
-        : productId;
-    if (stripped.startsWith('skin_')) {
-      return premiumState.isSkinOwned(stripped.substring('skin_'.length));
-    }
-    // Trails: store ID is `${prefix}trail_<id>` — kept with the prefix in
-    // PremiumState.ownedTrails per the existing convention.
-    if (stripped.startsWith('trail_')) {
-      return premiumState.isTrailOwned(stripped);
-    }
-    // Cosmetic bundles (starter_pack etc.) — owned set uses bare ID.
+    if (stripped.startsWith('livery_')) return premiumState.isSkinOwned(stripped);
+    if (stripped.startsWith('exhaust_')) return premiumState.isTrailOwned(stripped);
+    // Fleet Kits — owned set uses the bare kit ID.
     return premiumState.isBundleOwned(stripped);
   }
 
-  Widget _buildThemesBundleTile(PremiumState premiumState) {
+  Widget _buildSectorAtlasTile(PremiumState premiumState) {
     final cs = context.cs;
     final t = cs.type;
-    final bundleOwned = premiumState.isBundleOwned('premium_themes_bundle');
-    final isPending = _pendingProductIds.contains(ProductIds.themesBundle);
+    final bundleOwned = _isProductOwned(ProductIds.sectorAtlas, premiumState);
+    final isPending = _pendingProductIds.contains(ProductIds.sectorAtlas);
     final price = PurchaseService().getStorePriceOrDefault(
-      ProductIds.themesBundle,
-      7.99,
+      ProductIds.sectorAtlas,
+      6.99,
     );
-    void buy() => _purchaseThemeProduct(
-          ProductIds.themesBundle,
-          'All Themes Bundle',
-          fallbackPrice: 7.99,
+    void buy() => _purchaseSectorProduct(
+          ProductIds.sectorAtlas,
+          'Star Atlas',
+          fallbackPrice: 6.99,
         );
     final Widget action;
     if (isPending) {
@@ -1193,17 +1173,17 @@ class _StoreScreenState extends State<StoreScreen>
       padding: EdgeInsets.symmetric(horizontal: cs(14), vertical: cs(12)),
       child: Row(
         children: [
-          CsIconDisc(Symbols.redeem_rounded, size: 38, color: CsColors.gold),
+          CsIconDisc(Symbols.public_rounded, size: 38, color: CsColors.gold),
           SizedBox(width: cs(14)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('All Themes Bundle', maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
+                Text('Star Atlas', maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
                 SizedBox(height: cs(3)),
                 Text(
-                  _themesBundleSubtitle(),
+                  _sectorAtlasSubtitle().toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: t.mono(10, em: 0.06, color: CsColors.ink55),
@@ -1218,15 +1198,15 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
-  Future<void> _purchaseCosmeticBundle(CosmeticBundle bundle) async {
+  Future<void> _purchaseFleetKit(FleetKit kit) async {
     if (!await _ensurePurchasable() || !mounted) return;
-    final productId = ProductIds.withPrefix(bundle.id);
-    final price = PurchaseService().getStorePriceOrDefault(productId, bundle.bundlePrice);
+    final productId = ProductIds.withPrefix(kit.id);
+    final price = PurchaseService().getStorePriceOrDefault(productId, kit.kitPrice);
     final confirmed = await showCsConfirm(
       context,
-      eyebrow: 'Bundle',
-      title: bundle.name,
-      message: 'Unlock ${_bundleContents(bundle)} for $price?',
+      eyebrow: 'Fleet Kit',
+      title: kit.name,
+      message: 'Unlock ${_kitContents(kit)} for $price?',
       confirmLabel: 'Buy · $price',
     );
     if (!confirmed || !mounted) return;
@@ -1234,27 +1214,28 @@ class _StoreScreenState extends State<StoreScreen>
       await PurchaseService().purchaseProduct(productId);
       if (!mounted) return;
       _markPending(productId);
-      showCsToast(context, 'Verifying ${bundle.name} purchase…');
+      showCsToast(context, 'Verifying ${kit.name}…');
     } catch (e) {
       if (mounted) {
-        showCsToast(context, 'Bundle not available. Please try again later.', kind: CsToastKind.error);
+        showCsToast(context, 'Fleet Kit unavailable. Try again later.', kind: CsToastKind.error);
       }
     }
   }
 
-  String _bundleContents(CosmeticBundle bundle) {
-    String plural(int n, String word) => '$n $word${n == 1 ? '' : 's'}';
-    return '${plural(bundle.skins.length, 'skin')} + ${plural(bundle.trails.length, 'trail')}';
+  String _kitContents(FleetKit kit) {
+    String plural(int n, String one, String many) => '$n ${n == 1 ? one : many}';
+    return '${plural(kit.liveries.length, 'livery', 'liveries')} + '
+        '${plural(kit.exhausts.length, 'exhaust', 'exhausts')}';
   }
 
-  Widget _buildCosmeticBundleTile(CosmeticBundle bundle, PremiumState premiumState) {
+  Widget _buildFleetKitTile(FleetKit kit, PremiumState premiumState) {
     final cs = context.cs;
     final t = cs.type;
-    final productId = ProductIds.withPrefix(bundle.id);
-    final owned = premiumState.isBundleOwned(bundle.id);
+    final productId = ProductIds.withPrefix(kit.id);
+    final owned = premiumState.isBundleOwned(kit.id);
     final isPending = _pendingProductIds.contains(productId);
-    final price = PurchaseService().getStorePriceOrDefault(productId, bundle.bundlePrice);
-    void buy() => _purchaseCosmeticBundle(bundle);
+    final price = PurchaseService().getStorePriceOrDefault(productId, kit.kitPrice);
+    void buy() => _purchaseFleetKit(kit);
     final Widget action;
     if (isPending) {
       action = const CsButton.secondary(label: 'Verifying', size: CsButtonSize.small, loading: true);
@@ -1269,17 +1250,17 @@ class _StoreScreenState extends State<StoreScreen>
       padding: EdgeInsets.symmetric(horizontal: cs(14), vertical: cs(12)),
       child: Row(
         children: [
-          CsIconDisc(Symbols.redeem_rounded, size: 38, color: CsColors.gold),
+          CsIconDisc(Symbols.inventory_2_rounded, size: 38, color: CsColors.gold),
           SizedBox(width: cs(14)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(bundle.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
+                Text(kit.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
                 SizedBox(height: cs(3)),
                 Text(
-                  '${_bundleContents(bundle)} · ${bundle.description}'.toUpperCase(),
+                  '${_kitContents(kit)} · ${kit.description}'.toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: t.mono(10, em: 0.06, color: CsColors.ink55),
@@ -1294,88 +1275,60 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
-  Widget _buildThemeTile(
+  Widget _buildSectorTile(
     GameTheme target,
     GameTheme currentTheme,
     PremiumState premiumState,
   ) {
     final isOwned = premiumState.isThemeUnlocked(target);
     final isActive = currentTheme == target;
-    final productId = _productIdForTheme(target);
+    final productId = _productIdForSector(target);
     final isPending =
         productId != null && _pendingProductIds.contains(productId);
     final price = productId == null
         ? 'FREE'
         : PurchaseService().getStorePriceOrDefault(productId, 1.99);
     return _cosmeticTile(
-      preview: _ThemePreview(theme: target),
-      name: target.name,
-      description: _shortThemeDescription(target),
+      preview: _SectorPreview(theme: target),
+      name: target.displayName,
+      description: target.description,
       isEquipped: isActive,
       isOwned: isOwned,
       isPending: isPending,
-      showProBadge: !isOwned && productId != null,
+      showCommandBadge: !isOwned && productId != null,
       priceLabel: price,
-      equippedLabel: 'Active',
+      equippedLabel: 'Deployed',
       ownedLabel: productId == null ? 'Free' : 'Owned',
-      equipLabel: 'Apply',
-      onEquip: () => context.read<ThemeCubit>().setTheme(target),
+      equipLabel: 'Deploy',
+      onEquip: () {
+        context.read<ThemeCubit>().setTheme(target);
+        showCsToast(context, 'Sector set: ${target.displayName}.',
+            kind: CsToastKind.success, duration: const Duration(seconds: 1));
+      },
       onBuy: () {
-        if (productId != null) _purchaseThemeProduct(productId, target.name);
+        if (productId != null) _purchaseSectorProduct(productId, target.displayName);
       },
     );
   }
 
-  String _shortThemeDescription(GameTheme target) {
-    switch (target) {
-      case GameTheme.classic:
-        return 'The original look';
-      case GameTheme.modern:
-        return 'Clean and minimal';
-      case GameTheme.neon:
-        return 'Glowing neon nights';
-      case GameTheme.retro:
-        return '80s neon arcade';
-      case GameTheme.space:
-        return 'Cosmic starfield';
-      case GameTheme.ocean:
-        return 'Deep-sea blues';
-      case GameTheme.cyberpunk:
-        return 'Electric cyan & pink';
-      case GameTheme.forest:
-        return 'Vivid emerald jungle';
-      case GameTheme.desert:
-        return 'Canyon + cactus teal';
-      case GameTheme.crystal:
-        return 'Icy crystalline blue';
-      case GameTheme.accessible:
-        return 'High-contrast, color-blind friendly';
-    }
-  }
-
-  /// "Save N%" for yearly vs 12× monthly, from live store prices.
+  /// "Save N%" for annual vs 12× monthly, from live store prices.
   String? _yearlySavingsLabel() {
-    final pct = PurchaseService().yearlySavingsPercent(ProductIds.proMonthly, ProductIds.proYearly);
+    final pct = PurchaseService().yearlySavingsPercent(ProductIds.commandMonthly, ProductIds.commandAnnual);
     return pct == null ? null : 'Save $pct%';
   }
 
-  static const _premiumThemeIds = [
-    ProductIds.crystalTheme,
-    ProductIds.cyberpunkTheme,
-    ProductIds.spaceTheme,
-    ProductIds.oceanTheme,
-    ProductIds.desertTheme,
-    ProductIds.forestTheme,
+  static final List<String> _premiumSectorIds = [
+    for (final t in PremiumContent.premiumThemes) ProductIds.withPrefix(t.id),
   ];
 
-  /// Bundle subtitle; the saving is the bundle vs buying every premium theme
-  /// separately at live store prices (omitted until all prices load).
-  String _themesBundleSubtitle() {
+  /// Star Atlas subtitle; the saving is the bundle vs buying every premium
+  /// sector separately at live store prices (omitted until all prices load).
+  String _sectorAtlasSubtitle() {
     final purchases = PurchaseService();
-    final bundle = purchases.getStorePriceValue(ProductIds.themesBundle);
-    final singles = _premiumThemeIds.map(purchases.getStorePriceValue).toList();
-    final sameCurrency = _premiumThemeIds.every(
-      (id) => purchases.getStoreCurrency(id) == purchases.getStoreCurrency(ProductIds.themesBundle),
+    final bundle = purchases.getStorePriceValue(ProductIds.sectorAtlas);
+    final singles = _premiumSectorIds.map(purchases.getStorePriceValue).toList();
+    final sameCurrency = _premiumSectorIds.every(
+      (id) => purchases.getStoreCurrency(id) == purchases.getStoreCurrency(ProductIds.sectorAtlas),
     );
     final pct = (singles.contains(null) || !sameCurrency)
         ? null
@@ -1383,30 +1336,16 @@ class _StoreScreenState extends State<StoreScreen>
             full: singles.fold<double>(0, (a, b) => a + b!),
             actual: bundle,
           );
-    final base = 'All ${_premiumThemeIds.length} premium themes';
+    final base = 'All ${_premiumSectorIds.length} premium sectors';
     return pct == null ? base : '$base · save $pct%';
   }
 
-  String? _productIdForTheme(GameTheme target) {
-    switch (target) {
-      case GameTheme.crystal:
-        return ProductIds.crystalTheme;
-      case GameTheme.cyberpunk:
-        return ProductIds.cyberpunkTheme;
-      case GameTheme.space:
-        return ProductIds.spaceTheme;
-      case GameTheme.ocean:
-        return ProductIds.oceanTheme;
-      case GameTheme.desert:
-        return ProductIds.desertTheme;
-      case GameTheme.forest:
-        return ProductIds.forestTheme;
-      default:
-        return null;
-    }
+  String? _productIdForSector(GameTheme target) {
+    final id = target.productId;
+    return id == null ? null : ProductIds.withPrefix(id);
   }
 
-  Future<void> _purchaseThemeProduct(
+  Future<void> _purchaseSectorProduct(
     String productId,
     String displayName, {
     double fallbackPrice = 1.99,
@@ -1416,10 +1355,10 @@ class _StoreScreenState extends State<StoreScreen>
     final price = PurchaseService().getStorePriceOrDefault(productId, fallbackPrice);
     final confirmed = await showCsConfirm(
       context,
-      eyebrow: 'Theme',
+      eyebrow: 'Sector',
       title: displayName,
-      message: "Unlock $displayName for $price? Themes recolor your ship's trail, "
-          'shots and the battlefield glow in-game.',
+      message: 'Unlock $displayName for $price? Sectors recolour shots, thrust '
+          'and the battlefield glow in flight.',
       confirmLabel: 'Buy · $price',
     );
 
@@ -1429,12 +1368,12 @@ class _StoreScreenState extends State<StoreScreen>
       await PurchaseService().purchaseProduct(productId);
       if (!mounted) return;
       _markPending(productId);
-      showCsToast(context, 'Verifying $displayName purchase…');
+      showCsToast(context, 'Verifying $displayName…');
     } catch (e) {
       if (mounted) {
         showCsToast(
           context,
-          'Theme not available. Please try again later.',
+          'Sector unavailable. Try again later.',
           kind: CsToastKind.error,
         );
       }
@@ -1456,61 +1395,60 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   // ===========================================================================
-  // SKINS TAB
+  // LIVERIES TAB
   // ===========================================================================
 
-  Widget _buildSkinsTab(GameTheme theme, PremiumState premiumState) {
+  Widget _buildLiveriesTab(PremiumState premiumState) {
     _reconcilePendingPurchases(premiumState);
-    const skins = ShipSkinType.values;
+    const liveries = LiveryType.values;
     return _tabScroll([
-      _box(_tabHeader('Ship skins')),
-      _box(_buildProIncludedRow(premiumState, 'skin')),
-      // Skin + trail bundles. Pro already includes every cosmetic.
+      _box(_tabHeader(
+        'Liveries',
+        subtitle: 'Paint schemes for your hull. Each carries its own decal.',
+      )),
+      _box(_buildCommandIncludedRow(premiumState, 'liveries')),
+      // Fleet Kits. Strike Command already includes every cosmetic.
       if (!premiumState.hasPremium) ...[
-        _box(_sectionLabel('Bundles', first: true, note: 'Skins and trails together, for less.')),
-        for (final bundle in CosmeticBundle.availableBundles)
+        _box(_sectionLabel('Fleet Kits', first: true, note: 'Liveries and exhausts together, for less.')),
+        for (final kit in FleetKit.availableKits)
           _box(Padding(
             padding: EdgeInsets.only(bottom: context.cs(8)),
-            child: _buildCosmeticBundleTile(bundle, premiumState),
+            child: _buildFleetKitTile(kit, premiumState),
           )),
-        _box(_sectionLabel('Ship skins')),
+        _box(_sectionLabel('Liveries')),
       ],
       _tileGrid(
-        count: skins.length,
+        count: liveries.length,
         itemBuilder: (context, index) {
-          final skin = skins[index];
-          // Pro subscription unlocks all premium skins (mirrors theme bundling).
-          final isUnlocked = premiumState.isSkinUnlocked(skin);
-          final isSelected = premiumState.selectedSkinId == skin.id;
-          final productId = ProductIds.skinStoreId(skin.id);
-          // Each tile shows the real hull tinted the way the skin renders
-          // in-game.
-          // Classic's model colour is a leftover green; wash it in Prism cyan.
-          final palette = skin == ShipSkinType.classic
-              ? const [CosmoPalette.cyan, CosmoPalette.violet]
-              : skin.colors.isNotEmpty
-              ? skin.colors
-              : [theme.shipColor, theme.shipColor.withValues(alpha: 0.6)];
+          final livery = liveries[index];
+          // Strike Command unlocks every premium livery (mirrors sectors).
+          final isUnlocked = premiumState.isLiveryUnlocked(livery);
+          final isSelected = premiumState.selectedSkinId == livery.id;
+          final productId = ProductIds.withPrefix(livery.id);
           return _cosmeticTile(
-            preview: _palettePreview(palette, null, child: _SkinShipPreview(skin: skin)),
-            name: skin.displayName,
-            description: skin.description,
+            // Each tile shows the real hull painted the way the livery
+            // renders in flight: tint + decal.
+            preview: _palettePreview(livery.colors, null, child: _LiveryShipPreview(livery: livery)),
+            name: livery.displayName,
+            description: livery.description,
             isEquipped: isSelected,
             isOwned: isUnlocked,
             isPending: _pendingProductIds.contains(productId),
-            showProBadge: !isUnlocked && skin.isPremium,
-            priceLabel: skin.isPremium
-                ? PurchaseService().getStorePriceOrDefault(productId, skin.price)
+            showCommandBadge: !isUnlocked && livery.isPremium,
+            priceLabel: livery.isPremium
+                ? PurchaseService().getStorePriceOrDefault(productId, livery.price)
                 : 'FREE',
+            equipLabel: 'Apply',
+            equippedLabel: 'Applied',
             onEquip: () {
-              context.read<PremiumCubit>().selectSkin(skin.id);
-              showCsToast(context, '${skin.displayName} equipped',
+              context.read<PremiumCubit>().selectSkin(livery.id);
+              showCsToast(context, 'Livery applied: ${livery.displayName}.',
                   kind: CsToastKind.success, duration: const Duration(seconds: 1));
             },
             onBuy: () => _purchaseCosmetic(
               productId: productId,
-              displayName: skin.displayName,
-              fallbackPrice: skin.price,
+              displayName: livery.displayName,
+              fallbackPrice: livery.price,
             ),
           );
         },
@@ -1519,52 +1457,55 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   // ===========================================================================
-  // TRAILS TAB
+  // EXHAUSTS TAB
   // ===========================================================================
 
-  Widget _buildTrailsTab(GameTheme theme, PremiumState premiumState) {
+  Widget _buildExhaustsTab(GameTheme theme, PremiumState premiumState) {
     _reconcilePendingPurchases(premiumState);
-    const trails = TrailEffectType.values;
+    const exhausts = ExhaustType.values;
     return _tabScroll([
-      _box(_tabHeader('Trails')),
-      _box(_buildProIncludedRow(premiumState, 'trail')),
+      _box(_tabHeader(
+        'Exhausts',
+        subtitle: 'Engine effects behind your hull. Shown while engine '
+            'effects are on in Settings.',
+      )),
+      _box(_buildCommandIncludedRow(premiumState, 'exhausts')),
       _tileGrid(
-        count: trails.length,
+        count: exhausts.length,
         itemBuilder: (context, index) {
-          final trail = trails[index];
-          // Pro subscription unlocks all premium trails (mirrors theme bundling).
-          final isUnlocked = premiumState.isTrailUnlocked(trail);
-          final isSelected = premiumState.selectedTrailId == trail.id;
-          final productId = ProductIds.withPrefix(trail.id);
-          // Painted preview with the trail's own colors + a type-specific
-          // signature (sparkles, lightning, flames…). "No Trail" falls back
-          // to the current theme's accent.
-          final palette = trail.colors.isNotEmpty
-              ? trail.colors
+          final exhaust = exhausts[index];
+          final isUnlocked = premiumState.isExhaustUnlocked(exhaust);
+          final isSelected = premiumState.selectedTrailId == exhaust.id;
+          final productId = ProductIds.withPrefix(exhaust.id);
+          // Stock falls back to the current sector's accent wash.
+          final palette = exhaust.colors.isNotEmpty
+              ? exhaust.colors
               : [
                   theme.accentColor.withValues(alpha: 0.35),
                   theme.backgroundColor.withValues(alpha: 0.6),
                 ];
           return _cosmeticTile(
-            preview: _palettePreview(palette, null, child: _TrailShipPreview(trail: trail)),
-            name: trail.displayName,
-            description: trail.description,
+            preview: _palettePreview(palette, null, child: _ExhaustShipPreview(exhaust: exhaust)),
+            name: exhaust.displayName,
+            description: exhaust.description,
             isEquipped: isSelected,
             isOwned: isUnlocked,
             isPending: _pendingProductIds.contains(productId),
-            showProBadge: !isUnlocked && trail.isPremium,
-            priceLabel: trail.isPremium
-                ? PurchaseService().getStorePriceOrDefault(productId, trail.price)
+            showCommandBadge: !isUnlocked && exhaust.isPremium,
+            priceLabel: exhaust.isPremium
+                ? PurchaseService().getStorePriceOrDefault(productId, exhaust.price)
                 : 'FREE',
+            equipLabel: 'Fit',
+            equippedLabel: 'Fitted',
             onEquip: () {
-              context.read<PremiumCubit>().selectTrail(trail.id);
-              showCsToast(context, '${trail.displayName} equipped',
+              context.read<PremiumCubit>().selectTrail(exhaust.id);
+              showCsToast(context, 'Exhaust fitted: ${exhaust.displayName}.',
                   kind: CsToastKind.success, duration: const Duration(seconds: 1));
             },
             onBuy: () => _purchaseCosmetic(
               productId: productId,
-              displayName: trail.displayName,
-              fallbackPrice: trail.price,
+              displayName: exhaust.displayName,
+              fallbackPrice: exhaust.price,
             ),
           );
         },
@@ -1583,7 +1524,7 @@ class _StoreScreenState extends State<StoreScreen>
         PurchaseService().getStorePriceOrDefault(productId, fallbackPrice);
     final confirmed = await showCsConfirm(
       context,
-      eyebrow: 'Unlock',
+      eyebrow: 'Armory',
       title: displayName,
       message: 'Unlock $displayName for $price?',
       confirmLabel: 'Buy · $price',
@@ -1595,12 +1536,12 @@ class _StoreScreenState extends State<StoreScreen>
       await PurchaseService().purchaseProduct(productId);
       if (!mounted) return;
       _markPending(productId);
-      showCsToast(context, 'Verifying $displayName purchase…');
+      showCsToast(context, 'Verifying $displayName…');
     } catch (e) {
       if (mounted) {
         showCsToast(
           context,
-          'Item not available. Please try again later.',
+          'Item unavailable. Try again later.',
           kind: CsToastKind.error,
         );
       }
@@ -1608,18 +1549,20 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   // ===========================================================================
-  // POWER-UPS TAB
+  // GEAR TAB (Tactical Gear)
   // ===========================================================================
-  // Power-ups have a real coin-purchased inventory. The types here match the
-  // inventory keys used by the gameplay engine, so each purchase produces a
-  // usable stockpile entry armed from the home loadout chip.
+  // Gear has a real credit-purchased inventory. The keys match the inventory
+  // keys the gameplay engine consumes (ArmedLoadout.apply), so each purchase
+  // produces a usable stockpile entry armed from the home loadout chip.
 
-  /// Rewarded-ad row granting one free Speed Boost. Self-hides for Pro /
-  /// web / when the SDK isn't ready; disables when no ad is loaded.
-  Widget _buildFreePowerUpAdRow() {
+  /// Rewarded-ad row granting one free Afterburner. Self-hides for
+  /// subscribers / web / when the SDK isn't ready; disables when no ad is
+  /// loaded.
+  Widget _buildFreeGearAdRow() {
     final ads = getIt.isRegistered<AdService>() ? getIt<AdService>() : null;
     if (ads == null || !ads.adsEnabled) return const SizedBox.shrink();
     final ready = ads.isRewardedReady;
+    final name = PremiumPowerUpType.speedBoost.displayName;
     void watch() {
       final powerUps = context.read<PowerUpCubit>();
       // Capped like the identical home placement (3/day).
@@ -1629,7 +1572,7 @@ class _StoreScreenState extends State<StoreScreen>
           powerUps.grantFreePowerUp();
           RewardToast.show(
             icon: Symbols.bolt_rounded,
-            amount: '+1 SPEED BOOST',
+            amount: '+1 ${name.toUpperCase()}',
           );
         },
       );
@@ -1638,8 +1581,8 @@ class _StoreScreenState extends State<StoreScreen>
     return CsListRow(
       onTap: ready ? watch : null,
       leading: CsIconDisc(Symbols.play_circle_rounded, size: 34, color: CsColors.gold),
-      title: 'Watch an ad — free Speed Boost',
-      subtitle: ready ? 'Adds 1 Speed Boost to your loadout' : 'No ad available right now',
+      title: 'Watch an ad: free $name',
+      subtitle: ready ? 'Adds 1 $name to your loadout' : 'No ad available right now',
       trailing: CsButton.premium(
         label: 'Watch',
         size: CsButtonSize.small,
@@ -1648,83 +1591,32 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
-  Widget _buildPowerUpsTab(CoinsState coinsState) {
-    // Power-up keys are snake_case and map 1:1 to ArmedLoadout.apply in
-    // the Flame game (lib/game/run_effects.dart) — descriptions promise
-    // exactly what that switch does, nothing more.
-    // Coin costs MUST match PurchasePowerUpWithCoinsCommandHandler.AllowedCosts
-    // on the backend — server rejects request.CoinCost mismatches outright.
-    const powerUps = [
-      _PowerUpCatalogItem(
-        type: 'speed_boost',
-        name: 'Speed Boost',
-        description: 'Faster flying and firing for the first 15 seconds.',
-        coinCost: 500,
-      ),
-      _PowerUpCatalogItem(
-        type: 'invincibility',
-        name: 'Invincibility',
-        description: 'Launch with a shield plus 8s of invulnerability.',
-        coinCost: 1000,
-      ),
-      _PowerUpCatalogItem(
-        type: 'score_multiplier',
-        name: 'Score Multiplier',
-        description: 'Double points for the first 30 seconds.',
-        coinCost: 750,
-      ),
-      _PowerUpCatalogItem(
-        type: 'slow_motion',
-        name: 'Slow Motion',
-        description: 'Enemies and bullets crawl for 10 seconds.',
-        coinCost: 500,
-      ),
-      _PowerUpCatalogItem(
-        type: 'teleport',
-        name: 'Warp Escape',
-        description: 'One charge: the first hit warps you home unharmed.',
-        coinCost: 1200,
-      ),
-      _PowerUpCatalogItem(
-        type: 'ghost_mode',
-        name: 'Ghost Mode',
-        description: 'Phase through enemies and bullets for 12 seconds.',
-        coinCost: 1500,
-      ),
-      _PowerUpCatalogItem(
-        type: 'magnetic_pickup',
-        name: 'Orb Magnet',
-        description: 'Power-up orbs home toward you for 60 seconds.',
-        coinCost: 1250,
-      ),
-      _PowerUpCatalogItem(
-        type: 'score_shield',
-        name: 'Last Stand',
-        description: 'One charge: a lethal hit restores half health instead.',
-        coinCost: 1500,
-      ),
-    ];
+  Widget _buildGearTab(CoinsState coinsState) {
+    // Descriptions promise exactly what ArmedLoadout.apply does, nothing
+    // more. Credit costs (PremiumPowerUpType.creditCost) MUST match
+    // PurchasePowerUpWithCoinsCommandHandler.AllowedCosts on the backend.
+    const gear = PremiumPowerUpType.values;
     const bundles = PowerUpBundle.availableBundles;
 
     return BlocBuilder<PowerUpCubit, PowerUpState>(
       builder: (context, powerUpState) {
         return _tabScroll([
           _box(_tabHeader(
-            'Power-ups',
-            subtitle: 'Buy with coins, then arm one from the home screen '
-                'loadout chip — it activates 5s into your next game.',
+            'Tactical Gear',
+            subtitle: 'Buy with credits, then arm one from the home loadout '
+                'chip. It activates 5s into your next run.',
           )),
-          // Rewarded ad — free Speed Boost. Self-hides for Pro / no ad.
-          _box(_buildFreePowerUpAdRow()),
-          _box(_sectionLabel('Power-ups')),
+          // Rewarded ad — free Afterburner. Self-hides for subscribers / no ad.
+          _box(_buildFreeGearAdRow()),
+          _box(_sectionLabel('Gear')),
           _tileGrid(
-            count: powerUps.length,
+            count: gear.length,
             extent: 214,
-            itemBuilder: (context, i) => _buildPowerUpTile(powerUps[i], powerUpState),
+            itemBuilder: (context, i) => _buildGearTile(gear[i], powerUpState),
           ),
           _box(_sectionLabel(
-            'Power-up bundles',
-            note: 'Unlock multiple power-up types at a discount.',
+            'Gear bundles',
+            note: 'Stock several systems at once, for fewer credits.',
           )),
           _tileGrid(
             count: bundles.length,
@@ -1732,7 +1624,7 @@ class _StoreScreenState extends State<StoreScreen>
             extent: 200,
             maxColumns: 3,
             minColumns: 1,
-            itemBuilder: (context, i) => _buildPowerUpBundleTile(bundles[i], coinsState),
+            itemBuilder: (context, i) => _buildGearBundleTile(bundles[i], coinsState),
           ),
         ]);
       },
@@ -1740,53 +1632,56 @@ class _StoreScreenState extends State<StoreScreen>
   }
 
   // ===========================================================================
-  // ENTRIES TAB
+  // CUP PASSES TAB
   // ===========================================================================
 
-  Widget _buildEntriesTab() {
+  Widget _buildCupPassesTab() {
     return _tabScroll([
       _box(_tabHeader(
-        'Tournament entries',
-        subtitle: 'Tickets to join the tournaments in Events. Each tournament '
-            'takes one ticket of its tier. Pro includes free entries.',
+        'Cup Passes',
+        subtitle: 'Entry passes for Sector Cups. Each Cup takes one pass of '
+            'its tier. Strike Command includes free passes.',
       )),
-      _box(_sectionLabel('Buy entries', first: true)),
+      _box(_sectionLabel('Requisition passes', first: true)),
       _tileGrid(
-        count: _visibleTournamentEntries.length,
+        count: _visibleCupPasses.length,
         minTile: 150,
         extent: 214,
         maxColumns: 5,
         maxColumnsTablet: 5,
-        itemBuilder: (context, i) => _buildTournamentEntryTile(_visibleTournamentEntries[i]),
+        itemBuilder: (context, i) => _buildCupPassTile(_visibleCupPasses[i]),
       ),
     ]);
   }
 
   /// Bundle offers are shown only once the store actually returns their
-  /// product: Championship and VIP weren't approved with the first App Store
-  /// release, and App Review rejects apps that show unsubmitted purchases.
-  /// See CLAUDE.md "Pending App Store items".
-  List<_TournamentEntryOffer> get _visibleTournamentEntries => [
-        for (final o in _tournamentEntries)
+  /// product: App Review rejects apps that show unsubmitted purchases, and
+  /// the multi-pass bundles may be approved after the build. See CLAUDE.md
+  /// "Pending App Store items".
+  List<_CupPassOffer> get _visibleCupPasses => [
+        for (final o in _cupPasses)
           if (!o.requiresStoreProduct || PurchaseService().getProduct(o.productId) != null) o,
       ];
 
-  static const _tournamentEntries = [
-    _TournamentEntryOffer(ProductIds.tournamentBronze, 'Bronze Entry', '1 bronze ticket', 0.99, CsColors.ink70),
-    _TournamentEntryOffer(ProductIds.tournamentSilver, 'Silver Entry', '1 silver ticket', 1.99, CsColors.ink),
-    _TournamentEntryOffer(ProductIds.tournamentGold, 'Gold Entry', '1 gold ticket', 4.99, CsColors.gold),
-    _TournamentEntryOffer(ProductIds.championshipEntry, 'Championship', '3 gold tickets', 9.99, CsColors.gold,
+  /// Wire tier → pass name (bronze/silver/gold keep their wire names).
+  static const _tierNames = {'bronze': 'Scout', 'silver': 'Strike', 'gold': 'Ace'};
+
+  static const _cupPasses = [
+    _CupPassOffer(ProductIds.cupScout, 'Scout Cup Pass', '1 Scout pass', 0.99, CsColors.ink70, ['bronze']),
+    _CupPassOffer(ProductIds.cupStrike, 'Strike Cup Pass', '1 Strike pass', 1.99, CsColors.ink, ['silver']),
+    _CupPassOffer(ProductIds.cupAce, 'Ace Cup Pass', '1 Ace pass', 4.99, CsColors.gold, ['gold']),
+    _CupPassOffer(ProductIds.cupAceTrio, 'Ace Trio', '3 Ace passes', 9.99, CsColors.gold, ['gold'],
         requiresStoreProduct: true),
-    _TournamentEntryOffer(ProductIds.tournamentVipEntry, 'VIP Pack', '5 gold + 5 silver', 19.99, CsColors.violet,
-        requiresStoreProduct: true),
+    _CupPassOffer(ProductIds.cupSquadron, 'Squadron Bundle', '5 Ace + 5 Strike', 19.99, CsColors.violet,
+        ['gold', 'silver'], requiresStoreProduct: true),
   ];
 
-  Future<void> _purchaseTournamentEntry(_TournamentEntryOffer offer) async {
+  Future<void> _purchaseCupPass(_CupPassOffer offer) async {
     if (!await _ensurePurchasable() || !mounted) return;
     final price = PurchaseService().getStorePriceOrDefault(offer.productId, offer.fallbackPrice);
     final confirmed = await showCsConfirm(
       context,
-      eyebrow: 'Tournament entries',
+      eyebrow: 'Cup Passes',
       title: 'Buy ${offer.name}',
       message: 'Get ${offer.grants} for $price?',
       confirmLabel: 'Buy · $price',
@@ -1797,22 +1692,22 @@ class _StoreScreenState extends State<StoreScreen>
       _markPending(offer.productId);
     } catch (e) {
       if (mounted) {
-        showCsToast(context, 'Product not available. Please try again later.', kind: CsToastKind.error);
+        showCsToast(context, 'Pass unavailable. Try again later.', kind: CsToastKind.error);
       }
     }
   }
 
-  Widget _buildTournamentEntryTile(_TournamentEntryOffer offer) {
+  Widget _buildCupPassTile(_CupPassOffer offer) {
     final cs = context.cs;
     final t = cs.type;
     final premium = context.watch<PremiumCubit>().state;
     final price = PurchaseService().getStorePriceOrDefault(offer.productId, offer.fallbackPrice);
-    final owned = ['bronze', 'silver', 'gold']
+    final owned = offer.tiers
         .map((tier) => (tier, premium.getTournamentEntryCount(tier)))
-        .where((e) => e.$2 > 0 && offer.grants.contains(e.$1))
-        .map((e) => '${e.$2} ${e.$1}')
+        .where((e) => e.$2 > 0)
+        .map((e) => '${e.$2} ${_tierNames[e.$1]}')
         .join(' · ');
-    void onTap() => _purchaseTournamentEntry(offer);
+    void onTap() => _purchaseCupPass(offer);
     return CsTile(
       state: CsTileState.future,
       onTap: onTap,
@@ -1832,7 +1727,7 @@ class _StoreScreenState extends State<StoreScreen>
           Text(offer.grants.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.mono(10, em: 0.04, color: CsColors.ink45)),
           SizedBox(height: cs(2)),
           Text(
-            owned.isEmpty ? 'NONE OWNED' : 'OWNED: ${owned.toUpperCase()}',
+            owned.isEmpty ? 'NONE HELD' : 'HELD: ${owned.toUpperCase()}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: t.mono(9, em: 0.06, color: owned.isEmpty ? CsColors.ink30 : CsColors.mint),
@@ -1850,82 +1745,80 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
-  Widget _buildPowerUpTile(_PowerUpCatalogItem item, PowerUpState powerUpState) {
+  Widget _buildGearTile(PremiumPowerUpType item, PowerUpState powerUpState) {
     final cs = context.cs;
-    final owned = powerUpState.countFor(item.type);
-    void buy() => _purchasePowerUpWithCoins(item);
+    final owned = powerUpState.countFor(item.inventoryKey);
+    void buy() => _purchaseGearWithCredits(item);
     return _ItemTile(
       state: owned > 0 ? CsTileState.done : CsTileState.future,
       onTap: buy,
       preview: ColoredBox(
         color: CsColors.raised,
         child: Center(
-          child: Icon(CsIcons.powerUp(item.type), size: cs(34), color: CsColors.ink),
+          child: Icon(item.icon, size: cs(34), color: CsColors.ink),
         ),
       ),
       badge: owned > 0 ? CsChip('×$owned', kind: CsChipKind.mint) : null,
-      name: item.name,
+      name: item.displayName,
       description: item.description,
       footer: _footerRow(
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
-          child: CsCoins(item.coinCost),
+          child: CsCoins(item.creditCost),
         ),
         CsButton.secondary(label: 'Buy', size: CsButtonSize.small, onPressed: buy),
       ),
     );
   }
 
-  Future<void> _purchasePowerUpWithCoins(_PowerUpCatalogItem item) async {
+  Future<void> _purchaseGearWithCredits(PremiumPowerUpType item) async {
     if (!await _ensurePurchasable()) return;
     if (!mounted) return;
     final coinsCubit = context.read<CoinsCubit>();
     final powerUpCubit = context.read<PowerUpCubit>();
-    final coinsBalance = coinsCubit.state.balance.total;
-    if (coinsBalance < item.coinCost) {
-      showCsToast(context, 'Insufficient coins!', kind: CsToastKind.error);
+    final balance = coinsCubit.state.balance.total;
+    if (balance < item.creditCost) {
+      showCsToast(context, 'Insufficient credits.', kind: CsToastKind.error);
       return;
     }
 
     final confirmed = await showCsConfirm(
       context,
-      eyebrow: 'Power-up',
-      title: item.name,
-      message: 'Buy 1 ${item.name} for ${item.coinCost} coins?',
-      confirmLabel: 'Buy · ${item.coinCost} coins',
+      eyebrow: 'Tactical Gear',
+      title: item.displayName,
+      message: 'Buy 1 ${item.displayName} for ${item.creditCost} CR?',
+      confirmLabel: 'Buy · ${item.creditCost} CR',
     );
     if (!confirmed || !mounted) return;
 
     final newBalance =
-        await powerUpCubit.purchaseWithCoins(item.type, item.coinCost);
+        await powerUpCubit.purchaseWithCoins(item.inventoryKey, item.creditCost);
     if (!mounted) return;
     if (newBalance == null) {
-      showCsToast(context, 'Purchase failed. Try again.', kind: CsToastKind.error);
+      showCsToast(context, 'Requisition failed. Try again.', kind: CsToastKind.error);
       return;
     }
-    // Reflect the server-authoritative coin balance locally so the
-    // CoinsCubit and any other UI stays in sync without an extra round-trip.
+    // Reflect the server-authoritative balance locally so the CoinsCubit and
+    // any other UI stays in sync without an extra round-trip.
     await coinsCubit.setServerBalance(newBalance);
     if (!mounted) return;
     showCsToast(
       context,
-      '${item.name} added to your loadout!',
+      '${item.displayName} added to your loadout.',
       kind: CsToastKind.success,
       duration: const Duration(seconds: 2),
     );
   }
 
-  Widget _buildPowerUpBundleTile(PowerUpBundle bundle, CoinsState coinsState) {
+  Widget _buildGearBundleTile(PowerUpBundle bundle, CoinsState coinsState) {
     final cs = context.cs;
     final t = cs.type;
     // Bundles are CONSUMABLE count packs — repeat-purchasable by design
     // (no "owned" latch; every buy adds the counts to the inventory).
     final canAfford = coinsState.balance.total >= bundle.bundlePrice;
-    void buy() => _purchaseCoinBundle(bundle, canAfford);
-    final leadKey = bundle.powerUps.keys.isEmpty
-        ? ''
-        : bundle.powerUps.keys.first.inventoryKey;
+    void buy() => _purchaseGearBundle(bundle, canAfford);
+    final lead = bundle.powerUps.keys.isEmpty ? null : bundle.powerUps.keys.first;
     return CsTile(
       state: CsTileState.future,
       onTap: buy,
@@ -1935,7 +1828,7 @@ class _StoreScreenState extends State<StoreScreen>
         children: [
           Row(
             children: [
-              CsIconDisc(CsIcons.powerUp(leadKey), size: 34, color: CsColors.gold),
+              CsIconDisc(lead?.icon ?? Symbols.bolt_rounded, size: 34, color: CsColors.gold),
               SizedBox(width: cs(12)),
               Expanded(
                 child: Column(
@@ -1965,7 +1858,7 @@ class _StoreScreenState extends State<StoreScreen>
                   for (final entry in bundle.powerUps.entries)
                     CsChip(
                       '${entry.key.displayName} ×${entry.value}',
-                      icon: CsIcons.powerUp(entry.key.inventoryKey),
+                      icon: entry.key.icon,
                     ),
                 ],
               ),
@@ -1994,7 +1887,7 @@ class _StoreScreenState extends State<StoreScreen>
               ),
             ),
             CsButton.secondary(
-              label: canAfford ? 'Buy' : 'Need coins',
+              label: canAfford ? 'Buy' : 'Need credits',
               size: CsButtonSize.small,
               onPressed: buy,
             ),
@@ -2004,24 +1897,24 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
-  Future<void> _purchaseCoinBundle(PowerUpBundle bundle, bool canAfford) async {
+  Future<void> _purchaseGearBundle(PowerUpBundle bundle, bool canAfford) async {
     if (!await _ensurePurchasable()) return;
     if (!mounted) return;
     if (!canAfford) {
-      showCsToast(context, 'Insufficient coins!', kind: CsToastKind.error);
+      showCsToast(context, 'Insufficient credits.', kind: CsToastKind.error);
       return;
     }
-    // Local-first purchase: PowerUpCubit spends coins via CoinsCubit
+    // Local-first purchase: PowerUpCubit spends credits via CoinsCubit
     // (Drift write + sync outbox) and adds the bundle's counts to the
     // device inventory. Bundles are consumables — no ownership latch.
     final powerUpCubit = context.read<PowerUpCubit>();
     final newBalance = await powerUpCubit.purchaseBundleWithCoins(bundle.id);
     if (!mounted) return;
     if (newBalance == null) {
-      showCsToast(context, 'Purchase failed. Try again.', kind: CsToastKind.error);
+      showCsToast(context, 'Requisition failed. Try again.', kind: CsToastKind.error);
       return;
     }
-    showCsToast(context, '${bundle.name} added to your armory!', kind: CsToastKind.success);
+    showCsToast(context, '${bundle.name} stowed in your loadout.', kind: CsToastKind.success);
   }
 }
 
@@ -2107,10 +2000,10 @@ class _ItemTile extends StatelessWidget {
   }
 }
 
-/// "Watch an ad for coins" row. Self-hides for Pro users / when ads are
+/// "Watch an ad for credits" row. Self-hides for subscribers / when ads are
 /// unavailable, and disables itself once the daily cap is hit or no ad is
-/// loaded. Credits coins offline-first via [CoinsCubit.earnCoins] — the same
-/// calls as the old shared rewarded-coins card, restyled for the store list.
+/// loaded. Credits offline-first via [CoinsCubit.earnCoins] — the same
+/// calls as the old shared rewarded card, restyled for the Armory list.
 class _RewardedCoinsRow extends StatefulWidget {
   const _RewardedCoinsRow();
 
@@ -2140,7 +2033,7 @@ class _RewardedCoinsRowState extends State<_RewardedCoinsRow> {
           itemName: 'Watched ad',
           metadata: const {'placement': 'store_free_coins'},
         );
-        RewardToast.show(amount: '+$amount COINS');
+        RewardToast.show(amount: '+$amount CR');
       },
     );
     if (mounted) setState(() {}); // refresh "N left today"
@@ -2155,7 +2048,7 @@ class _RewardedCoinsRowState extends State<_RewardedCoinsRow> {
     return CsListRow(
       onTap: enabled ? _watch : null,
       leading: const CsIconDisc(Symbols.play_circle_rounded, size: 34, color: CsColors.gold),
-      title: 'Watch an ad — +${AdService.freeCoinsPerAd} coins',
+      title: 'Watch an ad: +${AdService.freeCoinsPerAd} CR',
       subtitle: enabled
           ? '$remaining left today'
           : (remaining == 0 ? 'Come back tomorrow for more' : 'No ad available right now'),
@@ -2214,26 +2107,13 @@ class _PrismGlowPainter extends CustomPainter {
   bool shouldRepaint(_PrismGlowPainter old) => old.s != s;
 }
 
-class _PowerUpCatalogItem {
-  final String type;
-  final String name;
-  final String description;
-  final int coinCost;
-  const _PowerUpCatalogItem({
-    required this.type,
-    required this.name,
-    required this.description,
-    required this.coinCost,
-  });
-}
-
 // =============================================================================
 // Helpers
 // =============================================================================
 
-class _ThemePreview extends StatelessWidget {
+class _SectorPreview extends StatelessWidget {
   final GameTheme theme;
-  const _ThemePreview({required this.theme});
+  const _SectorPreview({required this.theme});
 
   @override
   Widget build(BuildContext context) {
@@ -2251,7 +2131,7 @@ class _ThemePreview extends StatelessWidget {
       child: Stack(
         children: [
           Positioned.fill(
-            child: CustomPaint(painter: _ThemeScenePainter(theme: theme)),
+            child: CustomPaint(painter: _SectorScenePainter(theme: theme)),
           ),
           Align(
             alignment: const Alignment(-0.55, 0),
@@ -2266,16 +2146,15 @@ class _ThemePreview extends StatelessWidget {
   }
 }
 
-/// Theme card scene: what a run looks like in this theme — the hull, a
-/// burst of shots and the battlefield glow in the theme's accent (ship
-/// colour) and secondary (food colour), the same pair CosmoPalette
-/// .applyGameTheme feeds the game. Classic is Prism Noir's cyan / pink.
-class _ThemeScenePainter extends CustomPainter {
+/// Sector card scene: what a run looks like in this sector — the hull, a
+/// burst of shots and the battlefield glow in the sector's primary and
+/// secondary, the same pair CosmoPalette.applyGameTheme feeds the game.
+class _SectorScenePainter extends CustomPainter {
   final GameTheme theme;
-  _ThemeScenePainter({required this.theme});
+  _SectorScenePainter({required this.theme});
 
-  Color get _accent => theme == GameTheme.classic ? CosmoPalette.cyan : theme.shipColor;
-  Color get _secondary => theme == GameTheme.classic ? CosmoPalette.pink : theme.foodColor;
+  Color get _accent => theme.shipColor;
+  Color get _secondary => theme.secondaryColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2313,7 +2192,7 @@ class _ThemeScenePainter extends CustomPainter {
       canvas.drawLine(a, b, glow);
       canvas.drawLine(a, b, shot);
     }
-    // A couple of enemy rounds in the secondary colour.
+    // A couple of hostile rounds in the secondary colour.
     final ring = Paint()
       ..color = _secondary
       ..style = PaintingStyle.stroke
@@ -2323,20 +2202,19 @@ class _ThemeScenePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _ThemeScenePainter old) => old.theme != theme;
+  bool shouldRepaint(covariant _SectorScenePainter old) => old.theme != theme;
 }
 
-/// Trail card: the hull with the trail's particle stream behind it — soft
-/// halo + bright core per particle in the trail's palette, like the
-/// in-game ShipTrail. "No trail" shows the bare hull.
-class _TrailShipPreview extends StatelessWidget {
-  const _TrailShipPreview({required this.trail});
-  final TrailEffectType trail;
+/// Exhaust card: the hull with a static rendering of the exhaust's look
+/// (mirrors the in-game ShipExhaust styles). Stock shows the bare hull.
+class _ExhaustShipPreview extends StatelessWidget {
+  const _ExhaustShipPreview({required this.exhaust});
+  final ExhaustType exhaust;
 
   @override
   Widget build(BuildContext context) {
     return Stack(fit: StackFit.expand, children: [
-      if (trail.colors.isNotEmpty) CustomPaint(painter: _TrailStreamPainter(trail.colors)),
+      if (exhaust != ExhaustType.stock) CustomPaint(painter: _ExhaustPainter(exhaust)),
       Align(
         alignment: const Alignment(0.45, 0),
         child: FractionallySizedBox(
@@ -2348,53 +2226,119 @@ class _TrailShipPreview extends StatelessWidget {
   }
 }
 
-class _TrailStreamPainter extends CustomPainter {
-  _TrailStreamPainter(this.palette);
-  final List<Color> palette;
+class _ExhaustPainter extends CustomPainter {
+  _ExhaustPainter(this.exhaust);
+  final ExhaustType exhaust;
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width, h = size.height;
+    final palette = exhaust.colors;
+    final cy = h * 0.5;
+    final nozzle = w * 0.47; // just behind the hull's tail
     final rng = math.Random(7); // fixed seed: same scatter every frame
-    const count = 22;
-    for (var i = 0; i < count; i++) {
-      final t = i / (count - 1); // 0 at the engine, 1 at the far left
-      final x = w * (0.48 - 0.44 * t);
-      final y = h * 0.5 + (rng.nextDouble() - 0.5) * h * (0.06 + 0.28 * t);
-      final r = h * (0.055 - 0.035 * t);
-      final c = palette[i % palette.length];
-      final alpha = 1.0 - 0.8 * t;
-      canvas.drawCircle(Offset(x, y), r * 2.2, Paint()..color = c.withValues(alpha: 0.18 * alpha));
-      canvas.drawCircle(Offset(x, y), r, Paint()..color = c.withValues(alpha: alpha));
+    final p = Paint();
+    switch (exhaust) {
+      case ExhaustType.stock:
+        return;
+      case ExhaustType.ion:
+        p
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = h * 0.05
+          ..color = palette.first.withValues(alpha: 0.2);
+        canvas.drawLine(Offset(nozzle, cy), Offset(w * 0.08, cy), p);
+        p
+          ..strokeWidth = h * 0.016
+          ..color = palette.last;
+        canvas.drawLine(Offset(nozzle, cy), Offset(w * 0.08, cy), p);
+      case ExhaustType.comet:
+        p.shader = LinearGradient(colors: [
+          palette.last.withValues(alpha: 0),
+          palette.last.withValues(alpha: 0.7),
+          palette.first,
+        ]).createShader(Rect.fromLTRB(w * 0.02, 0, nozzle, h));
+        canvas.drawPath(
+          Path()
+            ..moveTo(nozzle, cy - h * 0.06)
+            ..lineTo(w * 0.02, cy)
+            ..lineTo(nozzle, cy + h * 0.06)
+            ..close(),
+          p,
+        );
+      case ExhaustType.pulse:
+        p
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = h * 0.014;
+        for (var i = 0; i < 3; i++) {
+          final t = i / 2;
+          p.color = palette[i % palette.length].withValues(alpha: 1 - 0.6 * t);
+          canvas.drawCircle(Offset(nozzle - w * (0.1 + 0.14 * i), cy), h * (0.05 + 0.07 * t), p);
+        }
+      case ExhaustType.quantum:
+        // Fading violet/cyan hull outlines trailing behind.
+        for (var i = 3; i >= 1; i--) {
+          p.color = palette[i % palette.length].withValues(alpha: 0.12 + 0.1 * (3 - i));
+          final x = nozzle - w * 0.12 * i;
+          canvas.drawPath(
+            Path()
+              ..moveTo(x + w * 0.1, cy)
+              ..lineTo(x - w * 0.06, cy - h * 0.17)
+              ..lineTo(x - w * 0.03, cy)
+              ..lineTo(x - w * 0.06, cy + h * 0.17)
+              ..close(),
+            p,
+          );
+        }
+      case ExhaustType.plasma:
+      case ExhaustType.ember:
+      case ExhaustType.nova:
+        final count = exhaust == ExhaustType.plasma ? 12 : 22;
+        for (var i = 0; i < count; i++) {
+          final t = i / (count - 1); // 0 at the engine, 1 at the far left
+          final x = w * (0.46 - 0.42 * t);
+          final spread = exhaust == ExhaustType.ember ? 0.42 : 0.24;
+          var y = cy + (rng.nextDouble() - 0.5) * h * (0.04 + spread * t);
+          if (exhaust == ExhaustType.ember) y += h * 0.12 * t * t; // sparks fall
+          final r = exhaust == ExhaustType.plasma
+              ? h * (0.09 - 0.04 * t)
+              : h * (0.035 - 0.02 * t);
+          final c = palette[i % palette.length];
+          final alpha = 1.0 - 0.8 * t;
+          canvas.drawCircle(Offset(x, y), r * 2.2, Paint()..color = c.withValues(alpha: 0.18 * alpha));
+          canvas.drawCircle(Offset(x, y), r, Paint()..color = c.withValues(alpha: alpha));
+        }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _TrailStreamPainter old) => old.palette != palette;
+  bool shouldRepaint(covariant _ExhaustPainter old) => old.exhaust != exhaust;
 }
 
-/// Store preview for a ship skin: the real hull sprite tinted exactly like
-/// the in-game skin (PlayerShip: first palette colour at 55% srcATop plus a
-/// soft halo), so the card shows what you'll actually fly.
-class _SkinShipPreview extends StatelessWidget {
-  const _SkinShipPreview({required this.skin});
-  final ShipSkinType skin;
+/// Armory preview for a livery: the real hull sprite tinted exactly like
+/// in flight (PlayerShip: hull colour at 55% srcATop plus a soft halo) with
+/// the livery's decal painted on top, clipped to the hull.
+class _LiveryShipPreview extends StatelessWidget {
+  const _LiveryShipPreview({required this.livery});
+  final LiveryType livery;
 
   @override
   Widget build(BuildContext context) {
-    final tint = skin == ShipSkinType.classic || skin.colors.isEmpty ? null : skin.colors.first;
+    final tint = livery == LiveryType.standard ? null : livery.hullColor;
+    final glow = tint == null
+        ? null
+        : (tint.computeLuminance() < 0.05 ? livery.decalColor : tint);
     return Center(
       child: FractionallySizedBox(
         widthFactor: 0.58,
         child: AspectRatio(
           aspectRatio: 1.5,
           child: Stack(fit: StackFit.expand, children: [
-            if (tint != null)
+            if (glow != null)
               DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
                     radius: 0.62,
-                    colors: [tint.withValues(alpha: 0.30), tint.withValues(alpha: 0)],
+                    colors: [glow.withValues(alpha: 0.30), glow.withValues(alpha: 0)],
                   ),
                 ),
               ),
@@ -2404,6 +2348,8 @@ class _SkinShipPreview extends StatelessWidget {
               colorBlendMode: BlendMode.srcATop,
               filterQuality: FilterQuality.medium,
             ),
+            if (livery.decal != LiveryDecal.none)
+              CustomPaint(painter: _LiveryDecalPainter(livery)),
           ]),
         ),
       ),
@@ -2411,17 +2357,68 @@ class _SkinShipPreview extends StatelessWidget {
   }
 }
 
-/// A tournament ticket product in the Store's Power-ups tab.
-class _TournamentEntryOffer {
-  const _TournamentEntryOffer(this.productId, this.name, this.grants, this.fallbackPrice, this.color,
+/// Static decal (pulse frozen mid-sweep) over the 192x128 hull space.
+class _LiveryDecalPainter extends CustomPainter {
+  _LiveryDecalPainter(this.livery);
+  final LiveryType livery;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final k = size.width / 192;
+    final decal = livery.decal;
+    final color = livery.cycles ? livery.colors[2] : livery.decalColor;
+    canvas.save();
+    canvas.clipPath(LiveryDecals.hull(k));
+    if (decal == LiveryDecal.pulse) {
+      canvas.translate(110 * k, 0);
+      canvas.drawRect(
+        LiveryDecals.pulseBand(k),
+        Paint()
+          ..shader = LiveryDecals.pulseShader(k)
+          ..colorFilter = ColorFilter.mode(color, BlendMode.modulate),
+      );
+    } else {
+      final paint = Paint()
+        ..isAntiAlias = true
+        ..color = color.withValues(alpha: decal == LiveryDecal.split ? 0.5 : 0.8);
+      if (LiveryDecals.isStroked(decal)) {
+        paint
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(0.8, 2.4 * k);
+      }
+      canvas.drawPath(LiveryDecals.pattern(decal, k), paint);
+      if (decal == LiveryDecal.split) {
+        canvas.drawPath(
+          LiveryDecals.splitEdge(k),
+          Paint()
+            ..isAntiAlias = true
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3 * k
+            ..color = color,
+        );
+      }
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _LiveryDecalPainter old) => old.livery != livery;
+}
+
+/// A Cup Pass product in the Armory's Cup Passes tab.
+class _CupPassOffer {
+  const _CupPassOffer(this.productId, this.name, this.grants, this.fallbackPrice, this.color, this.tiers,
       {this.requiresStoreProduct = false});
   final String productId;
   final String name;
 
-  /// What one purchase grants — mirrors PremiumCubit's entry grants.
+  /// What one purchase grants — mirrors ProductIds.cupPassGrants.
   final String grants;
   final double fallbackPrice;
   final Color color;
+
+  /// Wire tiers this offer grants (for the "held" count line).
+  final List<String> tiers;
 
   /// Hide the tile unless the store returns this product.
   final bool requiresStoreProduct;

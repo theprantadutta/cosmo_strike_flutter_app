@@ -1,528 +1,498 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/painting.dart';
 
-enum ShipSkinType {
-  classic,
-  golden,
-  rainbow,
-  galaxy,
-  dragon,
-  electric,
-  fire,
-  ice,
-  shadow,
-  neon,
-  crystal,
-  cosmic;
+/// Hull decal pattern painted over a livery's tint (see
+/// `lib/game/livery_decals.dart` for the geometry, shared by the in-game
+/// [PlayerShip] render and the Armory preview).
+enum LiveryDecal {
+  /// Plain tint — no pattern.
+  none,
 
-  String get id => name;
+  /// Twin racing stripes along the fuselage.
+  stripe,
+
+  /// Three forward-pointing chevrons across the wings.
+  chevron,
+
+  /// Two-tone diagonal split with a crisp edge line.
+  split,
+
+  /// Fine hex-mesh plating.
+  hex,
+
+  /// Animated light sweep running tail to nose.
+  pulse,
+}
+
+/// Hull paint schemes sold in the Armory. [standard] is the free stock
+/// paint; every other livery is a non-consumable whose store product ID is
+/// `com.pranta.cosmostrike.<id>` (see `ProductIds`).
+///
+/// Persisted / synced as [id]. Old Drift rows, prefs and sync payloads may
+/// still carry pre-3.2 skin IDs — always parse through [fromId], which
+/// folds them onto the new catalog.
+enum LiveryType {
+  standard,
+  aurum,
+  vanta,
+  redline,
+  glacier,
+  ionic,
+  solstice,
+  viridian,
+  prism;
+
+  /// Wire / persistence / product-suffix ID.
+  String get id => this == LiveryType.standard ? 'standard' : 'livery_$name';
 
   String get displayName {
     switch (this) {
-      case ShipSkinType.classic:
-        return 'Classic';
-      case ShipSkinType.golden:
-        return 'Golden Ship';
-      case ShipSkinType.rainbow:
-        return 'Rainbow Ship';
-      case ShipSkinType.galaxy:
-        return 'Galaxy Ship';
-      case ShipSkinType.dragon:
-        return 'Dragon Ship';
-      case ShipSkinType.electric:
-        return 'Electric Ship';
-      case ShipSkinType.fire:
-        return 'Fire Ship';
-      case ShipSkinType.ice:
-        return 'Ice Ship';
-      case ShipSkinType.shadow:
-        return 'Shadow Ship';
-      case ShipSkinType.neon:
-        return 'Neon Ship';
-      case ShipSkinType.crystal:
-        return 'Crystal Ship';
-      case ShipSkinType.cosmic:
-        return 'Cosmic Ship';
+      case LiveryType.standard:
+        return 'Standard Issue';
+      case LiveryType.aurum:
+        return 'Aurum';
+      case LiveryType.vanta:
+        return 'Vanta';
+      case LiveryType.redline:
+        return 'Redline';
+      case LiveryType.glacier:
+        return 'Glacier';
+      case LiveryType.ionic:
+        return 'Ionic';
+      case LiveryType.solstice:
+        return 'Solstice';
+      case LiveryType.viridian:
+        return 'Viridian';
+      case LiveryType.prism:
+        return 'Prism';
     }
   }
 
   String get description {
     switch (this) {
-      case ShipSkinType.classic:
-        return 'The original ship appearance';
-      case ShipSkinType.golden:
-        return 'Gleaming gold ship that shines with every move';
-      case ShipSkinType.rainbow:
-        return 'A colorful ship that shifts through rainbow colors';
-      case ShipSkinType.galaxy:
-        return 'Cosmic ship with starry patterns';
-      case ShipSkinType.dragon:
-        return 'Fierce dragon-scaled ship with mystical powers';
-      case ShipSkinType.electric:
-        return 'Crackling with electric energy';
-      case ShipSkinType.fire:
-        return 'Burning bright with fiery patterns';
-      case ShipSkinType.ice:
-        return 'Frozen beauty with crystalline effects';
-      case ShipSkinType.shadow:
-        return 'Dark and mysterious shadow ship';
-      case ShipSkinType.neon:
-        return 'Glowing with cyberpunk neon lights';
-      case ShipSkinType.crystal:
-        return 'Translucent crystal ship with prismatic effects';
-      case ShipSkinType.cosmic:
-        return 'Ship made of stardust and cosmic matter';
+      case LiveryType.standard:
+        return 'Factory graphite with the prism keel stripe.';
+      case LiveryType.aurum:
+        return 'Gold-leaf plating with twin racing stripes.';
+      case LiveryType.vanta:
+        return 'Light-eating matte black, cut by a cyan edge.';
+      case LiveryType.redline:
+        return 'Crimson hull with attack chevrons on the wings.';
+      case LiveryType.glacier:
+        return 'Ice-blue armour over hex-mesh plating.';
+      case LiveryType.ionic:
+        return 'Charged cyan hull with a violet pulse sweep.';
+      case LiveryType.solstice:
+        return 'Amber and pink, split on the diagonal.';
+      case LiveryType.viridian:
+        return 'Mint-to-teal finish with deep chevrons.';
+      case LiveryType.prism:
+        return 'The full prism, sweeping the hull end to end.';
     }
   }
 
-  bool get isPremium {
-    return this != ShipSkinType.classic;
-  }
+  bool get isPremium => this != LiveryType.standard;
 
+  /// USD fallback price (live store price wins when loaded).
   double get price {
     switch (this) {
-      case ShipSkinType.classic:
+      case LiveryType.standard:
         return 0.0;
-      case ShipSkinType.golden:
-      case ShipSkinType.fire:
-      case ShipSkinType.ice:
-      case ShipSkinType.electric:
+      case LiveryType.aurum:
+      case LiveryType.vanta:
+      case LiveryType.redline:
         return 1.99;
-      case ShipSkinType.rainbow:
-      case ShipSkinType.neon:
-      case ShipSkinType.shadow:
+      case LiveryType.glacier:
+      case LiveryType.ionic:
+      case LiveryType.solstice:
         return 2.99;
-      case ShipSkinType.galaxy:
-      case ShipSkinType.crystal:
-      case ShipSkinType.cosmic:
+      case LiveryType.viridian:
         return 3.99;
-      case ShipSkinType.dragon:
+      case LiveryType.prism:
         return 4.99;
     }
   }
 
+  LiveryDecal get decal {
+    switch (this) {
+      case LiveryType.standard:
+        return LiveryDecal.none;
+      case LiveryType.aurum:
+        return LiveryDecal.stripe;
+      case LiveryType.vanta:
+      case LiveryType.solstice:
+        return LiveryDecal.split;
+      case LiveryType.redline:
+      case LiveryType.viridian:
+        return LiveryDecal.chevron;
+      case LiveryType.glacier:
+        return LiveryDecal.hex;
+      case LiveryType.ionic:
+      case LiveryType.prism:
+        return LiveryDecal.pulse;
+    }
+  }
+
+  /// Palette: first stop tints the hull, last stop paints the decal.
+  /// Palettes with more than two stops cycle over time ([cycles]).
   List<Color> get colors {
     switch (this) {
-      case ShipSkinType.classic:
-        return [const Color(0xFF9BBD0F)];
-      case ShipSkinType.golden:
-        return [const Color(0xFFFFD700), const Color(0xFFB8860B)];
-      case ShipSkinType.rainbow:
-        return [
-          const Color(0xFFFF0000),
-          const Color(0xFFFF8000),
-          const Color(0xFFFFFF00),
-          const Color(0xFF80FF00),
-          const Color(0xFF00FF00),
-          const Color(0xFF00FF80),
-          const Color(0xFF00FFFF),
-          const Color(0xFF0080FF),
-          const Color(0xFF0000FF),
-          const Color(0xFF8000FF),
-          const Color(0xFFFF00FF),
-          const Color(0xFFFF0080),
-        ];
-      case ShipSkinType.galaxy:
-        return [
-          const Color(0xFF1A0033),
-          const Color(0xFF4B0082),
-          const Color(0xFF9932CC),
-          const Color(0xFFBA55D3),
-        ];
-      case ShipSkinType.dragon:
-        return [
-          const Color(0xFF8B0000),
-          const Color(0xFFDC143C),
-          const Color(0xFFFF6347),
-          const Color(0xFFFFD700),
-        ];
-      case ShipSkinType.electric:
-        return [
-          const Color(0xFF00FFFF),
-          const Color(0xFF87CEEB),
-          const Color(0xFF4169E1),
-          const Color(0xFF0000FF),
-        ];
-      case ShipSkinType.fire:
-        return [
-          const Color(0xFFFF4500),
-          const Color(0xFFFF6347),
-          const Color(0xFFFF8C00),
-          const Color(0xFFFFD700),
-        ];
-      case ShipSkinType.ice:
-        return [
-          const Color(0xFFB0E0E6),
-          const Color(0xFF87CEEB),
-          const Color(0xFF4682B4),
-          const Color(0xFF1E90FF),
-        ];
-      case ShipSkinType.shadow:
-        return [
-          const Color(0xFF2F2F2F),
-          const Color(0xFF404040),
-          const Color(0xFF696969),
-          const Color(0xFF808080),
-        ];
-      case ShipSkinType.neon:
-        return [
-          const Color(0xFF00FFFF),
-          const Color(0xFF39FF14),
-          const Color(0xFFFF1493),
-          const Color(0xFFFFFF00),
-        ];
-      case ShipSkinType.crystal:
-        return [
-          const Color(0xFFE6E6FA),
-          const Color(0xFFDDA0DD),
-          const Color(0xFFBA55D3),
-          const Color(0xFF9370DB),
-        ];
-      case ShipSkinType.cosmic:
-        return [
-          const Color(0xFF191970),
-          const Color(0xFF4B0082),
-          const Color(0xFF8A2BE2),
-          const Color(0xFFDA70D6),
+      case LiveryType.standard:
+        return const [Color(0xFF7CF5FF), Color(0xFFA78BFA)];
+      case LiveryType.aurum:
+        return const [Color(0xFFFFD58A), Color(0xFFB8862E)];
+      case LiveryType.vanta:
+        return const [Color(0xFF15151A), Color(0xFF7CF5FF)];
+      case LiveryType.redline:
+        return const [Color(0xFFFF4D5E), Color(0xFF7A0F1E)];
+      case LiveryType.glacier:
+        return const [Color(0xFFBFF3FF), Color(0xFF3A8DDE)];
+      case LiveryType.ionic:
+        return const [Color(0xFF7CF5FF), Color(0xFFA78BFA)];
+      case LiveryType.solstice:
+        return const [Color(0xFFFFB347), Color(0xFFFF8AD8)];
+      case LiveryType.viridian:
+        return const [Color(0xFF9BFFC8), Color(0xFF138A72)];
+      case LiveryType.prism:
+        return const [
+          Color(0xFF7CF5FF),
+          Color(0xFFA78BFA),
+          Color(0xFFFF8AD8),
+          Color(0xFFFFD58A),
         ];
     }
   }
 
-  String get icon {
-    switch (this) {
-      case ShipSkinType.classic:
-        return '🚀';
-      case ShipSkinType.golden:
-        return '✨';
-      case ShipSkinType.rainbow:
-        return '🌈';
-      case ShipSkinType.galaxy:
-        return '🌌';
-      case ShipSkinType.dragon:
-        return '🐉';
-      case ShipSkinType.electric:
-        return '⚡';
-      case ShipSkinType.fire:
-        return '🔥';
-      case ShipSkinType.ice:
-        return '❄️';
-      case ShipSkinType.shadow:
-        return '🌑';
-      case ShipSkinType.neon:
-        return '💡';
-      case ShipSkinType.crystal:
-        return '💎';
-      case ShipSkinType.cosmic:
-        return '🌟';
+  Color get hullColor => colors.first;
+  Color get decalColor => colors.last;
+
+  /// Multi-stop palettes animate through their stops in flight.
+  bool get cycles => colors.length > 2;
+
+  /// Parse a persisted / synced / product ID (new or pre-3.2). Unknown
+  /// values fall back to [standard] so old data can never crash a render.
+  static LiveryType fromId(String? id) => tryParse(id) ?? LiveryType.standard;
+
+  /// Like [fromId] but null for unknown IDs (lets callers drop junk rows).
+  static LiveryType? tryParse(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    var id = raw.trim().toLowerCase();
+    const prefix = 'com.pranta.cosmostrike.';
+    if (id.startsWith(prefix)) id = id.substring(prefix.length);
+    for (final l in LiveryType.values) {
+      if (l.id == id || l.name == id) return l;
     }
+    if (id.startsWith('skin_')) id = id.substring('skin_'.length);
+    return _legacy[id];
   }
+
+  /// Pre-3.2 skin IDs (REBRAND_SPEC §2.8).
+  static const Map<String, LiveryType> _legacy = {
+    'classic': LiveryType.standard,
+    'golden': LiveryType.aurum,
+    'shadow': LiveryType.vanta,
+    'dragon': LiveryType.redline,
+    'fire': LiveryType.redline,
+    'ice': LiveryType.glacier,
+    'electric': LiveryType.ionic,
+    'rainbow': LiveryType.prism,
+    'neon': LiveryType.solstice,
+    'galaxy': LiveryType.viridian,
+    'cosmic': LiveryType.viridian,
+    'crystal': LiveryType.viridian,
+  };
+
+  /// Canonical ID for any persisted value, or null when it maps to nothing.
+  static String? normalizeId(String? raw) => tryParse(raw)?.id;
 }
 
-enum TrailEffectType {
-  none,
-  particle,
-  glow,
-  rainbow,
-  fire,
-  electric,
-  star,
-  cosmic,
-  neon,
-  shadow,
-  crystal,
-  dragon;
+/// Engine exhaust effects sold in the Armory. [stock] is the free default
+/// (the hull's own thruster sprite, no extra effect).
+///
+/// Persisted / synced as [id]; parse old trail IDs through [fromId].
+enum ExhaustType {
+  stock,
+  ion,
+  plasma,
+  ember,
+  comet,
+  pulse,
+  quantum,
+  nova;
 
-  String get id => this == TrailEffectType.none ? 'none' : 'trail_$name';
+  /// Wire / persistence / product-suffix ID.
+  String get id => this == ExhaustType.stock ? 'stock' : 'exhaust_$name';
 
   String get displayName {
     switch (this) {
-      case TrailEffectType.none:
-        return 'No Trail';
-      case TrailEffectType.particle:
-        return 'Particle Trail';
-      case TrailEffectType.glow:
-        return 'Glow Trail';
-      case TrailEffectType.rainbow:
-        return 'Rainbow Trail';
-      case TrailEffectType.fire:
-        return 'Fire Trail';
-      case TrailEffectType.electric:
-        return 'Electric Trail';
-      case TrailEffectType.star:
-        return 'Star Trail';
-      case TrailEffectType.cosmic:
-        return 'Cosmic Trail';
-      case TrailEffectType.neon:
-        return 'Neon Trail';
-      case TrailEffectType.shadow:
-        return 'Shadow Trail';
-      case TrailEffectType.crystal:
-        return 'Crystal Trail';
-      case TrailEffectType.dragon:
-        return 'Dragon Trail';
+      case ExhaustType.stock:
+        return 'Stock Thruster';
+      case ExhaustType.ion:
+        return 'Ion Wake';
+      case ExhaustType.plasma:
+        return 'Plasma Plume';
+      case ExhaustType.ember:
+        return 'Ember Burn';
+      case ExhaustType.comet:
+        return 'Comet Tail';
+      case ExhaustType.pulse:
+        return 'Pulse Drive';
+      case ExhaustType.quantum:
+        return 'Quantum Echo';
+      case ExhaustType.nova:
+        return 'Nova Stream';
     }
   }
 
   String get description {
     switch (this) {
-      case TrailEffectType.none:
-        return 'Clean ship with no trail effects';
-      case TrailEffectType.particle:
-        return 'Leaves a trail of sparkling particles';
-      case TrailEffectType.glow:
-        return 'Glowing trail that fades behind the ship';
-      case TrailEffectType.rainbow:
-        return 'Colorful rainbow trail effect';
-      case TrailEffectType.fire:
-        return 'Blazing fire trail with ember particles';
-      case TrailEffectType.electric:
-        return 'Crackling electric trail with lightning effects';
-      case TrailEffectType.star:
-        return 'Twinkling stars follow the ship\'s path';
-      case TrailEffectType.cosmic:
-        return 'Cosmic dust and nebula effects';
-      case TrailEffectType.neon:
-        return 'Bright neon glow with cyberpunk style';
-      case TrailEffectType.shadow:
-        return 'Dark shadow trail with smoky effects';
-      case TrailEffectType.crystal:
-        return 'Crystalline shards that fade away';
-      case TrailEffectType.dragon:
-        return 'Mystical dragon breath trail';
+      case ExhaustType.stock:
+        return 'Standard thruster burn. No extra effect.';
+      case ExhaustType.ion:
+        return 'A thin cyan ion line that flickers at full burn.';
+      case ExhaustType.plasma:
+        return 'A fat violet-pink plume of superheated plasma.';
+      case ExhaustType.ember:
+        return 'Orange sparks shed from the nozzle as you fly.';
+      case ExhaustType.comet:
+        return 'A long white-to-cyan tail that fades out slow.';
+      case ExhaustType.pulse:
+        return 'Shock rings fired off the engine at intervals.';
+      case ExhaustType.quantum:
+        return 'Ghost after-images of your hull trail behind.';
+      case ExhaustType.nova:
+        return 'A stream of particles across the full prism.';
     }
   }
 
-  bool get isPremium {
-    return this != TrailEffectType.none;
-  }
+  bool get isPremium => this != ExhaustType.stock;
 
+  /// USD fallback price (live store price wins when loaded).
   double get price {
     switch (this) {
-      case TrailEffectType.none:
+      case ExhaustType.stock:
         return 0.0;
-      case TrailEffectType.particle:
-      case TrailEffectType.glow:
+      case ExhaustType.ion:
         return 0.99;
-      case TrailEffectType.rainbow:
-      case TrailEffectType.neon:
-      case TrailEffectType.shadow:
+      case ExhaustType.plasma:
+      case ExhaustType.ember:
         return 1.99;
-      case TrailEffectType.fire:
-      case TrailEffectType.electric:
-      case TrailEffectType.star:
+      case ExhaustType.comet:
+      case ExhaustType.pulse:
         return 2.99;
-      case TrailEffectType.cosmic:
-      case TrailEffectType.crystal:
-      case TrailEffectType.dragon:
+      case ExhaustType.quantum:
+      case ExhaustType.nova:
         return 3.99;
     }
   }
 
   List<Color> get colors {
     switch (this) {
-      case TrailEffectType.none:
-        return [];
-      case TrailEffectType.particle:
-        return [const Color(0xFFFFFFFF), const Color(0xFFFFFFFF)];
-      case TrailEffectType.glow:
-        return [const Color(0xFF00FFFF), const Color(0xFF87CEEB)];
-      case TrailEffectType.rainbow:
-        return [
-          const Color(0xFFFF0000),
-          const Color(0xFFFFFF00),
-          const Color(0xFF00FF00),
-          const Color(0xFF00FFFF),
-          const Color(0xFF0000FF),
-          const Color(0xFFFF00FF),
+      case ExhaustType.stock:
+        return const [];
+      case ExhaustType.ion:
+        return const [Color(0xFF7CF5FF), Color(0xFFB8FAFF)];
+      case ExhaustType.plasma:
+        return const [Color(0xFFA78BFA), Color(0xFFFF8AD8)];
+      case ExhaustType.ember:
+        return const [Color(0xFFFF8A3D), Color(0xFFFFC24B), Color(0xFFFF5A1F)];
+      case ExhaustType.comet:
+        return const [Color(0xFFFFFFFF), Color(0xFF7CF5FF)];
+      case ExhaustType.pulse:
+        return const [Color(0xFF7CF5FF), Color(0xFF9BFFC8)];
+      case ExhaustType.quantum:
+        return const [Color(0xFFA78BFA), Color(0xFF7CF5FF)];
+      case ExhaustType.nova:
+        return const [
+          Color(0xFF7CF5FF),
+          Color(0xFFA78BFA),
+          Color(0xFFFF8AD8),
+          Color(0xFFFFD58A),
+          Color(0xFF9BFFC8),
         ];
-      case TrailEffectType.fire:
-        return [const Color(0xFFFF4500), const Color(0xFFFFD700)];
-      case TrailEffectType.electric:
-        return [const Color(0xFF00FFFF), const Color(0xFF0000FF)];
-      case TrailEffectType.star:
-        return [const Color(0xFFFFFFFF), const Color(0xFFFFD700)];
-      case TrailEffectType.cosmic:
-        return [const Color(0xFF4B0082), const Color(0xFFDA70D6)];
-      case TrailEffectType.neon:
-        return [const Color(0xFF39FF14), const Color(0xFFFF1493)];
-      case TrailEffectType.shadow:
-        return [const Color(0xFF2F2F2F), const Color(0xFF000000)];
-      case TrailEffectType.crystal:
-        return [const Color(0xFFBA55D3), const Color(0xFFE6E6FA)];
-      case TrailEffectType.dragon:
-        return [const Color(0xFF8B0000), const Color(0xFFFFD700)];
     }
   }
 
-  String get icon {
-    switch (this) {
-      case TrailEffectType.none:
-        return '🚫';
-      case TrailEffectType.particle:
-        return '✨';
-      case TrailEffectType.glow:
-        return '🌟';
-      case TrailEffectType.rainbow:
-        return '🌈';
-      case TrailEffectType.fire:
-        return '🔥';
-      case TrailEffectType.electric:
-        return '⚡';
-      case TrailEffectType.star:
-        return '⭐';
-      case TrailEffectType.cosmic:
-        return '🌌';
-      case TrailEffectType.neon:
-        return '💡';
-      case TrailEffectType.shadow:
-        return '🌑';
-      case TrailEffectType.crystal:
-        return '💎';
-      case TrailEffectType.dragon:
-        return '🐉';
+  /// Parse a persisted / synced / product ID (new or pre-3.2). Unknown
+  /// values fall back to [stock].
+  static ExhaustType fromId(String? id) => tryParse(id) ?? ExhaustType.stock;
+
+  static ExhaustType? tryParse(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    var id = raw.trim().toLowerCase();
+    const prefix = 'com.pranta.cosmostrike.';
+    if (id.startsWith(prefix)) id = id.substring(prefix.length);
+    for (final e in ExhaustType.values) {
+      if (e.id == id || e.name == id) return e;
     }
+    if (id.startsWith('trail_')) id = id.substring('trail_'.length);
+    return _legacy[id];
   }
+
+  /// Pre-3.2 trail IDs, bare or `trail_`-prefixed (REBRAND_SPEC §2.8).
+  static const Map<String, ExhaustType> _legacy = {
+    'none': ExhaustType.stock,
+    'particle': ExhaustType.ion,
+    'glow': ExhaustType.ion,
+    'neon': ExhaustType.plasma,
+    'cosmic': ExhaustType.plasma,
+    'fire': ExhaustType.ember,
+    'dragon': ExhaustType.ember,
+    'star': ExhaustType.comet,
+    'electric': ExhaustType.pulse,
+    'shadow': ExhaustType.quantum,
+    'rainbow': ExhaustType.nova,
+    'crystal': ExhaustType.nova,
+  };
+
+  static String? normalizeId(String? raw) => tryParse(raw)?.id;
 }
 
 class ShipCosmetics {
-  final ShipSkinType skin;
-  final TrailEffectType trail;
+  final LiveryType livery;
+  final ExhaustType exhaust;
 
-  const ShipCosmetics({required this.skin, required this.trail});
+  const ShipCosmetics({required this.livery, required this.exhaust});
 
-  ShipCosmetics copyWith({ShipSkinType? skin, TrailEffectType? trail}) {
-    return ShipCosmetics(skin: skin ?? this.skin, trail: trail ?? this.trail);
+  ShipCosmetics copyWith({LiveryType? livery, ExhaustType? exhaust}) {
+    return ShipCosmetics(
+      livery: livery ?? this.livery,
+      exhaust: exhaust ?? this.exhaust,
+    );
   }
 
-  bool get isPremium => skin.isPremium || trail.isPremium;
+  bool get isPremium => livery.isPremium || exhaust.isPremium;
 
-  double get totalPrice => skin.price + trail.price;
+  double get totalPrice => livery.price + exhaust.price;
 
   Map<String, dynamic> toJson() {
-    return {'skin': skin.id, 'trail': trail.id};
+    return {'livery': livery.id, 'exhaust': exhaust.id};
   }
 
+  /// Reads both the current keys and the pre-3.2 `skin` / `trail` keys.
   factory ShipCosmetics.fromJson(Map<String, dynamic> json) {
     return ShipCosmetics(
-      skin: ShipSkinType.values.firstWhere(
-        (s) => s.id == json['skin'],
-        orElse: () => ShipSkinType.classic,
-      ),
-      trail: TrailEffectType.values.firstWhere(
-        (t) => t.id == json['trail'],
-        orElse: () => TrailEffectType.none,
-      ),
+      livery: LiveryType.fromId((json['livery'] ?? json['skin']) as String?),
+      exhaust:
+          ExhaustType.fromId((json['exhaust'] ?? json['trail']) as String?),
     );
   }
 
   static const ShipCosmetics defaultCosmetics = ShipCosmetics(
-    skin: ShipSkinType.classic,
-    trail: TrailEffectType.none,
+    livery: LiveryType.standard,
+    exhaust: ExhaustType.stock,
   );
 }
 
-class CosmeticBundle {
+/// Non-consumable cosmetic bundle ("Fleet Kit"). [id] is both the owned
+/// bundle ID and the store product suffix.
+class FleetKit {
   final String id;
   final String name;
   final String description;
-  final List<ShipSkinType> skins;
-  final List<TrailEffectType> trails;
-  final double bundlePrice;
-  final String icon;
+  final List<LiveryType> liveries;
+  final List<ExhaustType> exhausts;
+  final double kitPrice;
 
-  const CosmeticBundle({
+  const FleetKit({
     required this.id,
     required this.name,
     required this.description,
-    required this.skins,
-    required this.trails,
-    required this.bundlePrice,
-    required this.icon,
+    required this.liveries,
+    required this.exhausts,
+    required this.kitPrice,
   });
 
-  /// Computed from the sum of individual skin and trail prices.
+  /// Sum of the individual fallback prices.
   double get originalPrice {
     double total = 0;
-    for (final skin in skins) {
-      total += skin.price;
+    for (final l in liveries) {
+      total += l.price;
     }
-    for (final trail in trails) {
-      total += trail.price;
+    for (final e in exhausts) {
+      total += e.price;
     }
     return total;
   }
 
-  double get savings => originalPrice - bundlePrice;
+  double get savings => originalPrice - kitPrice;
   double get savingsPercentage =>
       originalPrice > 0 ? (savings / originalPrice) * 100 : 0;
 
-  static const List<CosmeticBundle> availableBundles = [
-    CosmeticBundle(
-      id: 'starter_pack',
-      name: 'Starter Pack',
-      description: 'Perfect for new premium players',
-      skins: [ShipSkinType.golden, ShipSkinType.fire],
-      trails: [TrailEffectType.particle, TrailEffectType.glow],
-      bundlePrice: 3.99,
-      icon: '🎁',
+  static FleetKit? byId(String id) {
+    for (final k in availableKits) {
+      if (k.id == id) return k;
+    }
+    return null;
+  }
+
+  /// Canonical kit / bundle ID for a persisted bundle row. Only the
+  /// pre-3.2 bundle whose contents survive 1:1 is carried over (Ultimate →
+  /// Flagship: both are "everything"); the others' items are already owned
+  /// individually after the item remap, so the bundle row itself is dropped
+  /// (null). The themes bundle maps to the Star Atlas sector bundle.
+  static String? normalizeBundleId(String raw) {
+    final id = raw.trim().toLowerCase();
+    if (availableKits.any((k) => k.id == id)) return id;
+    if (id == sectorAtlasId) return id;
+    switch (id) {
+      case 'ultimate_collection':
+        return 'kit_flagship';
+      case 'premium_themes_bundle':
+        return sectorAtlasId;
+      default:
+        return null;
+    }
+  }
+
+  /// Owned-bundle ID recorded for the all-sectors bundle.
+  static const String sectorAtlasId = 'sector_atlas';
+
+  static const List<FleetKit> availableKits = [
+    FleetKit(
+      id: 'kit_recruit',
+      name: 'Recruit Kit',
+      description: 'Two liveries and two exhausts to fly out of basic.',
+      liveries: [LiveryType.aurum, LiveryType.vanta],
+      exhausts: [ExhaustType.ion, ExhaustType.ember],
+      kitPrice: 3.99,
     ),
-    CosmeticBundle(
-      id: 'elemental_pack',
-      name: 'Elemental Pack',
-      description: 'Master the elements with style',
-      skins: [ShipSkinType.fire, ShipSkinType.ice, ShipSkinType.electric],
-      trails: [TrailEffectType.fire, TrailEffectType.electric],
-      bundlePrice: 7.99,
-      icon: '🌊',
+    FleetKit(
+      id: 'kit_vanguard',
+      name: 'Vanguard Kit',
+      description: 'Front-line paint and engines for a full wing.',
+      liveries: [
+        LiveryType.redline,
+        LiveryType.glacier,
+        LiveryType.ionic,
+        LiveryType.solstice,
+      ],
+      exhausts: [ExhaustType.plasma, ExhaustType.comet, ExhaustType.pulse],
+      kitPrice: 9.99,
     ),
-    CosmeticBundle(
-      id: 'cosmic_collection',
-      name: 'Cosmic Collection',
-      description: 'Explore the universe in style',
-      skins: [
-        ShipSkinType.galaxy,
-        ShipSkinType.cosmic,
-        ShipSkinType.crystal,
+    FleetKit(
+      id: 'kit_flagship',
+      name: 'Flagship Kit',
+      description: 'Every livery and every exhaust in the Armory.',
+      liveries: [
+        LiveryType.aurum,
+        LiveryType.vanta,
+        LiveryType.redline,
+        LiveryType.glacier,
+        LiveryType.ionic,
+        LiveryType.solstice,
+        LiveryType.viridian,
+        LiveryType.prism,
       ],
-      trails: [
-        TrailEffectType.cosmic,
-        TrailEffectType.star,
-        TrailEffectType.crystal,
+      exhausts: [
+        ExhaustType.ion,
+        ExhaustType.plasma,
+        ExhaustType.ember,
+        ExhaustType.comet,
+        ExhaustType.pulse,
+        ExhaustType.quantum,
+        ExhaustType.nova,
       ],
-      bundlePrice: 14.99,
-      icon: '🌌',
-    ),
-    CosmeticBundle(
-      id: 'ultimate_collection',
-      name: 'Ultimate Collection',
-      description: 'Every premium cosmetic item',
-      skins: [
-        ShipSkinType.golden,
-        ShipSkinType.rainbow,
-        ShipSkinType.galaxy,
-        ShipSkinType.dragon,
-        ShipSkinType.electric,
-        ShipSkinType.fire,
-        ShipSkinType.ice,
-        ShipSkinType.shadow,
-        ShipSkinType.neon,
-        ShipSkinType.crystal,
-        ShipSkinType.cosmic,
-      ],
-      trails: [
-        TrailEffectType.particle,
-        TrailEffectType.glow,
-        TrailEffectType.rainbow,
-        TrailEffectType.fire,
-        TrailEffectType.electric,
-        TrailEffectType.star,
-        TrailEffectType.cosmic,
-        TrailEffectType.neon,
-        TrailEffectType.shadow,
-        TrailEffectType.crystal,
-        TrailEffectType.dragon,
-      ],
-      bundlePrice: 29.99,
-      icon: '👑',
+      kitPrice: 19.99,
     ),
   ];
 }

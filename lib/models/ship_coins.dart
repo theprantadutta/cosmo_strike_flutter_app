@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 enum CoinEarningSource {
   gameCompleted,
-  foodEaten,
+
+  /// Persisted as 'foodEaten' (pre-3.2 wire value) — see [wireName].
+  enemyDestroyed,
   scoreMilestone,
   dailyChallenge,
   achievementUnlocked,
@@ -19,74 +22,89 @@ enum CoinEarningSource {
   String get displayName {
     switch (this) {
       case CoinEarningSource.gameCompleted:
-        return 'Game Completed';
-      case CoinEarningSource.foodEaten:
+        return 'Sortie Complete';
+      case CoinEarningSource.enemyDestroyed:
         return 'Enemy Destroyed';
       case CoinEarningSource.scoreMilestone:
         return 'Score Milestone';
       case CoinEarningSource.dailyChallenge:
-        return 'Daily Challenge';
+        return 'Daily Directive';
       case CoinEarningSource.achievementUnlocked:
-        return 'Achievement Unlocked';
+        return 'Commendation';
       case CoinEarningSource.tournamentReward:
-        return 'Tournament Reward';
+        return 'Sector Cup Reward';
       case CoinEarningSource.dailyLogin:
-        return 'Daily Login';
+        return 'Supply Drop';
       case CoinEarningSource.watchedAd:
         return 'Watched Ad';
       case CoinEarningSource.levelUp:
-        return 'Level Up';
+        return 'Rank Up';
       case CoinEarningSource.perfectGame:
-        return 'Perfect Game';
+        return 'Flawless Run';
       case CoinEarningSource.longSurvival:
-        return 'Long Survival';
+        return 'Long Haul';
       case CoinEarningSource.multiplayer:
         return 'Multiplayer';
       case CoinEarningSource.battlePassReward:
-        return 'Battle Pass Reward';
+        return 'Frontline Reward';
       case CoinEarningSource.purchase:
         return 'Purchased';
     }
   }
 
-  String get icon {
+  IconData get icon {
     switch (this) {
       case CoinEarningSource.gameCompleted:
-        return '🎮';
-      case CoinEarningSource.foodEaten:
-        return '🍎';
+        return Symbols.rocket_launch_rounded;
+      case CoinEarningSource.enemyDestroyed:
+        return Symbols.target_rounded;
       case CoinEarningSource.scoreMilestone:
-        return '🎯';
+        return Symbols.flag_rounded;
       case CoinEarningSource.dailyChallenge:
-        return '📅';
+        return Symbols.assignment_rounded;
       case CoinEarningSource.achievementUnlocked:
-        return '🏆';
+        return Symbols.military_tech_rounded;
       case CoinEarningSource.tournamentReward:
-        return '👑';
+        return Symbols.emoji_events_rounded;
       case CoinEarningSource.dailyLogin:
-        return '📱';
+        return Symbols.inventory_2_rounded;
       case CoinEarningSource.watchedAd:
-        return '📺';
+        return Symbols.play_circle_rounded;
       case CoinEarningSource.levelUp:
-        return '⬆️';
+        return Symbols.keyboard_double_arrow_up_rounded;
       case CoinEarningSource.perfectGame:
-        return '💯';
+        return Symbols.verified_rounded;
       case CoinEarningSource.longSurvival:
-        return '⏰';
+        return Symbols.timer_rounded;
       case CoinEarningSource.multiplayer:
-        return '👥';
+        return Symbols.group_rounded;
       case CoinEarningSource.battlePassReward:
-        return '⚔️';
+        return Symbols.workspace_premium_rounded;
       case CoinEarningSource.purchase:
-        return '💰';
+        return Symbols.paid_rounded;
     }
+  }
+
+  /// Persisted / synced identifier. Stable across the 3.2 rename:
+  /// [enemyDestroyed] keeps its pre-3.2 wire value 'foodEaten' so existing
+  /// Drift rows, daily-cap lookups and backend transactions still match.
+  String get wireName =>
+      this == CoinEarningSource.enemyDestroyed ? 'foodEaten' : name;
+
+  /// Parse a [wireName] (or the enum identifier); null when unknown.
+  static CoinEarningSource? fromWire(String? raw) {
+    if (raw == null) return null;
+    for (final s in CoinEarningSource.values) {
+      if (s.wireName == raw || s.name == raw) return s;
+    }
+    return null;
   }
 
   int getBaseAmount() {
     switch (this) {
       case CoinEarningSource.gameCompleted:
         return 1;
-      case CoinEarningSource.foodEaten:
+      case CoinEarningSource.enemyDestroyed:
         return 0; // Removed to reduce economy inflation
       case CoinEarningSource.scoreMilestone:
         return 2;
@@ -128,38 +146,38 @@ enum CoinSpendingCategory {
   String get displayName {
     switch (this) {
       case CoinSpendingCategory.powerUps:
-        return 'Power-ups';
+        return 'Tactical Gear';
       case CoinSpendingCategory.cosmetics:
         return 'Cosmetics';
       case CoinSpendingCategory.boosts:
         return 'Boosts';
       case CoinSpendingCategory.tournamentEntries:
-        return 'Tournament Entries';
+        return 'Cup Passes';
       case CoinSpendingCategory.battlePassTiers:
-        return 'Battle Pass Tiers';
+        return 'Frontline Tiers';
       case CoinSpendingCategory.extraLives:
-        return 'Extra Lives';
+        return 'Revives';
       case CoinSpendingCategory.themes:
-        return 'Themes';
+        return 'Sectors';
     }
   }
 
-  String get icon {
+  IconData get icon {
     switch (this) {
       case CoinSpendingCategory.powerUps:
-        return '⚡';
+        return Symbols.bolt_rounded;
       case CoinSpendingCategory.cosmetics:
-        return '✨';
+        return Symbols.rocket_rounded;
       case CoinSpendingCategory.boosts:
-        return '🚀';
+        return Symbols.speed_rounded;
       case CoinSpendingCategory.tournamentEntries:
-        return '🎫';
+        return Symbols.confirmation_number_rounded;
       case CoinSpendingCategory.battlePassTiers:
-        return '📈';
+        return Symbols.trending_up_rounded;
       case CoinSpendingCategory.extraLives:
-        return '❤️';
+        return Symbols.favorite_rounded;
       case CoinSpendingCategory.themes:
-        return '🎨';
+        return Symbols.public_rounded;
     }
   }
 }
@@ -197,11 +215,11 @@ class CoinTransaction {
     }
   }
 
-  String get icon {
+  IconData get icon {
     if (isEarned) {
-      return earningSource?.icon ?? '🪙';
+      return earningSource?.icon ?? Symbols.paid_rounded;
     } else {
-      return spendingCategory?.icon ?? '🛍️';
+      return spendingCategory?.icon ?? Symbols.shopping_bag_rounded;
     }
   }
 
@@ -212,7 +230,7 @@ class CoinTransaction {
       'id': id,
       'amount': amount,
       'is_earned': isEarned,
-      'earning_source': earningSource?.name,
+      'earning_source': earningSource?.wireName,
       'spending_category': spendingCategory?.name,
       'item_name': itemName,
       'timestamp': timestamp.toIso8601String(),
@@ -226,10 +244,8 @@ class CoinTransaction {
       amount: json['amount'],
       isEarned: json['is_earned'],
       earningSource: json['earning_source'] != null
-          ? CoinEarningSource.values.firstWhere(
-              (s) => s.name == json['earning_source'],
-              orElse: () => CoinEarningSource.gameCompleted,
-            )
+          ? (CoinEarningSource.fromWire(json['earning_source'] as String?) ??
+              CoinEarningSource.gameCompleted)
           : null,
       spendingCategory: json['spending_category'] != null
           ? CoinSpendingCategory.values.firstWhere(
@@ -345,21 +361,21 @@ class DailyLoginBonus {
       const DailyLoginBonus(
         day: 3,
         coins: 4,
-        bonusItem: 'Speed Boost Power-up',
+        bonusItem: 'Afterburner Gear',
         isCollected: false,
       ),
       const DailyLoginBonus(day: 4, coins: 5, isCollected: false),
       const DailyLoginBonus(
         day: 5,
         coins: 6,
-        bonusItem: '2x XP Boost',
+        bonusItem: '2× XP Boost',
         isCollected: false,
       ),
       const DailyLoginBonus(day: 6, coins: 7, isCollected: false),
       const DailyLoginBonus(
         day: 7,
         coins: 10,
-        bonusItem: 'Premium Theme (1 day)',
+        bonusItem: 'Premium Sector (1 day)',
         isCollected: false,
       ),
     ];
@@ -391,7 +407,7 @@ class CoinPurchaseOption {
   double get coinsPerDollar => totalCoins / price;
 
   String get displayCoins =>
-      bonusCoins > 0 ? '$coins + $bonusCoins bonus' : '$coins coins';
+      bonusCoins > 0 ? '$coins + $bonusCoins bonus' : '$coins credits';
 
   Map<String, dynamic> toJson() {
     return {
@@ -419,39 +435,40 @@ class CoinPurchaseOption {
     );
   }
 
+  /// Credit Caches — IDs are the store product suffixes (`ProductIds`).
   static const List<CoinPurchaseOption> availableOptions = [
     CoinPurchaseOption(
-      id: 'coin_pack_small',
-      name: 'Starter Pack',
-      coins: 100,
+      id: 'credits_cache',
+      name: 'Credit Cache',
+      coins: 120,
       price: 0.99,
-      description: 'Perfect for trying out premium items',
+      description: 'A small top-up for your next requisition',
     ),
     CoinPurchaseOption(
-      id: 'coin_pack_medium',
-      name: 'Value Pack',
-      coins: 500,
+      id: 'credits_crate',
+      name: 'Credit Crate',
+      coins: 600,
       bonusCoins: 50,
       price: 4.99,
-      description: 'Great value with bonus coins',
+      description: 'A field crate with bonus credits',
       isPopular: true,
     ),
     CoinPurchaseOption(
-      id: 'coin_pack_large',
-      name: 'Premium Pack',
-      coins: 1200,
+      id: 'credits_vault',
+      name: 'Credit Vault',
+      coins: 1300,
       bonusCoins: 200,
       price: 9.99,
-      description: 'Best value for serious players',
+      description: 'Best rate for regular pilots',
       isBestValue: true,
     ),
     CoinPurchaseOption(
-      id: 'coin_pack_mega',
-      name: 'Ultimate Pack',
-      coins: 2500,
-      bonusCoins: 500,
+      id: 'credits_reserve',
+      name: 'Fleet Reserve',
+      coins: 2800,
+      bonusCoins: 600,
       price: 19.99,
-      description: 'Maximum coins with huge bonus',
+      description: 'A full fleet reserve with the biggest bonus',
     ),
   ];
 }

@@ -53,7 +53,7 @@ class ThemeTransitionController extends ChangeNotifier {
   }) async {
     if (_isTransitioning) return;
 
-    _fromTheme = _toTheme ?? GameTheme.classic;
+    _fromTheme = _toTheme ?? GameTheme.prismNoir;
     _toTheme = newTheme;
     _transitionType = type;
     _isTransitioning = true;
@@ -272,11 +272,11 @@ class TransitionEffectPainter extends CustomPainter {
       if (shapeRadius > 0) {
         paint.color =
             Color.lerp(
-              fromTheme.foodColor,
-              toTheme.foodColor,
+              fromTheme.secondaryColor,
+              toTheme.secondaryColor,
               morphProgress,
             )?.withValues(alpha: 0.6) ??
-            toTheme.foodColor.withValues(alpha: 0.6);
+            toTheme.secondaryColor.withValues(alpha: 0.6);
 
         canvas.drawCircle(shapeCenter, shapeRadius * 0.5, paint);
       }
@@ -471,19 +471,17 @@ class TransitionAwareThemeBuilder extends StatelessWidget {
   }
 }
 
-// Utility class for creating theme transition presets
+// Utility class for creating sector transition presets
 class ThemeTransitionPresets {
   static const Map<GameTheme, TransitionType> themePreferredTransitions = {
-    GameTheme.classic: TransitionType.fade,
-    GameTheme.modern: TransitionType.slide,
-    GameTheme.neon: TransitionType.particle,
-    GameTheme.retro: TransitionType.spiral,
-    GameTheme.space: TransitionType.ripple,
-    GameTheme.ocean: TransitionType.wave,
-    GameTheme.cyberpunk: TransitionType.particle,
-    GameTheme.forest: TransitionType.morph,
-    GameTheme.desert: TransitionType.wave,
-    GameTheme.crystal: TransitionType.ripple,
+    GameTheme.prismNoir: TransitionType.fade,
+    GameTheme.neonGrid: TransitionType.particle,
+    GameTheme.monochrome: TransitionType.slide,
+    GameTheme.crimson: TransitionType.ripple,
+    GameTheme.abyss: TransitionType.wave,
+    GameTheme.ion: TransitionType.particle,
+    GameTheme.aurora: TransitionType.morph,
+    GameTheme.solar: TransitionType.spiral,
   };
 
   static TransitionType getPreferredTransition(GameTheme theme) {
