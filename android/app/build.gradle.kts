@@ -72,10 +72,11 @@ android {
                 signingConfigs.getByName("debug")
             }
 
-            // R8 shrinks/obfuscates release builds. Several deps (WorkManager's
-            // Room DB, Flutter embedding, Firebase, Play Core) are reflection-
-            // loaded and crash on launch when renamed, so apply our keep rules.
+            // R8 shrinks, optimizes and obfuscates release builds; SDKs bring
+            // their own consumer rules — proguard-rules.pro adds only the
+            // documented extras (see its header).
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -96,4 +97,7 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    // WindowCompat.enableEdgeToEdge(Window) in MainActivity needs core 1.16+;
+    // pinned so the transitive classpath can't resolve below it.
+    implementation("androidx.core:core:1.18.0")
 }

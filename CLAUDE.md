@@ -205,6 +205,17 @@ modifiers on top. Key pieces (all in `lib/game/`):
 - ⚠️ **`dart run flutter_native_splash:create` rewrites AndroidManifest.xml and
   STRIPS `android:screenOrientation="sensorLandscape"` from MainActivity** —
   after every icon/splash regeneration, re-add it or the app boots in portrait.
+  It also rewrites `res/values*/styles.xml` and drops the edge-to-edge items
+  (transparent `statusBarColor`/`navigationBarColor`) — re-add those too.
+- **Edge-to-edge (Play Console):** `MainActivity` calls
+  `WindowCompat.enableEdgeToEdge(window)` and hides the bars via
+  `WindowInsetsControllerCompat`. Never pass bar colours to
+  `SystemUiOverlayStyle` in Dart: they route through Android's deprecated
+  `setStatusBarColor`/`setNavigationBarColor`, which Play flags.
+- **R8:** keep `proguard-rules.pro` minimal — no blanket
+  `-keep class <sdk>.** { *; }` (SDKs ship consumer rules; blanket keeps
+  disable optimization and Play flags it). After any R8/dependency change,
+  release-test sign-in, purchases, ads and notifications.
   Icon/splash config lives in the standalone `flutter_launcher_icons.yaml` and
   `flutter_native_splash.yaml` files at the app root (these override pubspec —
   keep config ONLY there, never duplicated in pubspec.yaml).

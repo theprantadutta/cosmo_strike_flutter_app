@@ -1,62 +1,58 @@
-# ---------------------------------------------------------------------------
-# R8 / ProGuard keep rules for the release build.
+# R8 rules for the release build.
 #
-# Release builds run R8 with obfuscation. Several libraries load classes by
-# reflection (Class.forName) and break when their names are renamed/stripped.
-# Without these rules the app crashes on launch with:
-#   "Failed to create an instance of androidx.work.impl.WorkDatabase"
-# (WorkManager is pulled in transitively via androidx.startup auto-init).
-# ---------------------------------------------------------------------------
+# Play Console flagged "Improve your app's memory and performance with R8
+# optimization": this file used to keep whole SDK packages with blanket
+# "-keep class <pkg>.** { *; }" rules (Firebase, Play services, WorkManager,
+# Room, Flutter, billing), which pinned most of the DEX so R8 could not
+# inline, merge, rename or drop it. Every one of those SDKs ships its own
+# consumer rules inside its AAR, the Flutter engine marks its JNI entry
+# points with @Keep, and the Flutter Gradle plugin keeps every FlutterPlugin.
+# Only rules with a documented reason remain (same set as Snake Classic).
 
-# --- WorkManager + androidx.startup auto-initialization ---------------------
--keep class androidx.startup.** { *; }
--keep class * implements androidx.startup.Initializer { *; }
--keep class androidx.work.** { *; }
--keep class * extends androidx.work.Worker { *; }
--keep class * extends androidx.work.ListenableWorker {
-    public <init>(...);
-}
+# Google Play Core (deferred components / split install) — referenced by the
+# Flutter embedding but not shipped in this app.
+-dontwarn com.google.android.play.core.splitcompat.SplitCompatApplication
+-dontwarn com.google.android.play.core.splitinstall.**
+-dontwarn com.google.android.play.core.tasks.**
 
-# --- Room ------------------------------------------------------------------
-# Room instantiates the generated *_Impl database class via reflection, so its
-# name must not be obfuscated/stripped (this is the WorkDatabase crash).
--keep class * extends androidx.room.RoomDatabase { *; }
--keep class androidx.room.** { *; }
--keep class **_Impl { *; }
--keepclassmembers class * extends androidx.room.RoomDatabase {
-    public static ** getInstance(...);
-}
--dontwarn androidx.room.paging.**
-
-# --- SQLite (used by Room / WorkManager and by Drift's native bindings) -----
--keep class androidx.sqlite.** { *; }
-
-# --- Flutter / embedding (reflection-loaded) -------------------------------
--keep class io.flutter.** { *; }
--keep class io.flutter.plugins.** { *; }
--keep class io.flutter.embedding.** { *; }
--dontwarn io.flutter.embedding.**
-
-# --- Firebase / Google Play services ---------------------------------------
--keep class com.google.firebase.** { *; }
--keep class com.google.android.gms.** { *; }
+# Readable Crashlytics stack traces: keep line numbers and exception names.
+-keepattributes SourceFile,LineNumberTable
+-keep public class * extends java.lang.Exception
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
 
-# --- Play Core (in_app_update / deferred components) -----------------------
--keep class com.google.android.play.** { *; }
--dontwarn com.google.android.play.**
+# flutter_local_notifications — Gson (de)serializes scheduled notification
+# details; R8 full mode strips the generic TypeToken signatures without these
+# (the rules from the plugin's README).
+-keep class com.dexterous.** { *; }
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+-keepattributes Signature
+-keepattributes *Annotation*
+-dontwarn sun.misc.**
+-keep class com.google.gson.stream.** { *; }
+-keep class * extends com.google.gson.TypeAdapter
+-keep class * implements com.google.gson.TypeAdapterFactory
+-keep class * implements com.google.gson.JsonSerializer
+-keep class * implements com.google.gson.JsonDeserializer
 
-# Keep annotations and generic signatures used by reflection-based libs.
--keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod
+# Native methods, Parcelables and Serializables.
+-keepclassmembers class * {
+    native <methods>;
+}
+-keepclassmembers class * implements android.os.Parcelable {
+    static ** CREATOR;
+}
+-keepclassmembers class * implements java.io.Serializable {
+    static final long serialVersionUID;
+    private static final java.io.ObjectStreamField[] serialPersistentFields;
+    private void writeObject(java.io.ObjectOutputStream);
+    private void readObject(java.io.ObjectInputStream);
+    java.lang.Object writeReplace();
+    java.lang.Object readResolve();
+}
 
-# OpenIAP billing stack (flutter_inapp_purchase). Billing classes are reached
-# reflectively across the plugin boundary and the plugin ships no consumer
-# rules, so R8 strips them in minified release builds — purchases then fail
-# only in release, never in debug.
--keep class dev.hyo.** { *; }
--keep class io.github.hyochan.** { *; }
--keep class com.android.vending.billing.**
--keep class com.android.billingclient.** { *; }
+# Play Billing + flutter_inapp_purchase (OpenIAP) ship their own consumer
+# rules; only silence optional references.
 -dontwarn dev.hyo.**
 -dontwarn io.github.hyochan.**

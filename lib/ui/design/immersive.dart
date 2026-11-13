@@ -1,4 +1,3 @@
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 /// Centralized system-chrome control for the command-HUD shell.
@@ -17,11 +16,8 @@ class Immersive {
   static bool inGameplay = false;
 
   static const SystemUiOverlayStyle _menuOverlay = SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: Colors.transparent,
     systemNavigationBarIconBrightness: Brightness.light,
-    systemNavigationBarDividerColor: Colors.transparent,
   );
 
   /// Full-screen menu chrome (status + nav bars hidden). Safe to call on resume.
