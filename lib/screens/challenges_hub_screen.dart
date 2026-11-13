@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cosmo_strike_flutter_app/providers/daily_challenges_provider.dart';
 import 'package:cosmo_strike_flutter_app/screens/daily_challenges_screen.dart';

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:in_app_update/in_app_update.dart';
 import 'package:cosmo_strike_flutter_app/router/app_router.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';

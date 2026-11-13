@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/models/game_replay.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';

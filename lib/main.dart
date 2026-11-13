@@ -6,13 +6,12 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_performance/firebase_performance.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' as riverpod;
-import 'package:material_ui/material_ui.dart' as material_ui;
 import 'package:provider/provider.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
@@ -288,6 +287,7 @@ void main() async {
       MaterialApp(
         theme: buildCosmoTheme(),
         debugShowCheckedModeBanner: false,
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         home: Scaffold(
           backgroundColor: CsColors.bg,
           body: Center(
@@ -464,13 +464,9 @@ class _CosmoStrikeAppState extends State<CosmoStrikeApp>
               title: 'Cosmo Strike',
               debugShowCheckedModeBanner: false,
               routerConfig: appRouter,
-              // go_router 18 pulls in package:material_ui / cupertino_ui,
-              // whose widgets look up their *own* MaterialLocalizations and
-              // CupertinoLocalizations types — distinct from the
-              // flutter/material defaults MaterialApp supplies. Without these
-              // they throw "No MaterialLocalizations found" at runtime.
-              localizationsDelegates:
-                  material_ui.GlobalMaterialLocalizations.delegates,
+              // The app is on package:material_ui (Flutter 3.50 split), so its
+              // own Material/Cupertino localization delegates are required.
+              localizationsDelegates: GlobalMaterialLocalizations.delegates,
               // Prism Noir: one look for every menu. Purchased color themes
               // (ThemeCubit) now tint gameplay only — see cosmo_palette.dart.
               theme: buildCosmoTheme(),
@@ -481,11 +477,16 @@ class _CosmoStrikeAppState extends State<CosmoStrikeApp>
               // and HUD numbers never blow out of their rows.
               builder: (context, child) {
                 final mq = MediaQuery.of(context);
-                return MediaQuery(
-                  data: mq.copyWith(
-                    textScaler: mq.textScaler.clamp(minScaleFactor: 1.0, maxScaleFactor: 1.15),
+                // Bridges third-party packages still on
+                // package:flutter/material.dart into the material_ui tree.
+                // ignore: deprecated_member_use
+                return MaterialUiCompatibilityBridge(
+                  child: MediaQuery(
+                    data: mq.copyWith(
+                      textScaler: mq.textScaler.clamp(minScaleFactor: 1.0, maxScaleFactor: 1.15),
+                    ),
+                    child: child ?? const SizedBox.shrink(),
                   ),
-                  child: child ?? const SizedBox.shrink(),
                 );
               },
               // The first-sign-in cloud-restore overlay is mounted on the

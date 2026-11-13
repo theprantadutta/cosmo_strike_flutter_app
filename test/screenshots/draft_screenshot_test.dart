@@ -10,7 +10,7 @@ import 'dart:math' as math;
 import 'package:cosmo_strike_flutter_app/game/run_upgrades.dart';
 import 'package:cosmo_strike_flutter_app/theme/cosmo_theme.dart';
 import 'package:cosmo_strike_flutter_app/widgets/gameplay/upgrade_draft_overlay.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -54,6 +54,7 @@ void main() {
       ];
       expect(up.draft(math.Random(1)).length, 3);
       await tester.pumpWidget(MaterialApp(
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         debugShowCheckedModeBanner: false,
         theme: buildCosmoTheme(),
         home: Scaffold(

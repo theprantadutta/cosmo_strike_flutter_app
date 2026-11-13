@@ -1,7 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 
 /// Shared Prism Noir shell for the in-game overlays (pause / level clear /

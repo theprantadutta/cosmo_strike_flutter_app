@@ -27,6 +27,13 @@ android {
     compileSdk = 37
     ndkVersion = "30.0.16248370"
 
+    // AGP 9 release builds apply aapt's default ignore pattern, which drops
+    // dot-files — so flutter_assets/.env vanished from the release APK/AAB
+    // and startup failed loading it. Same default list minus the dot-file rule.
+    androidResources {
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~"
+    }
+
     compileOptions {
         // Required by flutter_local_notifications.
         isCoreLibraryDesugaringEnabled = true

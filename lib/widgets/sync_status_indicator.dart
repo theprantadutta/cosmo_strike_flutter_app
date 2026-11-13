@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
 import 'package:cosmo_strike_flutter_app/services/data_sync_service.dart';

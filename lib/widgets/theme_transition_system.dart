@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 
 enum TransitionType { fade, slide, morph, particle, ripple, spiral, wave }

@@ -4,7 +4,7 @@ import 'dart:math' as math;
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class PerformanceMetrics {
   final double fps;

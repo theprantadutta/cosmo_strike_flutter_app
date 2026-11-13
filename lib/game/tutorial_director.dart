@@ -1,5 +1,5 @@
 import 'package:flame/components.dart';
-import 'package:flutter/material.dart' show IconData, Icons;
+import 'package:material_ui/material_ui.dart' show IconData, Icons;
 
 import 'components/bullets.dart';
 import 'components/enemy.dart';

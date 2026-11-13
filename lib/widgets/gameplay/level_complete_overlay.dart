@@ -1,5 +1,5 @@
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../data/database/app_database.dart';
 import '../../game/cosmo_strike_game.dart';

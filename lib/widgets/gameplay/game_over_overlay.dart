@@ -1,6 +1,6 @@
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/number_format.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../game/run_upgrades.dart';
 import 'upgrade_draft_overlay.dart' show upgradeIcon;

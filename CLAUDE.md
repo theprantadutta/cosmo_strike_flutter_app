@@ -89,6 +89,12 @@ word lists from Snake Classic.
 ## Stack & conventions
 - **State management:** `flutter_bloc` Cubits/Blocs in `lib/presentation/bloc/`
   plus some `provider`-based providers in `lib/providers/`.
+- **Material is `package:material_ui`** (Flutter 3.50 split): import it, never
+  `package:flutter/material.dart`. Every `MaterialApp` (incl. test harnesses)
+  needs `localizationsDelegates: GlobalMaterialLocalizations.delegates` from
+  material_ui or widgets throw "No MaterialLocalizations found";
+  `MaterialUiCompatibilityBridge` in the router app's `builder` covers
+  third-party packages still on flutter/material.
 - **DI:** `get_it` — registrations in `lib/core/di/injection.dart` (`getIt<…>()`).
 - **Routing:** `go_router` in `lib/router/app_router.dart` (`AppRoutes`, `context.push`).
 - **Game:** Flame engine in `lib/game/` — gameplay LOGIC is off-limits for UI work
@@ -204,6 +210,10 @@ modifiers on top. Key pieces (all in `lib/game/`):
   keep config ONLY there, never duplicated in pubspec.yaml).
   Brand mark = the prism rocket; icon/splash sources in `assets/branding/`
   (not bundled); in-app brand art in `assets/images/brand/`.
+- ⚠️ `.env` ships as a Flutter asset; AGP 9 drops dot-files from release
+  APK/AABs unless `androidResources.ignoreAssetsPattern` (app
+  `build.gradle.kts`) omits the dot-file rule. Keep it, and after toolchain
+  bumps confirm `assets/flutter_assets/.env` is in the release APK.
 - Drift schema is currently collapsed to **schemaVersion 1**; changing tables may
   require an `adb shell pm clear com.pranta.cosmostrike` on dev devices.
 - Keep home-screen walkthrough `GlobalKey`s (`HomeWalkthrough.*`) attached to their

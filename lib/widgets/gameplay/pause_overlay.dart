@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../game/cosmo_strike_game.dart';
 import '../../models/level_run_result.dart';

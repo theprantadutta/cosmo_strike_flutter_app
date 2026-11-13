@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Position of the tooltip relative to the target element
 enum TooltipPosition {

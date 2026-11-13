@@ -1,5 +1,5 @@
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// On-screen analog d-pad for gameplay, Prism Noir style: an outlined base
 /// circle with four ink direction glyphs and an outlined nub that follows the

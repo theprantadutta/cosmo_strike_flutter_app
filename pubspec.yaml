@@ -113,7 +113,7 @@ dependencies:
   # go_router 18 depends on the decoupled Material package, which declares its
   # own MaterialLocalizations type. Direct dep so main.dart can register its
   # delegates.
-  material_ui: ^1.6.0
+  material_ui: ^1.11.0
 
   # For Splash Screen
   flutter_native_splash: ^2.4.8

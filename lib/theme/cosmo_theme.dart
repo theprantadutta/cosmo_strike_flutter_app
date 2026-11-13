@@ -6,7 +6,7 @@
 // small phones, iPhones, tablets and iPads all get the same composition.
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class CsColors {
   CsColors._();
