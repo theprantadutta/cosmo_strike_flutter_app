@@ -199,6 +199,22 @@ modifiers on top. Key pieces (all in `lib/game/`):
 - `lib/presentation/bloc/` + `lib/providers/` — state. `lib/core/` — DI + network.
 - `lib/router/` — go_router. `lib/models/` — DTOs/models. `lib/utils/` — constants/helpers.
 
+## ⚠️ Releasing a new version (macOS / App Store Connect sessions read this)
+When you submit a new version on **App Store Connect**, set (or confirm) the
+version's App Information URLs to the Cosmo Strike backend pages:
+- **Marketing URL:** `https://cosmostrike.pranta.dev/marketing`
+- **Support URL:** `https://cosmostrike.pranta.dev/support`
+- **Privacy Policy URL:** `https://legal.pranta.dev/privacy/html?projectName=cosmo_strike`
+
+On **Google Play**, the listing's developer website is
+`https://cosmostrike.pranta.dev` (it serves the marketing page and AdMob's
+`/app-ads.txt`). The pages live in the backend repo
+(`../cosmo-strike-dotnet-api/src/CosmoStrike.Api/wwwroot/`, see its
+CLAUDE.md "Public pages"). If a release changes features, prices, Settings
+labels or screenshots, update those pages too: they only make claims the
+app really backs. The backend must be redeployed on the VPS for page
+changes to go live.
+
 ## Workflow
 - Run `flutter analyze <file>` after edits and fix until **"No issues found!"**
   before committing.
