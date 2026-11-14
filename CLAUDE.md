@@ -217,7 +217,9 @@ are set (or changed), open AdMob → Apps → each Cosmo Strike app →
 **app-ads.txt** and make sure it points at / finds
 `https://cosmostrike.pranta.dev/app-ads.txt` (use "Check for updates";
 the crawl can take up to 24h). If the backend domain ever changes, update
-the store URLs and re-verify in AdMob, or ad demand drops. The pages live in the backend repo
+the store URLs and re-verify in AdMob, or ad demand drops.
+
+The pages live in the backend repo
 (`../cosmo-strike-dotnet-api/src/CosmoStrike.Api/wwwroot/`, see its
 CLAUDE.md "Public pages"). If a release changes features, prices, Settings
 labels or screenshots, update those pages too: they only make claims the
