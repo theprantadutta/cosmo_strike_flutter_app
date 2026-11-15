@@ -170,4 +170,42 @@ abstract class AnalyticsClient {
   /// whether a dialog actually rendered, so this is the closest signal we
   /// have to "how often do we ask."
   Future<void> trackReviewRequested(String trigger);
+
+  // ==================== First-run funnel ====================
+  //
+  // install -> first run -> second run, measured with the device-only
+  // FirstRunService counters. Fired only inside the onboarding window
+  // (first FirstRunService.onboardingGameCount runs).
+
+  /// One step of a first-run guide appeared: a home walkthrough step id
+  /// (`home_play`...) or an in-game tutorial beat (`tutorial_steer`...).
+  Future<void> trackOnboardingStepShown(String step);
+
+  /// The player finished (or, with [skipped], skipped past) a step.
+  Future<void> trackOnboardingStepCompleted(String step, {bool skipped = false});
+
+  /// The very first run on this device started.
+  Future<void> trackFirstGameStarted({
+    required int secondsSinceInstall,
+    required String gameMode,
+  });
+
+  /// The second run started: the "came back for more" signal.
+  Future<void> trackSecondGameStarted({
+    required int secondsSinceInstall,
+    required int secondsSinceFirstGame,
+  });
+
+  /// One of the onboarding runs ended. [runNumber] is 1-based; [outcome]
+  /// is `game_over`, `victory` or `quit`; [eased] says whether the
+  /// first-run pressure easing was active.
+  Future<void> trackOnboardingRunEnded({
+    required int runNumber,
+    required String outcome,
+    required int score,
+    required int levelReached,
+    required int levelsCleared,
+    required int durationSeconds,
+    required bool eased,
+  });
 }

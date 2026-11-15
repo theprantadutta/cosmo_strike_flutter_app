@@ -334,4 +334,53 @@ class LoggerAnalyticsClient implements AnalyticsClient {
   Future<void> trackReviewRequested(String trigger) async {
     AppLogger.info('$_tag review_requested: trigger=$trigger');
   }
+
+  // ==================== First-run funnel ====================
+
+  @override
+  Future<void> trackOnboardingStepShown(String step) async {
+    AppLogger.info('$_tag onboarding_step_shown: step=$step');
+  }
+
+  @override
+  Future<void> trackOnboardingStepCompleted(String step, {bool skipped = false}) async {
+    AppLogger.info('$_tag onboarding_step_completed: step=$step, skipped=$skipped');
+  }
+
+  @override
+  Future<void> trackFirstGameStarted({
+    required int secondsSinceInstall,
+    required String gameMode,
+  }) async {
+    AppLogger.info(
+      '$_tag first_game_started: seconds_since_install=$secondsSinceInstall, mode=$gameMode',
+    );
+  }
+
+  @override
+  Future<void> trackSecondGameStarted({
+    required int secondsSinceInstall,
+    required int secondsSinceFirstGame,
+  }) async {
+    AppLogger.info(
+      '$_tag second_game_started: seconds_since_install=$secondsSinceInstall, '
+      'seconds_since_first_game=$secondsSinceFirstGame',
+    );
+  }
+
+  @override
+  Future<void> trackOnboardingRunEnded({
+    required int runNumber,
+    required String outcome,
+    required int score,
+    required int levelReached,
+    required int levelsCleared,
+    required int durationSeconds,
+    required bool eased,
+  }) async {
+    AppLogger.info(
+      '$_tag onboarding_run_ended: run=$runNumber, outcome=$outcome, score=$score, '
+      'level=$levelReached, cleared=$levelsCleared, duration=${durationSeconds}s, eased=$eased',
+    );
+  }
 }

@@ -33,6 +33,37 @@ class GameTuning {
   /// Each landed hit knocks intensity down by this much.
   static const double hitRelief = 0.12;
 
+  // ---- First runs (onboarding easing) ----
+  //
+  // A brand-new pilot's first [onboardingEaseRuns] runs fly with softer
+  // enemy fire, ramping back to normal run by run. Applied on top of the
+  // level curve and the intensity director, so the pressure SHAPE is the
+  // same, just lower. Never applied to Daily Runs, Sector Cup runs or
+  // Knife Edge (the gameplay screen decides eligibility).
+
+  /// Runs that get eased. Matches FirstRunService.onboardingGameCount
+  /// (asserted in test/onboarding_ease_test.dart).
+  static const int onboardingEaseRuns = 3;
+
+  /// Multipliers at FULL ease (the very first run); later runs blend
+  /// toward 1.0 via [onboardingEase].
+  static const double onboardingFireRateScale = 0.7;
+  static const double onboardingBulletSpeedScale = 0.85;
+  static const double onboardingAimedScale = 0.5;
+
+  /// Ease strength (1 = full, 0 = none) for a run, given how many runs the
+  /// player had started BEFORE it: 0 -> 1.0, 1 -> 0.67, 2 -> 0.33, 3+ -> 0.
+  static double onboardingEase(int runsStartedBefore) {
+    if (runsStartedBefore < 0 || runsStartedBefore >= onboardingEaseRuns) {
+      return 0;
+    }
+    return 1 - runsStartedBefore / onboardingEaseRuns;
+  }
+
+  /// Blends a full-ease multiplier toward 1.0 by [ease] (0..1).
+  static double eased(double fullEaseScale, double ease) =>
+      1 - (1 - fullEaseScale) * ease.clamp(0.0, 1.0);
+
   // ---- Idle punish ----
 
   /// Moving less than this (px) over [idleWindow] seconds counts as idle.

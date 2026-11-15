@@ -323,4 +323,60 @@ class AnalyticsFacade implements AnalyticsClient {
   @override
   Future<void> trackReviewRequested(String trigger) async =>
       _fire((c) => c.trackReviewRequested(trigger));
+
+  // ==================== First-run funnel ====================
+
+  @override
+  Future<void> trackOnboardingStepShown(String step) async =>
+      _fire((c) => c.trackOnboardingStepShown(step));
+
+  @override
+  Future<void> trackOnboardingStepCompleted(
+    String step, {
+    bool skipped = false,
+  }) async =>
+      _fire((c) => c.trackOnboardingStepCompleted(step, skipped: skipped));
+
+  @override
+  Future<void> trackFirstGameStarted({
+    required int secondsSinceInstall,
+    required String gameMode,
+  }) async => _fire(
+    (c) => c.trackFirstGameStarted(
+      secondsSinceInstall: secondsSinceInstall,
+      gameMode: gameMode,
+    ),
+  );
+
+  @override
+  Future<void> trackSecondGameStarted({
+    required int secondsSinceInstall,
+    required int secondsSinceFirstGame,
+  }) async => _fire(
+    (c) => c.trackSecondGameStarted(
+      secondsSinceInstall: secondsSinceInstall,
+      secondsSinceFirstGame: secondsSinceFirstGame,
+    ),
+  );
+
+  @override
+  Future<void> trackOnboardingRunEnded({
+    required int runNumber,
+    required String outcome,
+    required int score,
+    required int levelReached,
+    required int levelsCleared,
+    required int durationSeconds,
+    required bool eased,
+  }) async => _fire(
+    (c) => c.trackOnboardingRunEnded(
+      runNumber: runNumber,
+      outcome: outcome,
+      score: score,
+      levelReached: levelReached,
+      levelsCleared: levelsCleared,
+      durationSeconds: durationSeconds,
+      eased: eased,
+    ),
+  );
 }

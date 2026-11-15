@@ -35,12 +35,12 @@ Legend: impact H/M/L · effort S/M/L · `A` = Snake Classic, `B` = Cosmo Strike.
   server can't. Copy written in Cosmo's own voice.
 - [ ] 8. **Open the app's notification settings** (M, S) for players who denied
   permission (native MethodChannel), from the soft-ask/Settings.
-- [ ] 9. **First-run funnel analytics** (M, S): onboarding steps,
+- [x] 9. **First-run funnel analytics** (M, S): onboarding steps,
   `first_game_started(seconds_since_install)`, second run.
 - [x] 10. **Startup safety net** (H, M): overall bootstrap timeout + loading
   watchdog + recovery/retry, and crash reporting that also covers early
   startup failures.
-- [ ] 11. **Gentler first runs** (M, S–M): ease bullet pressure for the first
+- [x] 11. **Gentler first runs** (M, S–M): ease bullet pressure for the first
   few runs; shorten the fixed 3 s pre-game loader to "until loaded".
 
 ## Tier 3 — bigger projects
