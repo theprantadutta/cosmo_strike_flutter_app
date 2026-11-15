@@ -1,0 +1,16 @@
+{"segments": [
+  {"src": "rec2.mp4", "a": 9.0,   "b": 14.0,  "chip": "Sortie",        "color": "cyan",   "title": "Fly the campaign",          "sub": "Twelve choreographed levels across four alien sectors."},
+  {"src": "rec2.mp4", "a": 15.5,  "b": 20.5,  "chip": "Formations",    "color": "mint",   "title": "Wipe whole formations",     "sub": "Clear a wave fast for a bonus and a guaranteed pickup."},
+  {"src": "rec2.mp4", "a": 25.5,  "b": 30.5,  "chip": "Set-pieces",    "color": "violet", "title": "Terrain fights back",       "sub": "Corridors squeeze shut. Thread the gap."},
+  {"src": "rec2.mp4", "a": 35.0,  "b": 40.0,  "chip": "Overdrive",     "color": "gold",   "title": "Graze. Charge. Unleash.",   "sub": "Near misses fill Overdrive: a piercing beam and double score."},
+  {"src": "rec2.mp4", "a": 56.0,  "b": 61.0,  "chip": "Boss fights",   "color": "pink",   "title": "Every attack telegraphed",  "sub": "Read the warning, then dodge."},
+  {"src": "rec2.mp4", "a": 74.0,  "b": 79.0,  "chip": "War Machine",   "color": "pink",   "title": "Multi-phase bosses",        "sub": "Every sector ends in its own boss fight."},
+  {"src": "rec2.mp4", "a": 88.5,  "b": 93.0,  "chip": "Three stars",   "color": "gold",   "title": "Chase three stars",         "sub": "Clear it, beat par, take no hits."},
+  {"src": "rec3.mp4", "a": 0.6,   "b": 5.0,   "chip": "Upgrade draft", "color": "violet", "title": "Choose your edge",          "sub": "Pick one of three upgrades after every clear."},
+  {"src": "rec3.mp4", "a": 30.5,  "b": 35.5,  "chip": "Combos",        "color": "mint",   "title": "Chain the kills",           "sub": "Build a ×4 score multiplier. Don't get hit."},
+  {"src": "rec3.mp4", "a": 62.0,  "b": 67.0,  "chip": "Hive Queen",    "color": "pink",   "title": "New sector, new threats",   "sub": "From the Asteroid Belt to the Crystal Expanse."},
+  {"src": "rec1.mp4", "a": 19.0,  "b": 23.5,  "chip": "Hangar",        "color": "cyan",   "title": "Upgrade your ship",         "sub": "Permanent upgrades and new ship frames."},
+  {"src": "rec1.mp4", "a": 32.5,  "b": 36.5,  "chip": "Armory",        "color": "gold",   "title": "Make it yours",             "sub": "Liveries, exhausts and Sectors for your fighter."},
+  {"src": "rec1.mp4", "a": 41.0,  "b": 45.5,  "chip": "Frontline",     "color": "violet", "title": "50-tier seasons",           "sub": "Climb the Frontline track for rewards every season."},
+  {"src": "rec1.mp4", "a": 51.2,  "b": 55.0,  "chip": "Sector Cups",   "color": "cyan",   "title": "Daily and weekly Cups",     "sub": "Post your best run and compete for credits."}
+]}
