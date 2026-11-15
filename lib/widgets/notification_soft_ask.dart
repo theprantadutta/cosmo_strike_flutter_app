@@ -2,11 +2,14 @@ import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/notification_service.dart';
+import '../services/notification_settings_opener.dart';
 import '../ui/cs.dart';
 
 /// In-app "soft ask" before the OS notification dialog. Shown once ever,
 /// from the Home prompt queue after onboarding; only "Turn on" fires the
 /// system prompt, so a "Not now" never burns the one-shot Android dialog.
+/// When the OS prompt is already blocked, "Open channel" goes to the app's
+/// notification settings page instead.
 class NotificationSoftAsk {
   NotificationSoftAsk._();
 
@@ -38,7 +41,9 @@ class NotificationSoftAsk {
         ],
       ),
     );
-    if (enable == true) await NotificationService().requestPermissionFlow();
+    // If the OS can no longer show its prompt (permanently denied), this
+    // opens the app's notification settings instead.
+    if (enable == true) await NotificationSettingsOpener.requestOrOpen();
     return true;
   }
 }

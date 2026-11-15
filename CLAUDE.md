@@ -60,6 +60,12 @@ put sign-in, privacy, notifications or setup choices in front of the first run.
   One at a time — never stack dialogs.
 - **Notifications**: `NotificationService.initialize()` never shows the OS
   dialog; only `NotificationSoftAsk` → `requestPermissionFlow()` does.
+  When the OS prompt is blocked, `NotificationSettingsOpener` (native
+  channel in `MainActivity`) opens the app's notification settings (soft-ask
+  and Settings → Notifications "Comms offline" row). Accountless pilots get
+  ONE local comeback reminder ~20 h after leaving (`ComebackReminder`, quiet
+  hours 22–09 skipped; armed at game over / on background, cancelled on
+  resume; skipped with a backend session — the server reminder covers them).
 - **Sign-in**: `DeferredSignInPrompt` on a new personal best after onboarding
   (≤3 asks, 3 days apart), plus Profile, all via `showAccountUpgradeSheet`
   (links Firebase-anonymous; signs in a local guest — is_new_user keeps local

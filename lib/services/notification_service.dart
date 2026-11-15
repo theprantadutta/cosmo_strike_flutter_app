@@ -3,12 +3,16 @@ import 'dart:convert';
 import 'dart:ui' show Color;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest_all.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 import '../core/di/injection.dart';
 import '../presentation/bloc/premium/premium_cubit.dart';
 import '../utils/logger.dart';
 import 'api_service.dart';
+import 'comeback_reminder.dart';
 import 'data_sync_service.dart';
 import 'navigation_service.dart';
 
@@ -68,6 +72,12 @@ class NotificationService {
       _firebaseMessaging = FirebaseMessaging.instance;
       _localNotifications = FlutterLocalNotificationsPlugin();
 
+      // Required before zonedSchedule (the comeback reminder). The device's
+      // IANA zone is deliberately not resolved: the only local schedule is a
+      // one-shot whose absolute instant TZDateTime.from preserves whatever
+      // tz.local is.
+      tzdata.initializeTimeZones();
+
       await _initializeLocalNotifications(requestPermission: requestPermission);
       await _initializeFirebaseMessaging(requestPermission: requestPermission).timeout(
         const Duration(seconds: 5),
@@ -80,6 +90,13 @@ class NotificationService {
       await _loadNotificationPreferences();
 
       _initialized = true;
+      // A launch IS the player coming back: drop any pending comeback
+      // reminder, then keep it in step with foreground/background.
+      unawaited(cancelComebackReminder());
+      _lifecycleListener ??= AppLifecycleListener(
+        onResume: () => unawaited(cancelComebackReminder()),
+        onPause: () => unawaited(_rearmComebackReminder()),
+      );
       // Align FCM topic subscriptions with the saved toggles. Fire and
       // forget — FCM topic calls can be slow and must not block boot;
       // internally no-ops when the token is unavailable.
@@ -169,11 +186,21 @@ class NotificationService {
   /// alert) and, when granted, finishes FCM wiring. Returns the result.
   Future<bool> requestPermissionFlow() async {
     if (!_initialized) await initialize();
+    _lastPromptBlocked = false;
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
-        await _localNotifications
+        final started = DateTime.now();
+        final granted = await _localNotifications
             .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
             ?.requestNotificationsPermission();
+        // Android has no "can I still prompt?" query. A denial that returns
+        // faster than anyone could answer means no dialog was shown.
+        _lastPromptBlocked = granted != true &&
+            DateTime.now().difference(started) < const Duration(milliseconds: 600);
+      } else {
+        final current = await _firebaseMessaging.getNotificationSettings();
+        _lastPromptBlocked =
+            current.authorizationStatus == AuthorizationStatus.denied;
       }
       await _initializeFirebaseMessaging(requestPermission: true)
           .timeout(const Duration(seconds: 8), onTimeout: () {});
@@ -183,6 +210,13 @@ class NotificationService {
     }
     return areNotificationsEnabled();
   }
+
+  bool _lastPromptBlocked = false;
+
+  /// True when the last [requestPermissionFlow] could not show the OS prompt
+  /// (permanently denied, or switched off in system settings), so the only
+  /// way to turn notifications on is the app's settings page.
+  bool get lastPermissionPromptBlocked => _lastPromptBlocked;
 
   bool _fcmWired = false;
 
@@ -433,6 +467,11 @@ class NotificationService {
       await prefs.setBool('notification_${type.key}', enabled);
     } catch (e) {
       AppLogger.error('Failed to save notification preference: $e');
+    }
+
+    // The comeback reminder rides the Daily Reminder toggle.
+    if (type == NotificationType.dailyReminder && !enabled) {
+      unawaited(cancelComebackReminder());
     }
 
     // Push the FULL per-type preference set to the backend. The server's
@@ -715,6 +754,106 @@ class NotificationService {
       AppLogger.success('Backend daily-reminder preview fired (variant=$variant)');
     }
     return variant;
+  }
+
+  // ---------------------------------------------------------------------
+  // Comeback reminder (local, one-shot).
+  //
+  // The recurring daily ping is server-driven (above), but the backend can
+  // only reach users with a JWT and a registered FCM token. Most new pilots
+  // are accountless local guests, so a local notification is the only way
+  // to reach the players most likely to never return. Exactly ONE is ever
+  // pending (fixed id): armed when a run ends, re-armed when the app goes to
+  // the background, cancelled the moment the player comes back. Inexact
+  // scheduling (no SCHEDULE_EXACT_ALARM) is fine for a ~20 h nudge.
+  // ---------------------------------------------------------------------
+
+  static const int _comebackReminderId = 72001;
+
+  /// Best score the reminder quotes; its presence means a run has ended on
+  /// this device, so going to the background may re-arm the reminder.
+  static const String _comebackBestScoreKey = 'comeback_reminder_best_score';
+
+  AppLifecycleListener? _lifecycleListener;
+
+  /// Arms the comeback reminder ~20 h out (shifted out of quiet hours) after
+  /// a run that ended with [bestScore] as the pilot's best. Replaces any
+  /// pending one. Never throws.
+  Future<void> scheduleComebackReminder({required int bestScore}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_comebackBestScoreKey, bestScore);
+      await _scheduleComeback(bestScore);
+    } catch (e, st) {
+      AppLogger.error('Failed to arm comeback reminder', e, st);
+    }
+  }
+
+  Future<void> _rearmComebackReminder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final best = prefs.getInt(_comebackBestScoreKey);
+      if (best == null) return; // no run flown yet
+      await _scheduleComeback(best);
+    } catch (e, st) {
+      AppLogger.error('Failed to re-arm comeback reminder', e, st);
+    }
+  }
+
+  Future<void> _scheduleComeback(int bestScore) async {
+    if (!_initialized) return;
+
+    // Players with a backend session get the server's daily reminder;
+    // scheduling here as well would double-notify them.
+    if (ApiService().isAuthenticated || _backendIntegrationDone) {
+      await cancelComebackReminder();
+      return;
+    }
+    if (!isNotificationEnabled(NotificationType.dailyReminder)) {
+      await cancelComebackReminder();
+      return;
+    }
+    if (!await areNotificationsEnabled()) return;
+
+    final fireAt = tz.TZDateTime.from(
+      ComebackReminder.fireTime(DateTime.now()),
+      tz.local,
+    );
+
+    const details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        _channelId,
+        _channelName,
+        channelDescription: _channelDescription,
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@drawable/ic_stat_notify',
+        color: Color(0xFFFF8AD8),
+      ),
+      iOS: DarwinNotificationDetails(),
+    );
+
+    await _localNotifications.zonedSchedule(
+      id: _comebackReminderId,
+      title: ComebackReminder.title,
+      body: ComebackReminder.body(bestScore),
+      scheduledDate: fireAt,
+      notificationDetails: details,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      // `route` makes the tap land on Home via NavigationService.
+      payload: jsonEncode({'type': 'comeback_reminder', 'route': 'home'}),
+    );
+    AppLogger.info('Comeback reminder armed for $fireAt');
+  }
+
+  /// Drops a pending comeback reminder (the player is back on their own).
+  Future<void> cancelComebackReminder() async {
+    if (!_initialized) return;
+    try {
+      await _localNotifications.cancel(id: _comebackReminderId);
+    } catch (e) {
+      AppLogger.error('Failed to cancel comeback reminder', e);
+    }
   }
 
   Future<void> cancelScheduledNotification(int id) async {
