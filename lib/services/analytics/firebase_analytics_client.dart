@@ -351,6 +351,59 @@ class FirebaseAnalyticsClient implements AnalyticsClient {
   }
 
   @override
+  Future<void> trackAdLoad({
+    required String format,
+    required int requests,
+    required int filled,
+    required int failed,
+    required String errorCodes,
+  }) {
+    return _analytics.logEvent(
+      name: 'ad_load',
+      parameters: {
+        'ad_format': format,
+        'requests': requests,
+        'filled': filled,
+        'failed': failed,
+        // GA4 caps string params at 100 chars.
+        if (errorCodes.isNotEmpty)
+          'error_codes': errorCodes.length > 100
+              ? errorCodes.substring(0, 100)
+              : errorCodes,
+      },
+    );
+  }
+
+  @override
+  Future<void> trackAdRevenue({
+    required String format,
+    required int valueMicros,
+    required String currencyCode,
+    required String precision,
+  }) {
+    return _analytics.logEvent(
+      name: 'ad_revenue',
+      parameters: {
+        'ad_format': format,
+        'value': valueMicros / 1000000.0,
+        'currency': currencyCode,
+        'precision': precision,
+      },
+    );
+  }
+
+  @override
+  Future<void> trackRewardedResult({
+    required String placement,
+    required String outcome,
+  }) {
+    return _analytics.logEvent(
+      name: 'rewarded_result',
+      parameters: {'placement': placement, 'outcome': outcome},
+    );
+  }
+
+  @override
   Future<void> trackReviewRequested(String trigger) {
     return _analytics.logEvent(
       name: 'review_requested',

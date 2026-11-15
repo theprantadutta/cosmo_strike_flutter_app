@@ -18,8 +18,11 @@ Legend: impact H/M/L · effort S/M/L · `A` = Snake Classic, `B` = Cosmo Strike.
 - [x] 3. **Create the notification channel natively at launch** (H, S) +
   manifest `default_notification_channel_id`, so pushes that arrive before
   Home first mounts aren't dropped/demoted.
-- [ ] 4. **Retry failed ad loads** (H, S–M). B only logs `onAdFailedToLoad`;
+- [x] 4. **Retry failed ad loads** (H, S–M). B only logs `onAdFailedToLoad`;
   A retries with backoff so interstitial/rewarded slots refill.
+  Done: `AdLoadRetry` (capped, jittered, one pending per format, remote cap
+  `ads_load_retry_max_attempts`), staggered preload, re-arm on network /
+  consent / subscription lapse; banners capped at 6 retries.
 
 ## Tier 2 — retention & revenue
 - [ ] 5. **Ad mediation** (Unity Ads + Liftoff) (H, M). Code is small; needs
@@ -46,3 +49,6 @@ Legend: impact H/M/L · effort S/M/L · `A` = Snake Classic, `B` = Cosmo Strike.
 - [ ] 13. **iOS subscription reconcile + refund job** (M, M, backend).
 - [ ] 14. **Ad revenue/load measurement**, iOS update prompt, release scripts
   that upload crash symbols (L each, S–M).
+  - [x] 14a. Ad measurement: `ad_load` (per format, per session),
+    `ad_revenue` (AdMob paid events), `rewarded_result` (completed /
+    abandoned / show_failed / not_ready by placement).

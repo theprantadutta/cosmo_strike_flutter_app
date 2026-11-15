@@ -102,6 +102,37 @@ abstract class AnalyticsClient {
   });
   Future<void> trackThemeSelected(String themeName);
 
+  // ==================== Ads ====================
+
+  /// Load outcomes for one ad [format] since the last report (aggregated
+  /// per session, sent when the app is backgrounded). [errorCodes] is
+  /// `"code:count,…"`, most frequent first (3 = no fill, 2 = network).
+  Future<void> trackAdLoad({
+    required String format,
+    required int requests,
+    required int filled,
+    required int failed,
+    required String errorCodes,
+  });
+
+  /// Revenue AdMob reported for one impression (`onPaidEvent`).
+  /// [valueMicros] is in millionths of [currencyCode]; [precision] is the
+  /// AdMob precision type (estimated / publisherProvided / precise / unknown).
+  Future<void> trackAdRevenue({
+    required String format,
+    required int valueMicros,
+    required String currencyCode,
+    required String precision,
+  });
+
+  /// How a rewarded ad ended: `completed` (reward earned), `abandoned`
+  /// (closed early), `show_failed`, or `not_ready` (asked with nothing
+  /// loaded). [placement] names the offer (cap key, or `other`).
+  Future<void> trackRewardedResult({
+    required String placement,
+    required String outcome,
+  });
+
   // ==================== Settings ====================
 
   Future<void> trackSettingChanged({

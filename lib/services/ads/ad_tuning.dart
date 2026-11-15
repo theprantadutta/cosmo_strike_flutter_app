@@ -15,6 +15,7 @@ abstract final class AdTuning {
   static const _kEveryNLevels = 'ads_interstitial_every_n_levels';
   static const _kMinGapSeconds = 'ads_interstitial_min_gap_seconds';
   static const _kOverlayBanners = 'ads_overlay_banners_enabled';
+  static const _kLoadRetryMaxAttempts = 'ads_load_retry_max_attempts';
 
   static const _defaults = <String, dynamic>{
     _kEveryNGames: 3,
@@ -24,6 +25,7 @@ abstract final class AdTuning {
     _kEveryNLevels: 3,
     _kMinGapSeconds: 180,
     _kOverlayBanners: true,
+    _kLoadRetryMaxAttempts: 5,
   };
 
   static FirebaseRemoteConfig? _rc;
@@ -68,4 +70,10 @@ abstract final class AdTuning {
   /// Kill switch for the banners floated on the pause / level-clear /
   /// game-over overlays.
   static bool get overlayBannersEnabled => _bool(_kOverlayBanners);
+
+  /// How many backoff retries a failed interstitial / rewarded load gets
+  /// before the slot waits for the next natural trigger. 0 turns retries
+  /// off; values above the built-in delay ladder are clamped to it (see
+  /// AdLoadRetry).
+  static int get loadRetryMaxAttempts => _int(_kLoadRetryMaxAttempts);
 }

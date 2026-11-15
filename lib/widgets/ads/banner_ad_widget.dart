@@ -18,7 +18,10 @@ import 'package:cosmo_strike_flutter_app/theme/cosmo_theme.dart';
 /// [maxHeight]. It takes **no space** until an ad has actually loaded (and
 /// never for Pro users, non-mobile platforms, or columns too narrow for a
 /// banner), so an empty slot is never shown. Failed loads retry with
-/// exponential backoff while mounted; a Pro purchase drops it immediately.
+/// exponential backoff while mounted, up to [_maxRetryAttempts] times (so a
+/// screen left open with no fill doesn't request forever); a Pro purchase
+/// drops it immediately. Loads and paid events feed AdService's `ad_load` /
+/// `ad_revenue` measurement.
 class ColumnBannerAd extends StatefulWidget {
   const ColumnBannerAd({super.key, this.maxHeight = 60, this.minWidth = 240});
 
@@ -41,6 +44,7 @@ class _ColumnBannerAdState extends State<ColumnBannerAd> {
   Timer? _retryTimer;
   int _retryAttempt = 0;
   static const _maxRetryDelay = Duration(seconds: 60);
+  static const _maxRetryAttempts = 6;
 
   StreamSubscription<PremiumState>? _premiumSub;
   bool _wasPremium = false;
@@ -83,6 +87,7 @@ class _ColumnBannerAdState extends State<ColumnBannerAd> {
     final ads = _ads;
     if (ads == null || !ads.adsEnabled) return;
     final size = AdSize.getInlineAdaptiveBannerAdSize(width, widget.maxHeight.truncate());
+    ads.loadTally.requested(AdService.formatBanner);
     final ad = BannerAd(
       adUnitId: AdConfig.bannerUnitId,
       size: size,
@@ -97,6 +102,7 @@ class _ColumnBannerAdState extends State<ColumnBannerAd> {
             return;
           }
           _retryAttempt = 0;
+          _ads?.loadTally.filled(AdService.formatBanner);
           setState(() {
             _ad?.dispose();
             _ad = banner;
@@ -106,15 +112,23 @@ class _ColumnBannerAdState extends State<ColumnBannerAd> {
         },
         onAdFailedToLoad: (failed, error) {
           failed.dispose();
+          _ads?.loadTally.failed(AdService.formatBanner, error.code);
           _scheduleRetry(width);
         },
+        onPaidEvent: (_, valueMicros, precision, currencyCode) =>
+            _ads?.reportPaidEvent(
+              format: AdService.formatBanner,
+              valueMicros: valueMicros,
+              precision: precision,
+              currencyCode: currencyCode,
+            ),
       ),
     );
     ad.load();
   }
 
   void _scheduleRetry(int width) {
-    if (!mounted) return;
+    if (!mounted || _retryAttempt >= _maxRetryAttempts) return;
     final delay = Duration(
       milliseconds: math.min(
         (const Duration(seconds: 5).inMilliseconds) << _retryAttempt,
