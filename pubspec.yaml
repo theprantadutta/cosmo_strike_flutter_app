@@ -96,7 +96,12 @@ dependencies:
   flutter_inapp_purchase: ^11.0.0
 
   # Ads (AdMob). Bundles the UMP consent SDK. Pro users never see ads.
-  google_mobile_ads: ^9.1.0
+  google_mobile_ads: ^9.2.0
+  # AdMob mediation adapters (bidding). No Dart code: they self-register and
+  # read the UMP/TCF consent signal. Keep each in step with the
+  # google_mobile_ads version it was built against (see its CHANGELOG).
+  gma_mediation_unity: ^1.12.0
+  gma_mediation_liftoffmonetize: ^1.5.7
   app_tracking_transparency: ^2.0.7
 
   # URL launcher for external links
