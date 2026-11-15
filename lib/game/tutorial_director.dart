@@ -100,6 +100,9 @@ class TutorialDirector extends Component
       _interlude -= dt;
       if (_interlude > 0) return;
       _showPrompt();
+      if (_beat != _TutorialBeat.certified) {
+        game.onTutorialStep?.call(_beat.name, false);
+      }
     }
 
     switch (_beat) {
@@ -218,6 +221,7 @@ class TutorialDirector extends Component
   }
 
   void _advance(_TutorialBeat next, {required String cheer}) {
+    game.onTutorialStep?.call(_beat.name, true);
     game.tutorialNotifier.value = null;
     game.pools.scorePopup(
       game.player.position + Vector2(0, -42),
@@ -414,6 +418,7 @@ class TutorialDirector extends Component
   // ---- Wrap-up ----
 
   void _certify() {
+    game.onTutorialStep?.call(_beat.name, true);
     _beat = _TutorialBeat.certified;
     _ending = true;
     game.tutorialNotifier.value = null;

@@ -13,6 +13,7 @@ import '../data/database/app_database.dart';
 import '../game/components/power_up.dart';
 import '../game/levels/level_def.dart';
 import '../game/cosmo_strike_game.dart';
+import '../game/tuning.dart';
 import '../game/tutorial_director.dart';
 import '../models/daily_challenge.dart';
 import '../models/level_run_result.dart';
@@ -114,6 +115,18 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// First-run tutorial: true when this run opened with the guided beats.
   bool _tutorialRun = false;
 
+  /// 1-based run number while this device is still onboarding (first
+  /// [FirstRunService.onboardingGameCount] runs); null afterwards. Drives
+  /// the first-run funnel analytics.
+  int? _onboardingRunNumber;
+
+  /// First-run pressure easing for this run (0 = none), from
+  /// [GameTuning.onboardingEase].
+  double _onboardingEase = 0;
+
+  /// The onboarding_run_ended event fires once (game over OR quit).
+  bool _onboardingRunEndTracked = false;
+
   /// Drives the PILOT CERTIFIED celebration overlay after the tutorial's
   /// final beat (auto-dismisses).
   bool _showCertified = false;
@@ -182,8 +195,21 @@ class _GameplayScreenState extends State<GameplayScreen>
     // First-run bookkeeping: counts toward the onboarding window (gates the
     // deferred asks), and starting a run accepts the privacy notice shown
     // on Home (notice-and-continue).
-    unawaited(FirstRunService.instance.recordGameStarted());
+    final firstRun = FirstRunService.instance;
+    final runsBefore = firstRun.gamesStarted;
+    if (firstRun.isInOnboarding) _onboardingRunNumber = runsBefore + 1;
+    unawaited(firstRun.recordGameStarted());
     unawaited(PrivacyPolicy.recordAccepted());
+
+    // Gentler first runs: softer enemy fire for a brand-new pilot, ramping
+    // back to normal over the onboarding runs. Never for Daily Runs, Sector
+    // Cup runs or Knife Edge — those must fly at the same pressure for all.
+    final easeEligible =
+        _dailySeed == null &&
+        _tournamentId == null &&
+        _mode != GameMode.knifeEdge;
+    _onboardingEase = easeEligible ? GameTuning.onboardingEase(runsBefore) : 0;
+    _trackFunnelStart(firstRun);
 
     // The debrief shows only THIS run's achievement unlocks and challenge
     // deltas — reset/snapshot both at run start.
@@ -251,6 +277,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       mode: _mode,
       seed: _dailySeed,
       hangar: HangarService.instance.loadout,
+      onboardingEase: _onboardingEase,
       startLevel: widget.startLevel,
       armedLoadoutKey: loadoutKey,
       screenShake: settings.screenShakeEnabled,
@@ -261,10 +288,64 @@ class _GameplayScreenState extends State<GameplayScreen>
       selectedTrailId: premium.selectedTrailId,
       trailEffectsEnabled: themeState.trailSystemEnabled,
     );
+    if (_tutorialRun) {
+      _game.onTutorialStep = (beat, completed) {
+        final analytics = GetIt.I<AnalyticsFacade>();
+        final step = 'tutorial_$beat';
+        unawaited(
+          completed
+              ? analytics.trackOnboardingStepCompleted(step)
+              : analytics.trackOnboardingStepShown(step),
+        );
+      };
+    }
     _game.onOverdrive = () {
       _runOverdrives++;
       unawaited(GetIt.I<AnalyticsFacade>().trackPowerUpUsed('overdrive'));
     };
+  }
+
+  /// First-run funnel: first_game_started / second_game_started, measured
+  /// from the device-only install stamp.
+  void _trackFunnelStart(FirstRunService firstRun) {
+    final run = _onboardingRunNumber;
+    if (run == null || run > 2) return;
+    final sinceInstall = firstRun.secondsSinceInstall();
+    if (sinceInstall == null) return;
+    final analytics = GetIt.I<AnalyticsFacade>();
+    if (run == 1) {
+      unawaited(
+        analytics.trackFirstGameStarted(
+          secondsSinceInstall: sinceInstall,
+          gameMode: _gameModeName,
+        ),
+      );
+    } else {
+      unawaited(
+        analytics.trackSecondGameStarted(
+          secondsSinceInstall: sinceInstall,
+          secondsSinceFirstGame: firstRun.secondsSinceFirstGame() ?? 0,
+        ),
+      );
+    }
+  }
+
+  /// First-run funnel: how an onboarding run ended (once per run).
+  void _trackOnboardingRunEnded(GameResult r, {required String outcome}) {
+    final run = _onboardingRunNumber;
+    if (run == null || _onboardingRunEndTracked) return;
+    _onboardingRunEndTracked = true;
+    unawaited(
+      GetIt.I<AnalyticsFacade>().trackOnboardingRunEnded(
+        runNumber: run,
+        outcome: outcome,
+        score: r.score,
+        levelReached: r.stageReached,
+        levelsCleared: r.levelsCleared,
+        durationSeconds: r.durationSeconds,
+        eased: _onboardingEase > 0,
+      ),
+    );
   }
 
   /// Tutorial resolved: certified (completed) or skipped. Either way the
@@ -356,6 +437,10 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   void _handleGameOver(GameResult result) {
     _lastResult = result;
+    _trackOnboardingRunEnded(
+      result,
+      outcome: result.cleared ? 'victory' : 'game_over',
+    );
     widget.onRunComplete?.call(result);
     // Re-warm both ad types now so the game-over screen's "2× coins" rewarded
     // and the Retry/Exit interstitial are already loaded by the time the
@@ -635,6 +720,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       // Quitting keeps the points earned so far as a high-score candidate.
       unawaited(_recordRunScore());
       final partial = _game.buildPartialResult();
+      _trackOnboardingRunEnded(partial, outcome: 'quit');
       final pending = partial.levelResults
           .where((lr) => !lr.cleared || !_persistedClears.contains(lr.stageId))
           .toList();

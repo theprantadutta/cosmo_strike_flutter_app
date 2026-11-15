@@ -357,4 +357,74 @@ class FirebaseAnalyticsClient implements AnalyticsClient {
       parameters: {'trigger': trigger},
     );
   }
+
+  // ==================== First-run funnel ====================
+
+  @override
+  Future<void> trackOnboardingStepShown(String step) {
+    return _analytics.logEvent(
+      name: 'onboarding_step_shown',
+      parameters: {'step': step},
+    );
+  }
+
+  @override
+  Future<void> trackOnboardingStepCompleted(String step, {bool skipped = false}) {
+    return _analytics.logEvent(
+      name: 'onboarding_step_completed',
+      parameters: {'step': step, 'skipped': skipped ? 1 : 0},
+    );
+  }
+
+  @override
+  Future<void> trackFirstGameStarted({
+    required int secondsSinceInstall,
+    required String gameMode,
+  }) {
+    return _analytics.logEvent(
+      name: 'first_game_started',
+      parameters: {
+        'seconds_since_install': secondsSinceInstall,
+        'game_mode': gameMode,
+      },
+    );
+  }
+
+  @override
+  Future<void> trackSecondGameStarted({
+    required int secondsSinceInstall,
+    required int secondsSinceFirstGame,
+  }) {
+    return _analytics.logEvent(
+      name: 'second_game_started',
+      parameters: {
+        'seconds_since_install': secondsSinceInstall,
+        'seconds_since_first_game': secondsSinceFirstGame,
+      },
+    );
+  }
+
+  @override
+  Future<void> trackOnboardingRunEnded({
+    required int runNumber,
+    required String outcome,
+    required int score,
+    required int levelReached,
+    required int levelsCleared,
+    required int durationSeconds,
+    required bool eased,
+  }) {
+    return _analytics.logEvent(
+      name: 'onboarding_run_ended',
+      parameters: {
+        'run_number': runNumber,
+        'outcome': outcome,
+        'score': score,
+        'level_reached': levelReached,
+        'levels_cleared': levelsCleared,
+        'duration_seconds': durationSeconds,
+        'eased': eased ? 1 : 0,
+      },
+    );
+  }
 }

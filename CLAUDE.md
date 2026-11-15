@@ -161,6 +161,9 @@ modifiers on top. Key pieces (all in `lib/game/`):
   bullet speed rise per level; clean flying raises fire rate/aim (hits ease it);
   idling draws a sniper volley. The basic gun does NOT shoot bullets down (laser
   and Overdrive do). ALL feel numbers live in `lib/game/tuning.dart`.
+  First runs are eased (`GameTuning.onboardingEase`: softer fire rate /
+  bullet speed / aimed share over the 3 onboarding runs), never for Daily
+  Run, Sector Cup or Knife Edge runs (decided in `gameplay_screen`).
 - **Upgrade draft** (`run_upgrades.dart`, `widgets/gameplay/upgrade_draft_overlay.dart`):
   pick 1 of 3 after every level clear; stacks for the run only.
 - **Hangar** (`hangar.dart`, `services/hangar_service.dart`, `screens/hangar_screen.dart`):

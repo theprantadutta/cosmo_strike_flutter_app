@@ -133,7 +133,13 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     this.trailEffectsEnabled = false,
     this.seed,
     this.hangar = const HangarLoadout(),
+    this.onboardingEase = 0,
   }) : _tutorialPending = tutorial;
+
+  /// First-run easing strength (0 = none, 1 = full) from
+  /// [GameTuning.onboardingEase]. The screen passes 0 for Daily Runs,
+  /// Sector Cup runs and Knife Edge, so those always fly at full pressure.
+  final double onboardingEase;
 
   /// Permanent progression for this run: Hangar upgrade levels + the
   /// selected ship frame (starting upgrades and trade-offs).
@@ -808,15 +814,28 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// Chance a straight-firing enemy aims this shot at the player.
   double get aimedChance => _tutorialPending
       ? 0
-      : (GameTuning.aimedChance(levelIndex) * director.intensity).clamp(0.0, 0.9);
+      : (GameTuning.aimedChance(levelIndex) *
+                director.intensity *
+                GameTuning.eased(GameTuning.onboardingAimedScale, onboardingEase))
+            .clamp(0.0, 0.9);
 
   /// Enemy bullet speed multiplier (level curve x adaptive pressure).
   double get enemyBulletSpeedScale => _tutorialPending
       ? 1
-      : GameTuning.enemyBulletSpeed(levelIndex) * director.bulletSpeedScale;
+      : GameTuning.enemyBulletSpeed(levelIndex) *
+            director.bulletSpeedScale *
+            GameTuning.eased(GameTuning.onboardingBulletSpeedScale, onboardingEase);
 
-  /// Enemy fire-rate multiplier from adaptive pressure.
-  double get fireIntensity => _tutorialPending ? 1 : director.intensity;
+  /// Enemy fire-rate multiplier from adaptive pressure (x first-run ease).
+  double get fireIntensity => _tutorialPending
+      ? 1
+      : director.intensity *
+          GameTuning.eased(GameTuning.onboardingFireRateScale, onboardingEase);
+
+  /// First-run tutorial analytics hook: `(beat, completed)` — fired with
+  /// `completed: false` when a beat's prompt appears and `true` when the
+  /// player performs it. Set by the gameplay screen; never affects play.
+  void Function(String beat, bool completed)? onTutorialStep;
 
   void _updateDirector(double dt) {
     if (_tutorialPending || !mode.enemiesFire) return;

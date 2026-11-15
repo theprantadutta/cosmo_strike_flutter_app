@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:get_it/get_it.dart';
+import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/walkthrough_service.dart';
 import 'package:cosmo_strike_flutter_app/widgets/walkthrough/walkthrough_step.dart';
 
@@ -98,12 +100,32 @@ class WalkthroughNotifier extends StateNotifier<WalkthroughState> {
       steps: steps,
       isAwaitingInput: steps.isNotEmpty && steps.first.isInteractive,
     );
+    _trackShown();
+  }
+
+  // ---- First-run funnel analytics (one event per step) ----
+
+  AnalyticsFacade? get _analytics => GetIt.I.isRegistered<AnalyticsFacade>()
+      ? GetIt.I<AnalyticsFacade>()
+      : null;
+
+  void _trackShown() {
+    final step = state.currentStep;
+    if (step != null) _analytics?.trackOnboardingStepShown(step.id);
+  }
+
+  void _trackCompleted({bool skipped = false}) {
+    final step = state.currentStep;
+    if (step != null) {
+      _analytics?.trackOnboardingStepCompleted(step.id, skipped: skipped);
+    }
   }
 
   /// Move to the next step
   void next() {
     if (!state.isActive) return;
 
+    _trackCompleted();
     if (state.hasNextStep) {
       final nextIndex = state.currentStepIndex + 1;
       final nextStep = state.steps[nextIndex];
@@ -112,6 +134,7 @@ class WalkthroughNotifier extends StateNotifier<WalkthroughState> {
         currentStepIndex: nextIndex,
         isAwaitingInput: nextStep.isInteractive,
       );
+      _trackShown();
     } else {
       // Complete the walkthrough
       complete();
@@ -122,6 +145,7 @@ class WalkthroughNotifier extends StateNotifier<WalkthroughState> {
   Future<void> skip() async {
     if (!state.isActive || state.walkthroughId == null) return;
 
+    _trackCompleted(skipped: true);
     await _service.markComplete(state.walkthroughId!);
     _onComplete?.call();
 
@@ -131,6 +155,10 @@ class WalkthroughNotifier extends StateNotifier<WalkthroughState> {
   /// Complete the walkthrough
   Future<void> complete() async {
     if (!state.isActive || state.walkthroughId == null) return;
+
+    // The tour's end (tutorial_complete) — the walkthrough start was
+    // already tracked by Home, the completion never was.
+    _analytics?.trackWalkthroughCompleted();
 
     await _service.markComplete(state.walkthroughId!);
     _onComplete?.call();

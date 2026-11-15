@@ -18,6 +18,7 @@ class FirstRunService {
   static const _kGamesStarted = 'first_run_games_started';
   static const _kInstalledAt = 'first_run_installed_at_ms';
   static const _kMigrated = 'first_run_migration_version';
+  static const _kFirstGameAt = 'first_run_first_game_at_ms';
 
   SharedPreferences? _prefs;
   int _gamesStarted = onboardingGameCount; // fail safe: "onboarded"
@@ -51,11 +52,35 @@ class FirstRunService {
     return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
   }
 
-  /// Call once per run start.
+  DateTime? get firstGameAt {
+    final ms = _prefs?.getInt(_kFirstGameAt);
+    return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  /// Whole seconds from install to [now] (null before initialize).
+  int? secondsSinceInstall([DateTime? now]) => _secondsSince(installedAt, now);
+
+  /// Whole seconds from the first run's start to [now] (null if unknown).
+  int? secondsSinceFirstGame([DateTime? now]) => _secondsSince(firstGameAt, now);
+
+  static int? _secondsSince(DateTime? from, DateTime? now) {
+    if (from == null) return null;
+    final s = (now ?? DateTime.now()).difference(from).inSeconds;
+    return s < 0 ? 0 : s;
+  }
+
+  /// Call once per run start. The counter bumps synchronously, so
+  /// [gamesStarted] already includes this run when it returns; the first
+  /// run also stamps [firstGameAt] (funnel analytics).
   Future<void> recordGameStarted() async {
     _gamesStarted++;
+    final isFirst = _gamesStarted == 1;
     try {
-      await (_prefs ??= await SharedPreferences.getInstance()).setInt(_kGamesStarted, _gamesStarted);
+      final prefs = _prefs ??= await SharedPreferences.getInstance();
+      if (isFirst && prefs.getInt(_kFirstGameAt) == null) {
+        await prefs.setInt(_kFirstGameAt, DateTime.now().millisecondsSinceEpoch);
+      }
+      await prefs.setInt(_kGamesStarted, _gamesStarted);
     } catch (_) {}
   }
 }

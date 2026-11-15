@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:material_ui/material_ui.dart';
@@ -8,6 +9,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/game/game_settings_cu
 import 'package:cosmo_strike_flutter_app/presentation/bloc/tournament/tournament_context_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
+import 'package:cosmo_strike_flutter_app/services/first_run_service.dart';
 import 'package:cosmo_strike_flutter_app/services/progression_service.dart';
 import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
@@ -17,18 +19,23 @@ import 'package:cosmo_strike_flutter_app/utils/campaign_catalog.dart';
 /// Game screen.
 ///
 /// Its job is two-fold:
-///   1. Give the player a 3-second buffer with the mission title, a progress
-///      line and tips so the jump into gameplay feels deliberate.
-///   2. Opportunistically warm up gameplay dependencies that are cheap and
-///      idempotent — audio (already preloaded in main; this just touches the
-///      singleton), and a decode of the gameplay sprite atlas.
+///   1. Decode the gameplay sprite atlas into Flame's cache (and touch the
+///      audio singleton) so the game starts without a hitch.
+///   2. Frame the jump with the mission title, a progress line and a tip,
+///      on screen only until the assets are ready, with a short
+///      [_minDuration] floor so it never flashes.
+///
+/// The very first run skips the theatre entirely (a brand-new player's
+/// first tap on Play goes straight into the game; the game awaits the same
+/// memoized preload in onLoad).
 ///
 /// Prism Noir interstitial: LEFT = "LEVEL 03 / ASTEROID BELT" + the level
 /// name set huge with a prism tail, then the mode you're launching into and
 /// your control scheme. RIGHT = live status, prism progress line, your record
 /// (pilot level / best / games) and a rotating pro tip.
 ///
-/// When the timer completes, the screen does a `pushReplacement` to
+/// When both the floor and the preload are done, the screen does a
+/// `pushReplacement` to
 /// `AppRoutes.game` so back navigation from the game returns to Home, not
 /// to this screen.
 class PreGameLoadingScreen extends StatefulWidget {
@@ -43,22 +50,28 @@ class PreGameLoadingScreen extends StatefulWidget {
 
 class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
     with SingleTickerProviderStateMixin {
-  // Total time the loader is on screen.
-  static const Duration _loadDuration = Duration(milliseconds: 3000);
+  // Shortest time the loader is on screen (polish floor; the real wait is
+  // the sprite preload).
+  static const Duration _minDuration = Duration(milliseconds: 800);
+  // Safety cap on waiting for the preload: past this the game takes over
+  // (CosmoStrikeGame.onLoad awaits the same memoized future).
+  static const Duration _maxAssetWait = Duration(seconds: 6);
+  // Beat at 100% / "GO!" before leaving, so the bar visibly completes.
+  static const Duration _goBeat = Duration(milliseconds: 150);
+  // Progress the bar holds at while the assets are still decoding.
+  static const double _holdProgress = 0.9;
   // How often the tip rotates.
   static const Duration _tipRotation = Duration(milliseconds: 1400);
 
   /// Stage milestones — each step drives the status label. Pairs are
-  /// (fractional progress, status label). The progress controller advances
-  /// linearly across the full duration; the label is picked by finding the
-  /// largest stage we've crossed.
+  /// (fractional progress, status label). The bar runs to [_holdProgress]
+  /// over [_minDuration] and completes when the assets are ready; the label
+  /// is picked by finding the largest stage we've crossed.
   static const List<_Stage> _stages = [
     _Stage(0.00, 'Initializing flight systems...'),
-    _Stage(0.18, 'Calibrating controls...'),
-    _Stage(0.36, 'Spooling thrusters...'),
-    _Stage(0.54, 'Scanning for hostiles...'),
-    _Stage(0.72, 'Arming weapons...'),
-    _Stage(0.88, 'Clear for launch...'),
+    _Stage(0.30, 'Arming weapons...'),
+    _Stage(0.60, 'Scanning for hostiles...'),
+    _Stage(_holdProgress, 'Clear for launch...'),
     _Stage(1.00, 'Go!'),
   ];
 
@@ -84,15 +97,30 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
   int _tipIndex = 0;
   bool _navigated = false;
 
+  /// Brand-new player: no theatre, straight into the game.
+  late final bool _skipTheatre = FirstRunService.instance.isFirstGame;
+
+  /// Flips when the sprite preload settles (or times out).
+  final ValueNotifier<bool> _assetsReady = ValueNotifier(false);
+  bool _floorDone = false;
+
   @override
   void initState() {
     super.initState();
 
+    // Runs 0 -> [_holdProgress] over the floor; the last stretch to 100%
+    // is shown once the assets are ready (see [_displayProgress]).
     _progressController = AnimationController(
       vsync: this,
-      duration: _loadDuration,
+      duration: Duration(
+        milliseconds: (_minDuration.inMilliseconds / _holdProgress).round(),
+      ),
+      upperBound: _holdProgress,
     )..addStatusListener((status) {
-        if (status == AnimationStatus.completed) _goToGame();
+        if (status == AnimationStatus.completed && mounted) {
+          setState(() => _floorDone = true);
+          _maybeGo();
+        }
       });
 
     _tipIndex = _random.nextInt(_tips.length);
@@ -104,10 +132,24 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
     // main(); this just guarantees the instance is alive before gameplay.
     AudioService();
 
-    // Decode the gameplay sprite atlas into Flame's image cache while the
-    // loader runs. Fire-and-forget — CosmoStrikeGame.onLoad awaits the same
-    // memoized future, so a slow decode just delays game start, never races.
-    GameAssets.preload();
+    // Decode the gameplay sprite atlas into Flame's image cache. The loader
+    // waits for it (capped); CosmoStrikeGame.onLoad awaits the same memoized
+    // future, so the game never races a slow decode either way.
+    final preload = GameAssets.preload();
+    if (_skipTheatre) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _goToGame());
+      return;
+    }
+    unawaited(
+      preload
+          .timeout(_maxAssetWait)
+          .catchError((Object _) {})
+          .whenComplete(() {
+        if (!mounted) return;
+        _assetsReady.value = true;
+        _maybeGo();
+      }),
+    );
 
     // Kick off the visual progress AFTER the first frame so the entrance
     // animations get a clean start.
@@ -116,6 +158,17 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
       _progressController.forward();
     });
   }
+
+  /// Leaves once the polish floor has run AND the assets are ready.
+  void _maybeGo() {
+    if (!_floorDone || !_assetsReady.value || _navigated || !mounted) return;
+    Future.delayed(_goBeat, _goToGame);
+  }
+
+  /// What the bar and status show: the floor animation, held at
+  /// [_holdProgress] until the assets are ready, then complete.
+  double get _displayProgress =>
+      _floorDone && _assetsReady.value ? 1.0 : _progressController.value;
 
   void _scheduleTipRotation() {
     Future.delayed(_tipRotation, () {
@@ -136,6 +189,7 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
   @override
   void dispose() {
     _progressController.dispose();
+    _assetsReady.dispose();
     super.dispose();
   }
 
@@ -150,6 +204,7 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_skipTheatre) return const ColoredBox(color: CsColors.bg);
     // Active mode = the player's settings choice unless a tournament
     // override is staged on the context (set before they tapped Play).
     final tournamentMode = context
@@ -279,9 +334,9 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
     final games = StatisticsService().statistics.totalGamesPlayed;
     return [
       AnimatedBuilder(
-        animation: _progressController,
+        animation: Listenable.merge([_progressController, _assetsReady]),
         builder: (context, _) {
-          final p = _progressController.value;
+          final p = _displayProgress;
           final status = _statusFor(p).replaceAll('...', '').toUpperCase();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
