@@ -37,7 +37,7 @@ Legend: impact H/M/L · effort S/M/L · `A` = Snake Classic, `B` = Cosmo Strike.
   permission (native MethodChannel), from the soft-ask/Settings.
 - [ ] 9. **First-run funnel analytics** (M, S): onboarding steps,
   `first_game_started(seconds_since_install)`, second run.
-- [ ] 10. **Startup safety net** (H, M): overall bootstrap timeout + loading
+- [x] 10. **Startup safety net** (H, M): overall bootstrap timeout + loading
   watchdog + recovery/retry, and crash reporting that also covers early
   startup failures.
 - [ ] 11. **Gentler first runs** (M, S–M): ease bullet pressure for the first

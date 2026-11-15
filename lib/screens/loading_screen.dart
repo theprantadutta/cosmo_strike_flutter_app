@@ -19,6 +19,8 @@ import 'package:cosmo_strike_flutter_app/services/unified_user_service.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/services/hangar_service.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
+import 'package:cosmo_strike_flutter_app/core/startup/startup_guard.dart';
+import 'package:cosmo_strike_flutter_app/core/startup/startup_reporter.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 
@@ -35,16 +37,134 @@ class _LoadingScreenState extends State<LoadingScreen>
   String _errorMessage = '';
   bool _showRetryButton = false;
 
+  /// Backstop for a stalled init. Every step below is try/caught and bounded,
+  /// but a call that neither completes nor throws (now or in a future edit)
+  /// would leave the player under the splash forever. If we haven't routed by
+  /// then, lift the splash and go Home. Longer than main's 15 s splash safety
+  /// net, so by the time it fires the splash mirror is already showing.
+  static const Duration _initWatchdog = Duration(seconds: 18);
+
+  /// How long the error view stays before carrying the player Home anyway.
+  /// Reaching it means main()'s bootstrap succeeded, so Home works.
+  static const Duration _errorFallback = Duration(seconds: 5);
+
+  /// Per-step budgets for the non-critical init steps (local work / network
+  /// with offline fallbacks). A step that runs over is abandoned, not failed.
+  static const Duration _localStepTimeout = Duration(seconds: 5);
+  static const Duration _networkStepTimeout = Duration(seconds: 8);
+
+  Timer? _watchdogTimer;
+
+  /// Guards against a double navigation when the watchdog fires at the same
+  /// moment init finishes. First caller of [_leaveLoadingScreen] wins.
+  bool _navigated = false;
+
+  /// Whether the init path already started FirstRunService (so the watchdog
+  /// doesn't start it a second time).
+  bool _firstRunStarted = false;
+
+  final Stopwatch _sinceMount = Stopwatch()..start();
+
   @override
   void initState() {
     super.initState();
 
     // The NATIVE splash stays up for the whole startup (preserved in main);
-    // it is lifted in [_liftSplash] right as we route to the first screen.
+    // it is lifted in [_leaveLoadingScreen] right as we route.
+    //
+    // Arm the watchdog BEFORE init starts, so a step that hangs on its very
+    // first await is still covered.
+    _armWatchdog();
+
     // Start the initialization process
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeApp();
     });
+  }
+
+  @override
+  void dispose() {
+    _watchdogTimer?.cancel();
+    super.dispose();
+  }
+
+  void _armWatchdog() {
+    _watchdogTimer?.cancel();
+    _watchdogTimer = Timer(_initWatchdog, _onWatchdog);
+  }
+
+  /// Init exceeded [_initWatchdog]. Route anyway, respecting the routing
+  /// rules as far as a quick, bounded check allows: a returning player on an
+  /// older policy still gets re-consent; everyone else goes Home (where both
+  /// new and returning players are headed). A first-launch marker the stuck
+  /// path never reached is written fire-and-forget.
+  Future<void> _onWatchdog() async {
+    if (_navigated || !mounted) return;
+    AppLogger.warning(
+      'Loading watchdog fired after ${_initWatchdog.inSeconds}s — routing anyway',
+    );
+    StartupReporter.recordError(
+      StateError('Loading screen init exceeded ${_initWatchdog.inSeconds}s'),
+      StackTrace.current,
+      reason: 'Loading screen watchdog',
+    );
+
+    final authCubit = context.read<AuthCubit>();
+    final isFirstTime = authCubit.state.isFirstTimeUser;
+    if (!_firstRunStarted) {
+      _firstRunStarted = true;
+      unawaited(FirstRunService.instance.initialize(hasPriorPlay: !isFirstTime));
+    }
+    if (isFirstTime) {
+      unawaited(authCubit.markFirstTimeSetupComplete().catchError((Object _) {}));
+    }
+
+    final reconsent = await _boundedStep(
+      'reconsent_check_watchdog',
+      PrivacyPolicy.needsReconsent(),
+      const Duration(seconds: 1),
+      orElse: () => false,
+    );
+    _leaveLoadingScreen(
+      reconsent ? AppRoutes.privacyConsent : AppRoutes.home,
+      reason: 'watchdog',
+    );
+  }
+
+  /// Single exit point from this screen: lifts the splash and routes.
+  void _leaveLoadingScreen(String route, {required String reason}) {
+    if (_navigated || !mounted) return;
+    _navigated = true;
+    _watchdogTimer?.cancel();
+    final ms = _sinceMount.elapsedMilliseconds;
+    AppLogger.lifecycle('Leaving loading screen → $route ($reason, ${ms}ms)');
+    StartupReporter.setKey('startup_route_reason', reason);
+    StartupReporter.setKey('startup_loading_ms', ms);
+    StartupReporter.log('loading screen → $route ($reason, ${ms}ms)');
+    _liftSplash();
+    context.go(route);
+  }
+
+  /// Bounds a non-critical step; on timeout logs and resolves to [orElse].
+  Future<T> _boundedStep<T>(
+    String label,
+    Future<T> future,
+    Duration timeout, {
+    required T Function() orElse,
+  }) {
+    return withStepTimeout<T>(
+      future,
+      timeout,
+      label: label,
+      orElse: orElse,
+      onTimedOut: (label, timeout) {
+        AppLogger.warning(
+          'Loading step "$label" timed out after ${timeout.inSeconds}s — continuing',
+        );
+        StartupReporter.log('loading step timeout: $label');
+        StartupReporter.setKey('loading_timeout_$label', true);
+      },
+    );
   }
 
   Future<void> _initializeApp() async {
@@ -55,7 +175,12 @@ class _LoadingScreenState extends State<LoadingScreen>
         'Powering up flight systems…',
         'Opening the uplink',
       );
-      await _initializeCoreServices();
+      await _boundedStep<void>(
+        'core_services',
+        _initializeCoreServices(),
+        _localStepTimeout,
+        orElse: () {},
+      );
 
       // Step 2: Initialize User System
       await _updateProgress(
@@ -63,7 +188,12 @@ class _LoadingScreenState extends State<LoadingScreen>
         'Preparing your Pilot File…',
         'Assigning a call sign',
       );
-      await _initializeUserSystem();
+      await _boundedStep<void>(
+        'user_system',
+        _initializeUserSystem(),
+        _networkStepTimeout,
+        orElse: () {},
+      );
 
       // Step 3: Load User Preferences
       await _updateProgress(
@@ -71,7 +201,12 @@ class _LoadingScreenState extends State<LoadingScreen>
         'Loading cockpit settings…',
         'Controls, audio, Sectors',
       );
-      await _initializePreferences();
+      await _boundedStep<void>(
+        'preferences',
+        _initializePreferences(),
+        _localStepTimeout,
+        orElse: () {},
+      );
 
       // Step 4a: Bootstrap DataSyncService — fast local op, needed before
       // preload because preload paths call into the sync service.
@@ -80,7 +215,12 @@ class _LoadingScreenState extends State<LoadingScreen>
         'Syncing flight data…',
         'Checking the uplink',
       );
-      await _initializeDataSyncService();
+      await _boundedStep<void>(
+        'data_sync_init',
+        _initializeDataSyncService(),
+        _localStepTimeout,
+        orElse: () {},
+      );
 
       // Step 4b + 5: Drain the outgoing sync queue AND fetch fresh data
       // concurrently. Previously the drain ran sequentially before the
@@ -88,7 +228,20 @@ class _LoadingScreenState extends State<LoadingScreen>
       // though the two operations don't depend on each other (drain is
       // POST-to-server, preload is GET-from-server).
       await _updateProgress(0.60, 'Loading mission data…', 'Campaign, Cups, Directives');
-      await Future.wait([_preloadAllDataConcurrently(), _drainSyncQueue()]);
+      await Future.wait([
+        _boundedStep<void>(
+          'preload',
+          _preloadAllDataConcurrently(),
+          _networkStepTimeout,
+          orElse: () {},
+        ),
+        _boundedStep<void>(
+          'sync_drain',
+          _drainSyncQueue(),
+          _networkStepTimeout,
+          orElse: () {},
+        ),
+      ]);
 
       // Step 6: Initialize Audio System
       await _updateProgress(
@@ -134,27 +287,43 @@ class _LoadingScreenState extends State<LoadingScreen>
         }
 
         final isFirstTime = authCubit.state.isFirstTimeUser;
-        await FirstRunService.instance.initialize(
-          hasPriorPlay: !isFirstTime ||
-              StatisticsService().statistics.totalGamesPlayed > 0,
-        );
+        if (!_firstRunStarted) {
+          _firstRunStarted = true;
+          await _boundedStep<void>(
+            'first_run',
+            FirstRunService.instance.initialize(
+              hasPriorPlay: !isFirstTime ||
+                  StatisticsService().statistics.totalGamesPlayed > 0,
+            ),
+            const Duration(seconds: 3),
+            orElse: () {},
+          );
+        }
 
         if (isFirstTime) {
           // No gates on first launch: the local guest created by
           // UnifiedUserService is already active, so straight to Home.
           // Privacy is a notice strip on Home (accepted on first Play);
           // sign-in and notifications are asked later — see FirstRunService.
-          await authCubit.markFirstTimeSetupComplete();
+          await _boundedStep<void>(
+            'first_time_setup',
+            authCubit.markFirstTimeSetupComplete(),
+            const Duration(seconds: 3),
+            orElse: () {},
+          );
         }
       }
 
       // Only players who accepted an EARLIER policy version are gated
       // through re-consent; new players get the notice strip on Home.
-      if (await PrivacyPolicy.needsReconsent()) {
-        if (!mounted) return;
-        await _liftSplash();
-        if (!mounted) return;
-        context.go(AppRoutes.privacyConsent);
+      final needsReconsent = await _boundedStep(
+        'reconsent_check',
+        PrivacyPolicy.needsReconsent(),
+        const Duration(seconds: 3),
+        orElse: () => false,
+      );
+      if (needsReconsent) {
+        _leaveLoadingScreen(AppRoutes.privacyConsent, reason: 'reconsent');
         return;
       }
 
@@ -169,12 +338,13 @@ class _LoadingScreenState extends State<LoadingScreen>
       ); // Reduced from 100ms
 
       // Navigation to Home Screen with smooth transition (returning users)
-      if (mounted) {
-        await _liftSplash();
-        if (!mounted) return;
-        context.go(AppRoutes.home);
-      }
-    } catch (error) {
+      _leaveLoadingScreen(AppRoutes.home, reason: 'init complete');
+    } catch (error, stackTrace) {
+      StartupReporter.recordError(
+        error,
+        stackTrace,
+        reason: 'Loading screen init failed',
+      );
       _handleError('Initialization failed: $error');
     }
   }
@@ -361,7 +531,7 @@ class _LoadingScreenState extends State<LoadingScreen>
 
   /// Lift the native splash just before the first real screen appears.
   /// Removal is idempotent (main's safety net may already have done it).
-  Future<void> _liftSplash() async {
+  void _liftSplash() {
     FlutterNativeSplash.remove();
     // Warm the Hangar loadout so the first run applies it.
     unawaited(HangarService.instance.load());
@@ -378,16 +548,28 @@ class _LoadingScreenState extends State<LoadingScreen>
 
   void _handleError(String error) {
     FlutterNativeSplash.remove();
-    if (!mounted) return;
+    if (!mounted || _navigated) return;
 
     setState(() {
       _hasError = true;
       _errorMessage = error;
       _showRetryButton = true;
     });
+
+    // Not a dead end: every step is individually guarded, so reaching here
+    // means something unexpected broke AFTER main()'s bootstrap succeeded —
+    // the app itself is up and Home works. Show the error with Retry, then
+    // carry the player on shortly either way.
+    _watchdogTimer?.cancel();
+    _watchdogTimer = Timer(
+      _errorFallback,
+      () => _leaveLoadingScreen(AppRoutes.home, reason: 'error fallback'),
+    );
   }
 
   Future<void> _retryInitialization() async {
+    // A retry gets a fresh full-length watchdog, so it is bounded too.
+    _armWatchdog();
     setState(() {
       _hasError = false;
       _errorMessage = '';
