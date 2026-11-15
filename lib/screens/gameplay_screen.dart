@@ -39,6 +39,7 @@ import '../services/tournament_service.dart';
 import '../services/weekly_quest_service.dart';
 import '../services/haptic_service.dart';
 import '../services/hangar_service.dart';
+import '../services/notification_service.dart';
 import '../services/walkthrough_service.dart';
 import '../ui/cs.dart';
 import '../ui/design/immersive.dart';
@@ -447,6 +448,13 @@ class _GameplayScreenState extends State<GameplayScreen>
     // player taps — never loaded on-demand at the tap.
     GetIt.I<AdService>().preloadInterstitial();
     GetIt.I<AdService>().preloadRewarded();
+    // Arm the one-shot comeback reminder (~20 h out, quiet hours skipped;
+    // cancelled when the pilot returns). Quotes the best score on file.
+    unawaited(
+      NotificationService().scheduleComebackReminder(
+        bestScore: math.max(result.score, _prevBestScore),
+      ),
+    );
     if (!mounted) return;
     // _prevBestScore is the best from BEFORE this run (snapshotted when the
     // run started) — level clears may already have raised the stored value.

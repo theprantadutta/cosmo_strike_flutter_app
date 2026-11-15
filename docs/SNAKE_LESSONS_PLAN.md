@@ -30,10 +30,10 @@ Legend: impact H/M/L · effort S/M/L · `A` = Snake Classic, `B` = Cosmo Strike.
 - [ ] 6. **Calmer reminder pushes** (M, S–M, backend). Daily → every 2 days →
   weekly by absence (`LastDailyReminderAt`) and a backward tick window instead
   of the exact-minute match.
-- [ ] 7. **Day-1 comeback local notification** (M, S–M). ~20 h after a session,
+- [x] 7. **Day-1 comeback local notification** (M, S–M). ~20 h after a session,
   outside quiet hours, cancelled on return; reaches accountless guests the
   server can't. Copy written in Cosmo's own voice.
-- [ ] 8. **Open the app's notification settings** (M, S) for players who denied
+- [x] 8. **Open the app's notification settings** (M, S) for players who denied
   permission (native MethodChannel), from the soft-ask/Settings.
 - [x] 9. **First-run funnel analytics** (M, S): onboarding steps,
   `first_game_started(seconds_since_install)`, second run.

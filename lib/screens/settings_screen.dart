@@ -15,6 +15,7 @@ import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
 import 'package:cosmo_strike_flutter_app/services/haptic_service.dart';
 import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
+import 'package:cosmo_strike_flutter_app/services/notification_settings_opener.dart';
 import 'package:cosmo_strike_flutter_app/services/preferences_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/username_service.dart';
@@ -85,6 +86,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notifSocial = true;
   bool _notifSpecialEvent = true;
 
+  /// Whether the OS lets the app post notifications (null until checked).
+  /// Re-checked on resume, e.g. after returning from system settings.
+  bool? _osNotificationsOn;
+  late final AppLifecycleListener _lifecycleListener;
+
   @override
   void initState() {
     super.initState();
@@ -92,6 +98,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _analytics = getIt<AnalyticsFacade>();
     _loadSettingsFromCache();
     _loadNotificationPreferences();
+    _refreshOsNotificationState();
+    _lifecycleListener = AppLifecycleListener(
+      onResume: _refreshOsNotificationState,
+    );
     // Pull fresh user data so the USER PROFILE row shows the live
     // username (handles the case where the local UnifiedUser was
     // cached pre-backfill / pre-rename and is missing the value).
@@ -111,6 +121,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
+    _lifecycleListener.dispose();
     _railScrollController.dispose();
     super.dispose();
   }
@@ -132,6 +143,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _screenShakeEnabled = s.screenShakeEnabled;
       _selectedGameMode = s.gameMode;
     });
+  }
+
+  Future<void> _refreshOsNotificationState() async {
+    final on = await _notificationService.areNotificationsEnabled();
+    if (mounted && on != _osNotificationsOn) {
+      setState(() => _osNotificationsOn = on);
+    }
+  }
+
+  Future<void> _turnOnSystemNotifications() async {
+    final on = await NotificationSettingsOpener.requestOrOpen();
+    if (!mounted) return;
+    setState(() => _osNotificationsOn = on);
+    _analytics.trackSettingChanged(
+      settingName: 'notification_system_enable',
+      value: '$on',
+    );
   }
 
   void _loadNotificationPreferences() {
@@ -454,12 +482,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       // 5. Notifications (+ debug-only test panel)
       case 4:
+        final systemOff = _osNotificationsOn == false;
         return [
+          // Blocked at OS level (denied, or switched off in system settings):
+          // the toggles below do nothing until this is fixed.
+          if (systemOff)
+            _buildActionRow(
+              icon: Symbols.notifications_off_rounded,
+              iconColor: CsColors.pink,
+              title: 'Comms offline',
+              subtitle: 'Blocked by your device. Turn on in system settings.',
+              first: true,
+              onTap: _turnOnSystemNotifications,
+            ),
           _buildSwitchRow(
             icon: Symbols.alarm_rounded,
             title: 'Daily Reminder',
             value: _notifDailyReminder,
-            first: true,
+            first: !systemOff,
             onChanged: (v) => _toggleNotification(
               NotificationType.dailyReminder,
               v,

@@ -2,14 +2,20 @@ package com.example.cosmo_strike_flutter_app
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterShellArgs
+import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,6 +69,50 @@ class MainActivity : FlutterActivity() {
     // "/" (go_router's initialLocation); the deep-link target is still read
     // from the FCM message data in NotificationService.
     override fun getInitialRoute(): String? = null
+
+    // Deep link to THIS app's system notification settings
+    // (NotificationSettingsOpener in Dart). Once POST_NOTIFICATIONS is
+    // permanently denied Android never re-shows the OS prompt, so this page
+    // is the only way a player can turn notifications back on.
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "cosmo_strike/notification_settings",
+        ).setMethodCallHandler { call, result ->
+            if (call.method == "open") {
+                result.success(openNotificationSettings())
+            } else {
+                result.notImplemented()
+            }
+        }
+    }
+
+    private fun openNotificationSettings(): Boolean {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        } else {
+            // Pre-O has no per-app notification page: use App info instead.
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.fromParts("package", packageName, null))
+        }
+        return try {
+            startActivity(intent)
+            true
+        } catch (e: ActivityNotFoundException) {
+            // Some OEM builds lack the notification page; fall back to App info.
+            try {
+                startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                        .setData(Uri.fromParts("package", packageName, null)),
+                )
+                true
+            } catch (fallbackError: ActivityNotFoundException) {
+                false
+            }
+        }
+    }
 
     // Create the FCM channel natively on every launch, before any Dart runs.
     // The Dart side (NotificationService) also creates it, but only once Home
