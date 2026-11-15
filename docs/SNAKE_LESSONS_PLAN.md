@@ -25,9 +25,9 @@ Legend: impact H/M/L · effort S/M/L · `A` = Snake Classic, `B` = Cosmo Strike.
   consent / subscription lapse; banners capped at 6 retries.
 
 ## Tier 2 — retention & revenue
-- [ ] 5. **Ad mediation** (Unity Ads + Liftoff) (H, M). Code is small; needs
+- [x] 5. **Ad mediation** (Unity Ads + Liftoff) (H, M). Code is small; needs
   per-app console setup by the owner (see the global CLAUDE.md AdMob notes).
-- [ ] 6. **Calmer reminder pushes** (M, S–M, backend). Daily → every 2 days →
+- [x] 6. **Calmer reminder pushes** (M, S–M, backend). Daily → every 2 days →
   weekly by absence (`LastDailyReminderAt`) and a backward tick window instead
   of the exact-minute match.
 - [x] 7. **Day-1 comeback local notification** (M, S–M). ~20 h after a session,
@@ -46,7 +46,7 @@ Legend: impact H/M/L · effort S/M/L · `A` = Snake Classic, `B` = Cosmo Strike.
 ## Tier 3 — bigger projects
 - [ ] 12. **Localized store listings**, then in-app l10n (M, S→L). Translate
   Cosmo's own copy (never A's).
-- [ ] 13. **iOS subscription reconcile + refund job** (M, M, backend).
+- [x] 13. **iOS subscription reconcile + refund job** (M, M, backend).
 - [ ] 14. **Ad revenue/load measurement**, iOS update prompt, release scripts
   that upload crash symbols (L each, S–M).
   - [x] 14a. Ad measurement: `ad_load` (per format, per session),
