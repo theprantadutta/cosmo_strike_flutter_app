@@ -2,22 +2,56 @@ import 'dart:async';
 
 import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_config.dart';
+import 'package:cosmo_strike_flutter_app/services/ads/ad_load_retry.dart';
+import 'package:cosmo_strike_flutter_app/services/ads/ad_load_tally.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_tuning.dart';
+import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Central AdMob wrapper: owns the SDK init + consent, preloads interstitial /
-/// rewarded ads, enforces the **Pro gate** (Pro users never see ads),
-/// the **connectivity gate**, and an interstitial **frequency cap**.
+/// rewarded ads, enforces the **Pro gate** (Pro users never see ads), the
+/// **consent gate** (UMP `canRequestAds`), the **connectivity gate**, and an
+/// interstitial **frequency cap**.
+///
+/// Failed loads retry with capped, jittered backoff ([AdLoadRetry]); the
+/// backoff is re-armed when the network returns, consent is granted or a
+/// subscription lapses, and stopped while ads are off.
+///
+/// Measurement: load outcomes per format ([loadTally] → `ad_load`, flushed
+/// on backgrounding), AdMob paid events (`ad_revenue`) and how each rewarded
+/// ad ended (`rewarded_result`).
 ///
 /// Mobile-only: no-ops on web/desktop. Reward grants happen in the calling
 /// code (placement-specific), not here — see the rewarded placements.
-class AdService {
+class AdService with WidgetsBindingObserver {
+  // Format names used for retry tracks and analytics.
+  static const String formatInterstitial = 'interstitial';
+  static const String formatRewarded = 'rewarded';
+  static const String formatBanner = 'banner';
+
+  // `rewarded_result` outcomes.
+  static const String rewardedCompleted = 'completed';
+  static const String rewardedAbandoned = 'abandoned';
+  static const String rewardedShowFailed = 'show_failed';
+  static const String rewardedNotReady = 'not_ready';
+
+  // Gap between the first request of each format at startup / re-arm.
+  // Firing every format on the same frame makes them contend for the SDK's
+  // WebView resources and fail together.
+  static const Duration _preloadStagger = Duration(milliseconds: 1500);
+
+  // The earn and dismiss callbacks arrive over the platform channel with no
+  // ordering guarantee; wait this long after a dismiss before calling a
+  // watch "abandoned".
+  static const Duration _lateEarnGrace = Duration(milliseconds: 800);
+
   // ---- tunables ----
   // Live values come from AdTuning (Firebase Remote Config with in-code
   // defaults: every 3 games / every 3 clears / 3-min shared gap), so cadence
@@ -38,6 +72,24 @@ class AdService {
   // (e.g. when no form is configured in the AdMob console, or consent isn't
   // required in the user's region).
   bool _privacyOptionsRequired = false;
+  // UMP's verdict on whether ad requests are allowed at all. Fail-closed:
+  // only true once canRequestAds() says so.
+  bool _canRequestAds = false;
+
+  final AdLoadRetry _retry = AdLoadRetry(
+    maxAttempts: () => AdTuning.loadRetryMaxAttempts,
+  );
+
+  /// Per-format load outcomes for this session (banner widgets report into
+  /// it too). Flushed as `ad_load` events when the app is backgrounded.
+  final AdLoadTally loadTally = AdLoadTally();
+
+  Timer? _preloadTimer;
+  ConnectivityService? _connectivity;
+  bool _wasOnline = true;
+  StreamSubscription<PremiumState>? _premiumSub;
+  bool _wasPro = false;
+  bool _consentRefreshing = false;
 
   InterstitialAd? _interstitial;
   bool _interstitialLoading = false;
@@ -61,8 +113,12 @@ class AdService {
     return GetIt.I<ConnectivityService>().isOnline;
   }
 
+  AnalyticsFacade? get _analytics => GetIt.I.isRegistered<AnalyticsFacade>()
+      ? GetIt.I<AnalyticsFacade>()
+      : null;
+
   /// The single master switch. Everything checks this.
-  bool get adsEnabled => _sdkReady && _isMobile && !_isPro;
+  bool get adsEnabled => _sdkReady && _isMobile && !_isPro && _canRequestAds;
 
   /// Whether banner placements should reserve their fixed height up front.
   /// True for any non-Pro mobile user — deliberately independent of SDK
@@ -83,6 +139,7 @@ class AdService {
     try {
       _prefs = await SharedPreferences.getInstance();
       await _gatherConsentAndAtt();
+      await _refreshCanRequestAds();
       await MobileAds.instance.initialize();
       // Family-safe ads only. The app's Play target audience includes 6-12
       // (Families program), and Play rejected an update because served ads
@@ -96,16 +153,161 @@ class AdService {
         ),
       );
       _sdkReady = true;
+      _watchStateChanges();
       AppLogger.success(
         'AdService initialized (ads ${adsEnabled ? 'on' : 'off'})',
       );
-      if (adsEnabled) {
-        _loadInterstitial();
-        _loadRewarded();
-      }
+      if (adsEnabled) _preloadAll();
     } catch (e) {
       AppLogger.error('AdService init failed', e);
     }
+  }
+
+  /// Subscribe to the things that can move ads between "can load" and
+  /// "can't" (connectivity, the Strike Command subscription), plus app
+  /// lifecycle for flushing [loadTally].
+  void _watchStateChanges() {
+    WidgetsBinding.instance.addObserver(this);
+    if (GetIt.I.isRegistered<ConnectivityService>()) {
+      final connectivity = GetIt.I<ConnectivityService>();
+      _connectivity = connectivity;
+      _wasOnline = connectivity.isOnline;
+      connectivity.addListener(_onConnectivityChanged);
+    }
+    if (GetIt.I.isRegistered<PremiumCubit>()) {
+      final premium = GetIt.I<PremiumCubit>();
+      _wasPro = premium.state.hasPremium;
+      _premiumSub = premium.stream.listen((state) {
+        if (state.hasPremium == _wasPro) return;
+        _wasPro = state.hasPremium;
+        _onAdsGateChanged();
+      });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) flushLoadStats();
+  }
+
+  /// Send this session's per-format load counts as `ad_load` events.
+  void flushLoadStats() {
+    final analytics = _analytics;
+    for (final s in loadTally.drain()) {
+      AppLogger.info(
+        'Ad loads ${s.format}: requests=${s.requests} filled=${s.filled} '
+        'failed=${s.failed} codes=${s.errorCodes}',
+      );
+      analytics?.trackAdLoad(
+        format: s.format,
+        requests: s.requests,
+        filled: s.filled,
+        failed: s.failed,
+        errorCodes: s.errorCodes,
+      );
+    }
+  }
+
+  void _onConnectivityChanged() {
+    final online = _isOnline;
+    final cameBack = online && !_wasOnline;
+    _wasOnline = online;
+    if (!cameBack) return;
+    if (_canRequestAds) {
+      AppLogger.info('Network returned — re-arming ad loads');
+      _rearmAll();
+    } else {
+      // A launch without network never got a consent answer, which leaves
+      // canRequestAds false for the whole session. Ask again (info only —
+      // never pops a form mid-session; a required form shows next launch).
+      unawaited(_refreshConsentInfo());
+    }
+  }
+
+  Future<void> _refreshConsentInfo() async {
+    if (_consentRefreshing) return;
+    _consentRefreshing = true;
+    try {
+      final done = Completer<void>();
+      ConsentInformation.instance.requestConsentInfoUpdate(
+        ConsentRequestParameters(),
+        () {
+          if (!done.isCompleted) done.complete();
+        },
+        (FormError error) {
+          if (!done.isCompleted) done.complete();
+        },
+      );
+      await done.future.timeout(const Duration(seconds: 10), onTimeout: () {});
+      await _refreshCanRequestAds();
+      _onAdsGateChanged();
+    } catch (e) {
+      AppLogger.warning('Consent info refresh failed: $e');
+    } finally {
+      _consentRefreshing = false;
+    }
+  }
+
+  /// Something that feeds [adsEnabled] changed (subscription, consent).
+  void _onAdsGateChanged() {
+    if (adsEnabled) {
+      _rearmAll();
+    } else {
+      // Ads off — stop paying for loads nobody will see.
+      _preloadTimer?.cancel();
+      _retry.cancelAll();
+    }
+  }
+
+  /// Ask UMP whether ad requests are allowed. Reads consent cached from
+  /// earlier sessions, so a failed network update doesn't land here; only a
+  /// genuine platform error does, and then ads stay off (fail-closed).
+  Future<void> _refreshCanRequestAds() async {
+    try {
+      _canRequestAds = await ConsentInformation.instance.canRequestAds();
+    } catch (e) {
+      AppLogger.warning('UMP canRequestAds failed — ads off: $e');
+      _canRequestAds = false;
+    }
+  }
+
+  /// Rewarded first (it backs player-initiated buttons), the interstitial a
+  /// beat later.
+  void _preloadAll() {
+    _preloadTimer?.cancel();
+    _loadRewarded();
+    _preloadTimer = Timer(_preloadStagger, _loadInterstitial);
+  }
+
+  /// Fresh attempts for every format and a staggered reload. Called on the
+  /// transitions from "cannot load" to "can".
+  void _rearmAll() {
+    if (!adsEnabled) return;
+    _retry.resetAll();
+    _preloadAll();
+  }
+
+  OnPaidEventCallback _paidEventCallback(String format) =>
+      (ad, valueMicros, precision, currencyCode) => reportPaidEvent(
+        format: format,
+        valueMicros: valueMicros,
+        precision: precision,
+        currencyCode: currencyCode,
+      );
+
+  /// Forward one AdMob paid event as `ad_revenue` (also used by banners).
+  void reportPaidEvent({
+    required String format,
+    required double valueMicros,
+    required PrecisionType precision,
+    required String currencyCode,
+  }) {
+    _analytics?.trackAdRevenue(
+      format: format,
+      valueMicros: valueMicros.round(),
+      currencyCode: currencyCode,
+      precision: precision.name,
+    );
   }
 
   /// UMP (GDPR) consent + iOS ATT. Never throws — ads just stay off on failure.
@@ -173,7 +375,11 @@ class AdService {
       AppLogger.warning('Privacy options form failed: $e');
       if (!completer.isCompleted) completer.complete(false);
     }
-    return completer.future;
+    final shown = await completer.future;
+    // The player may have just granted or withdrawn consent.
+    await _refreshCanRequestAds();
+    _onAdsGateChanged();
+    return shown;
   }
 
   bool get consentGathered => _consentGathered;
@@ -184,18 +390,29 @@ class AdService {
     if (!adsEnabled || _interstitial != null || _interstitialLoading) return;
     if (!_isOnline) return;
     _interstitialLoading = true;
+    loadTally.requested(formatInterstitial);
     InterstitialAd.load(
       adUnitId: AdConfig.interstitialUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
+          ad.onPaidEvent = _paidEventCallback(formatInterstitial);
           _interstitial = ad;
           _interstitialLoading = false;
+          loadTally.filled(formatInterstitial);
+          _retry.succeeded(formatInterstitial);
         },
         onAdFailedToLoad: (error) {
           _interstitial = null;
           _interstitialLoading = false;
-          AppLogger.warning('Interstitial failed to load: ${error.message}');
+          loadTally.failed(formatInterstitial, error.code);
+          final retryIn = adsEnabled
+              ? _retry.schedule(formatInterstitial, _loadInterstitial)
+              : null;
+          AppLogger.warning(
+            'Interstitial failed to load (${error.code}): ${error.message}'
+            '${retryIn == null ? '' : ' — retry in ${retryIn.inSeconds}s'}',
+          );
         },
       ),
     );
@@ -279,18 +496,29 @@ class AdService {
     if (!adsEnabled || _rewarded != null || _rewardedLoading) return;
     if (!_isOnline) return;
     _rewardedLoading = true;
+    loadTally.requested(formatRewarded);
     RewardedAd.load(
       adUnitId: AdConfig.rewardedUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
+          ad.onPaidEvent = _paidEventCallback(formatRewarded);
           _rewarded = ad;
           _rewardedLoading = false;
+          loadTally.filled(formatRewarded);
+          _retry.succeeded(formatRewarded);
         },
         onAdFailedToLoad: (error) {
           _rewarded = null;
           _rewardedLoading = false;
-          AppLogger.warning('Rewarded failed to load: ${error.message}');
+          loadTally.failed(formatRewarded, error.code);
+          final retryIn = adsEnabled
+              ? _retry.schedule(formatRewarded, _loadRewarded)
+              : null;
+          AppLogger.warning(
+            'Rewarded failed to load (${error.code}): ${error.message}'
+            '${retryIn == null ? '' : ' — retry in ${retryIn.inSeconds}s'}',
+          );
         },
       ),
     );
@@ -310,28 +538,69 @@ class AdService {
   /// the earn callback resumed the game loop behind the ad, so the ship moved
   /// (and re-crashed) before the player closed it. Granting on dismiss means
   /// the player is back in the app when the reward applies.
-  Future<bool> showRewarded({required VoidCallback onReward}) async {
+  ///
+  /// The earn callback can land a beat AFTER the dismiss (no ordering
+  /// guarantee over the platform channel); a late earn still grants, exactly
+  /// once. [placement] tags the `rewarded_result` event.
+  Future<bool> showRewarded({
+    required VoidCallback onReward,
+    String placement = 'other',
+  }) async {
     if (!adsEnabled || _rewarded == null) {
+      if (adsEnabled) _reportRewarded(placement, rewardedNotReady);
       _loadRewarded();
       return false;
     }
     final ad = _rewarded!;
     _rewarded = null;
     var earned = false;
+    var dismissed = false;
+    var granted = false;
+    var reported = false;
+
+    void report(String outcome) {
+      if (reported) return;
+      reported = true;
+      _reportRewarded(placement, outcome);
+    }
+
+    void grant() {
+      if (granted) return;
+      granted = true;
+      report(rewardedCompleted);
+      onReward();
+    }
+
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
+        dismissed = true;
         _loadRewarded();
-        if (earned) onReward();
+        if (earned) {
+          grant();
+        } else {
+          Timer(_lateEarnGrace, () {
+            if (!earned) report(rewardedAbandoned);
+          });
+        }
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
+        report(rewardedShowFailed);
         _loadRewarded();
       },
     );
-    await ad.show(onUserEarnedReward: (_, _) => earned = true);
+    await ad.show(
+      onUserEarnedReward: (_, _) {
+        earned = true;
+        if (dismissed) grant();
+      },
+    );
     return earned;
   }
+
+  void _reportRewarded(String placement, String outcome) =>
+      _analytics?.trackRewardedResult(placement: placement, outcome: outcome);
 
   // ==================== Daily-capped rewarded helpers ====================
   //
@@ -398,8 +667,15 @@ class AdService {
     required String capKey,
     required VoidCallback onReward,
   }) async {
-    if (!canShowCapped(capKey)) return false;
+    if (!canShowCapped(capKey)) {
+      if (adsEnabled && dailyRemaining(capKey) > 0) {
+        _reportRewarded(capKey, rewardedNotReady);
+        _loadRewarded();
+      }
+      return false;
+    }
     return showRewarded(
+      placement: capKey,
       onReward: () {
         onReward();
         _recordDaily(capKey);
@@ -420,6 +696,11 @@ class AdService {
   bool get canShowFreeCoinAd => canShowCapped(capFreeCoins);
 
   void dispose() {
+    _preloadTimer?.cancel();
+    _retry.cancelAll();
+    _premiumSub?.cancel();
+    _connectivity?.removeListener(_onConnectivityChanged);
+    if (_sdkReady) WidgetsBinding.instance.removeObserver(this);
     _interstitial?.dispose();
     _rewarded?.dispose();
     _interstitial = null;

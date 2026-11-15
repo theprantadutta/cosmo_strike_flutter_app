@@ -215,6 +215,48 @@ class AnalyticsFacade implements AnalyticsClient {
   Future<void> trackThemeSelected(String themeName) async =>
       _fire((c) => c.trackThemeSelected(themeName));
 
+  // ==================== Ads ====================
+
+  @override
+  Future<void> trackAdLoad({
+    required String format,
+    required int requests,
+    required int filled,
+    required int failed,
+    required String errorCodes,
+  }) async => _fire(
+    (c) => c.trackAdLoad(
+      format: format,
+      requests: requests,
+      filled: filled,
+      failed: failed,
+      errorCodes: errorCodes,
+    ),
+  );
+
+  @override
+  Future<void> trackAdRevenue({
+    required String format,
+    required int valueMicros,
+    required String currencyCode,
+    required String precision,
+  }) async => _fire(
+    (c) => c.trackAdRevenue(
+      format: format,
+      valueMicros: valueMicros,
+      currencyCode: currencyCode,
+      precision: precision,
+    ),
+  );
+
+  @override
+  Future<void> trackRewardedResult({
+    required String placement,
+    required String outcome,
+  }) async => _fire(
+    (c) => c.trackRewardedResult(placement: placement, outcome: outcome),
+  );
+
   // ==================== Settings ====================
 
   @override
