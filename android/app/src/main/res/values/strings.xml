@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FCM notification channel, created natively in MainActivity.onCreate
+         and referenced by the manifest's default_notification_channel_id.
+         MUST stay in sync with NotificationService._channelId /
+         _channelName / _channelDescription in Dart: both describe the SAME
+         channel; whichever creates it first wins, the other is a no-op. -->
+    <string name="default_notification_channel_id">cosmo_strike_notifications</string>
+    <string name="default_notification_channel_name">Cosmo Strike Notifications</string>
+    <string name="default_notification_channel_desc">Cup alerts, directives and squadron traffic</string>
+</resources>
