@@ -104,7 +104,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
-          child: Text('Decorations', maxLines: 1, style: t.display(36, em: -0.04, height: 1)),
+          child: Text('Commendations', maxLines: 1, style: t.display(36, em: -0.04, height: 1)),
         ),
         SizedBox(height: cs(10)),
         Text('$pct% COMPLETE', style: t.mono(11, color: CsColors.ink)),
@@ -125,29 +125,39 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Status + category filters share one row; it scrolls sideways on
-        // narrow phones instead of shrinking the chips.
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(children: [
-            CsSegmented<_AwardFilter>(
-              segments: {
-                _AwardFilter.all: 'All ${all.length}',
-                _AwardFilter.unlocked: 'Earned $unlocked',
-                _AwardFilter.locked: 'Locked $locked',
-              },
-              selected: _filter,
-              onChanged: (f) => setState(() => _filter = f),
-            ),
-            SizedBox(width: cs(10)),
-            CsSegmented<CommendationCategory?>(
-              segments: {
-                null: 'Every type',
-                for (final c in CommendationCategory.values) c: c.label,
-              },
-              selected: _category,
-              onChanged: (c) => setState(() => _category = c),
-            ),
-          ]),
+        // narrow phones instead of shrinking the chips. The right edge fades
+        // out so a clipped segment reads as "scroll for more", and trailing
+        // padding lets the last segment clear the fade once scrolled.
+        ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (rect) => const LinearGradient(
+            colors: [Colors.white, Colors.white, Colors.transparent],
+            stops: [0, 0.9, 1],
+          ).createShader(rect),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.only(right: cs(40)),
+            child: Row(children: [
+              CsSegmented<_AwardFilter>(
+                segments: {
+                  _AwardFilter.all: 'All ${all.length}',
+                  _AwardFilter.unlocked: 'Earned $unlocked',
+                  _AwardFilter.locked: 'Locked $locked',
+                },
+                selected: _filter,
+                onChanged: (f) => setState(() => _filter = f),
+              ),
+              SizedBox(width: cs(10)),
+              CsSegmented<CommendationCategory?>(
+                segments: {
+                  null: 'Every type',
+                  for (final c in CommendationCategory.values) c: c.label,
+                },
+                selected: _category,
+                onChanged: (c) => setState(() => _category = c),
+              ),
+            ]),
+          ),
         ),
         SizedBox(height: cs(14)),
         Expanded(
@@ -180,7 +190,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         crossAxisCount: columns,
         mainAxisSpacing: cs(10),
         crossAxisSpacing: cs(10),
-        mainAxisExtent: cs(150),
+        mainAxisExtent: cs(168),
       ),
       itemCount: achievements.length,
       itemBuilder: (context, i) => _AwardTile(
@@ -255,6 +265,10 @@ class _AwardTile extends StatelessWidget {
         : (progress > 0 ? CsTileState.future : CsTileState.locked);
     final locked = state == CsTileState.locked;
 
+    // Locked tiles stay legible (~60% white text) and read as locked via
+    // the lock glyph, dim icon and empty progress line — not a 40% fade.
+    final titleColor = locked ? CsColors.ink60 : CsColors.ink;
+
     final Widget status;
     if (a.isUnlocked) {
       status = Text(
@@ -263,17 +277,19 @@ class _AwardTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: t.mono(9, color: a.rewardClaimed ? CsColors.mint : CsColors.gold),
       );
-    } else if (progress > 0) {
-      status = Row(children: [
-        Expanded(child: CsProgressLine(value: progress)),
-        SizedBox(width: cs(8)),
-        Text('${a.currentProgress}/${a.targetValue}', maxLines: 1, style: t.micro),
-      ]);
     } else {
       status = Row(children: [
-        Icon(Symbols.lock_rounded, size: cs(11), color: CsColors.ink45),
-        SizedBox(width: cs(4)),
-        Text('LOCKED', style: t.micro),
+        if (locked) ...[
+          Icon(Symbols.lock_rounded, size: cs(11), color: CsColors.ink60),
+          SizedBox(width: cs(6)),
+        ],
+        Expanded(child: CsProgressLine(value: progress)),
+        SizedBox(width: cs(8)),
+        Text(
+          '${a.currentProgress}/${a.targetValue}',
+          maxLines: 1,
+          style: t.mono(9, color: CsColors.ink60),
+        ),
       ]);
     }
 
@@ -281,7 +297,7 @@ class _AwardTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(children: [
-          Icon(a.icon, size: cs(22), color: a.isUnlocked ? CsColors.gold : CsColors.ink60),
+          Icon(a.icon, size: cs(22), color: a.isUnlocked ? CsColors.gold : CsColors.ink45),
           const Spacer(),
           Flexible(
             flex: 4,
@@ -290,17 +306,25 @@ class _AwardTile extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
-              style: t.micro,
+              style: t.mono(9, color: locked ? CsColors.ink60 : CsColors.ink45),
             ),
           ),
         ]),
-        SizedBox(height: cs(10)),
+        SizedBox(height: cs(8)),
         Expanded(
           child: _WordSafeTitle(
             a.title,
-            style: t.display(15, weight: FontWeight.w700, em: 0, height: 1.15),
+            style: t.display(15, weight: FontWeight.w700, em: 0, height: 1.15, color: titleColor),
           ),
         ),
+        // How to earn it, right on the card (the dialog has the full text).
+        Text(
+          a.description,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: t.display(11, weight: FontWeight.w400, em: 0, height: 1.3, color: CsColors.ink60),
+        ),
+        SizedBox(height: cs(8)),
         status,
         SizedBox(height: cs(8)),
         Row(children: [
@@ -315,7 +339,7 @@ class _AwardTile extends StatelessWidget {
       state: state,
       onTap: onTap,
       padding: EdgeInsets.all(cs(12)),
-      child: locked ? Opacity(opacity: 0.4, child: content) : content,
+      child: content,
     );
   }
 }
