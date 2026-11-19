@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../theme/cosmo_theme.dart';
 import 'cs_buttons.dart';
+import 'cs_motion.dart';
 import 'cs_prism.dart';
 
 /// One value + mono caption, as used in stat grids.
@@ -300,6 +301,7 @@ class CsToggleChip extends StatelessWidget {
     return CsPressable(
       onTap: onChanged == null ? null : () => onChanged!(!value),
       semanticLabel: '$label ${value ? 'on' : 'off'}',
+      haptic: CsHaptic.selection,
       child: AnimatedContainer(
         duration: CsMotion.base,
         curve: CsMotion.standard,
@@ -343,6 +345,7 @@ class CsSegmented<T> extends StatelessWidget {
       final chip = CsPressable(
         onTap: () => onChanged(e.key),
         semanticLabel: e.value,
+        haptic: on ? CsHaptic.none : CsHaptic.selection,
         child: AnimatedContainer(
           duration: CsMotion.base,
           curve: CsMotion.standard,
