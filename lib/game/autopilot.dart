@@ -33,6 +33,15 @@ class Autopilot extends Component with HasGameReference<CosmoStrikeGame> {
   void update(double dt) {
     super.update(dt);
     PerfMonitor.instance.tag = 'L${game.levelIndex}:${game.phase.name}';
+    // What's on screen right now, so a slow frame can be pinned on a scene.
+    var eb = 0;
+    for (final b in game.pools.enemyBullets) {
+      if (b.active) eb++;
+    }
+    PerfMonitor.instance.context = 'L${game.levelIndex} ${game.phase.name}'
+        '${game.overdriveActive ? ' OD' : ''}'
+        '${game.bossHealthNotifier.value >= 0 ? ' BOSS' : ''}'
+        ' eb${(eb ~/ 20) * 20}+ c${(game.children.length ~/ 50) * 50}+';
     if (game.phase != GamePhase.playing) return;
     _time += dt;
     _missileCooldown -= dt;

@@ -22,6 +22,12 @@ class PerfMonitor {
   /// Free-form context appended to each line (the game sets the level).
   String tag = '-';
 
+  /// Finer scene description (set every frame by the autopilot). Each slow
+  /// frame is counted against the context current when its timing lands,
+  /// and each report lists the worst offenders.
+  String context = '-';
+  final Map<String, int> _slowByContext = {};
+
   final List<double> _build = [];
   final List<double> _raster = [];
   final Stopwatch _clock = Stopwatch();
@@ -42,8 +48,14 @@ class PerfMonitor {
 
   void _onTimings(List<FrameTiming> timings) {
     for (final t in timings) {
-      _build.add(t.buildDuration.inMicroseconds / 1000);
-      _raster.add(t.rasterDuration.inMicroseconds / 1000);
+      final b = t.buildDuration.inMicroseconds / 1000;
+      final r = t.rasterDuration.inMicroseconds / 1000;
+      _build.add(b);
+      _raster.add(r);
+      if (b > budgetMs || r > budgetMs) {
+        final k = '$context ${r > b ? 'R' : 'B'}';
+        _slowByContext[k] = (_slowByContext[k] ?? 0) + 1;
+      }
     }
     final elapsed = _clock.elapsedMilliseconds;
     if (elapsed < windowSeconds * 1000) return;
@@ -71,6 +83,12 @@ class PerfMonitor {
         'worst=${worst.toStringAsFixed(1)}ms '
         'session=$_totalJank/$_totalFrames '
         '(${(100 * _totalJank / _totalFrames).toStringAsFixed(2)}%)');
+    if (_slowByContext.isNotEmpty) {
+      final top = _slowByContext.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      debugPrint('[PERF-SLOW] ${top.take(5).map((e) => '${e.value}x {${e.key}}').join('  ')}');
+      _slowByContext.clear();
+    }
     _build.clear();
     _raster.clear();
   }
