@@ -609,7 +609,23 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       _endRun(cleared: true);
     } else {
       phaseNotifier.value = GamePhase.levelClear;
+      _freezeUnderResultOverlay(GamePhase.levelClear);
     }
+  }
+
+  /// The level-clear / game-over overlays are opaque once faded in, yet the
+  /// battlefield kept simulating and rendering underneath (boss explosions,
+  /// slow-mo, starfield, terrain) — invisible GPU work that dropped frames
+  /// on budget phones (Galaxy A24 at 60 Hz). Let the overlay's fade-in show
+  /// the kill, then freeze the engine until the run moves on.
+  void _freezeUnderResultOverlay(GamePhase during) {
+    add(TimerComponent(
+      period: 0.8,
+      removeOnFinish: true,
+      onTick: () {
+        if (phase == during) pauseEngine();
+      },
+    ));
   }
 
   /// Three distinct upgrades to offer after this level clear (empty when
@@ -642,6 +658,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// overlay — button tap or auto-continue).
   void advanceToNextLevel() {
     if (phase != GamePhase.levelClear) return;
+    resumeEngine();
     _startLevel(levelIndex + 1);
   }
 
@@ -1354,6 +1371,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     _runEnded = true;
     _scriptRunner.stop();
     phaseNotifier.value = GamePhase.gameOver;
+    _freezeUnderResultOverlay(GamePhase.gameOver);
     GameAudio.gameOver();
     onGameOver?.call(_buildResult(cleared: cleared));
   }
