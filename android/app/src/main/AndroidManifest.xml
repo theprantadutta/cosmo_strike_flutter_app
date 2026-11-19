@@ -1,6 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Backend API, Firebase, AdMob — declared explicitly rather than
          relying on library-manifest merges. -->
+    <!-- MainActivity's sensorLandscape lock makes Play infer a REQUIRED
+         landscape screen and hide the app from some phones, tablets,
+         Chromebooks/PC and XR devices. Declare it optional: the app still
+         forces landscape at runtime on every device. -->
+    <uses-feature android:name="android.hardware.screen.landscape" android:required="false"/>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <!-- flutter_local_notifications re-arms the scheduled comeback reminder
