@@ -680,7 +680,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       subtitle: subtitle,
       first: first,
       onTap: () => onChanged(!value),
-      trailing: Switch(value: value, onChanged: onChanged),
+      trailing: CsSwitch(value: value, onChanged: onChanged, semanticLabel: title),
     );
   }
 

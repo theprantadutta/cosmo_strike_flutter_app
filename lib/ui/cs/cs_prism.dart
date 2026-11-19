@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
 import '../../theme/cosmo_theme.dart';
+import 'cs_motion.dart';
 
 /// Paints [child] with the prism text gradient (cyan → pink → gold).
 /// Use for the ONE word per screen that matters (e.g. "nought", "Pro", "#1").
@@ -65,7 +67,11 @@ class CsHairline extends StatelessWidget {
 }
 
 /// Square-ended progress line (2px by default) on a 12% white track.
-/// Animates when [value] changes.
+///
+/// Animates when [value] changes (implicitly: [duration], default
+/// `CsMotion.lingering` 900 ms on `easeOutSoft`); the first build shows the
+/// value at once. [popOnComplete] adds a small [CsPop] when the value
+/// reaches 1 from below. Reduce motion: a 120 ms linear fill, no pop.
 class CsProgressLine extends StatelessWidget {
   const CsProgressLine({
     super.key,
@@ -75,11 +81,21 @@ class CsProgressLine extends StatelessWidget {
     this.trackColor = CsColors.track,
     this.width,
     this.animate = true,
+    this.duration = CsMotion.lingering,
+    this.curve = CsMotion.easeOutSoft,
+    this.popOnComplete = false,
   });
 
   /// Set false when [value] is already driven per frame (e.g. by an
   /// AnimationController) so the line tracks it exactly.
   final bool animate;
+
+  /// Fill tween length / curve when [value] changes.
+  final Duration duration;
+  final Curve curve;
+
+  /// Pop once when the value crosses into 1 (complete).
+  final bool popOnComplete;
 
   /// Pass [CsGradients.complete] for a finished (mint) bar, [CsGradients.prism]
   /// for boss HP / hero bars.
@@ -92,15 +108,16 @@ class CsProgressLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = value.isNaN ? 0.0 : value.clamp(0.0, 1.0);
-    return SizedBox(
+    final reduce = CsReduceMotion.of(context);
+    final line = SizedBox(
       width: width,
       height: height,
       child: DecoratedBox(
         decoration: BoxDecoration(color: trackColor),
         child: TweenAnimationBuilder<double>(
           tween: Tween(end: v),
-          duration: animate ? CsMotion.slow : Duration.zero,
-          curve: CsMotion.standard,
+          duration: !animate ? Duration.zero : (reduce ? CsMotion.instant : duration),
+          curve: reduce ? Curves.linear : curve,
           builder: (_, t, _) => FractionallySizedBox(
             alignment: Alignment.centerLeft,
             widthFactor: t,
@@ -109,7 +126,51 @@ class CsProgressLine extends StatelessWidget {
         ),
       ),
     );
+    if (!popOnComplete || reduce) return line;
+    return _PopOnComplete(value: v, peak: 1.04, fill: animate ? duration : Duration.zero, child: line);
   }
+}
+
+/// Pops [child] once each time [value] crosses from below 1 to 1.
+class _PopOnComplete extends StatefulWidget {
+  const _PopOnComplete({required this.value, required this.child, required this.fill, this.peak = 1.12});
+  final double value;
+  final double peak;
+
+  /// The fill tween length; the pop waits until the fill has nearly landed.
+  final Duration fill;
+  final Widget child;
+
+  @override
+  State<_PopOnComplete> createState() => _PopOnCompleteState();
+}
+
+class _PopOnCompleteState extends State<_PopOnComplete> {
+  int _completions = 0;
+  Timer? _timer;
+
+  @override
+  void didUpdateWidget(_PopOnComplete old) {
+    super.didUpdateWidget(old);
+    if (old.value < 1 && widget.value >= 1) {
+      _timer?.cancel();
+      // easeOutSoft is ~95% of the way at 60% of its time.
+      _timer = Timer(widget.fill * 0.6, () {
+        if (mounted) setState(() => _completions++);
+      });
+    } else if (widget.value < 1) {
+      _timer?.cancel();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => CsPop(trigger: _completions, peak: widget.peak, child: widget.child);
 }
 
 /// A rounded box with a 1.5px conic prism border around a [fill].
@@ -247,6 +308,15 @@ class _RingPainter extends CustomPainter {
 
 /// Circular progress ring (prism sweep) with content in the middle — the
 /// daily "3/3 TODAY" ring and the HUD missile cooldown.
+///
+/// Animates value changes implicitly ([duration], default `CsMotion.slow`
+/// 320 ms on `easeOutSoft`; the first build is static). The default stays
+/// short because the HUD Overdrive ring retargets many times a second; menu
+/// rings that tell a story can pass `duration: CsMotion.lingering`. The
+/// [child] is built once and never rebuilt by the tween; only the arc
+/// repaints, inside its own RepaintBoundary. [popOnComplete] pops the ring
+/// when it fills. Set [animate] false when [value] is already driven per
+/// frame. Reduce motion: instant, no pop.
 class CsRingProgress extends StatelessWidget {
   const CsRingProgress({
     super.key,
@@ -256,6 +326,10 @@ class CsRingProgress extends StatelessWidget {
     this.child,
     this.trackColor = CsColors.track,
     this.fill = Colors.transparent,
+    this.animate = true,
+    this.duration = CsMotion.slow,
+    this.curve = CsMotion.easeOutSoft,
+    this.popOnComplete = false,
   });
 
   final double value;
@@ -265,21 +339,37 @@ class CsRingProgress extends StatelessWidget {
   final Color trackColor;
   final Color fill;
 
+  /// False tracks [value] exactly (it's already animated by the caller).
+  final bool animate;
+  final Duration duration;
+  final Curve curve;
+
+  /// Pop once when the value crosses into 1 (complete).
+  final bool popOnComplete;
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox.square(
+    final v = value.isNaN ? 0.0 : value.clamp(0.0, 1.0);
+    final reduce = CsReduceMotion.of(context);
+    final ring = SizedBox.square(
       dimension: size,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(end: value.clamp(0.0, 1.0)),
-        duration: CsMotion.slow,
-        curve: CsMotion.standard,
-        builder: (_, v, c) => CustomPaint(
-          painter: _ArcPainter(v, stroke, trackColor, fill),
-          child: Center(child: c),
-        ),
-        child: child,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(end: v),
+              duration: !animate || reduce ? Duration.zero : duration,
+              curve: reduce ? Curves.linear : curve,
+              builder: (_, t, _) => CustomPaint(painter: _ArcPainter(t, stroke, trackColor, fill)),
+            ),
+          ),
+          if (child != null) Center(child: child),
+        ],
       ),
     );
+    if (!popOnComplete || reduce) return ring;
+    return _PopOnComplete(value: v, peak: 1.08, fill: animate ? duration : Duration.zero, child: ring);
   }
 }
 

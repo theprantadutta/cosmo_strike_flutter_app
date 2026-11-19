@@ -46,12 +46,14 @@ before opacity (`CsBeatSheet.opacity(name)` does).
 | **Icon buttons** (`CsIconButton`) | press | as Press | selection | as Press |
 | **Tabs / segments** (`CsSegmented`) | fill crossfades to the white pill; indicator travels | 200 `standard`; indicator 280 `travel` | selection (only when changing) | 120 crossfade, indicator jumps |
 | **Toggles** (`CsToggleChip`, switches) | border/ink crossfade; knob slides | 200 `standard`; knob 220 `springSoft` | selection | 120 crossfade, knob jumps |
-| **Dialogs** (`CsDialog`) | scrim fades; card scales 0.96 → 1 and fades | in 320 `easeOutSoft` (scale `springSoft`), out 180 `exit` | none (the action that opened it already ticked) | 120 fade, no scale |
-| **Toasts** (`showCsToast`, `RewardToast`) | drop 12 px + fade in; fade + rise out | in 400 `dropIn`, out 180 `exit` | reward toast: success | 120 fade |
+| **Dialogs** (`showCsDialog` / `CsDialogRoute` / `csDialogTransition`) | scrim fades (`barrierCurve` easeOutSoft); card scales 0.94 → 1 and fades | in 320 `easeOutSoft`, out 180 `exit` | none (the action that opened it already ticked) | 120 fade, no scale |
+| **Toasts** (`showCsToast`, `RewardToast`) | drop 12–14 px + fade in; fade + rise out; reward amount `CsPop` as it lands | in 400 (slide `springSoft`, fade `easeOutSoft`), out 250 `exit` | reward toast: success | 120 fade, no movement, no pop |
+| **Switch** (`CsSwitch`, Settings rows) | knob slides + grows, track fill/outline crossfade | 220 `springSoft` | selection on direct tap | 120 linear |
+| **Number labels** (`CsStatGrid`, `CsCoins`, `CsRollingText`) | plain Text on first build; rolls with `CsOdometer` once the integer changes | 380 `easeOutSoft` per slot | none | instant |
 | **Lists / grids** (`CsFadeUp`) | fade + rise 10 px, staggered by slot | 400 `easeOutSoft`, +55/slot, cap slot 8 | none | 120 fade, no rise, no stagger |
 | **Number roll** (`CsOdometer`) | changed characters roll in clipped slots; up rises, down drops | 380 `easeOutSoft` per slot | none | instant |
 | **Count-up** (results totals) | tween the int, render with `CsOdometer` or tabular `number` style | 600 `easeOutSoft` | none | instant |
-| **Progress fill** (`CsProgressLine`, `CsRingProgress`) | animate to the new value | 600 `easeOutSoft` (900 `lingering` on results) | none | 120 linear |
+| **Progress fill** (`CsProgressLine`, `CsRingProgress`) | animate to the new value (first build static); optional `popOnComplete` | line: 900 `lingering` `easeOutSoft`; ring: 320 `slow` `easeOutSoft` (HUD Overdrive retargets often); both take `duration:` | none | line 120 linear, ring instant; no pop |
 | **Reward pop** (claimed reward, star, unlock) | `CsPop`: swell to 1.12, settle on `springPop` | 450 | success (once per claim, not per star) | none; value just updates |
 | **HUD pops** (score milestone, chain ×N, pickup) | `CsPop` with `peak: 1.08–1.15` | 450 | the game already fires its own; don't add UI haptics | none |
 | **Results beat sheet** (level clear / game over) | `CsBeatSheet` timeline, below | ≈ 2.2 s total | success on stars / medium on new best | final frame shown at once (wrap in one 200 ms fade) |
