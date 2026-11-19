@@ -3,25 +3,22 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_inapp_purchase/flutter_inapp_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:cosmo_strike_flutter_app/models/premium_cosmetics.dart';
-import 'package:cosmo_strike_flutter_app/models/premium_power_up.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
-import 'package:cosmo_strike_flutter_app/widgets/subscription_legal_links.dart';
+import 'package:cosmo_strike_flutter_app/widgets/strike_command_offer.dart';
 
 /// "Strike Command" paywall — Prism Noir mock 10 (subscription panel).
 ///
-///   • LEFT: every Pro entitlement as a hairline list with Symbols icons
-///     (scrolls when it can't fit).
-///   • RIGHT: "Strike Command" headline (Command in prism), mono benefit line, two plan
-///     cards — Monthly (outlined, secondary SUBSCRIBE) and Yearly (prism ring,
-///     SAVE chip, the screen's white primary SUBSCRIBE) — and the
-///     "Cancel anytime · Restore purchases" footer.
+///   • LEFT: every entitlement (`StrikeCommandFeatureList`), scrolls when
+///     it can't fit.
+///   • RIGHT: "Strike Command" headline (Command in prism), mono tagline and
+///     the shared `StrikeCommandOffer` (plan cards, trial + renewal
+///     disclosure under each Subscribe, Restore / Terms / Privacy) — the
+///     exact same offer the Armory's Command tab shows.
 ///   • Already Pro: the status summary moves LEFT (the standard summary
 ///     side) and the right side lists every perk with an owned check.
 class PremiumBenefitsScreen extends StatefulWidget {
@@ -134,138 +131,43 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
     );
   }
 
-  /// "Save N%" for annual vs 12× monthly from live store prices; null
-  /// (no chip) until both plans have loaded.
-  String? _yearlySavingsLabel(PurchaseService purchases) {
-    final pct = purchases.yearlySavingsPercent(ProductIds.commandMonthly, ProductIds.commandAnnual);
-    return pct == null ? null : 'Save $pct%';
-  }
-
   Widget _buildPurchasePanel() {
     final cs = context.cs;
     final t = cs.type;
-    final purchases = PurchaseService();
-    final monthlyPrice = purchases.getStorePriceOrDefault(ProductIds.commandMonthly, 4.99);
-    final yearlyPrice = purchases.getStorePriceOrDefault(ProductIds.commandAnnual, 39.99);
-
     final status = _subscribing
-        ? (_sawPurchaseSuccess ? 'Activating Command…' : 'Connecting to Google Play…')
+        ? (_sawPurchaseSuccess ? 'Activating Command…' : 'Connecting to the store…')
         : null;
 
-    return CsFitColumn(
-      alignment: Alignment.centerLeft,
-      children: [
-        CsHeadline(const ['Strike ', 'Command'], prismIndex: 1, maxLines: 1, style: t.display(34, em: -0.03, height: 1)),
-        SizedBox(height: cs(8)),
-        Text(
-          'Frontline Command lane · No ads · 1.5× credits · Every livery, exhaust & sector',
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: t.mono(11, em: 0.06, color: CsColors.ink55, height: 1.4),
-        ),
-        SizedBox(height: cs(18)),
-        IntrinsicHeight(
-          child: Row(
+    // Content side: may scroll on short phones (never shrinks the fine print
+    // below its readable size), centred vertically when it fits.
+    return LayoutBuilder(
+      builder: (context, c) => SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: c.maxHeight),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: _PlanCard(
-                  label: 'Monthly',
-                  price: monthlyPrice,
-                  cadence: '/mo',
-                  note: _trialLabel(ProductIds.commandMonthly) ?? 'Billed monthly',
-                  noteIsTrial: _trialLabel(ProductIds.commandMonthly) != null,
-                  featured: false,
-                  busy: _subscribing && !_isYearly,
-                  busyLabel: _sawPurchaseSuccess ? 'Activating…' : 'Connecting…',
-                  onSubscribe: _subscribing ? null : () => _subscribeTo(yearly: false),
-                ),
-              ),
-              SizedBox(width: cs(14)),
-              Expanded(
-                child: _PlanCard(
-                  label: 'Annual',
-                  price: yearlyPrice,
-                  cadence: '/yr',
-                  note: _trialLabel(ProductIds.commandAnnual) ?? 'Billed annually',
-                  noteIsTrial: _trialLabel(ProductIds.commandAnnual) != null,
-                  badge: _yearlySavingsLabel(purchases),
-                  featured: true,
-                  busy: _subscribing && _isYearly,
-                  busyLabel: _sawPurchaseSuccess ? 'Activating…' : 'Connecting…',
-                  onSubscribe: _subscribing ? null : () => _subscribeTo(yearly: true),
-                ),
+              CsHeadline(const ['Strike ', 'Command'], prismIndex: 1, maxLines: 1, style: t.display(34, em: -0.03, height: 1)),
+              SizedBox(height: cs(8)),
+              Text(strikeCommandTagline, style: t.mono(11, em: 0.06, color: CsColors.ink55, height: 1.4)),
+              SizedBox(height: cs(16)),
+              StrikeCommandOffer(
+                busyPlan: _subscribing ? (_isYearly ? StrikeCommandPlan.annual : StrikeCommandPlan.monthly) : null,
+                busyLabel: _sawPurchaseSuccess ? 'Activating…' : 'Connecting…',
+                onSubscribe: _subscribing ? null : (plan) => _subscribeTo(yearly: plan == StrikeCommandPlan.annual),
+                onRestore: _subscribing ? null : _restorePurchases,
+                restoring: _restoring,
+                status: status,
               ),
             ],
           ),
         ),
-        SizedBox(height: cs(14)),
-        Row(
-          children: [
-            Flexible(
-              child: Text(
-                status ?? 'No commitment · Cancel anytime · Secure payment',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: t.mono(10, em: 0.04, color: status != null ? CsColors.cyan : CsColors.ink45),
-              ),
-            ),
-            Text(' · ', style: t.mono(10, em: 0.04, color: CsColors.ink45)),
-            CsPressable(
-              onTap: _restoring || _subscribing ? null : _restorePurchases,
-              semanticLabel: 'Restore purchases',
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 44),
-                child: Center(
-                  widthFactor: 1,
-                  child: Text(
-                    _restoring ? 'Restoring…' : 'Restore purchases',
-                    style: t.mono(10, em: 0.04, color: CsColors.ink70).copyWith(
-                      decoration: TextDecoration.underline,
-                      decorationColor: CsColors.ink30,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SubscriptionLegalLinks(),
-      ],
+      ),
     );
   }
 
-  /// Free-trial line for a plan, read from the store's subscription offers
-  /// (Play only returns offers the user is eligible for). Display only — the
-  /// purchase flow picks the offer itself.
-  String? _trialLabel(String productId) {
-    final product = PurchaseService().getProduct(productId);
-    if (product is! ProductSubscriptionAndroid) return null;
-    for (final offer in product.subscriptionOffers) {
-      final phases = offer.pricingPhasesAndroid?.pricingPhaseList ?? const [];
-      for (final p in phases) {
-        if ((int.tryParse(p.priceAmountMicros) ?? -1) == 0 && p.recurrenceMode != 1) {
-          final period = _isoPeriod(p.billingPeriod);
-          return period == null ? 'Free trial' : '$period free trial';
-        }
-      }
-    }
-    return null;
-  }
-
-  /// "P3D" → "3-day", "P1W" → "7-day", "P1M" → "1-month".
-  static String? _isoPeriod(String iso) {
-    final m = RegExp(r'^P(\d+)([DWMY])$').firstMatch(iso);
-    if (m == null) return null;
-    var n = int.parse(m.group(1)!);
-    var unit = m.group(2)!;
-    if (unit == 'W') {
-      n *= 7;
-      unit = 'D';
-    }
-    final word = switch (unit) { 'D' => 'day', 'M' => 'month', _ => 'year' };
-    return '$n-$word';
-  }
 
   void _subscribeTo({required bool yearly}) {
     setState(() => _isYearly = yearly);
@@ -391,137 +293,6 @@ class _PremiumBenefitsScreenState extends State<PremiumBenefitsScreen> {
   }
 }
 
-/// One plan card. Monthly = outlined tile + secondary button; Yearly
-/// (featured) = prism ring + SAVE chip + white primary button.
-class _PlanCard extends StatelessWidget {
-  const _PlanCard({
-    required this.label,
-    required this.price,
-    required this.cadence,
-    required this.note,
-    required this.noteIsTrial,
-    required this.featured,
-    required this.busy,
-    required this.busyLabel,
-    required this.onSubscribe,
-    this.badge,
-  });
-
-  final String label;
-  final String price;
-  final String cadence;
-  final String note;
-  final bool noteIsTrial;
-  final bool featured;
-  final bool busy;
-  final String busyLabel;
-  final VoidCallback? onSubscribe;
-  final String? badge;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = context.cs;
-    final t = cs.type;
-
-    final body = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(children: [
-          Expanded(child: CsLabel(label, color: CsColors.ink55)),
-          if (badge != null) CsChip(badge!, kind: CsChipKind.gold, size: 10),
-        ]),
-        SizedBox(height: cs(8)),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text.rich(
-            TextSpan(children: [
-              TextSpan(text: price, style: t.display(34, em: -0.02, height: 1.05)),
-              TextSpan(text: ' $cadence', style: t.mono(12, color: CsColors.ink45, em: 0.02)),
-            ]),
-            maxLines: 1,
-          ),
-        ),
-        SizedBox(height: cs(8)),
-        Text(
-          note,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: t.mono(11, em: 0.02, color: noteIsTrial ? CsColors.mint : CsColors.ink45),
-        ),
-        const Spacer(),
-        SizedBox(height: cs(14)),
-        featured
-            ? CsButton.primary(
-                label: busy ? busyLabel : 'Subscribe',
-                loading: busy,
-                expand: true,
-                onPressed: onSubscribe,
-              )
-            : CsButton.secondary(
-                label: busy ? busyLabel : 'Subscribe',
-                loading: busy,
-                expand: true,
-                onPressed: onSubscribe,
-              ),
-      ],
-    );
-
-    if (featured) {
-      return CsPrismRing(
-        radius: CsRadius.card,
-        fill: CsColors.raised,
-        padding: EdgeInsets.all(cs(18.5)),
-        child: body,
-      );
-    }
-    return CsTile(
-      state: CsTileState.done,
-      radius: CsRadius.card,
-      padding: EdgeInsets.all(cs(20)),
-      child: body,
-    );
-  }
-}
-
-class _Benefit {
-  const _Benefit(this.icon, this.title, this.description);
-  final IconData icon;
-  final String title;
-  final String description;
-}
-
-/// Honest list — every entry maps to an entitlement the server actually
-/// grants on subscription verify (VerifyPurchaseCommandHandler) or a
-/// client-side subscription gate (spawn boosts snapshot
-/// PremiumCubit.hasPremium at game start).
-final _benefits = [
-  const _Benefit(Symbols.block_rounded, 'Remove all ads',
-      'No banners, no interstitials. Fly completely ad-free'),
-  _Benefit(Symbols.public_rounded, 'All premium Sectors',
-      PremiumContent.premiumThemes.map((t) => t.displayName).join(', ')),
-  _Benefit(Symbols.rocket_rounded, 'All premium liveries',
-      LiveryType.values.where((l) => l.isPremium).map((l) => l.displayName).join(', ')),
-  _Benefit(Symbols.local_fire_department_rounded, 'All premium exhausts',
-      ExhaustType.values.where((e) => e.isPremium).map((e) => e.displayName).join(', ')),
-  const _Benefit(Symbols.paid_rounded, '1.5× credit rewards', '50% more credits from every run'),
-  const _Benefit(Symbols.stars_rounded, 'Lucky draw: rarer pickups',
-      '+50% chance to spawn the rare 50-point pickup in every run'),
-  const _Benefit(Symbols.bolt_rounded, 'More in-flight pickups',
-      '+30% spawn rate for pickups during a run'),
-  _Benefit(Symbols.inventory_2_rounded, 'Tactical Gear resupply',
-      '5× ${[
-        PremiumPowerUpType.teleport,
-        PremiumPowerUpType.ghostMode,
-        PremiumPowerUpType.magneticPickup,
-        PremiumPowerUpType.scoreShield,
-        PremiumPowerUpType.invincibility,
-      ].map((g) => g.displayName).join(', ')} every billing cycle'),
-  const _Benefit(Symbols.confirmation_number_rounded, 'Cup Passes',
-      '1× Scout + 1× Strike + 1× Ace Cup Pass every billing cycle'),
-];
-
 class _BenefitsList extends StatelessWidget {
   const _BenefitsList({this.owned = false});
 
@@ -537,28 +308,17 @@ class _BenefitsList extends StatelessWidget {
         CsLabel(owned ? 'Unlocked with Strike Command' : 'Strike Command includes', color: CsColors.gold),
         SizedBox(height: cs(6)),
         Expanded(
-          child: ListView.builder(
+          child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             padding: EdgeInsets.only(bottom: cs(8)),
-            itemCount: _benefits.length,
-            itemBuilder: (context, i) {
-              final b = _benefits[i];
-              return CsListRow(
-                leading: CsIconDisc(b.icon, size: 34, color: CsColors.gold),
-                title: b.title,
-                subtitle: b.description,
-                trailing: owned
-                    ? Icon(Symbols.check_circle_rounded, size: cs(20), color: CsColors.mint)
-                    : null,
-                padding: EdgeInsets.symmetric(vertical: cs(10), horizontal: cs(2)),
-              );
-            },
+            child: StrikeCommandFeatureList(owned: owned),
           ),
         ),
       ],
     );
   }
 }
+
 
 /// Shown when the user already owns Pro: status summary + manage link.
 class _PremiumActiveBlock extends StatelessWidget {
@@ -582,7 +342,13 @@ class _PremiumActiveBlock extends StatelessWidget {
       children: [
         const CsChip('Command', kind: CsChipKind.gold, icon: Symbols.workspace_premium_rounded),
         SizedBox(height: cs(16)),
-        CsHeadline(const ['Command\n', 'active.'], prismIndex: 1, maxLines: 2, style: t.title),
+        // Scale down rather than wrap: on phones "Command" alone is wider
+        // than the column and broke mid-word ("Comman / d").
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: CsHeadline(const ['Command\n', 'active.'], prismIndex: 1, maxLines: 2, style: t.title),
+        ),
         SizedBox(height: cs(14)),
         Text(
           'Strike Command is active. Every perk on the right applies to this account.',

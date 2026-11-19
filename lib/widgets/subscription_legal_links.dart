@@ -16,14 +16,28 @@ const String _termsOfUseUrl =
 /// [compact] drops the renewal note and shortens the labels to fit on one
 /// line beside other footer text that already says the plan auto-renews.
 class SubscriptionLegalLinks extends StatelessWidget {
-  const SubscriptionLegalLinks({super.key, this.compact = false});
+  const SubscriptionLegalLinks({
+    super.key,
+    this.compact = false,
+    this.style,
+    this.linkStyle,
+    this.leading = const [],
+  });
 
   final bool compact;
 
+  /// Overrides for the plain text / link styles (the Strike Command offer
+  /// passes its readable 12sp+ fine print).
+  final TextStyle? style;
+  final TextStyle? linkStyle;
+
+  /// Extra items placed first in the same wrapping line (e.g. Restore).
+  final List<Widget> leading;
+
   @override
   Widget build(BuildContext context) {
-    final quiet = context.cs.type.mono(10, em: 0.04, color: CsColors.ink45);
-    final link = quiet.copyWith(
+    final quiet = style ?? context.cs.type.mono(10, em: 0.04, color: CsColors.ink45);
+    final link = linkStyle ?? quiet.copyWith(
       color: CsColors.ink70,
       decoration: TextDecoration.underline,
       decorationColor: CsColors.ink30,
@@ -31,6 +45,7 @@ class SubscriptionLegalLinks extends StatelessWidget {
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
+        ...leading,
         if (!compact) Text('Strike Command auto-renews until cancelled  ·  ', style: quiet),
         _Link(
           label: compact ? 'Terms' : 'Terms of Use',

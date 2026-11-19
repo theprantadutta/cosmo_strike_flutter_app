@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import '../debug/demo_mode.dart';
+import '../utils/title_case.dart';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -36,6 +38,7 @@ import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/rewarded_action_button.dart';
 import 'package:cosmo_strike_flutter_app/widgets/credits_dialog.dart';
 import 'package:cosmo_strike_flutter_app/widgets/daily_bonus_popup.dart';
+import 'package:cosmo_strike_flutter_app/widgets/home_nav_bar.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 import 'package:cosmo_strike_flutter_app/widgets/walkthrough/home_walkthrough.dart';
 import 'package:cosmo_strike_flutter_app/widgets/walkthrough/walkthrough_overlay.dart';
@@ -110,6 +113,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   /// onboarding). Each step is a no-op once done, so re-running on every
   /// return to Home is cheap.
   Future<void> _runPromptQueue() async {
+    // Demo / profiling build: no prompts, straight into the autopilot run.
+    if (DemoMode.enabled) {
+      context.push(AppRoutes.playLoading, extra: DemoMode.startLevel);
+      return;
+    }
     if (_queueRunning || !mounted || !_onTop) return;
     _queueRunning = true;
     try {
@@ -214,6 +222,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
 
   /// Check and show daily bonus popup if available.
   /// Offline-first: reads CoinsCubit's local state. No network call.
+  static bool _bonusOfferedThisSession = false;
+
   Future<void> _checkDailyBonus() async {
     if (!mounted) return;
 
@@ -268,6 +278,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       }
 
       if (status == null || !status.canClaim || !mounted) return;
+      // Offer the drop once per app session: the queue re-runs every time
+      // Home comes back on top, and a dismissed drop popping up on each
+      // return reads as nagging. It's offered again on the next launch.
+      if (_bonusOfferedThisSession) return;
+      _bonusOfferedThisSession = true;
 
       final theme = context.read<ThemeCubit>().state.currentTheme;
 
@@ -393,15 +408,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     final meta = t.mono(11, color: CsColors.ink60, em: 0.12);
     final adsOn = getIt.isRegistered<AdService>() && getIt<AdService>().adsEnabled;
 
-    Widget tapText(String text, VoidCallback onTap, {Key? key, TextStyle? style}) => CsPressable(
-          key: key,
-          onTap: onTap,
-          semanticLabel: text,
-          child: SizedBox(
-            height: 44,
-            child: Center(child: Text(text, maxLines: 1, style: style ?? meta)),
+    Widget tapText(
+      String text,
+      VoidCallback onTap, {
+      Key? key,
+      TextStyle? style,
+      String? semanticLabel,
+      String? tooltip,
+    }) {
+      final w = CsPressable(
+        key: key,
+        onTap: onTap,
+        semanticLabel: semanticLabel ?? text,
+        child: SizedBox(
+          height: 44,
+          child: Center(
+            child: ExcludeSemantics(child: Text(text, maxLines: 1, style: style ?? meta)),
           ),
-        );
+        ),
+      );
+      return tooltip == null ? w : Tooltip(message: tooltip, excludeFromSemantics: true, child: w);
+    }
 
     return SizedBox(
       height: 44,
@@ -420,6 +447,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                   tapText(
                     'BEST ${_formatCoins(context.watch<GameSettingsCubit>().state.highScore)}',
                     () => context.push(AppRoutes.statistics),
+                    semanticLabel:
+                        'Best score '
+                        '${context.watch<GameSettingsCubit>().state.highScore}. Open Service Record',
                   ),
                   SizedBox(width: cs(22)),
                   BlocBuilder<CoinsCubit, CoinsState>(
@@ -427,22 +457,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                       'CR ${_formatCoins(coinsState.total)}',
                       () => context.push(AppRoutes.store),
                       key: HomeWalkthrough.coinsKey,
+                      tooltip: 'Credits',
+                      semanticLabel: 'Credits: ${coinsState.total}. Open Armory',
                     ),
                   ),
                   // EARN — rewarded ad for free coins, free users only.
                   if (adsOn) ...[
                     SizedBox(width: cs(12)),
-                    CsPressable(
-                      onTap: () => _watchForCoins(context),
-                      semanticLabel: 'Watch an ad to earn credits',
-                      child: SizedBox(
-                        height: 44,
-                        child: Center(
-                          child: CsChip(
-                            '+${AdService.freeCoinsPerAd}',
-                            kind: CsChipKind.outline,
-                            icon: Symbols.play_circle_rounded,
-                            size: 10,
+                    Tooltip(
+                      message: 'Watch an ad for ${AdService.freeCoinsPerAd} credits',
+                      excludeFromSemantics: true,
+                      child: CsPressable(
+                        onTap: () => _watchForCoins(context),
+                        semanticLabel: 'Watch an ad for ${AdService.freeCoinsPerAd} credits',
+                        child: SizedBox(
+                          height: 44,
+                          child: Center(
+                            child: ExcludeSemantics(
+                              child: CsChip(
+                                '+${AdService.freeCoinsPerAd} CR',
+                                kind: CsChipKind.outline,
+                                icon: Symbols.play_circle_rounded,
+                                size: 10,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -455,6 +493,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                       'LV ${getIt<ProgressionService>().level.toString().padLeft(2, '0')}',
                       () => context.push(AppRoutes.profile),
                       style: meta.copyWith(color: CsColors.ink),
+                      semanticLabel: 'Pilot Rank ${getIt<ProgressionService>().level}. Open Pilot File',
                     ),
                   ),
                   SizedBox(width: cs(14)),
@@ -512,7 +551,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
         final rows = snap.data ?? const <StageProgressRow>[];
         final unlocked = rows.where((r) => r.unlocked).map((r) => r.stageId);
         final level = unlocked.isEmpty ? 1 : unlocked.reduce((a, b) => a > b ? a : b);
-        final name = _titleCase(CampaignCatalog.levelNameFor(level));
+        final name = titleCaseName(CampaignCatalog.levelNameFor(level));
         final biome = CampaignCatalog.biomeNameFor(level);
 
         return Column(
@@ -584,11 +623,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   late final Stream<List<StageProgressRow>> _stagesStream =
       getIt<AppDatabase>().stageProgressDao.watchAll();
 
-  static String _titleCase(String s) => s
-      .toLowerCase()
-      .split(' ')
-      .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
-      .join(' ');
 
   /// "GEAR · 03 ▾" / "ARMED · AFTERBURNER ▾". Hidden with no inventory.
   Widget _buildLoadoutChip(GameTheme theme) {
@@ -656,95 +690,65 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     );
   }
 
-  /// Bottom text nav over a hairline. Every old menu tile maps to one item.
+  /// Bottom nav: six primary destinations, icon over label, each a full
+  /// ≥48dp cell. Standings, Squadron, Service Record and Commendations live
+  /// in the Pilot File (avatar, top right).
   Widget _buildNav(BuildContext context) {
-    final cs = context.cs;
-    final t = cs.type;
     final daily = ref.watch(dailyChallengesProvider);
     final unclaimed = _getDailyChallengesBadge();
     final passTier = context.watch<BattlePassCubit>().state.currentTier;
+    final dailyProgress = daily.totalCount > 0 ? '${daily.completedCount}/${daily.totalCount}' : null;
 
-    Widget item(String label, VoidCallback onTap,
-        {Key? key, String? badge, Color badgeColor = CsColors.mint, Color? color, bool dot = false}) {
-      return CsPressable(
-        key: key,
-        onTap: onTap,
-        semanticLabel: label,
-        child: SizedBox(
-          height: 44,
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(label, style: t.nav.copyWith(color: color ?? CsColors.ink70)),
-            if (badge != null) ...[
-              SizedBox(width: cs(6)),
-              Text(badge, style: t.mono(10, color: badgeColor, em: 0.04)),
-            ],
-            if (dot) ...[
-              SizedBox(width: cs(5)),
-              Container(
-                width: 5,
-                height: 5,
-                decoration: const BoxDecoration(color: CsColors.gold, shape: BoxShape.circle),
-              ),
-            ],
-          ]),
-        ),
-      );
-    }
-
-    final gap = SizedBox(width: cs(22));
-    final left = <Widget>[
-      item(
-        'DIRECTIVES',
-        () => context.push(AppRoutes.dailyChallenges),
+    final items = <Widget>[
+      HomeNavItem(
         key: HomeWalkthrough.dailyChallengesKey,
-        color: CsColors.ink,
-        badge: daily.totalCount > 0 ? '${daily.completedCount}/${daily.totalCount}' : null,
+        icon: Symbols.task_alt_rounded,
+        label: 'Directives',
+        badge: dailyProgress,
         dot: unclaimed != null,
+        semanticLabel: [
+          'Daily Directives',
+          if (dailyProgress != null) '${daily.completedCount} of ${daily.totalCount} complete',
+          if (unclaimed != null) 'reward ready',
+        ].join(', '),
+        onTap: () => context.push(AppRoutes.dailyChallenges),
       ),
-      item('FRONTLINE', () => context.push(AppRoutes.battlePass),
-          badge: 'T$passTier', badgeColor: CsColors.pink),
-      item('CUPS', () => context.push(AppRoutes.tournaments)),
-      item('STANDINGS', () => context.push(AppRoutes.leaderboard)),
-      item('SQUADRON', () => context.push(AppRoutes.friends)),
-      item('HANGAR', () => context.push(AppRoutes.hangar), key: HomeWalkthrough.cosmeticsKey),
-      item('COMMENDATIONS', () => context.push(AppRoutes.achievements)),
-      item('RECORD', () => context.push(AppRoutes.statistics)),
-    ];
-    final right = <Widget>[
-      item('COMMAND', () => context.push(AppRoutes.premiumBenefits)),
-      item('ARMORY ↗', () => context.push(AppRoutes.store),
-          key: HomeWalkthrough.storeKey, color: CsColors.gold),
-    ];
-
-    List<Widget> spaced(List<Widget> xs) => [
-          for (var i = 0; i < xs.length; i++) ...[if (i > 0) gap, xs[i]],
-        ];
-
-    return DecoratedBox(
-      decoration: const BoxDecoration(border: Border(top: BorderSide(color: CsColors.hairline))),
-      child: Padding(
-        padding: EdgeInsets.only(top: cs(6)),
-        // Scales down as one row on narrow phones instead of wrapping.
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: _navAvailableWidth(context)),
-            child: IntrinsicWidth(
-              child: Row(children: [...spaced(left), SizedBox(width: cs(32)), const Spacer(), ...spaced(right)]),
-            ),
-          ),
-        ),
+      HomeNavItem(
+        icon: Symbols.military_tech_rounded,
+        label: 'Frontline',
+        badge: 'T$passTier',
+        badgeColor: CsColors.pink,
+        semanticLabel: 'Frontline, tier $passTier',
+        onTap: () => context.push(AppRoutes.battlePass),
       ),
-    );
-  }
+      HomeNavItem(
+        icon: Symbols.trophy_rounded,
+        label: 'Cups',
+        semanticLabel: 'Sector Cups',
+        onTap: () => context.push(AppRoutes.tournaments),
+      ),
+      HomeNavItem(
+        key: HomeWalkthrough.cosmeticsKey,
+        icon: Symbols.rocket_rounded,
+        label: 'Hangar',
+        onTap: () => context.push(AppRoutes.hangar),
+      ),
+      HomeNavItem(
+        icon: Symbols.workspace_premium_rounded,
+        label: 'Command',
+        semanticLabel: 'Strike Command',
+        onTap: () => context.push(AppRoutes.premiumBenefits),
+      ),
+      HomeNavItem(
+        key: HomeWalkthrough.storeKey,
+        icon: Symbols.storefront_rounded,
+        label: 'Armory',
+        color: CsColors.gold,
+        onTap: () => context.push(AppRoutes.store),
+      ),
+    ];
 
-  /// The nav row is laid out at the full content width when it fits, and at
-  /// its intrinsic width (then scaled down by the FittedBox) when it doesn't.
-  double _navAvailableWidth(BuildContext context) {
-    final cs = context.cs;
-    final mq = MediaQuery.of(context);
-    return mq.size.width - mq.padding.horizontal - cs.screenPadding.horizontal;
+    return HomeNavBar(items: items);
   }
 
   /// Format coin balance for display (e.g., 1.2K, 1.5M)

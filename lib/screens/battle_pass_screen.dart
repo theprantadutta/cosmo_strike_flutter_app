@@ -289,7 +289,8 @@ class _Header extends StatelessWidget {
             Text.rich(
               TextSpan(children: [
                 // Spelled out: in Syne a bare "T0" reads as the word "To".
-                TextSpan(text: 'Tier ${state.currentTier}', style: t.display(22, height: 1)),
+                TextSpan(text: 'Tier ', style: t.display(22, height: 1)),
+                TextSpan(text: '${state.currentTier}', style: t.number(22, height: 1)),
                 TextSpan(text: ' / $maxTier', style: t.mono(12, color: CsColors.ink45)),
               ]),
               maxLines: 1,
@@ -329,15 +330,22 @@ class _Header extends StatelessWidget {
               constraints: const BoxConstraints(minHeight: 32),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Flexible(
+                  // Plain sentence: "Next reward at Tier 3: Surge XP (Command lane)".
                   child: Text.rich(
                     TextSpan(children: [
-                      TextSpan(text: 'NEXT · T${next.tier} · ', style: t.mono(10, color: CsColors.ink45)),
+                      TextSpan(text: 'Next reward at Tier ${next.tier}: ', style: t.body),
                       TextSpan(
-                        text: next.reward.name.toUpperCase(),
-                        style: t.mono(10, color: next.isPremium ? CsColors.gold : CsColors.ink),
+                        text: next.reward.name,
+                        style: t.body.copyWith(
+                          color: next.isPremium ? CsColors.gold : CsColors.ink,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      if (next.isPremium && !state.isActive)
-                        TextSpan(text: ' · COMMAND', style: t.mono(10, color: CsColors.gold)),
+                      if (next.isPremium)
+                        TextSpan(
+                          text: state.isActive ? ' (Command lane)' : ' (Command lane, locked)',
+                          style: t.body.copyWith(color: CsColors.gold),
+                        ),
                     ]),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -644,12 +652,17 @@ class _TierStrip extends StatelessWidget {
     final tier = level.level;
     final reached = tier <= state.currentTier;
 
+    // No reward on this lane/tier: a quiet hairline dash instead of an
+    // empty card, so the reward-bearing tiles carry the strip.
     if (reward == null) {
-      return CsTile(
-        state: CsTileState.locked,
+      return SizedBox(
         height: height,
-        padding: EdgeInsets.zero,
-        child: const Center(child: _TileLabel(icon: null, label: '—', color: CsColors.ink25)),
+        child: const Center(
+          child: FractionallySizedBox(
+            widthFactor: 0.2,
+            child: SizedBox(height: 1, child: ColoredBox(color: CsColors.hairline)),
+          ),
+        ),
       );
     }
 

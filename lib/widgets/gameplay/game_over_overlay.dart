@@ -26,6 +26,7 @@ class GameOverOverlay extends StatelessWidget {
   const GameOverOverlay({
     super.key,
     required this.result,
+    this.runLabel,
     required this.victory,
     required this.previousBest,
     required this.unlockedLevel,
@@ -40,6 +41,11 @@ class GameOverOverlay extends StatelessWidget {
   });
 
   final GameResult result;
+
+  /// The run's name ("Daily Run" / "Sector Cup" / mode), shared with the
+  /// intro, pause and level-clear headers. Null omits it.
+  final String? runLabel;
+
   final bool victory;
 
   /// High score BEFORE this run was submitted (drives NEW RECORD).
@@ -64,7 +70,9 @@ class GameOverOverlay extends StatelessWidget {
   final Map<String, int> challengeRunStart;
 
   static const _victoryWash = CsWash(CsColors.mint, .2, .3, rx: .4, ry: .7, alpha: .12);
-  static const _overScrim = Color(0xF20A0A0D);
+  /// Fully opaque: at 95% the frozen battlefield (and anything over it)
+  /// ghosted through behind the header.
+  static const _overScrim = CsColors.bg;
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +90,14 @@ class GameOverOverlay extends StatelessWidget {
         Expanded(
           child: CsFitColumn(
             children: [
-              CsLabel('${victory ? 'Mission complete' : 'Ship lost'} · L$lv / W$wv', color: accent),
+              CsLabel(
+                [
+                  victory ? 'Mission complete' : 'Ship lost',
+                  ?runLabel,
+                  'L$lv / W$wv',
+                ].join(' · '),
+                color: accent,
+              ),
               SizedBox(height: cs(10)),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -201,19 +216,22 @@ class GameOverOverlay extends StatelessWidget {
         ),
         SizedBox(height: cs(8)),
         Expanded(
-          child: SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ChallengePanel(
-                  showClaimAll: false,
-                  showRunDelta: true,
-                  runStartProgress: challengeRunStart,
-                ),
-                const _AchievementUnlocks(),
-              ],
+          // Bottom fade while more rows sit below the fold.
+          child: ScrollEdgeFade(
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ChallengePanel(
+                    showClaimAll: false,
+                    showRunDelta: true,
+                    runStartProgress: challengeRunStart,
+                  ),
+                  const _AchievementUnlocks(),
+                ],
+              ),
             ),
           ),
         ),

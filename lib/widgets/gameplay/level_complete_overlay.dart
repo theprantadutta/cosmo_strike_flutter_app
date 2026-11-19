@@ -1,4 +1,5 @@
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import '../../utils/title_case.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../data/database/app_database.dart';
@@ -22,6 +23,7 @@ class LevelCompleteOverlay extends StatelessWidget {
     required this.game,
     required this.outcome,
     required this.priorBest,
+    this.runLabel,
     required this.onContinue,
     required this.onQuit,
   });
@@ -35,11 +37,17 @@ class LevelCompleteOverlay extends StatelessWidget {
   /// accurate NEW BEST / FASTEST / FIRST NO-HIT badges.
   final StageProgressRow? priorBest;
 
+  /// The run's name ("Daily Run" / "Sector Cup" / mode); null falls back to
+  /// the mode name.
+  final String? runLabel;
+
   final VoidCallback onContinue;
   final VoidCallback onQuit;
 
   static const _wash = CsWash(CsColors.mint, .2, .3, rx: .4, ry: .7, alpha: .12);
-  static const _scrim = Color(0xF20A0A0D);
+
+  /// Fully opaque so nothing on the frozen battlefield ghosts through.
+  static const _scrim = CsColors.bg;
 
   @override
   Widget build(BuildContext context) {
@@ -105,7 +113,7 @@ class LevelCompleteOverlay extends StatelessWidget {
         Expanded(
           child: CsFitColumn(
             children: [
-              CsLabel('Level $lv clear · ${game.mode.name}', color: CsColors.mint),
+              CsLabel('Level $lv clear · ${runLabel ?? game.mode.name}', color: CsColors.mint),
               SizedBox(height: cs(8)),
               // Title case like every other headline; scales down rather
               // than truncating long names ("Shattered Light").
@@ -113,7 +121,7 @@ class LevelCompleteOverlay extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  _titleCase(CampaignCatalog.levelNameFor(level)),
+                  titleCaseName(CampaignCatalog.levelNameFor(level)),
                   maxLines: 1,
                   style: t.display(52, em: -0.04, height: 1),
                 ),
@@ -190,7 +198,8 @@ class LevelCompleteOverlay extends StatelessWidget {
         opacity: v,
         child: Transform.translate(offset: Offset(cs(12) * (1 - v), 0), child: child),
       ),
-      child: ListView(
+      child: ScrollEdgeFade(
+        child: ListView(
         padding: EdgeInsets.zero,
         physics: const ClampingScrollPhysics(),
         children: [
@@ -212,12 +221,13 @@ class LevelCompleteOverlay extends StatelessWidget {
             CsLabel('Next · Level ${(level + 1).toString().padLeft(2, '0')}'),
             SizedBox(height: cs(8)),
             CsPrismText(
-              _titleCase(CampaignCatalog.levelNameFor(level + 1)),
+              titleCaseName(CampaignCatalog.levelNameFor(level + 1)),
               maxLines: 1,
               style: t.display(26, em: -0.03, height: 1.1),
             ),
           ],
         ],
+        ),
       ),
     );
 
@@ -287,8 +297,3 @@ class _BestLine extends StatelessWidget {
   }
 }
 
-String _titleCase(String s) => s
-    .toLowerCase()
-    .split(' ')
-    .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
-    .join(' ');

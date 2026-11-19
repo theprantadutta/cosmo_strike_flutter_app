@@ -73,8 +73,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
   // ── LEFT ───────────────────────────────────────────────────────────────
 
-  /// Hero high score + compact telemetry + the stacked actions. Rendered at
-  /// natural size and scaled down so it never scrolls.
+  /// Hero best score + the stacked actions. Every other number lives once in
+  /// the right-hand grid. Rendered at natural size and scaled down so it
+  /// never scrolls.
   Widget _buildSummary(BuildContext context) {
     final cs = context.cs;
     final t = cs.type;
@@ -88,13 +89,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           alignment: Alignment.centerLeft,
           child: Text(_num('highScore'), maxLines: 1, style: t.scoreGiant),
         ),
-        SizedBox(height: cs(16)),
-        const CsHairline(),
-        _telemetryRow(context, 'Runs flown', _num('totalGames')),
-        const CsHairline(),
-        _telemetryRow(context, 'Flight time', '${_displayStats['totalPlayTime'] ?? '0s'}'),
-        const CsHairline(),
-        SizedBox(height: cs(22)),
+        SizedBox(height: cs(28)),
         CsButton.primary(
           label: 'Commendations',
           icon: Symbols.emoji_events_rounded,
@@ -108,24 +103,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           expand: true,
           onPressed: () => context.push(AppRoutes.replays),
         ),
-        SizedBox(height: cs(6)),
-        CsButton.text(
-          label: 'Wipe service record',
-          icon: Symbols.restart_alt_rounded,
-          onPressed: _showResetDialog,
-        ),
       ],
-    );
-  }
-
-  Widget _telemetryRow(BuildContext context, String label, String value) {
-    final cs = context.cs;
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: cs(10)),
-      child: Row(children: [
-        Expanded(child: CsLabel(label)),
-        Text(value, maxLines: 1, style: cs.type.mono(12, color: CsColors.ink, weight: FontWeight.w600)),
-      ]),
     );
   }
 
@@ -141,19 +119,20 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return ListView(
       padding: EdgeInsets.only(bottom: cs(16)),
       children: [
+        // Best score is the left-hand hero; it isn't repeated here.
         const _Section('Service summary'),
         CsStatGrid(columns: cols, valueSize: 22, stats: [
-          CsStat(_num('highScore'), 'Best score'),
           CsStat(_num('totalGames'), 'Runs flown'),
+          CsStat('${_displayStats['totalPlayTime'] ?? '0s'}', 'Flight time'),
           CsStat(_num('averageScore'), 'Avg score'),
           CsStat(_num('winStreak'), 'Win streak'),
         ]),
         const _Section('Flight log'),
         CsStatGrid(columns: cols, valueSize: 22, stats: [
-          CsStat('${_displayStats['totalPlayTime'] ?? '0s'}', 'Flight time'),
           CsStat('${_displayStats['longestSurvival'] ?? '0s'}', 'Longest run'),
           CsStat(_num('highestStage'), 'Deepest stage'),
           CsStat(_num('highestWave'), 'Furthest wave'),
+          CsStat(_num('longestStreak'), 'Best streak'),
         ]),
         const _Section('Combat record'),
         CsStatGrid(columns: cols, valueSize: 22, stats: [
@@ -164,15 +143,28 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           CsStat(_num('victories'), 'Victories', color: CsColors.mint),
           CsStat(_num('noHitClears'), 'No-hit clears'),
           CsStat('${_displayStats['survivalRate'] ?? '0%'}', 'Clear rate'),
-          CsStat(_num('longestStreak'), 'Best streak'),
         ]),
-        _Section('Form', trailing: _trendChip(trend)),
-        CsStatGrid(columns: cols, valueSize: 22, stats: [
-          CsStat(trend.toUpperCase(), 'Direction', color: _trendColor(trend)),
-          CsStat('${_performanceTrends['averageRecentScore'] ?? 0}', 'Recent avg'),
-          CsStat('${_performanceTrends['bestRecentScore'] ?? 0}', 'Recent best'),
+        // The trend chip in the header carries the direction; every value
+        // below has its own label and reads "—" until there are runs.
+        _Section(
+          recentScores.isEmpty ? 'Form' : 'Form · last ${recentScores.length} runs',
+          trailing: recentScores.isEmpty ? null : _trendChip(trend),
+        ),
+        CsStatGrid(columns: 3, valueSize: 22, stats: [
+          CsStat(
+            recentScores.isEmpty ? '—' : formatThousands(_performanceTrends['averageRecentScore'] as int? ?? 0),
+            'Recent avg score',
+          ),
+          CsStat(
+            recentScores.isEmpty ? '—' : formatThousands(_performanceTrends['bestRecentScore'] as int? ?? 0),
+            'Recent best score',
+          ),
           CsStat(_calculateConsistencyRating(recentScores), 'Consistency'),
         ]),
+        if (recentScores.isEmpty) ...[
+          SizedBox(height: cs(10)),
+          Text('Fly a few runs to read your form.', style: cs.type.body),
+        ],
         if (recentScores.isNotEmpty) ...[
           SizedBox(height: cs(16)),
           Row(children: [
@@ -202,6 +194,18 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         ],
         const _Section('Commendations'),
         _buildAchievementProgress(context),
+        // Destructive action sits at the very end, away from the primary
+        // buttons, and still goes through the confirm dialog.
+        SizedBox(height: cs(36)),
+        const CsHairline(),
+        SizedBox(height: cs(10)),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: _DangerTextAction(
+            label: 'Wipe service record',
+            onPressed: _showResetDialog,
+          ),
+        ),
       ],
     );
   }
@@ -210,12 +214,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         'improving' => CsChip(trend, kind: CsChipKind.mint, icon: Symbols.trending_up_rounded),
         'declining' => CsChip(trend, kind: CsChipKind.pink, icon: Symbols.trending_down_rounded),
         _ => CsChip(trend, icon: Symbols.trending_flat_rounded),
-      };
-
-  Color _trendColor(String trend) => switch (trend) {
-        'improving' => CsColors.mint,
-        'declining' => CsColors.pink,
-        _ => CsColors.ink,
       };
 
   Widget _legend(BuildContext context, String label, Color color) {
@@ -492,6 +490,34 @@ class _Section extends StatelessWidget {
         Expanded(child: CsLabel(label)),
         ?trailing,
       ]),
+    );
+  }
+}
+
+/// Pink text action for the destructive "wipe" entry point (opens a confirm).
+class _DangerTextAction extends StatelessWidget {
+  const _DangerTextAction({required this.label, required this.onPressed});
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    return CsPressable(
+      onTap: onPressed,
+      semanticLabel: label,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Symbols.delete_forever_rounded, size: cs(16), color: CsColors.pink),
+          SizedBox(width: cs(8)),
+          Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            style: cs.type.mono(11, color: CsColors.pink, weight: FontWeight.w600, em: 0.1),
+          ),
+        ]),
+      ),
     );
   }
 }

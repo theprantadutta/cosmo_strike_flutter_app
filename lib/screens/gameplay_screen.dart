@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../data/database/app_database.dart';
+import '../debug/demo_mode.dart';
 import '../game/components/power_up.dart';
 import '../game/levels/level_def.dart';
 import '../game/cosmo_strike_game.dart';
@@ -47,6 +48,7 @@ import '../widgets/game_dpad.dart';
 import '../widgets/gameplay/game_over_overlay.dart';
 import '../widgets/gameplay/level_complete_overlay.dart';
 import '../widgets/gameplay/pause_overlay.dart';
+import '../widgets/gameplay/run_context.dart';
 import '../widgets/gameplay/upgrade_draft_overlay.dart';
 import '../game/run_upgrades.dart';
 import '../widgets/reward_toast.dart';
@@ -115,6 +117,14 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   /// First-run tutorial: true when this run opened with the guided beats.
   bool _tutorialRun = false;
+
+  /// The run's name in every in-run header ("Daily Run", "Sector Cup" or
+  /// the mode), so intro / pause / level clear / game over agree.
+  String get _runLabel => RunContext.label(
+    mode: _mode,
+    dailySeed: _dailySeed,
+    tournamentId: _tournamentId,
+  );
 
   /// 1-based run number while this device is still onboarding (first
   /// [FirstRunService.onboardingGameCount] runs); null afterwards. Drives
@@ -239,13 +249,19 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     // First-run tutorial: only on a Level-1 start, only until completed
     // or skipped once (the flag is prefs-backed and resettable from
-    // Settings). The service is hydrated in main() so this sync read is
-    // always safe.
+    // Settings), and never on a Daily Run or Sector Cup run (competitive,
+    // must fly the same for everyone). The service is hydrated in main()
+    // so this sync read is always safe.
     final walkthroughs = WalkthroughService();
-    _tutorialRun =
-        widget.startLevel == 1 &&
-        walkthroughs.isInitialized &&
-        !walkthroughs.isComplete(WalkthroughService.gameTutorialId);
+    _tutorialRun = !DemoMode.enabled &&
+        RunContext.runsTutorial(
+      startLevel: widget.startLevel,
+      tutorialPending:
+          walkthroughs.isInitialized &&
+          !walkthroughs.isComplete(WalkthroughService.gameTutorialId),
+      dailySeed: _dailySeed,
+      tournamentId: _tournamentId,
+    );
     if (_tutorialRun) {
       unawaited(GetIt.I<AnalyticsFacade>().trackGameTutorialStarted());
     }
@@ -272,9 +288,12 @@ class _GameplayScreenState extends State<GameplayScreen>
     // The selected game mode is a MODIFIER on top of the campaign level
     // (lives, pacing, enemy fire, drops, one-hit, Time Attack clock).
     // Snapshot at run start.
+    // Demo / profiling runs (DemoMode) are invincible, so they never
+    // report results: no scores, progress, coins or leaderboard entries.
     _game = CosmoStrikeGame(
-      onGameOver: _handleGameOver,
-      onLevelCleared: _handleLevelCleared,
+      onGameOver: DemoMode.enabled ? null : _handleGameOver,
+      onLevelCleared: DemoMode.enabled ? null : _handleLevelCleared,
+      autopilot: DemoMode.enabled,
       mode: _mode,
       seed: _dailySeed,
       hangar: HangarService.instance.loadout,
@@ -289,6 +308,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       selectedTrailId: premium.selectedTrailId,
       trailEffectsEnabled: themeState.trailSystemEnabled,
     );
+    if (DemoMode.enabled) _game.phaseNotifier.addListener(_demoOnPhase);
     if (_tutorialRun) {
       _game.onTutorialStep = (beat, completed) {
         final analytics = GetIt.I<AnalyticsFacade>();
@@ -723,6 +743,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// partial run so campaign progress (bestWaveReached, cleared levels)
   /// survives, submit the aborted score for forensics. No coin/XP rewards.
   void _persistAbandonedRun() {
+    if (DemoMode.enabled) return;
     if (!_quitPersisted && _game.phase != GamePhase.gameOver) {
       _quitPersisted = true;
       // Quitting keeps the points earned so far as a high-score candidate.
@@ -750,9 +771,54 @@ class _GameplayScreenState extends State<GameplayScreen>
     } catch (_) {}
   }
 
+  /// Demo mode drives the between-level flow itself: auto-pick the first
+  /// upgrade (no ads), and after the run ends start over so the loop
+  /// covers every level indefinitely.
+  void _demoOnPhase() {
+    final phase = _game.phaseNotifier.value;
+    if (phase == GamePhase.levelClear) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!mounted || _game.phase != GamePhase.levelClear) return;
+        final options = _game.rollDraft();
+        if (options.isNotEmpty) _game.takeUpgrade(options.first.id);
+        _game.advanceToNextLevel();
+      });
+    } else if (phase == GamePhase.reviveOffer) {
+      _game.declineRevive();
+    } else if (phase == GamePhase.gameOver) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          context.pushReplacement(AppRoutes.game, extra: DemoMode.startLevel);
+        }
+      });
+    }
+  }
+
   void _quitToHome() {
     _persistAbandonedRun();
     context.go(AppRoutes.home);
+  }
+
+  /// What abandoning keeps, worded from [_persistAbandonedRun]: the score
+  /// is recorded as a best candidate and campaign progress merges, but no
+  /// credits / XP / directive progress are paid (only game over pays).
+  static const String _abandonMessage =
+      'Your score still counts toward your best and cleared levels stay '
+      'saved. Credits, XP and directive progress from this run are lost.';
+
+  /// QUIT (pause / level clear): confirm first — it sits next to RESTART /
+  /// CONTINUE and throws away the run's payout.
+  Future<void> _confirmQuit() async {
+    final ok = await showCsConfirm(
+      context,
+      eyebrow: _runLabel,
+      title: 'Abandon run?',
+      message: _abandonMessage,
+      confirmLabel: 'Abandon',
+      cancelLabel: 'Keep flying',
+      destructive: true,
+    );
+    if (ok && mounted) _quitToHome();
   }
 
   /// Restart the run at the same start level (from pause). No interstitial
@@ -760,6 +826,19 @@ class _GameplayScreenState extends State<GameplayScreen>
   void _restartFromPause() {
     _persistAbandonedRun();
     context.pushReplacement(AppRoutes.game, extra: widget.startLevel);
+  }
+
+  Future<void> _confirmRestart() async {
+    final ok = await showCsConfirm(
+      context,
+      eyebrow: _runLabel,
+      title: 'Restart run?',
+      message: _abandonMessage,
+      confirmLabel: 'Restart',
+      cancelLabel: 'Keep flying',
+      destructive: true,
+    );
+    if (ok && mounted) _restartFromPause();
   }
 
   /// Relative-drag steering: the ship mirrors the finger's MOVEMENT, not
@@ -931,6 +1010,12 @@ class _GameplayScreenState extends State<GameplayScreen>
     stops: [0.55, 1.0],
   );
 
+  /// The full-screen result overlays that replace the playfield.
+  static bool _resultOverlayUp(GamePhase phase) =>
+      phase == GamePhase.levelClear ||
+      phase == GamePhase.reviveOffer ||
+      phase == GamePhase.gameOver;
+
   @override
   Widget build(BuildContext context) {
     final cs = context.cs;
@@ -1003,61 +1088,68 @@ class _GameplayScreenState extends State<GameplayScreen>
                     );
                   },
                 ),
-                // Hidden under the full-screen result overlays: their scrim
-                // is 95% opaque, so the white HUD ghosted through behind
-                // the GAME OVER / revive headers.
+                // HUD + controls, hidden under the full-screen result
+                // overlays (level clear / revive / game over) so nothing —
+                // score, KILLS, lives, the missile / Overdrive buttons or
+                // the d-pad — ghosts through behind their headers.
                 ValueListenableBuilder<GamePhase>(
                   valueListenable: _game.phaseNotifier,
                   builder: (context, phase, hud) => Offstage(
-                    offstage: phase == GamePhase.levelClear ||
-                        phase == GamePhase.reviveOffer ||
-                        phase == GamePhase.gameOver,
+                    offstage: _resultOverlayUp(phase),
                     child: hud,
                   ),
-                  child: SafeArea(
-                    child: _Hud(
-                      game: _game,
-                      bossLeftReserve: leftReserve,
-                      bossRightReserve: rightReserve,
-                      bossLift: bossLift,
-                    ),
-                  ),
-                ),
-
-                // Optional on-screen d-pad (settings-driven, snapshotted).
-                if (_dPadEnabled)
-                  SafeArea(
-                    child: Align(
-                      alignment: switch (_dPadPosition) {
-                        DPadPosition.bottomLeft => Alignment.bottomLeft,
-                        DPadPosition.bottomCenter => Alignment.bottomCenter,
-                        DPadPosition.bottomRight => Alignment.bottomRight,
-                      },
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: inset,
-                          vertical: cs(20),
-                        ),
-                        child: GameDPad(
-                          onDirection: (dir) =>
-                              _game.setMoveDirection(Vector2(dir.dx, dir.dy)),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      SafeArea(
+                        child: _Hud(
+                          game: _game,
+                          bossLeftReserve: leftReserve,
+                          bossRightReserve: rightReserve,
+                          bossLift: bossLift,
                         ),
                       ),
-                    ),
-                  ),
 
-                // Missile fire button (docks away from the d-pad).
-                SafeArea(
-                  child: Align(
-                    alignment: dPadOnRight
-                        ? Alignment.bottomLeft
-                        : Alignment.bottomRight,
-                    child: Padding(
-                      // Same inset on both axes so the cluster sits square
-                      // in its corner.
-                      padding: EdgeInsets.all(inset),
-                      child: _ActionButtons(game: _game),
-                    ),
+                      // Optional on-screen d-pad (settings-driven,
+                      // snapshotted).
+                      if (_dPadEnabled)
+                        SafeArea(
+                          child: Align(
+                            alignment: switch (_dPadPosition) {
+                              DPadPosition.bottomLeft => Alignment.bottomLeft,
+                              DPadPosition.bottomCenter =>
+                                Alignment.bottomCenter,
+                              DPadPosition.bottomRight => Alignment.bottomRight,
+                            },
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: inset,
+                                vertical: cs(20),
+                              ),
+                              child: GameDPad(
+                                onDirection: (dir) => _game.setMoveDirection(
+                                  Vector2(dir.dx, dir.dy),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                      // Missile fire button (docks away from the d-pad).
+                      SafeArea(
+                        child: Align(
+                          alignment: dPadOnRight
+                              ? Alignment.bottomLeft
+                              : Alignment.bottomRight,
+                          child: Padding(
+                            // Same inset on both axes so the cluster sits
+                            // square in its corner.
+                            padding: EdgeInsets.all(inset),
+                            child: _ActionButtons(game: _game),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -1102,7 +1194,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                     if (phase != GamePhase.levelIntro) {
                       return const SizedBox.shrink();
                     }
-                    return _LevelIntroBanner(game: _game);
+                    return _LevelIntroBanner(game: _game, runLabel: _runLabel);
                   },
                 ),
 
@@ -1164,9 +1256,10 @@ class _GameplayScreenState extends State<GameplayScreen>
                         return PauseOverlay(
                           game: _game,
                           outcomes: _outcomes,
+                          runLabel: _runLabel,
                           onResume: _game.resumeGame,
-                          onRestart: _restartFromPause,
-                          onQuit: _quitToHome,
+                          onRestart: _confirmRestart,
+                          onQuit: _confirmQuit,
                           // Opt-in rewarded "+1 life" perk — shown only when an ad
                           // is loaded and the daily power-up cap isn't hit.
                           lifeAdReady: GetIt.I<AdService>().canShowCapped(
@@ -1188,8 +1281,9 @@ class _GameplayScreenState extends State<GameplayScreen>
                           game: _game,
                           outcome: _outcomes[_game.levelIndex],
                           priorBest: _priorBest[_game.levelIndex],
+                          runLabel: _runLabel,
                           onContinue: _openDraft,
-                          onQuit: _quitToHome,
+                          onQuit: _confirmQuit,
                         );
                       case GamePhase.reviveOffer:
                         final isPremium =
@@ -1220,6 +1314,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                             .fold<int>(0, (max, s) => s > max ? s : max);
                         return GameOverOverlay(
                           result: r,
+                          runLabel: _runLabel,
                           victory: victory,
                           previousBest: _prevBestScore,
                           unlockedLevel: unlocked,
@@ -1284,8 +1379,8 @@ String _bossName(BossType type) => switch (type) {
 /// The in-play HUD (Prism Noir s03), inset 28 (scaled) inside the landscape
 /// SafeArea:
 ///   top-left     score (Syne 44) · L03 / W04 + KILLS mono, 200×2 hull bar,
-///                active power-up chips
-///   top-right    life pips (22×4) + 42px outlined pause, chain popup below
+///                active power-up chips, chain readout below
+///   top-right    ship icons (filled = left, hollow = lost) + 42px pause
 ///   bottom       boss name + % mono over a 3px prism HP bar (boss alive only)
 /// Only the pause button takes input; every readout ignores pointers so taps
 /// fall through to the playfield. Each frequently-changing readout listens
@@ -1314,31 +1409,37 @@ class _Hud extends StatelessWidget {
     final inset = cs(CsSpace.hud);
     return Stack(
       children: [
+        // Score block with the chain readout tucked under it: top-left is
+        // the player's side of the screen, so the readout never sits in
+        // the enemy lane over incoming sprites (it did at the right edge).
         Positioned(
           left: inset,
           top: cs(20),
-          child: IgnorePointer(child: _ScoreBlock(game: game)),
+          child: IgnorePointer(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _ScoreBlock(game: game),
+                SizedBox(height: cs(6)),
+                _ChainPopup(game: game),
+              ],
+            ),
+          ),
         ),
         Positioned(
           right: inset,
           top: cs(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IgnorePointer(child: _LifePips(game: game)),
-                  SizedBox(width: cs(14)),
-                  CsIconButton(
-                    icon: Symbols.pause_rounded,
-                    tooltip: 'Pause',
-                    onPressed: game.pauseGame,
-                  ),
-                ],
+              IgnorePointer(child: _LifePips(game: game)),
+              SizedBox(width: cs(14)),
+              CsIconButton(
+                icon: Symbols.pause_rounded,
+                tooltip: 'Pause',
+                onPressed: game.pauseGame,
               ),
-              SizedBox(height: cs(14)),
-              IgnorePointer(child: _ChainPopup(game: game)),
             ],
           ),
         ),
@@ -1462,9 +1563,9 @@ class _ScoreBlock extends StatelessWidget {
   }
 }
 
-/// Life pips: 22×4 bars, lit = ink, lost = 18% white. A lost life flashes
-/// pink and fades out in its slot, with a mono "SHIP DOWN" tag dropping in
-/// below — losing a life is never silent.
+/// Lives as small ship icons: filled ink = in reserve, hollow 38% = lost. A
+/// lost ship flashes pink and settles hollow in its slot, with a mono
+/// "SHIP DOWN" tag dropping in below — losing a life is never silent.
 class _LifePips extends StatefulWidget {
   const _LifePips({required this.game});
   final CosmoStrikeGame game;
@@ -1477,7 +1578,7 @@ class _LifePipsState extends State<_LifePips> {
   late int _shown;
   int _lossEvents = 0;
 
-  static const Color _lost = Color(0x2EFFFFFF);
+  static const Color _lost = Color(0x61F4F3F7); // 38% ink, hollow
 
   @override
   void initState() {
@@ -1505,31 +1606,32 @@ class _LifePipsState extends State<_LifePips> {
   Widget build(BuildContext context) {
     final cs = context.cs;
     final total = math.max(widget.game.mode.runLives, _shown).clamp(1, 6);
-    final w = cs(22);
-    final h = cs(4).clamp(3.0, 6.0);
+    // Small ship silhouettes (nose right, like the player's ship): filled
+    // = a ship in reserve, hollow = lost. Reads as "lives" without a label.
+    final w = cs(17).clamp(13.0, 24.0);
+    final h = w * 0.72;
 
-    Widget pip(int i) {
+    Widget ship(int i) {
       final lit = i < _shown;
-      // The slot that just emptied flashes pink before settling dim.
+      // The slot that just emptied flashes pink before settling hollow.
       if (!lit && i == _shown && _lossEvents > 0) {
         return TweenAnimationBuilder<double>(
           key: ValueKey(_lossEvents),
           tween: Tween(begin: 0, end: 1),
           duration: const Duration(milliseconds: 800),
           curve: CsMotion.standard,
-          builder: (_, t, _) => Container(
-            width: w,
-            height: h,
-            color: Color.lerp(CsColors.pink, _lost, t),
+          builder: (_, t, _) => CustomPaint(
+            size: Size(w, h),
+            painter: _ShipIconPainter(
+              color: Color.lerp(CsColors.pink, _lost, t)!,
+              filled: t < 0.5,
+            ),
           ),
         );
       }
-      return AnimatedContainer(
-        duration: CsMotion.slow,
-        curve: CsMotion.standard,
-        width: w,
-        height: h,
-        color: lit ? CsColors.ink : _lost,
+      return CustomPaint(
+        size: Size(w, h),
+        painter: _ShipIconPainter(color: lit ? CsColors.ink : _lost, filled: lit),
       );
     }
 
@@ -1537,14 +1639,17 @@ class _LifePipsState extends State<_LifePips> {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var i = 0; i < total; i++) ...[
-                if (i > 0) SizedBox(width: cs(6)),
-                pip(i),
+          Semantics(
+            label: 'Ships $_shown of $total',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < total; i++) ...[
+                  if (i > 0) SizedBox(width: cs(5)),
+                  ship(i),
+                ],
               ],
-            ],
+            ),
           ),
           if (_lossEvents > 0)
             Positioned(
@@ -1581,6 +1686,41 @@ class _LifePipsState extends State<_LifePips> {
   }
 }
 
+/// The lives HUD ship: an arrowhead pointing right (the player's heading)
+/// with a notched tail — filled when in reserve, a 1.4px outline when lost.
+class _ShipIconPainter extends CustomPainter {
+  const _ShipIconPainter({required this.color, required this.filled});
+
+  final Color color;
+  final bool filled;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    const stroke = 1.4;
+    final path = Path()
+      ..moveTo(stroke, stroke)
+      ..lineTo(w - stroke, h / 2)
+      ..lineTo(stroke, h - stroke)
+      ..lineTo(w * 0.3, h / 2)
+      ..close();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..isAntiAlias = true
+        ..style = filled ? PaintingStyle.fill : PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ShipIconPainter old) =>
+      old.color != color || old.filled != filled;
+}
+
 /// Kill-chain popup: prism "×2" (ink at ×1) + mono "CHAIN 12". Appears from
 /// a 2-chain on and pops when the multiplier tier rises.
 class _ChainPopup extends StatelessWidget {
@@ -1606,7 +1746,7 @@ class _ChainPopup extends StatelessWidget {
               curve: CsMotion.emphasis,
               builder: (_, s, child) => Transform.scale(
                 scale: s,
-                alignment: Alignment.centerRight,
+                alignment: Alignment.centerLeft,
                 child: child,
               ),
               child: Row(
@@ -1766,7 +1906,13 @@ class _ActionButtons extends StatelessWidget {
   }
 }
 
+/// Opacity of an action button with nothing to fire (missiles ×0, meter
+/// not full) — clearly "not yet" next to the fully lit ready state.
+const double _emptyActionOpacity = 0.38;
+
 /// Small missile launcher: rocket + ammo; double-tap anywhere also fires.
+/// Empty = whole chip at 38%; armed = full ink with a strong rim, and one
+/// pop when it gains its first missile.
 class _MissileChip extends StatelessWidget {
   const _MissileChip({required this.game});
   final CosmoStrikeGame game;
@@ -1781,21 +1927,38 @@ class _MissileChip extends StatelessWidget {
       child: ValueListenableBuilder<int>(
         valueListenable: game.missileAmmoNotifier,
         builder: (_, ammo, _) {
-          final c = ammo > 0 ? CsColors.ink : CsColors.ink30;
-          return Container(
-            width: d,
-            height: d,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: CsColors.bg.withValues(alpha: 0.6),
-              border: Border.all(color: ammo > 0 ? CsColors.lineStrong : CsColors.hairline),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Symbols.rocket_rounded, size: d * 0.36, color: c),
-                Text('×$ammo', style: cs.type.mono(9, em: 0.04, color: c, height: 1.1)),
-              ],
+          final armed = ammo > 0;
+          return Semantics(
+            button: true,
+            label: armed ? 'Missile, $ammo ready' : 'Missile, empty',
+            child: _ReadyPop(
+              ready: armed,
+              child: AnimatedOpacity(
+                opacity: armed ? 1 : _emptyActionOpacity,
+                duration: CsMotion.base,
+                child: Container(
+                  width: d,
+                  height: d,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: CsColors.bg,
+                    border: Border.all(
+                      color: armed ? CsColors.ink : CsColors.lineStrong,
+                      width: armed ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Symbols.rocket_rounded, size: d * 0.36, color: CsColors.ink),
+                      Text(
+                        '×$ammo',
+                        style: cs.type.mono(9, em: 0.04, color: CsColors.ink, height: 1.1),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           );
         },
@@ -1804,14 +1967,18 @@ class _MissileChip extends StatelessWidget {
   }
 }
 
-/// Overdrive: the ring fills from grazes; when full it spins prism and
-/// pulses "TAP"; while active the ring drains in gold.
+/// Overdrive: the ring fills from grazes over a solid disc (the % stays
+/// readable over the busy floor) with the contents dimmed while charging;
+/// when full it lights up as a white disc in a prism ring ("TAP") with one
+/// pop; while active the ring drains in gold.
 class _OverdriveButton extends StatelessWidget {
   const _OverdriveButton({required this.game});
   final CosmoStrikeGame game;
 
   /// Visual size, scaled but kept a comfortable thumb target.
   static double sizeFor(CsLayout cs) => cs(72).clamp(64.0, 96.0);
+
+  static const Color _dim = Color(0x61F4F3F7); // 38% ink
 
   @override
   Widget build(BuildContext context) {
@@ -1828,35 +1995,46 @@ class _OverdriveButton extends StatelessWidget {
             builder: (_, active, _) => ValueListenableBuilder<double>(
               valueListenable: game.combo.grazeNotifier,
               builder: (_, meter, _) {
+                final ready = active <= 0 && meter >= 1;
+                final Widget body;
+                final String semantics;
                 if (active > 0) {
-                  return CsRingProgress(
+                  semantics = 'Overdrive active';
+                  body = CsRingProgress(
                     value: active,
                     size: size,
                     stroke: 3,
                     trackColor: CsColors.hairline,
-                    fill: CsColors.gold.withValues(alpha: 0.18),
+                    fill: CsColors.bg,
                     child: _label(cs, size, Symbols.bolt_rounded, 'ACTIVE', CsColors.gold),
                   );
-                }
-                if (meter >= 1) {
-                  return CsPrismRing(
+                } else if (ready) {
+                  semantics = 'Overdrive ready, tap to fire';
+                  body = CsPrismRing(
                     circle: true,
-                    rotate: true,
                     width: 3,
+                    fill: CsColors.ink,
+                    child: _label(cs, size, Symbols.bolt_rounded, 'TAP', CsColors.onLight),
+                  );
+                } else {
+                  final pct = (meter * 100).round();
+                  semantics = 'Overdrive charging, $pct percent';
+                  body = CsRingProgress(
+                    value: meter,
+                    size: size,
+                    stroke: 2,
+                    trackColor: CsColors.hairline,
+                    // Solid disc: the % text sat on 60% black and vanished
+                    // over the city floor.
                     fill: CsColors.bg,
-                    child: _ReadyPulse(
-                      child: _label(cs, size, Symbols.bolt_rounded, 'TAP', CsColors.ink),
-                    ),
+                    child: _label(cs, size, Symbols.bolt_rounded, '$pct%', _dim,
+                        textColor: CsColors.ink60),
                   );
                 }
-                return CsRingProgress(
-                  value: meter,
-                  size: size,
-                  stroke: 2,
-                  trackColor: CsColors.hairline,
-                  fill: CsColors.bg.withValues(alpha: 0.6),
-                  child: _label(cs, size, Symbols.bolt_rounded,
-                      '${(meter * 100).round()}%', CsColors.ink45),
+                return Semantics(
+                  button: true,
+                  label: semantics,
+                  child: _ReadyPop(ready: ready, child: body),
                 );
               },
             ),
@@ -1868,29 +2046,43 @@ class _OverdriveButton extends StatelessWidget {
 
   // Centered explicitly: CsPrismRing hands its child tight constraints, so
   // a bare Column would fill the ring and stack from the top.
-  Widget _label(CsLayout cs, double size, IconData icon, String text, Color c) => Center(
+  Widget _label(CsLayout cs, double size, IconData icon, String text, Color c,
+          {Color? textColor}) =>
+      Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: size * 0.36, color: c),
-            Text(text, style: cs.type.mono(9, em: 0.1, color: c, height: 1.2)),
+            Text(text, style: cs.type.mono(9, em: 0.1, color: textColor ?? c, height: 1.2)),
           ],
         ),
       );
 }
 
-class _ReadyPulse extends StatefulWidget {
-  const _ReadyPulse({required this.child});
+/// One subtle scale pop (1 → 1.12 → 1) each time [ready] flips to true.
+/// Deliberately not looping (no looping shimmer in Prism Noir).
+class _ReadyPop extends StatefulWidget {
+  const _ReadyPop({required this.ready, required this.child});
+  final bool ready;
   final Widget child;
 
   @override
-  State<_ReadyPulse> createState() => _ReadyPulseState();
+  State<_ReadyPop> createState() => _ReadyPopState();
 }
 
-class _ReadyPulseState extends State<_ReadyPulse> with SingleTickerProviderStateMixin {
+class _ReadyPopState extends State<_ReadyPop> with SingleTickerProviderStateMixin {
   late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
-        ..repeat(reverse: true);
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 420));
+  late final Animation<double> _scale = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 1, end: 1.12), weight: 40),
+    TweenSequenceItem(tween: Tween(begin: 1.12, end: 1), weight: 60),
+  ]).animate(CurvedAnimation(parent: _c, curve: Curves.easeOut));
+
+  @override
+  void didUpdateWidget(_ReadyPop old) {
+    super.didUpdateWidget(old);
+    if (widget.ready && !old.ready) _c.forward(from: 0);
+  }
 
   @override
   void dispose() {
@@ -1899,10 +2091,8 @@ class _ReadyPulseState extends State<_ReadyPulse> with SingleTickerProviderState
   }
 
   @override
-  Widget build(BuildContext context) => ScaleTransition(
-        scale: Tween(begin: 0.92, end: 1.06).animate(CurvedAnimation(parent: _c, curve: Curves.easeInOut)),
-        child: widget.child,
-      );
+  Widget build(BuildContext context) =>
+      ScaleTransition(scale: _scale, child: widget.child);
 }
 
 /// Boss WARNING: pink hazard rules around a Syne headline with the boss
@@ -1955,16 +2145,25 @@ class _BossWarning extends StatelessWidget {
 }
 
 /// "LEVEL 03" mono + level name headline during the level intro phase.
+/// Sits in the upper playfield, right of the ship's spawn column (left
+/// edge, vertical centre), so the title card never covers the ship.
 class _LevelIntroBanner extends StatelessWidget {
-  const _LevelIntroBanner({required this.game});
+  const _LevelIntroBanner({required this.game, required this.runLabel});
   final CosmoStrikeGame game;
+
+  /// "Daily Run" / "Sector Cup" / mode name, shared with every header.
+  final String runLabel;
 
   @override
   Widget build(BuildContext context) {
     final cs = context.cs;
     final t = cs.type;
     return IgnorePointer(
-      child: Center(
+      child: Container(
+        // The left inset clears the ship's spawn column; the upper-third
+        // alignment keeps the card above the ship's vertical centre.
+        padding: EdgeInsets.only(left: cs(170)),
+        alignment: const Alignment(0, -0.42),
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0, end: 1),
           duration: CsMotion.slow,
@@ -1984,7 +2183,7 @@ class _LevelIntroBanner extends StatelessWidget {
                 ValueListenableBuilder<int>(
                   valueListenable: game.levelNotifier,
                   builder: (_, level, _) => CsLabel(
-                    'Level ${_two(level)} · ${game.seed != null ? 'Daily Run' : game.mode.name}',
+                    'Level ${_two(level)} · $runLabel',
                     color: CsColors.ink60,
                     size: 12,
                   ),

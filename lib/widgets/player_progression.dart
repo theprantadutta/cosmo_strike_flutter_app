@@ -29,7 +29,7 @@ class PlayerLevelBadge extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'LV ${progression.level}',
+              'LV ${progression.level.toString().padLeft(2, '0')}',
               maxLines: 1,
               style: cs.type.mono(isSmallScreen ? 10 : 11, color: CsColors.ink),
             ),
@@ -102,7 +102,7 @@ class PlayerIdentityBadge extends StatelessWidget {
               ),
               SizedBox(height: cs(3)),
               Text(
-                'LV ${progression.level}',
+                'LV ${progression.level.toString().padLeft(2, '0')}',
                 maxLines: 1,
                 style: cs.type.mono(9, color: CsColors.ink, em: 0.12),
               ),
@@ -147,7 +147,7 @@ class PlayerProgressionCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('LV $level', maxLines: 1, style: t.mono(13, color: CsColors.ink, weight: FontWeight.w600)),
+                Text('LV ${level.toString().padLeft(2, '0')}', maxLines: 1, style: t.mono(13, color: CsColors.ink, weight: FontWeight.w600)),
                 const Spacer(),
                 Flexible(
                   flex: 4,
@@ -168,7 +168,7 @@ class PlayerProgressionCard extends StatelessWidget {
             ),
             SizedBox(height: cs(6)),
             Text(
-              '$into / $needed XP TO LV ${level + 1}',
+              '$into / $needed XP TO LV ${(level + 1).toString().padLeft(2, '0')}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: t.mono(10, color: CsColors.ink45),

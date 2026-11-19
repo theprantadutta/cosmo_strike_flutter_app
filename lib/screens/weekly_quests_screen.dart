@@ -7,6 +7,7 @@ import 'package:cosmo_strike_flutter_app/screens/daily_challenges_screen.dart'
     show ChallengeRow, ChallengeSummary;
 import 'package:cosmo_strike_flutter_app/services/weekly_quest_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/widgets/directives_empty_state.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
@@ -100,10 +101,9 @@ class _WeeklyQuestsBodyState extends State<WeeklyQuestsBody> {
                           children: [
                             SizedBox(
                               height: c.maxHeight,
-                              child: const CsEmptyState(
-                                icon: Symbols.event_repeat_rounded,
-                                title: 'No Weekly Ops yet',
-                                message: 'New ops post Monday. Stand by.',
+                              child: DirectivesEmptyState(
+                                kind: DirectivesKind.weekly,
+                                onRetry: _service.refresh,
                               ),
                             ),
                           ],

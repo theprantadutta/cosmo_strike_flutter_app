@@ -7,6 +7,7 @@ import '../router/routes.dart';
 import '../services/audio_service.dart';
 import '../ui/cs.dart';
 import '../utils/campaign_catalog.dart';
+import '../utils/title_case.dart';
 
 /// Campaign level select (Prism Noir, mock 06).
 ///
@@ -164,11 +165,6 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
 
 String _pad(int n) => n.toString().padLeft(2, '0');
 
-String _titleCase(String s) => s
-    .toLowerCase()
-    .split(' ')
-    .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
-    .join(' ');
 
 String _time(int seconds) =>
     '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
@@ -251,7 +247,7 @@ class _SectorList extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              _titleCase(
+                              titleCaseName(
                                 CampaignCatalog.biomeNames[CampaignCatalog
                                     .biomeIds[b]]!,
                               ),
@@ -338,7 +334,7 @@ class _LevelPanel extends StatelessWidget {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerRight,
                     child: Text(
-                      _titleCase(CampaignCatalog.levelNameFor(level)),
+                      titleCaseName(CampaignCatalog.levelNameFor(level)),
                       maxLines: 1,
                       textAlign: TextAlign.right,
                       style: t.display(

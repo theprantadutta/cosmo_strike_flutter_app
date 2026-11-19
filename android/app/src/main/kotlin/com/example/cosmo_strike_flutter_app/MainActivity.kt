@@ -36,6 +36,28 @@ class MainActivity : FlutterActivity() {
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         createNotificationChannel()
+        preferSixtyHz()
+    }
+
+    // The game is built and tuned for 60 FPS. On 90/120 Hz panels ask the
+    // window for 60 Hz so frame pacing, battery and heat match what we test.
+    //
+    // preferredRefreshRate, NOT preferredDisplayModeId: on One UI (Galaxy
+    // A24) Display.supportedModes only lists the ACTIVE mode, so a 60 Hz mode
+    // id can't be found and the system kept 90 Hz. The rate hint is honoured
+    // (SurfaceFlinger vsync 16.67 ms). Android drops window display
+    // preferences while backgrounded, so re-apply it on every resume. It's a
+    // hint: power saving or a forced-peak developer option can override it.
+    override fun onResume() {
+        super.onResume()
+        preferSixtyHz()
+    }
+
+    private fun preferSixtyHz() {
+        val attrs = window.attributes
+        if (attrs.preferredRefreshRate == 60f) return
+        attrs.preferredRefreshRate = 60f
+        window.attributes = attrs
     }
 
     // Android 10 (SDK 29) renders with Skia instead of Impeller.

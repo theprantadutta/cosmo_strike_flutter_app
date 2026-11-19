@@ -30,6 +30,7 @@ import 'intensity_director.dart';
 import 'levels/level_catalog.dart';
 import 'levels/level_def.dart';
 import 'levels/script_runner.dart';
+import 'autopilot.dart';
 import 'pools.dart';
 import 'run_effects.dart';
 import 'run_upgrades.dart';
@@ -134,7 +135,13 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     this.seed,
     this.hangar = const HangarLoadout(),
     this.onboardingEase = 0,
+    this.autopilot = false,
   }) : _tutorialPending = tutorial;
+
+  /// Demo / profiling mode (`DemoMode`): an [Autopilot] flies the ship and
+  /// landed hits do no damage, so the run never ends. Never set in release.
+  final bool autopilot;
+  bool get demoInvincible => autopilot;
 
   /// First-run easing strength (0 = none, 1 = full) from
   /// [GameTuning.onboardingEase]. The screen passes 0 for Daily Runs,
@@ -415,6 +422,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     _syncUpgradeEffects();
     missileAmmoNotifier.value += hangar.startMissiles;
 
+    if (autopilot) await add(Autopilot());
+
     levelIndex = startLevel.clamp(1, LevelCatalog.count);
     GameAudio.gameStart();
     _startLevel(levelIndex);
@@ -600,7 +609,23 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
       _endRun(cleared: true);
     } else {
       phaseNotifier.value = GamePhase.levelClear;
+      _freezeUnderResultOverlay(GamePhase.levelClear);
     }
+  }
+
+  /// The level-clear / game-over overlays are opaque once faded in, yet the
+  /// battlefield kept simulating and rendering underneath (boss explosions,
+  /// slow-mo, starfield, terrain) — invisible GPU work that dropped frames
+  /// on budget phones (Galaxy A24 at 60 Hz). Let the overlay's fade-in show
+  /// the kill, then freeze the engine until the run moves on.
+  void _freezeUnderResultOverlay(GamePhase during) {
+    add(TimerComponent(
+      period: 0.8,
+      removeOnFinish: true,
+      onTick: () {
+        if (phase == during) pauseEngine();
+      },
+    ));
   }
 
   /// Three distinct upgrades to offer after this level clear (empty when
@@ -633,6 +658,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   /// overlay — button tap or auto-continue).
   void advanceToNextLevel() {
     if (phase != GamePhase.levelClear) return;
+    resumeEngine();
     _startLevel(levelIndex + 1);
   }
 
@@ -1065,6 +1091,13 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   void onPlayerHit(double damage) {
     if (phase != GamePhase.playing) return;
     if (player.isInvulnerable || player.ghosted) return;
+    if (demoInvincible) {
+      // Keep the hit's render cost (flash + vignette) but never the damage.
+      player.flashDamage();
+      hitPulseNotifier.value++;
+      player.grantInvuln(0.6);
+      return;
+    }
     if (player.shielded) {
       player.popShield();
       // The save must still READ as an impact, or it feels like a bug.
@@ -1338,6 +1371,7 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     _runEnded = true;
     _scriptRunner.stop();
     phaseNotifier.value = GamePhase.gameOver;
+    _freezeUnderResultOverlay(GamePhase.gameOver);
     GameAudio.gameOver();
     onGameOver?.call(_buildResult(cleared: cleared));
   }

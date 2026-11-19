@@ -7,9 +7,11 @@ import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/auth/auth_cubit.dart';
 import 'package:cosmo_strike_flutter_app/providers/leaderboard_provider.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
+import 'package:cosmo_strike_flutter_app/data/database/app_database.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/utils/number_format.dart';
 
@@ -62,6 +64,20 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   }
 
   bool get _weekly => _board == _Board.weekly;
+
+  /// Same entry as Home's LAUNCH: straight into the furthest unlocked level
+  /// through the pre-game loader.
+  Future<void> _flyRun() async {
+    final startLevel = await getIt<AppDatabase>().stageProgressDao.getFurthestUnlocked();
+    if (!mounted) return;
+    context.push(AppRoutes.playLoading, extra: startLevel);
+  }
+
+  Widget get _flyRunButton => CsButton.secondary(
+        label: 'Fly a run',
+        icon: Symbols.rocket_launch_rounded,
+        onPressed: _flyRun,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -164,17 +180,46 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
         ),
       ]);
     } else {
+      // A clear "Unranked" state with a way onto the board, instead of a
+      // giant grey "#—" placeholder.
+      final signedIn = authState.isSignedIn;
       rankBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         const CsLabel('Your rank'),
-        SizedBox(height: cs(4)),
-        Text('#—', style: t.scoreGiant.copyWith(height: 1.05, color: CsColors.ink25)),
         SizedBox(height: cs(6)),
-        Text(
-          authState.isSignedIn ? 'NOT POSTED ON THIS BOARD' : 'SIGN IN TO POST A SCORE',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: t.mono(12, em: 0.06, color: CsColors.ink45),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text('Unranked', maxLines: 1, style: t.display(36, em: -0.03, height: 1.05)),
         ),
+        SizedBox(height: cs(8)),
+        Text(
+          signedIn
+              ? 'Fly a run to post your score on this board.'
+              : 'Sign in, then fly a run to post your score.',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: t.body,
+        ),
+        SizedBox(height: cs(16)),
+        if (signedIn)
+          CsButton.primary(
+            label: 'Fly a run',
+            icon: Symbols.rocket_launch_rounded,
+            onPressed: _flyRun,
+          )
+        else ...[
+          CsButton.primary(
+            label: 'Sign in',
+            icon: Symbols.person_add_rounded,
+            onPressed: () => showAccountUpgradeSheet(context, reason: AccountUpgradeReason.saveProgress),
+          ),
+          SizedBox(height: cs(6)),
+          CsButton.text(
+            label: 'Fly a run',
+            icon: Symbols.rocket_launch_rounded,
+            onPressed: _flyRun,
+          ),
+        ],
       ]);
     }
 
@@ -214,10 +259,11 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
       );
     }
     if (state.globalEntries.isEmpty) {
-      return const CsEmptyState(
+      return CsEmptyState(
         icon: Symbols.emoji_events_rounded,
         title: 'Board is empty',
-        message: 'Post the first score.',
+        message: 'Fly a run to post the first score.',
+        action: _flyRunButton,
       );
     }
     return _buildList(state.globalEntries, authState, _loadGlobalLeaderboard);
@@ -235,10 +281,11 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
       );
     }
     if (state.weeklyEntries.isEmpty) {
-      return const CsEmptyState(
+      return CsEmptyState(
         icon: Symbols.calendar_today_rounded,
         title: 'No runs logged this week',
         message: 'Fly a run to post on this board.',
+        action: _flyRunButton,
       );
     }
     return _buildList(state.weeklyEntries, authState, _loadWeeklyLeaderboard);
@@ -334,7 +381,7 @@ class _RankRow extends StatelessWidget {
           child: FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerRight,
-            child: Text(score, maxLines: 1, style: t.display(20, em: -0.01)),
+            child: Text(score, maxLines: 1, style: t.number(20, em: -0.01)),
           ),
         ),
       ]),

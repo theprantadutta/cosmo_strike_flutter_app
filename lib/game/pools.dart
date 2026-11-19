@@ -33,6 +33,10 @@ class GamePools {
   late final List<PooledFx> _flashes;
   late final List<ScorePopup> _popups;
 
+  /// Every enemy-bullet slot (check `active`) — read-only, for the demo
+  /// autopilot's dodge scan.
+  List<EnemyBullet> get enemyBullets => _enemyBullets;
+
   int _pb = 0, _eb = 0, _sp = 0, _fl = 0, _po = 0;
 
   late final SpriteAnimation _sparkAnim;

@@ -28,12 +28,15 @@ import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/credits_dialog.dart';
 
 /// Settings (Prism Noir): a section list on the LEFT styled like the store's
-/// category list (selected = 7% white fill + gold icon) with BACK TO GAME
-/// pinned under it, and the selected section on the RIGHT — mono eyebrow,
-/// Syne headline, then hairline rows with the theme's Switch / CsSegmented
-/// controls.
+/// category list (selected = 7% white fill + gold icon) with a BACK button
+/// pinned under it, and the selected section on the RIGHT — Syne headline,
+/// then hairline rows with the theme's Switch / CsSegmented controls.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.fromRun = false});
+
+  /// True when opened from inside a run (pass `true` as the route extra):
+  /// the back button then reads "Back to flight" instead of "Back".
+  final bool fromRun;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -250,11 +253,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   final section = _kSections[_selectedSection];
                   return CsScaffold(
                     title: 'Settings',
-                    trailing: [
-                      CsMeta(
-                        '${_two(_selectedSection + 1)} / ${_two(_kSections.length)}',
-                      ),
-                    ],
                     body: CsSplit(
                       leftWidth: cs.isTablet ? 260 : 220,
                       left: _buildNavRail(),
@@ -267,8 +265,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              CsLabel('${_two(_selectedSection + 1)} · Settings'),
-                              SizedBox(height: cs(6)),
                               Text(
                                 section.$2,
                                 maxLines: 1,
@@ -298,11 +294,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  static String _two(int n) => n.toString().padLeft(2, '0');
-
   /// Section list for the left region. 9 sections at a ≥44dp target don't
   /// fit a short landscape phone, so the list scrolls (with a thin
-  /// scrollbar); BACK TO GAME stays pinned below it.
+  /// scrollbar); the back button stays pinned below it.
   Widget _buildNavRail() {
     final cs = context.cs;
     return Column(
@@ -332,7 +326,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (!cs.isCompact) SizedBox(height: cs(10)),
         if (!cs.isCompact) CsButton.secondary(
           onPressed: () => context.pop(),
-          label: 'Back to flight',
+          label: widget.fromRun ? 'Back to flight' : 'Back',
           icon: Symbols.arrow_back_rounded,
           // Phones: the compact pill so the label never truncates.
           size: cs.isTablet ? CsButtonSize.regular : CsButtonSize.small,

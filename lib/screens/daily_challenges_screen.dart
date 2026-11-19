@@ -9,6 +9,7 @@ import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/widgets/directives_empty_state.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
@@ -92,7 +93,6 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(dailyChallengesProvider);
-    final online = ref.watch(isOnlineProvider).value ?? true;
     final cs = context.cs;
 
     final claimable = state.challenges.where((c) => c.canClaim);
@@ -142,29 +142,10 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
             if (challenges.isEmpty) {
               if (state.isLoading) {
                 placeholder = const CsLoadingState(label: 'Loading directives');
-              } else if (state.error != null && !online) {
-                placeholder = CsEmptyState.offline(
-                  action: CsButton.secondary(
-                    label: 'Retry',
-                    icon: Symbols.refresh_rounded,
-                    onPressed: _refreshChallenges,
-                  ),
-                );
-              } else if (state.error != null) {
-                placeholder = CsEmptyState.error(
-                  message: state.error,
-                  action: CsButton.secondary(
-                    label: 'Retry',
-                    icon: Symbols.refresh_rounded,
-                    onPressed: _refreshChallenges,
-                  ),
-                );
               } else {
-                placeholder = const CsEmptyState(
-                  icon: Symbols.calendar_today_rounded,
-                  title: 'No directives issued',
-                  message: 'New orders post at 00:00. Stand by.',
-                );
+                // One shared, truthful reason (offline vs not posted yet),
+                // identical to the pause / game-over directives panel.
+                placeholder = DirectivesEmptyState(onRetry: _refreshChallenges);
               }
             }
             if (placeholder != null) {
@@ -294,8 +275,10 @@ class ChallengeSummary extends StatelessWidget {
     final t = cs.type;
     final progress = total > 0 ? completed / total : 0.0;
     final remaining = (total - completed).clamp(0, total);
-    final headline = total == 0
-        ? 'Stand by.'
+    // With nothing issued the right-hand empty state explains why; the
+    // summary stays quiet instead of repeating it.
+    final String? headline = total == 0
+        ? null
         : (remaining == 0 ? 'All done.' : '$remaining to go.');
     final ring = cs(120);
 
@@ -316,9 +299,9 @@ class ChallengeSummary extends StatelessWidget {
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        '$completed/$total',
+                        total == 0 ? '—' : '$completed/$total',
                         maxLines: 1,
-                        style: t.display(36, em: -0.04, height: 1),
+                        style: t.number(36, em: -0.04, height: 1),
                       ),
                     ),
                     SizedBox(height: cs(4)),
@@ -331,6 +314,7 @@ class ChallengeSummary extends StatelessWidget {
                 ),
               ),
             ),
+            if (headline != null) ...[
             SizedBox(width: cs(22)),
             Expanded(
               // Break at the first space ("All / done.") and scale down rather
@@ -345,6 +329,7 @@ class ChallengeSummary extends StatelessWidget {
                 ),
               ),
             ),
+            ],
           ],
         ),
         if (note != null) ...[SizedBox(height: cs(16)), note!],
