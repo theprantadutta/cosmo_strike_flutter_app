@@ -110,6 +110,60 @@ class OverlayActions extends StatelessWidget {
   }
 }
 
+/// A vertical scroller that fades its bottom edge out while more content
+/// sits below the fold (the debrief's directives / commendations column
+/// was cut mid-row with no hint it scrolled). The fade drops once the end
+/// is reached; nothing is faded when the content fits.
+class ScrollEdgeFade extends StatefulWidget {
+  const ScrollEdgeFade({super.key, required this.child});
+
+  /// The scrollable (e.g. a SingleChildScrollView).
+  final Widget child;
+
+  @override
+  State<ScrollEdgeFade> createState() => _ScrollEdgeFadeState();
+}
+
+class _ScrollEdgeFadeState extends State<ScrollEdgeFade> {
+  bool _moreBelow = false;
+
+  bool _onMetrics(ScrollMetrics m) {
+    if (m.axis != Axis.vertical) return false;
+    final more = m.extentAfter > 1;
+    if (more != _moreBelow) setState(() => _moreBelow = more);
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fade = context.cs(36);
+    return NotificationListener<ScrollMetricsNotification>(
+      onNotification: (n) => n.depth == 0 && _onMetrics(n.metrics),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) => n.depth == 0 && _onMetrics(n.metrics),
+        child: ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (rect) {
+            final h = rect.height <= 0 ? 1.0 : rect.height;
+            final start = (1 - fade / h).clamp(0.0, 1.0);
+            return LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                const Color(0xFFFFFFFF),
+                const Color(0xFFFFFFFF),
+                _moreBelow ? const Color(0x00FFFFFF) : const Color(0xFFFFFFFF),
+              ],
+              stops: [0, start, 1],
+            ).createShader(rect);
+          },
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
 /// "m:ss" for run / level clocks.
 String formatRunTime(int seconds) {
   final m = seconds ~/ 60;

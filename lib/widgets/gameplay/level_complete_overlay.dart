@@ -22,6 +22,7 @@ class LevelCompleteOverlay extends StatelessWidget {
     required this.game,
     required this.outcome,
     required this.priorBest,
+    this.runLabel,
     required this.onContinue,
     required this.onQuit,
   });
@@ -35,11 +36,17 @@ class LevelCompleteOverlay extends StatelessWidget {
   /// accurate NEW BEST / FASTEST / FIRST NO-HIT badges.
   final StageProgressRow? priorBest;
 
+  /// The run's name ("Daily Run" / "Sector Cup" / mode); null falls back to
+  /// the mode name.
+  final String? runLabel;
+
   final VoidCallback onContinue;
   final VoidCallback onQuit;
 
   static const _wash = CsWash(CsColors.mint, .2, .3, rx: .4, ry: .7, alpha: .12);
-  static const _scrim = Color(0xF20A0A0D);
+
+  /// Fully opaque so nothing on the frozen battlefield ghosts through.
+  static const _scrim = CsColors.bg;
 
   @override
   Widget build(BuildContext context) {
@@ -105,7 +112,7 @@ class LevelCompleteOverlay extends StatelessWidget {
         Expanded(
           child: CsFitColumn(
             children: [
-              CsLabel('Level $lv clear · ${game.mode.name}', color: CsColors.mint),
+              CsLabel('Level $lv clear · ${runLabel ?? game.mode.name}', color: CsColors.mint),
               SizedBox(height: cs(8)),
               // Title case like every other headline; scales down rather
               // than truncating long names ("Shattered Light").
@@ -190,7 +197,8 @@ class LevelCompleteOverlay extends StatelessWidget {
         opacity: v,
         child: Transform.translate(offset: Offset(cs(12) * (1 - v), 0), child: child),
       ),
-      child: ListView(
+      child: ScrollEdgeFade(
+        child: ListView(
         padding: EdgeInsets.zero,
         physics: const ClampingScrollPhysics(),
         children: [
@@ -218,6 +226,7 @@ class LevelCompleteOverlay extends StatelessWidget {
             ),
           ],
         ],
+        ),
       ),
     );
 
