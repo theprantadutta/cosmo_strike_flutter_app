@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/daily_challenge.dart';
 import '../../providers/daily_challenges_provider.dart';
+import '../directives_empty_state.dart';
 import '../reward_toast.dart';
 
 /// Today's daily challenges ("directives") for the pause / game-over
@@ -49,12 +50,8 @@ class ChallengePanel extends ConsumerWidget {
     if (state.challenges.isEmpty) {
       return Padding(
         padding: EdgeInsets.symmetric(vertical: cs(20)),
-        child: const CsEmptyState(
-          compact: true,
-          icon: Symbols.satellite_alt_rounded,
-          title: 'No active directives',
-          message: 'Reconnect to sync today\'s directives.',
-        ),
+        // Shared with the Directives hub so both give the same reason.
+        child: const DirectivesEmptyState(compact: true),
       );
     }
 

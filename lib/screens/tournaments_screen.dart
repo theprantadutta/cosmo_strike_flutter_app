@@ -290,6 +290,9 @@ class _EventRow extends StatelessWidget {
         );
 
     final reward = tm.userReward;
+    // The type line ("DAILY CUP") only adds information when the Cup's own
+    // name doesn't already say it ("Daily Cup" / "DAILY CUP" read twice).
+    final showType = !tm.name.toLowerCase().contains(tm.type.displayName.toLowerCase());
     return CsPressable(
       onTap: onTap,
       scale: 0.99,
@@ -297,7 +300,9 @@ class _EventRow extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.symmetric(vertical: cs(14), horizontal: cs(2)),
         decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: CsColors.hairline))),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // IntrinsicHeight lets the trailing chevron centre on the whole row.
+        child: IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Opacity(
             opacity: ended ? 0.5 : 1,
             child: CsIconDisc(_typeIcon(tm.type), size: 40),
@@ -312,8 +317,10 @@ class _EventRow extends StatelessWidget {
                 SizedBox(width: cs(8)),
                 _statusChip(tm.status),
               ]),
-              SizedBox(height: cs(2)),
-              Text(tm.type.displayName.toUpperCase(), maxLines: 1, style: t.mono(9, color: CsColors.ink45)),
+              if (showType) ...[
+                SizedBox(height: cs(2)),
+                Text(tm.type.displayName.toUpperCase(), maxLines: 1, style: t.mono(9, color: CsColors.ink45)),
+              ],
               if (tm.description.isNotEmpty) ...[
                 SizedBox(height: cs(6)),
                 Text(
@@ -365,10 +372,14 @@ class _EventRow extends StatelessWidget {
               const CsChip('Cup Pass', icon: Symbols.confirmation_number_rounded)
             else
               Text('FREE ENTRY', style: t.mono(9, color: CsColors.ink45)),
-            SizedBox(height: cs(6)),
-            Icon(Symbols.chevron_right_rounded, size: cs(20), color: CsColors.ink45),
           ]),
+          SizedBox(width: cs(8)),
+          Align(
+            alignment: Alignment.center,
+            child: Icon(Symbols.chevron_right_rounded, size: cs(20), color: CsColors.ink45),
+          ),
         ]),
+        ),
       ),
     );
   }
