@@ -136,7 +136,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
           builder: (_) => Text(
             next.timeRemainingFormatted.toUpperCase(),
             maxLines: 1,
-            style: t.display(24, em: -0.01, height: 1.1, color: CsColors.cyan),
+            style: t.number(24, em: -0.01, height: 1.1, color: CsColors.cyan),
           ),
         ),
         SizedBox(height: cs(4)),

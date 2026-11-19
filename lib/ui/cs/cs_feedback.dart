@@ -157,10 +157,17 @@ Future<bool> showCsConfirm(
       eyebrow: eyebrow,
       title: title,
       message: message,
-      actions: [
-        CsButton.text(label: cancelLabel, onPressed: () => Navigator.of(ctx).pop(false)),
-        CsButton.primary(label: confirmLabel, onPressed: () => Navigator.of(ctx).pop(true)),
-      ],
+      // Destructive confirms make the SAFE choice the white primary pill,
+      // so a reflex tap on the bright button never throws work away.
+      actions: destructive
+          ? [
+              CsButton.text(label: confirmLabel, onPressed: () => Navigator.of(ctx).pop(true)),
+              CsButton.primary(label: cancelLabel, onPressed: () => Navigator.of(ctx).pop(false)),
+            ]
+          : [
+              CsButton.text(label: cancelLabel, onPressed: () => Navigator.of(ctx).pop(false)),
+              CsButton.primary(label: confirmLabel, onPressed: () => Navigator.of(ctx).pop(true)),
+            ],
     ),
   );
   return r ?? false;

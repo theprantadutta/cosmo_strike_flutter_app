@@ -186,7 +186,11 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
       rankBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         const CsLabel('Your rank'),
         SizedBox(height: cs(6)),
-        Text('Unranked', maxLines: 1, style: t.display(36, em: -0.03, height: 1.05)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text('Unranked', maxLines: 1, style: t.display(36, em: -0.03, height: 1.05)),
+        ),
         SizedBox(height: cs(8)),
         Text(
           signedIn
@@ -377,7 +381,7 @@ class _RankRow extends StatelessWidget {
           child: FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerRight,
-            child: Text(score, maxLines: 1, style: t.display(20, em: -0.01)),
+            child: Text(score, maxLines: 1, style: t.number(20, em: -0.01)),
           ),
         ),
       ]),

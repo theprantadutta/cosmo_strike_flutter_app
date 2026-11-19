@@ -93,7 +93,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Text('$unlocked/$total', maxLines: 1, style: t.display(28, em: -0.03, height: 1)),
+                Text('$unlocked/$total', maxLines: 1, style: t.number(28, em: -0.03, height: 1)),
                 SizedBox(height: cs(4)),
                 Text('EARNED', style: t.micro),
               ]),
@@ -320,7 +320,7 @@ class _AwardTile extends StatelessWidget {
         // How to earn it, right on the card (the dialog has the full text).
         Text(
           a.description,
-          maxLines: 1,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: t.display(11, weight: FontWeight.w400, em: 0, height: 1.3, color: CsColors.ink60),
         ),

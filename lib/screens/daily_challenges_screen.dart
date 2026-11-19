@@ -301,7 +301,7 @@ class ChallengeSummary extends StatelessWidget {
                       child: Text(
                         total == 0 ? '—' : '$completed/$total',
                         maxLines: 1,
-                        style: t.display(36, em: -0.04, height: 1),
+                        style: t.number(36, em: -0.04, height: 1),
                       ),
                     ),
                     SizedBox(height: cs(4)),

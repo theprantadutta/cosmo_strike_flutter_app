@@ -289,7 +289,8 @@ class _Header extends StatelessWidget {
             Text.rich(
               TextSpan(children: [
                 // Spelled out: in Syne a bare "T0" reads as the word "To".
-                TextSpan(text: 'Tier ${state.currentTier}', style: t.display(22, height: 1)),
+                TextSpan(text: 'Tier ', style: t.display(22, height: 1)),
+                TextSpan(text: '${state.currentTier}', style: t.number(22, height: 1)),
                 TextSpan(text: ' / $maxTier', style: t.mono(12, color: CsColors.ink45)),
               ]),
               maxLines: 1,
