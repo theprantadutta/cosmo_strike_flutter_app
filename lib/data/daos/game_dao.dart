@@ -578,10 +578,42 @@ class GameDao extends DatabaseAccessor<AppDatabase> with _$GameDaoMixin {
     });
   }
 
-  /// Clean up expired challenges
-  Future<void> cleanupExpiredChallenges() async {
+  /// Clean up expired challenges.
+  ///
+  /// [keepCompletedFor] retains expired rows that were COMPLETED and whose
+  /// day is younger than the window: they are the directive history the
+  /// daily streak is derived from ([getCompletedChallengeDays]). At most a
+  /// few rows per day, so the table stays small. Zero (the default) keeps
+  /// the old behaviour of deleting every expired row.
+  Future<void> cleanupExpiredChallenges({
+    Duration keepCompletedFor = Duration.zero,
+  }) async {
     final now = DateTime.now();
-    await (delete(dailyChallenges)..where((t) => t.expiresAt.isSmallerThanValue(now))).go();
+    if (keepCompletedFor <= Duration.zero) {
+      await (delete(dailyChallenges)..where((t) => t.expiresAt.isSmallerThanValue(now))).go();
+      return;
+    }
+    final keepSince = now.subtract(keepCompletedFor);
+    await (delete(dailyChallenges)
+          ..where((t) =>
+              t.expiresAt.isSmallerThanValue(now) &
+              (t.isCompleted.not() | t.challengeDate.isSmallerThanValue(keepSince))))
+        .go();
+  }
+
+  /// The day anchors (`challengeDate`) of every completed directive row on
+  /// or after [since], today included. Used to derive the daily streak from
+  /// the retained history (see [cleanupExpiredChallenges]).
+  Future<List<DateTime>> getCompletedChallengeDays({required DateTime since}) async {
+    final query = selectOnly(dailyChallenges, distinct: true)
+      ..addColumns([dailyChallenges.challengeDate])
+      ..where(dailyChallenges.isCompleted.equals(true) &
+          dailyChallenges.challengeDate.isBiggerOrEqualValue(since));
+    final rows = await query.get();
+    return [
+      for (final r in rows)
+        if (r.read(dailyChallenges.challengeDate) case final DateTime d) d,
+    ];
   }
 
   // =========================================================================

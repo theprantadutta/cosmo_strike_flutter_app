@@ -8,6 +8,7 @@ import 'package:cosmo_strike_flutter_app/models/ship_coins.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/coins/coins_cubit.dart';
 import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/battle_pass_cubit.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
+import 'package:cosmo_strike_flutter_app/services/directive_streak.dart';
 import 'package:cosmo_strike_flutter_app/services/local_directives.dart';
 import 'package:cosmo_strike_flutter_app/services/unified_user_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
@@ -68,6 +69,70 @@ class DailyChallengeService extends ChangeNotifier {
   bool get isBonusClaimed => _bonusClaimedToday;
   bool get isLoading => _isLoading;
 
+  // ---- Daily streak (days in a row with >= 1 completed directive) --------
+  // Derived from the retained Drift history (completed rows are kept for
+  // [DirectiveStreak.historyWindow] by the startup cleanup). The past run
+  // (ending yesterday) is read from Drift by [refreshStreak]; today is live
+  // from the in-memory set so a completion lands in the streak immediately.
+  int _pastStreak = 0;
+  bool _securedTodayInDb = false;
+  String? _streakComputedFor;
+
+  static String _todayKey() => DateTime.now().toIso8601String().split('T')[0];
+
+  /// Whether at least one of TODAY's directives is completed.
+  bool get streakSecuredToday {
+    final today = _todayKey();
+    final liveToday = _lastLoadDate == today && _completedCount > 0;
+    final dbToday = _streakComputedFor == today && _securedTodayInDb;
+    return liveToday || dbToday;
+  }
+
+  /// Days in a row (local calendar) the pilot completed at least one
+  /// directive. Still counts up to yesterday while today is unsecured.
+  int get streakDays {
+    // A past run computed on an earlier day is stale (it misses that day);
+    // show it until [refreshStreak] recomputes rather than double counting.
+    if (_streakComputedFor != _todayKey()) return _pastStreak;
+    return _pastStreak + (streakSecuredToday ? 1 : 0);
+  }
+
+  /// Recompute the streak's past run from Drift. Cheap (one indexed query);
+  /// called by [initialize] and by the Directives goal panel on open and at
+  /// the daily rollover.
+  Future<void> refreshStreak() async {
+    try {
+      final now = DateTime.now();
+      final days = await _storageService.gameDao.getCompletedChallengeDays(
+        since: now.subtract(DirectiveStreak.historyWindow),
+      );
+      _pastStreak = DirectiveStreak.pastRun(days, now);
+      _securedTodayInDb = DirectiveStreak.securedToday(days, now);
+      _streakComputedFor = _todayKey();
+      notifyListeners();
+    } catch (e) {
+      AppLogger.error('DailyChallengeService.refreshStreak failed', e);
+    }
+  }
+
+  /// Whether the all-complete bonus can be claimed right now.
+  bool get isBonusClaimable =>
+      _allCompleted && !_bonusClaimedToday && _totalCount > 0;
+
+  /// Explicit "Claim bonus" path for the Directives goal panel: claims any
+  /// directive rewards still outstanding (the existing claim-all path, which
+  /// already auto-credits the bonus) and then credits the bonus itself if it
+  /// is still pending (e.g. every directive was claimed but the bonus write
+  /// failed earlier). Returns true when this call moved the bonus from
+  /// unclaimed to claimed.
+  Future<bool> claimAllCompleteBonus() async {
+    if (!isBonusClaimable) return false;
+    await claimAllRewards();
+    await _tryAutoClaimAllCompleteBonus();
+    notifyListeners();
+    return _bonusClaimedToday;
+  }
+
   bool get hasUnclaimedRewards =>
       _challenges.any((c) => c.isCompleted && !c.claimedReward) ||
       (_allCompleted && !_bonusClaimedToday);
@@ -98,7 +163,11 @@ class DailyChallengeService extends ChangeNotifier {
       // doesn't grow unbounded over months of play.
       if (!_didCleanupExpired) {
         _didCleanupExpired = true;
-        await _storageService.gameDao.cleanupExpiredChallenges();
+        // Completed rows are kept (hidden from today's set) as the streak
+        // history; everything else expired is pruned.
+        await _storageService.gameDao.cleanupExpiredChallenges(
+          keepCompletedFor: DirectiveStreak.historyWindow,
+        );
       }
 
       final rows = await _storageService.gameDao.getTodaysChallenges();
@@ -108,6 +177,7 @@ class DailyChallengeService extends ChangeNotifier {
     } catch (e) {
       AppLogger.error('DailyChallengeService.initialize hydration failed', e);
     }
+    await refreshStreak();
   }
 
   /// Applies today's Drift rows to the in-memory list. Returns false when

@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:cosmo_strike_flutter_app/widgets/directives/goal_panel.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cosmo_strike_flutter_app/models/daily_challenge.dart';
@@ -9,6 +10,11 @@ import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/services/daily_challenge_service.dart';
+import 'package:cosmo_strike_flutter_app/services/weekly_quest_service.dart';
+import 'package:cosmo_strike_flutter_app/widgets/directives/directives_board.dart';
+import 'package:cosmo_strike_flutter_app/widgets/directives/launch_sortie.dart';
+import 'package:cosmo_strike_flutter_app/widgets/directives/weekly_ops_strip.dart';
 import 'package:cosmo_strike_flutter_app/widgets/directives_empty_state.dart';
 import 'package:cosmo_strike_flutter_app/widgets/list_entrance.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
@@ -17,9 +23,13 @@ import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 /// The Daily tab of the challenges hub (ChallengesHubScreen owns the
 /// CsScaffold + tab chrome; this renders only the two-region body):
 /// LEFT = progress ring + headline + CLAIM ALL + rules, RIGHT = the
-/// hairline-separated challenge list.
+/// DirectivesBoard (one card per directive filling the column, then the
+/// all-clear bonus and Weekly Ops strips).
 class DailyChallengesBody extends ConsumerStatefulWidget {
-  const DailyChallengesBody({super.key});
+  const DailyChallengesBody({super.key, this.onOpenWeekly});
+
+  /// Switches the hub to the Weekly Ops tab (the Weekly Ops strip's tap).
+  final VoidCallback? onOpenWeekly;
 
   @override
   ConsumerState<DailyChallengesBody> createState() =>
@@ -97,14 +107,16 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(dailyChallengesProvider);
-    final cs = context.cs;
 
     final claimable = state.challenges.where((c) => c.canClaim);
     final claimCoins = claimable.fold<int>(0, (s, c) => s + c.coinReward);
     final claimXp = claimable.fold<int>(0, (s, c) => s + c.xpReward);
 
+    // Cards claim one at a time; once all 3 are done the goal panel's
+    // "Claim all + bonus" takes over, so this shortcut only shows for
+    // partial days (it also opens the rewarded "watch to 2×" offer).
     Widget? action;
-    if (state.hasUnclaimedRewards) {
+    if (state.hasUnclaimedRewards && !state.allCompleted) {
       action = CsButton.primary(
         label: 'Claim all · $claimCoins CR + $claimXp XP',
         icon: Symbols.redeem_rounded,
@@ -123,16 +135,11 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
     return CsSplit(
       // Inline banner in the summary column (no full-width banners).
       leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
-      left: ChallengeSummary(
-        completed: state.completedCount,
-        total: state.totalCount,
-        ringLabel: 'Today',
-        action: action,
-        rules: const [
-          'New orders at 00:00',
-          'Credits + XP per directive',
-          'XP raises your Pilot Rank',
-          'Clear all 3 for a bonus',
+      left: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Expanded(child: DirectivesGoalPanel()),
+          if (action != null) ...[SizedBox(height: context.cs(10)), action],
         ],
       ),
       right: RefreshIndicator(
@@ -142,107 +149,42 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
         child: LayoutBuilder(
           builder: (context, c) {
             final challenges = state.challenges;
-            Widget? placeholder;
+            Widget content;
             if (challenges.isEmpty) {
-              if (state.isLoading) {
-                placeholder = const CsLoadingState(label: 'Loading directives');
-              } else {
-                // One shared, truthful reason (offline vs not posted yet),
-                // identical to the pause / game-over directives panel.
-                placeholder = DirectivesEmptyState(onRetry: _refreshChallenges);
-              }
-            }
-            if (placeholder != null) {
-              return ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: [SizedBox(height: c.maxHeight, child: placeholder)],
+              content = state.isLoading
+                  ? const CsLoadingState(label: 'Loading directives')
+                  // One shared, truthful reason (offline vs not posted yet),
+                  // identical to the pause / game-over directives panel.
+                  : DirectivesEmptyState(onRetry: _refreshChallenges);
+            } else {
+              content = DirectivesBoard(
+                challenges: challenges,
+                entrance: _entrance,
+                onClaim: _claimReward,
+                onFly: () => launchNextSortie(context),
+                weeklyStrip: ListenableBuilder(
+                  listenable: WeeklyQuestService(),
+                  builder: (context, _) {
+                    final weekly = WeeklyQuestService();
+                    return WeeklyOpsStrip(
+                      completed: weekly.completedCount,
+                      total: weekly.quests.length,
+                      claimable: weekly.claimableCount,
+                      isGuest: DailyChallengeService.isAccountlessPilot(),
+                      onOpen: widget.onOpenWeekly,
+                    );
+                  },
+                ),
               );
             }
+            // One viewport-tall page so pull-to-refresh works while the
+            // cards fill the column exactly (they never scroll).
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.only(bottom: cs(12)),
-              children: [
-                const CsHairline(),
-                for (final (i, ch) in challenges.indexed)
-                  _entrance.wrap(i, key: ValueKey(ch.id), ChallengeRow(
-                    title: ch.displayTitle,
-                    description: ch.displayDescription,
-                    difficulty: ch.difficulty,
-                    currentProgress: ch.currentProgress,
-                    targetValue: ch.targetValue,
-                    progress: ch.progressPercentage,
-                    isCompleted: ch.isCompleted,
-                    claimed: ch.claimedReward,
-                    canClaim: ch.canClaim,
-                    coinReward: ch.coinReward,
-                    xpReward: ch.xpReward,
-                    onClaim: () => _claimReward(ch),
-                  )),
-                if (state.allCompleted) _entrance.wrap(challenges.length, _BonusRow(state: state)),
-              ],
+              children: [SizedBox(height: c.maxHeight, child: content)],
             );
           },
         ),
-      ),
-    );
-  }
-}
-
-/// All-complete bonus, styled as the last hairline row of the list.
-class _BonusRow extends StatelessWidget {
-  const _BonusRow({required this.state});
-  final DailyChallengesState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = context.cs;
-    final t = cs.type;
-    final claimed = state.isBonusClaimed;
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: cs(16)),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: CsColors.hairline)),
-      ),
-      child: Row(
-        children: [
-          Icon(Symbols.redeem_rounded, size: cs(26), color: CsColors.gold),
-          SizedBox(width: cs(18)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'All directives complete',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: t.display(19, weight: FontWeight.w700, em: -0.01, height: 1.2),
-                ),
-                SizedBox(height: cs(4)),
-                Text(
-                  claimed
-                      ? 'Bonus reward claimed'
-                      : 'Bonus pending. Claim a directive.',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: t.body,
-                ),
-              ],
-            ),
-          ),
-          SizedBox(width: cs(20)),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              CsCoins(state.bonusCoins, prefix: '+', size: 12),
-              if (claimed) ...[
-                SizedBox(height: cs(10)),
-                const CsChip('Claimed', kind: CsChipKind.mint, icon: Symbols.check_rounded),
-              ],
-            ],
-          ),
-        ],
       ),
     );
   }
