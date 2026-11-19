@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../utils/title_case.dart';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -537,7 +538,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
         final rows = snap.data ?? const <StageProgressRow>[];
         final unlocked = rows.where((r) => r.unlocked).map((r) => r.stageId);
         final level = unlocked.isEmpty ? 1 : unlocked.reduce((a, b) => a > b ? a : b);
-        final name = _titleCase(CampaignCatalog.levelNameFor(level));
+        final name = titleCaseName(CampaignCatalog.levelNameFor(level));
         final biome = CampaignCatalog.biomeNameFor(level);
 
         return Column(
@@ -609,11 +610,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   late final Stream<List<StageProgressRow>> _stagesStream =
       getIt<AppDatabase>().stageProgressDao.watchAll();
 
-  static String _titleCase(String s) => s
-      .toLowerCase()
-      .split(' ')
-      .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
-      .join(' ');
 
   /// "GEAR · 03 ▾" / "ARMED · AFTERBURNER ▾". Hidden with no inventory.
   Widget _buildLoadoutChip(GameTheme theme) {

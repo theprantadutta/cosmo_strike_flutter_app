@@ -1,4 +1,5 @@
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import '../../utils/title_case.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../data/database/app_database.dart';
@@ -120,7 +121,7 @@ class LevelCompleteOverlay extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  _titleCase(CampaignCatalog.levelNameFor(level)),
+                  titleCaseName(CampaignCatalog.levelNameFor(level)),
                   maxLines: 1,
                   style: t.display(52, em: -0.04, height: 1),
                 ),
@@ -220,7 +221,7 @@ class LevelCompleteOverlay extends StatelessWidget {
             CsLabel('Next · Level ${(level + 1).toString().padLeft(2, '0')}'),
             SizedBox(height: cs(8)),
             CsPrismText(
-              _titleCase(CampaignCatalog.levelNameFor(level + 1)),
+              titleCaseName(CampaignCatalog.levelNameFor(level + 1)),
               maxLines: 1,
               style: t.display(26, em: -0.03, height: 1.1),
             ),
@@ -296,8 +297,3 @@ class _BestLine extends StatelessWidget {
   }
 }
 
-String _titleCase(String s) => s
-    .toLowerCase()
-    .split(' ')
-    .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
-    .join(' ');
