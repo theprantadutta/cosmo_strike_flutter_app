@@ -816,6 +816,26 @@ class _HomeLayout extends StatelessWidget {
             bottom: -pad.bottom - safe.bottom,
             child: const IgnorePointer(child: _EclipseHero()),
           ),
+          // Full-bleed fade under the nav: the eclipse art dissolves into
+          // the canvas so the labels sit on near-black without a box.
+          Positioned(
+            left: -pad.left - safe.left,
+            right: -pad.right - safe.right,
+            bottom: -pad.bottom - safe.bottom,
+            height: cs(150) + pad.bottom + safe.bottom,
+            child: const IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: [0, 0.45, 1],
+                    colors: [Color(0x000A0A0D), Color(0xB30A0A0D), Color(0xF50A0A0D)],
+                  ),
+                ),
+              ),
+            ),
+          ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

@@ -3,9 +3,10 @@ import 'dart:math' as math;
 import 'package:material_ui/material_ui.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 
-/// Home's bottom navigation: equal-width [HomeNavItem] cells over a
-/// hairline. A flat canvas fill keeps the labels off the eclipse art
-/// behind (its orbit line used to run through them).
+/// Home's bottom navigation: equal-width [HomeNavItem] cells under a
+/// hairline. The bar itself is transparent: Home's layout fades the
+/// eclipse art into the canvas behind it edge to edge (a filled box here
+/// read as a slab pasted over the planet).
 ///
 /// The cells fade up in a short stagger when the bar first mounts. Home
 /// stays mounted under pushed routes, so coming back never replays it.
@@ -16,9 +17,8 @@ class HomeNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: CsColors.bg.withValues(alpha: 0.82),
-        border: const Border(top: BorderSide(color: CsColors.hairline)),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: CsColors.hairline)),
       ),
       child: Padding(
         padding: EdgeInsets.only(top: context.cs(4)),
