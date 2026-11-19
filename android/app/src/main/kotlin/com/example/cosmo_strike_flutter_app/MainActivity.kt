@@ -36,6 +36,30 @@ class MainActivity : FlutterActivity() {
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         createNotificationChannel()
+        preferSixtyHz()
+    }
+
+    // The game is built and tuned for 60 FPS. On 90/120 Hz panels ask for the
+    // display's 60 Hz mode (same resolution) so frame pacing, battery and
+    // heat match what we test. It's a window hint: the system may still
+    // override it (power saving, a forced-peak developer option), and
+    // single-rate displays are unaffected.
+    private fun preferSixtyHz() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        @Suppress("DEPRECATION")
+        val display = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else null)
+            ?: windowManager.defaultDisplay
+            ?: return
+        val current = display.mode
+        val sixty = display.supportedModes
+            .filter {
+                it.physicalWidth == current.physicalWidth &&
+                    it.physicalHeight == current.physicalHeight
+            }
+            .minByOrNull { kotlin.math.abs(it.refreshRate - 60f) }
+            ?: return
+        if (sixty.modeId == window.attributes.preferredDisplayModeId) return
+        window.attributes = window.attributes.apply { preferredDisplayModeId = sixty.modeId }
     }
 
     // Android 10 (SDK 29) renders with Skia instead of Impeller.

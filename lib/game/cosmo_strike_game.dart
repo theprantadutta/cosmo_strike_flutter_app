@@ -30,6 +30,7 @@ import 'intensity_director.dart';
 import 'levels/level_catalog.dart';
 import 'levels/level_def.dart';
 import 'levels/script_runner.dart';
+import 'autopilot.dart';
 import 'pools.dart';
 import 'run_effects.dart';
 import 'run_upgrades.dart';
@@ -134,7 +135,13 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     this.seed,
     this.hangar = const HangarLoadout(),
     this.onboardingEase = 0,
+    this.autopilot = false,
   }) : _tutorialPending = tutorial;
+
+  /// Demo / profiling mode (`DemoMode`): an [Autopilot] flies the ship and
+  /// landed hits do no damage, so the run never ends. Never set in release.
+  final bool autopilot;
+  bool get demoInvincible => autopilot;
 
   /// First-run easing strength (0 = none, 1 = full) from
   /// [GameTuning.onboardingEase]. The screen passes 0 for Daily Runs,
@@ -414,6 +421,8 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     }
     _syncUpgradeEffects();
     missileAmmoNotifier.value += hangar.startMissiles;
+
+    if (autopilot) await add(Autopilot());
 
     levelIndex = startLevel.clamp(1, LevelCatalog.count);
     GameAudio.gameStart();
@@ -1065,6 +1074,13 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
   void onPlayerHit(double damage) {
     if (phase != GamePhase.playing) return;
     if (player.isInvulnerable || player.ghosted) return;
+    if (demoInvincible) {
+      // Keep the hit's render cost (flash + vignette) but never the damage.
+      player.flashDamage();
+      hitPulseNotifier.value++;
+      player.grantInvuln(0.6);
+      return;
+    }
     if (player.shielded) {
       player.popShield();
       // The save must still READ as an impact, or it feels like a bug.
