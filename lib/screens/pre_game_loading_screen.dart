@@ -14,6 +14,7 @@ import 'package:cosmo_strike_flutter_app/services/progression_service.dart';
 import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/campaign_catalog.dart';
+import 'package:cosmo_strike_flutter_app/utils/title_case.dart';
 
 /// Pre-game loading screen shown between level select / Home LAUNCH and the
 /// Game screen.
@@ -278,7 +279,7 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
       FittedBox(
         fit: BoxFit.scaleDown,
         alignment: Alignment.centerLeft,
-        child: _PrismTailTitle(name: _titleCase(CampaignCatalog.levelNameFor(level))),
+        child: _PrismTailTitle(name: titleCaseName(CampaignCatalog.levelNameFor(level))),
       ),
       SizedBox(height: cs(26)),
       const CsHairline(),
@@ -415,11 +416,6 @@ class _PreGameLoadingScreenState extends State<PreGameLoadingScreen>
     ];
   }
 
-  static String _titleCase(String s) => s
-      .toLowerCase()
-      .split(' ')
-      .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
-      .join(' ');
 
   /// 1234 -> "1.2K", 1500000 -> "1.5M". Keeps the stats from overflowing on
   /// big lifetime numbers.

@@ -203,12 +203,35 @@ class CsType {
         height: height,
       );
 
+  /// THE numeric style: every score, stat value and big counter goes through
+  /// this. Syne's default figures are old-style and its zero is a flat,
+  /// extra-wide lozenge (even with `lnum`) that doesn't read as a digit at a
+  /// glance — a run-start "0" looked like a pill. IBM Plex Mono SemiBold has
+  /// a dotted zero, equal-width (tabular) figures so counting values don't
+  /// jitter, and still reads heavy beside Syne 800 headlines.
+  TextStyle number(
+    double size, {
+    FontWeight weight = FontWeight.w600,
+    double em = -0.02,
+    double? height,
+    Color color = CsColors.ink,
+  }) =>
+      TextStyle(
+        fontFamily: CsFonts.mono,
+        fontSize: size * s,
+        fontWeight: weight,
+        letterSpacing: size * s * em,
+        height: height,
+        color: color,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      );
+
   TextStyle get hero => display(76, em: -0.04, height: 0.9);
-  TextStyle get scoreGiant => display(84, em: -0.05, height: 0.9);
+  TextStyle get scoreGiant => number(84, em: -0.04, height: 0.9);
   TextStyle get title => display(40, em: -0.04, height: 1);
   TextStyle get section => display(36, em: -0.03, height: 1.05);
-  TextStyle get hudScore => display(44, em: -0.03, height: 1);
-  TextStyle get statValue => display(24, em: 0, height: 1.1);
+  TextStyle get hudScore => number(44, em: -0.03, height: 1);
+  TextStyle get statValue => number(24, em: 0, height: 1.1);
   TextStyle get rowTitle => display(16, weight: FontWeight.w700, em: 0, height: 1.2);
   TextStyle get body => display(13, weight: FontWeight.w400, em: 0, height: 1.35, color: CsColors.ink60);
   TextStyle get button => display(14, weight: FontWeight.w700, em: 0.12, height: 1);

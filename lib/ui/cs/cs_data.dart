@@ -58,7 +58,7 @@ class CsStatGrid extends StatelessWidget {
                             fit: BoxFit.scaleDown,
                             alignment: Alignment.centerLeft,
                             child: Text(slice[j].value,
-                                maxLines: 1, style: t.display(valueSize, em: -0.01, height: 1.05, color: slice[j].color)),
+                                maxLines: 1, style: t.number(valueSize, em: -0.01, height: 1.05, color: slice[j].color)),
                           ),
                         ),
                         SizedBox(height: cs(4)),
@@ -437,6 +437,24 @@ class CsListRow extends StatelessWidget {
   }
 }
 
+/// The one Credits glyph (the gold coin). Use it wherever Credits appear —
+/// balances, prices, tabs — never a "$"/paid icon, which reads as real money.
+/// [size] is in design-frame px (scaled through `context.cs`).
+class CsCoinGlyph extends StatelessWidget {
+  const CsCoinGlyph({super.key, this.size = 16, this.opacity = 1});
+  final double size;
+  final double opacity;
+
+  static const asset = 'assets/images/ui/coin.png';
+
+  @override
+  Widget build(BuildContext context) {
+    final d = context.cs(size);
+    final img = Image.asset(asset, width: d, height: d, excludeFromSemantics: true);
+    return opacity >= 1 ? img : Opacity(opacity: opacity, child: img);
+  }
+}
+
 /// Coin glyph + gold mono amount ("◉ 928").
 class CsCoins extends StatelessWidget {
   const CsCoins(this.amount, {super.key, this.size = 11, this.prefix = '', this.suffix = '', this.color = CsColors.gold});
@@ -450,7 +468,7 @@ class CsCoins extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = context.cs;
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Image.asset('assets/images/ui/coin.png', width: cs(size * 1.45), height: cs(size * 1.45)),
+      CsCoinGlyph(size: size * 1.45),
       SizedBox(width: cs(6)),
       Text('$prefix$amount$suffix', style: cs.type.mono(size, color: color, em: 0.1)),
     ]);

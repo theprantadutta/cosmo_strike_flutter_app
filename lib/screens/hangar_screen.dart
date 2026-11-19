@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../game/game_assets.dart';
 import '../game/hangar.dart';
 import '../game/run_upgrades.dart';
 import '../presentation/bloc/coins/coins_cubit.dart';
@@ -44,8 +45,9 @@ class _HangarScreenState extends State<HangarScreen> {
     final def = HangarCatalog.byStat(stat);
     final next = _hangar.level(stat) + 1;
     final cost = HangarCatalog.costForNext(_hangar.level(stat));
-    if (!context.read<CoinsCubit>().canAfford(cost)) {
-      showCsToast(context, 'Not enough credits. $cost CR needed.', kind: CsToastKind.error);
+    final coins = context.read<CoinsCubit>();
+    if (!coins.canAfford(cost)) {
+      await _offerCredits(def.name, cost - coins.balance);
       return;
     }
     final ok = await showCsConfirm(
@@ -65,6 +67,20 @@ class _HangarScreenState extends State<HangarScreen> {
       done ? '${def.name} upgraded to L$next.' : 'Upgrade failed. Try again.',
       kind: done ? CsToastKind.success : CsToastKind.error,
     );
+  }
+
+  /// Short of credits: say exactly how many are missing and offer the
+  /// Armory's Credits tab instead of a dead-end error toast.
+  Future<void> _offerCredits(String upgradeName, int missing) async {
+    final go = await showCsConfirm(
+      context,
+      eyebrow: 'Hangar upgrade',
+      title: 'Need $missing more CR',
+      message: 'Fly sorties or grab a Credit Cache in the Armory to afford $upgradeName.',
+      confirmLabel: 'Get credits',
+      cancelLabel: 'Not now',
+    );
+    if (go && mounted) context.push('${AppRoutes.store}?tab=1');
   }
 
   @override
@@ -87,7 +103,9 @@ class _HangarScreenState extends State<HangarScreen> {
       body: CsSplit(
         leftWidth: cs.isTablet ? 340 : 300,
         left: _ShipList(hangar: _hangar),
-        right: _UpgradeList(hangar: _hangar, buying: _buying, onBuy: _buy),
+        right: BlocBuilder<CoinsCubit, CoinsState>(
+          builder: (_, s) => _UpgradeList(hangar: _hangar, balance: s.total, buying: _buying, onBuy: _buy),
+        ),
       ),
     );
   }
@@ -107,11 +125,25 @@ class _ShipList extends StatelessWidget {
       children: [
         const CsLabel('Ship'),
         SizedBox(height: cs(6)),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: CsHeadline([selected.name], prismIndex: 0, maxLines: 1, style: t.display(36, em: -0.03, height: 1)),
-        ),
+        Row(children: [
+          // Static preview of the player sprite (same art the game flies).
+          Image.asset(
+            '${GameAssets.prefix}${GameAssets.playerShip}',
+            height: cs(40),
+            width: cs(60),
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+            excludeFromSemantics: true,
+          ),
+          SizedBox(width: cs(10)),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: CsHeadline([selected.name], prismIndex: 0, maxLines: 1, style: t.display(36, em: -0.03, height: 1)),
+            ),
+          ),
+        ]),
         SizedBox(height: cs(6)),
         Text(selected.tagline, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.body),
         if (selected.startingUpgrades.isNotEmpty) ...[
@@ -157,8 +189,9 @@ class _ShipList extends StatelessWidget {
 }
 
 class _UpgradeList extends StatelessWidget {
-  const _UpgradeList({required this.hangar, required this.buying, required this.onBuy});
+  const _UpgradeList({required this.hangar, required this.balance, required this.buying, required this.onBuy});
   final HangarService hangar;
+  final int balance;
   final HangarStat? buying;
   final ValueChanged<HangarStat> onBuy;
 
@@ -208,10 +241,9 @@ class _UpgradeList extends StatelessWidget {
                     ]),
                     trailing: maxed
                         ? const CsChip('Max', kind: CsChipKind.mint)
-                        : CsButton.secondary(
-                            label: '$cost',
-                            size: CsButtonSize.small,
-                            icon: Symbols.paid_rounded,
+                        : _PriceButton(
+                            cost: cost,
+                            missing: cost - balance,
                             loading: buying == def.stat,
                             onPressed: buying == null ? () => onBuy(def.stat) : null,
                           ),
@@ -219,6 +251,62 @@ class _UpgradeList extends StatelessWidget {
                 }),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Credit price for an upgrade: an outlined pill with the gold coin and the
+/// shared numeric style. Short of credits it dims (reads as unavailable) and
+/// shows "Need N more" under it, but stays tappable so the tap can route to
+/// the Credits tab.
+class _PriceButton extends StatelessWidget {
+  const _PriceButton({required this.cost, required this.missing, required this.loading, required this.onPressed});
+  final int cost;
+  final int missing;
+  final bool loading;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final t = cs.type;
+    final short = missing > 0;
+    final pill = Opacity(
+      opacity: short || (onPressed == null && !loading) ? 0.45 : 1,
+      child: CsPressable(
+        onTap: loading ? null : onPressed,
+        semanticLabel: short ? '$cost credits, need $missing more' : 'Upgrade for $cost credits',
+        child: Container(
+          constraints: BoxConstraints(minHeight: cs(34).clamp(34.0, 44.0)),
+          padding: EdgeInsets.symmetric(horizontal: cs(14)),
+          decoration: const ShapeDecoration(
+            shape: StadiumBorder(side: BorderSide(color: CsColors.lineStrong)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (loading)
+              SizedBox.square(
+                dimension: cs(14),
+                child: const CircularProgressIndicator(strokeWidth: 2, color: CsColors.ink),
+              )
+            else
+              const CsCoinGlyph(size: 16),
+            SizedBox(width: cs(8)),
+            Text('$cost', maxLines: 1, style: t.number(14, em: 0, height: 1)),
+          ]),
+        ),
+      ),
+    );
+    if (!short) return pill;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        pill,
+        SizedBox(height: cs(4)),
+        ExcludeSemantics(
+          child: Text('Need $missing more', maxLines: 1, style: t.mono(10, color: CsColors.ink70, em: 0.04)),
         ),
       ],
     );
