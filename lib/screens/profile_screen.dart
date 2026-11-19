@@ -175,7 +175,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildSections(BuildContext context, AuthState authState) {
     final cs = context.cs;
-    final showUpgrade = authState.isAnonymous && !authState.isGoogleUser;
+    // Local guests and Firebase-anonymous pilots have no credential: their
+    // progress lives on this device only until they sign in.
+    final guest = authState.isAnonymous || authState.isGuestUser;
     return ListView(
       padding: EdgeInsets.only(bottom: cs(12)),
       children: [
@@ -208,26 +210,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         SizedBox(height: cs.groupGap),
         const _SectionHeader('Account'),
-        if (showUpgrade)
-          CsListRow(
-            dividerTop: true,
-            leading: const CsIconDisc(Symbols.cloud_upload_rounded, color: CsColors.gold),
-            title: 'Secure your pilot file',
-            subtitle: 'Sign in to carry it to any device',
-            trailing: CsButton.primary(
-              label: 'Sign in',
-              icon: Symbols.login_rounded,
-              size: CsButtonSize.small,
-              onPressed: () => _handleAccountUpgrade(context),
-            ),
-            onTap: () => _handleAccountUpgrade(context),
-          ),
-        CsListRow(
-          dividerTop: !showUpgrade,
-          leading: const CsIconDisc(Symbols.logout_rounded, color: CsColors.pink),
-          title: 'Sign out',
-          trailing: _chevron(context),
-          onTap: () => _showSignOutDialog(context),
+        PilotAccountRows(
+          isLocalGuest: authState.isGuestUser,
+          isAnonymous: authState.isAnonymous,
+          onSaveProgress: () => _handleAccountUpgrade(context),
+          onSignOut: () => _showSignOutDialog(context, guest: guest),
         ),
         SizedBox(height: cs.groupGap),
         const _SectionHeader('Records'),
@@ -245,6 +232,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           subtitle: 'Earned and in progress',
           trailing: _chevron(context),
           onTap: () => _navigateToAchievements(context),
+        ),
+        CsListRow(
+          leading: const CsIconDisc(Symbols.leaderboard_rounded, color: CsColors.violet),
+          title: 'Standings',
+          subtitle: 'Global, weekly and Squadron boards',
+          trailing: _chevron(context),
+          onTap: () => context.push(AppRoutes.leaderboard),
+        ),
+        CsListRow(
+          leading: const CsIconDisc(Symbols.group_rounded, color: CsColors.mint),
+          title: 'Squadron',
+          subtitle: 'Wingmates and invites',
+          trailing: _chevron(context),
+          onTap: () => context.push(AppRoutes.friends),
         ),
         _buildReplaysRow(context),
         if (_recentAchievements.isNotEmpty) ...[
@@ -326,13 +327,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _showSignOutDialog(BuildContext context) async {
+  Future<void> _showSignOutDialog(BuildContext context, {required bool guest}) async {
     final confirmed = await showCsConfirm(
       context,
       eyebrow: 'Account',
-      title: 'Sign out?',
-      message: 'Your progress stays backed up to your account.',
-      confirmLabel: 'Sign out',
+      title: guest ? 'Erase this Pilot File?' : 'Sign out?',
+      message: guest
+          ? 'You are flying as a guest. Signing out permanently erases your '
+              'progress, credits and unlocks on this device. Save your progress '
+              'first to keep them.'
+          : 'Your progress stays backed up to your account.',
+      confirmLabel: guest ? 'Sign out and erase' : 'Sign out',
       destructive: true,
     );
     if (!confirmed || !context.mounted) return;
@@ -341,6 +346,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (context.mounted) {
       showCsToast(context, 'Signed out.');
     }
+  }
+}
+
+/// The Pilot File's ACCOUNT rows. Pilots without a credential (a local
+/// guest or a Firebase-anonymous account) get a primary "Save your
+/// progress" row. A local guest has nothing to sign out of (and signing out
+/// wipes this device's progress), so Sign out only shows for real accounts
+/// and, flagged as erasing, for anonymous pilots.
+class PilotAccountRows extends StatelessWidget {
+  const PilotAccountRows({
+    super.key,
+    required this.isLocalGuest,
+    required this.isAnonymous,
+    required this.onSaveProgress,
+    required this.onSignOut,
+  });
+
+  final bool isLocalGuest;
+  final bool isAnonymous;
+  final VoidCallback onSaveProgress;
+  final VoidCallback onSignOut;
+
+  bool get _guest => isLocalGuest || isAnonymous;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_guest)
+          CsListRow(
+            key: const ValueKey('profile_save_progress'),
+            dividerTop: true,
+            leading: const CsIconDisc(Symbols.cloud_upload_rounded, color: CsColors.gold),
+            title: 'Save your progress',
+            subtitle: 'Sign in to back up your Pilot File and fly it on any device',
+            trailing: CsButton.primary(
+              label: 'Save',
+              icon: Symbols.login_rounded,
+              size: CsButtonSize.small,
+              onPressed: onSaveProgress,
+            ),
+            onTap: onSaveProgress,
+          ),
+        if (!isLocalGuest)
+          CsListRow(
+            key: const ValueKey('profile_sign_out'),
+            dividerTop: !_guest,
+            leading: const CsIconDisc(Symbols.logout_rounded, color: CsColors.pink),
+            title: 'Sign out',
+            subtitle: _guest ? 'Erases this unsaved Pilot File' : null,
+            trailing: Icon(Symbols.chevron_right_rounded, size: context.cs(22), color: CsColors.ink45),
+            onTap: onSignOut,
+          ),
+      ],
+    );
   }
 }
 
