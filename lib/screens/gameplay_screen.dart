@@ -1499,6 +1499,8 @@ class _ScoreBlock extends StatelessWidget {
           builder: (_, hp, _) => CsProgressLine(
             value: hp,
             width: cs(200),
+            // Live feedback: ease briefly, never trail a hit by ~1 s.
+            duration: CsMotion.slow,
             gradient: hp <= 0.3 ? _lowHull : CsGradients.progress,
           ),
         ),
@@ -1546,6 +1548,7 @@ class _BossBar extends StatelessWidget {
               SizedBox(height: cs(8)),
               CsProgressLine(
                 value: hp,
+                duration: CsMotion.slow,
                 height: cs(3).clamp(2.0, 4.0),
                 gradient: CsGradients.prism,
               ),
