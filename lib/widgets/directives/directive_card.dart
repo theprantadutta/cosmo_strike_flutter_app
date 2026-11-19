@@ -312,6 +312,9 @@ class _CardBody extends StatelessWidget {
         // to fill; the shared 12% track vanished on the raised card.
         CsProgressLine(
           value: barValue,
+          // Without an explicit width the line's track collapses to the
+          // filled fraction inside a start-aligned Column (so 0 = no bar).
+          width: double.infinity,
           height: barH,
           gradient: barGradient,
           trackColor: const Color(0x33FFFFFF),
