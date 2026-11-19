@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../theme/cosmo_theme.dart';
 import 'cs_buttons.dart';
+import 'cs_motion.dart';
 import 'cs_prism.dart';
 
 /// Centered landscape dialog card: #141419, 22 radius, subtle border, over the
@@ -115,31 +116,80 @@ class CsDialog extends StatelessWidget {
   }
 }
 
-/// Shows [dialog] (usually a [CsDialog]) with the Prism Noir scrim + a 200ms
-/// fade/scale entrance.
+/// Shows [dialog] (usually a [CsDialog]) over the Prism Noir scrim.
+///
+/// Motion (MOTION_SPEC "Dialogs"): the scrim fades in while the card fades
+/// and scales 0.94 → 1 over `CsMotion.slow` (320 ms) on `easeOutSoft`; it
+/// leaves faster, `CsMotion.quick` (180 ms) on `exit`. FadeTransition +
+/// ScaleTransition on the route's own animation, no blur, no saveLayer.
+/// Reduce motion: a 120 ms fade each way, no scale.
 Future<T?> showCsDialog<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   bool barrierDismissible = true,
   bool useRootNavigator = true,
 }) {
-  return showGeneralDialog<T>(
-    context: context,
-    barrierDismissible: barrierDismissible,
-    barrierLabel: 'Dismiss',
-    barrierColor: CsColors.scrim,
-    useRootNavigator: useRootNavigator,
-    transitionDuration: CsMotion.base,
-    pageBuilder: (ctx, _, _) => SafeArea(child: Builder(builder: builder)),
-    transitionBuilder: (ctx, a, _, child) {
-      final c = CurvedAnimation(parent: a, curve: CsMotion.standard);
-      return FadeTransition(
-        opacity: c,
-        child: ScaleTransition(scale: Tween(begin: .97, end: 1.0).animate(c), child: child),
-      );
-    },
+  final reduce = CsReduceMotion.of(context, listen: false);
+  return Navigator.of(context, rootNavigator: useRootNavigator).push<T>(
+    CsDialogRoute<T>(
+      builder: builder,
+      barrierDismissible: barrierDismissible,
+      reduceMotion: reduce,
+      capturedThemes: InheritedTheme.capture(
+        from: context,
+        to: Navigator.of(context, rootNavigator: useRootNavigator).context,
+      ),
+    ),
   );
 }
+
+/// The route behind [showCsDialog]: a [RawDialogRoute] with the Prism Noir
+/// scrim and the CsMotion entrance / faster exit. Exposed so callers that
+/// need a `Route` object (e.g. `Navigator.pushReplacement`) get the same
+/// motion.
+class CsDialogRoute<T> extends RawDialogRoute<T> {
+  CsDialogRoute({
+    required WidgetBuilder builder,
+    super.barrierDismissible = true,
+    this.reduceMotion = false,
+    CapturedThemes? capturedThemes,
+    super.settings,
+  }) : super(
+         barrierLabel: 'Dismiss',
+         barrierColor: CsColors.scrim,
+         transitionDuration: reduceMotion ? CsMotion.instant : CsMotion.slow,
+         pageBuilder: (ctx, _, _) {
+           final page = SafeArea(child: Builder(builder: builder));
+           return capturedThemes?.wrap(page) ?? page;
+         },
+         transitionBuilder: (ctx, a, _, child) => csDialogTransition(a, child, reduceMotion: reduceMotion),
+       );
+
+  /// Decided once when the dialog opens.
+  final bool reduceMotion;
+
+  @override
+  Duration get reverseTransitionDuration => reduceMotion ? CsMotion.instant : CsMotion.quick;
+
+  // The scrim follows the card's easing rather than Curves.ease.
+  @override
+  Curve get barrierCurve => reduceMotion ? Curves.linear : CsMotion.easeOutSoft;
+}
+
+/// The card half of the dialog motion, for custom routes that want to match
+/// [showCsDialog]: fade + 0.94 → 1 scale in on `easeOutSoft`, out on `exit`.
+Widget csDialogTransition(Animation<double> animation, Widget child, {bool reduceMotion = false}) {
+  if (reduceMotion) {
+    return FadeTransition(opacity: animation, child: child);
+  }
+  final curved = CurvedAnimation(parent: animation, curve: CsMotion.easeOutSoft, reverseCurve: CsMotion.exit);
+  return FadeTransition(
+    opacity: curved,
+    child: ScaleTransition(scale: _dialogScale.animate(curved), child: child),
+  );
+}
+
+final Tween<double> _dialogScale = Tween(begin: 0.94, end: 1.0);
 
 /// Confirm helper: returns true when the primary action is chosen.
 Future<bool> showCsConfirm(
@@ -210,18 +260,45 @@ class _CsToast extends StatefulWidget {
   State<_CsToast> createState() => _CsToastState();
 }
 
+/// Toast motion (MOTION_SPEC "Toasts"): drops [csToastDrop] design px into
+/// place on `springSoft` while fading in (`CsMotion.gentle`), then fades and
+/// rises away on `exit` in `CsMotion.release` (250 ms). Reduce motion: a
+/// 120 ms fade each way, no movement.
+const double csToastDrop = 12;
+
 class _CsToastState extends State<_CsToast> with SingleTickerProviderStateMixin {
-  late final _c = AnimationController(vsync: this, duration: CsMotion.slow)..forward();
+  late final AnimationController _c;
+  late final Animation<double> _fade;
+  late final Animation<double> _slide;
+  bool _reduce = false;
+  bool _started = false;
   Timer? _t;
 
   @override
   void initState() {
     super.initState();
+    _c = AnimationController(vsync: this, duration: CsMotion.gentle, reverseDuration: CsMotion.release);
+    _fade = CurvedAnimation(parent: _c, curve: CsMotion.easeOutSoft, reverseCurve: CsMotion.exit);
+    _slide = CurvedAnimation(parent: _c, curve: CsMotion.springSoft, reverseCurve: CsMotion.exit);
     _t = Timer(widget.duration, () async {
       if (!mounted) return;
       await _c.reverse();
       widget.onDone();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    _reduce = CsReduceMotion.of(context, listen: false);
+    if (_reduce) {
+      _c
+        ..duration = CsMotion.instant
+        ..reverseDuration = CsMotion.instant;
+    }
+    _c.forward();
   }
 
   @override
@@ -240,38 +317,45 @@ class _CsToastState extends State<_CsToast> with SingleTickerProviderStateMixin 
       CsToastKind.reward => (CsColors.gold, Symbols.paid_rounded),
       CsToastKind.error => (CsColors.pink, Symbols.error_rounded),
     };
-    final curve = CurvedAnimation(parent: _c, curve: CsMotion.standard);
+    final drop = cs(csToastDrop);
     return Positioned(
       top: MediaQuery.paddingOf(context).top + cs(16),
       left: 0,
       right: 0,
       child: IgnorePointer(
-        child: FadeTransition(
-          opacity: curve,
-          child: SlideTransition(
-            position: Tween(begin: const Offset(0, -.4), end: Offset.zero).animate(curve),
-            child: Center(
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  constraints: BoxConstraints(maxWidth: cs(560)),
-                  padding: EdgeInsets.symmetric(horizontal: cs(18), vertical: cs(11)),
-                  decoration: ShapeDecoration(
-                    color: CsColors.raised2,
-                    shape: const StadiumBorder(side: BorderSide(color: CsColors.lineSubtle)),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(widget.icon ?? icon, size: cs(18), color: color),
-                    SizedBox(width: cs(10)),
-                    Flexible(
-                      child: Text(
-                        widget.message,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: cs.type.mono(12, color: CsColors.ink, em: 0.04),
-                      ),
+        child: RepaintBoundary(
+          child: FadeTransition(
+            opacity: _fade,
+            child: AnimatedBuilder(
+              animation: _slide,
+              builder: (context, child) =>
+                  _reduce ? child! : Transform.translate(offset: Offset(0, -drop * (1 - _slide.value)), child: child),
+              child: Center(
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    constraints: BoxConstraints(maxWidth: cs(560)),
+                    padding: EdgeInsets.symmetric(horizontal: cs(18), vertical: cs(11)),
+                    decoration: ShapeDecoration(
+                      color: CsColors.raised2,
+                      shape: const StadiumBorder(side: BorderSide(color: CsColors.lineSubtle)),
                     ),
-                  ]),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(widget.icon ?? icon, size: cs(18), color: color),
+                        SizedBox(width: cs(10)),
+                        Flexible(
+                          child: Text(
+                            widget.message,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: cs.type.mono(12, color: CsColors.ink, em: 0.04),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),

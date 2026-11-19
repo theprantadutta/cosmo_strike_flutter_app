@@ -117,28 +117,58 @@ class _RewardToastView extends StatefulWidget {
   State<_RewardToastView> createState() => _RewardToastViewState();
 }
 
-class _RewardToastViewState extends State<_RewardToastView>
-    with SingleTickerProviderStateMixin {
-  static final int _inMs = CsMotion.slow.inMilliseconds;
-  static final int _outMs = CsMotion.base.inMilliseconds;
-
-  late final int _totalMs = _inMs + widget.holdMs + _outMs;
+/// Motion: drops in on `springSoft` with an `easeOutSoft` fade
+/// (`CsMotion.gentle`), the amount pops ([CsPop]) as the pill lands, it
+/// holds, then fades and lifts away on `exit` in `CsMotion.release`.
+/// One controller drives in and out; opacity is a FadeTransition and the
+/// slide a Transform over a cached child, all inside a RepaintBoundary so a
+/// toast over gameplay never repaints the HUD. Reduce motion: 120 ms fades,
+/// no movement, no pop.
+class _RewardToastViewState extends State<_RewardToastView> with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: Duration(milliseconds: _totalMs),
+    duration: CsMotion.gentle,
+    reverseDuration: CsMotion.release,
+  );
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _c,
+    curve: CsMotion.easeOutSoft,
+    reverseCurve: CsMotion.exit,
+  );
+  late final Animation<double> _slide = CurvedAnimation(
+    parent: _c,
+    curve: CsMotion.springSoft,
+    reverseCurve: CsMotion.exit,
   );
 
+  bool _started = false;
+  bool _reduce = false;
+  Timer? _hold;
+
   @override
-  void initState() {
-    super.initState();
-    _c.addStatusListener((status) {
-      if (status == AnimationStatus.completed) widget.onDone();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    _reduce = CsReduceMotion.of(context, listen: false);
+    if (_reduce) {
+      _c
+        ..duration = CsMotion.instant
+        ..reverseDuration = CsMotion.instant;
+    }
+    _c.forward().whenComplete(() {
+      if (!mounted) return;
+      _hold = Timer(Duration(milliseconds: widget.holdMs), () async {
+        if (!mounted) return;
+        await _c.reverse();
+        if (mounted) widget.onDone();
+      });
     });
-    _c.forward();
   }
 
   @override
   void dispose() {
+    _hold?.cancel();
     _c.dispose();
     super.dispose();
   }
@@ -146,34 +176,7 @@ class _RewardToastViewState extends State<_RewardToastView>
   @override
   Widget build(BuildContext context) {
     final cs = context.cs;
-    final inEnd = _inMs / _totalMs;
-    final outStart = (_inMs + widget.holdMs) / _totalMs;
-
-    final opacity = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: CsMotion.standard)),
-        weight: inEnd,
-      ),
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: outStart - inEnd),
-      TweenSequenceItem(
-        tween: Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: CsMotion.standard)),
-        weight: 1 - outStart,
-      ),
-    ]).animate(_c);
-
-    // Slides down into place, then lifts slightly as it fades out.
-    final dy = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(begin: -cs(14), end: 0.0).chain(CurveTween(curve: CsMotion.standard)),
-        weight: inEnd,
-      ),
-      TweenSequenceItem(tween: ConstantTween(0.0), weight: outStart - inEnd),
-      TweenSequenceItem(
-        tween: Tween(begin: 0.0, end: -cs(8)).chain(CurveTween(curve: CsMotion.standard)),
-        weight: 1 - outStart,
-      ),
-    ]).animate(_c);
-
+    final drop = cs(14);
     return IgnorePointer(
       child: SafeArea(
         child: Align(
@@ -182,13 +185,22 @@ class _RewardToastViewState extends State<_RewardToastView>
             padding: EdgeInsets.only(top: cs(16)),
             child: Material(
               type: MaterialType.transparency,
-              child: AnimatedBuilder(
-                animation: _c,
-                builder: (_, child) => Opacity(
-                  opacity: opacity.value.clamp(0.0, 1.0),
-                  child: Transform.translate(offset: Offset(0, dy.value), child: child),
+              child: RepaintBoundary(
+                child: FadeTransition(
+                  opacity: _fade,
+                  child: AnimatedBuilder(
+                    animation: _slide,
+                    builder: (_, child) => _reduce
+                        ? child!
+                        : Transform.translate(
+                            // In: drops from above. Out: the reverse lifts
+                            // it back up as it fades.
+                            offset: Offset(0, -drop * (1 - _slide.value)),
+                            child: child,
+                          ),
+                    child: _pill(context, widget.data),
+                  ),
                 ),
-                child: _pill(context, widget.data),
               ),
             ),
           ),
@@ -225,10 +237,17 @@ class _RewardToastViewState extends State<_RewardToastView>
             ),
           ),
           SizedBox(width: cs(12)),
-          Text(
-            d.amount,
-            maxLines: 1,
-            style: t.mono(12, weight: FontWeight.w600, em: 0.06, color: d.accent),
+          // Pops as the pill lands (most of the drop is done by ~180 ms).
+          CsPop(
+            trigger: null,
+            playOnMount: true,
+            delay: CsMotion.quick,
+            peak: 1.18,
+            child: Text(
+              d.amount,
+              maxLines: 1,
+              style: t.mono(12, weight: FontWeight.w600, em: 0.06, color: d.accent),
+            ),
           ),
         ],
       ),

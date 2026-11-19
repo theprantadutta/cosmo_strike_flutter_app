@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cosmo_strike_flutter_app/theme/cosmo_theme.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs/cs_motion.dart' show CsReduceMotion;
 import 'package:cosmo_strike_flutter_app/models/game_replay.dart';
 import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
@@ -32,7 +33,12 @@ import 'package:cosmo_strike_flutter_app/screens/store_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/tournament_detail_screen.dart';
 import 'package:cosmo_strike_flutter_app/screens/tournaments_screen.dart';
 
-/// Standard Prism Noir screen transition: 280ms fade + 12px horizontal slide.
+/// Standard Prism Noir screen transition (MOTION_SPEC "Screen transition"):
+/// a 280 ms fade + 12 px horizontal slide in on `CsMotion.standard`; going
+/// back, the page fades and slides out on `CsMotion.exit`. Only opacity and
+/// a translate are animated (FadeTransition + SlideTransition on the whole
+/// page, no blur, no saveLayer per child). Route snapshotting is left as is.
+/// Reduce motion: the fade stays, the slide is dropped.
 CustomTransitionPage<void> _zoomPage(GoRouterState state, Widget child) {
   return CustomTransitionPage(
     key: state.pageKey,
@@ -40,21 +46,20 @@ CustomTransitionPage<void> _zoomPage(GoRouterState state, Widget child) {
     transitionDuration: CsMotion.screen,
     reverseTransitionDuration: CsMotion.screen,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final curved = CurvedAnimation(parent: animation, curve: CsMotion.standard);
+      final curved = CurvedAnimation(parent: animation, curve: CsMotion.standard, reverseCurve: CsMotion.exit);
+      final fade = FadeTransition(opacity: curved, child: child);
+      if (CsReduceMotion.of(context)) return fade;
       final dx = 12 / MediaQuery.sizeOf(context).width;
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween<Offset>(begin: Offset(dx, 0), end: Offset.zero).animate(curved),
-          child: child,
-        ),
+      return SlideTransition(
+        position: Tween<Offset>(begin: Offset(dx, 0), end: Offset.zero).animate(curved),
+        child: fade,
       );
     },
   );
 }
 
 /// Into gameplay: a plain 320ms fade so the HUD and starfield come up
-/// together without movement.
+/// together without movement (`standard` in, `exit` out).
 CustomTransitionPage<void> _scalePage(GoRouterState state, Widget child) {
   return CustomTransitionPage(
     key: state.pageKey,
@@ -63,7 +68,7 @@ CustomTransitionPage<void> _scalePage(GoRouterState state, Widget child) {
     reverseTransitionDuration: CsMotion.slow,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       return FadeTransition(
-        opacity: CurvedAnimation(parent: animation, curve: CsMotion.standard),
+        opacity: CurvedAnimation(parent: animation, curve: CsMotion.standard, reverseCurve: CsMotion.exit),
         child: child,
       );
     },

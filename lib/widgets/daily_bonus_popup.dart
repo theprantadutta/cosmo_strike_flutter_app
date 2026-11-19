@@ -161,9 +161,24 @@ class _DailyBonusPopupState extends State<DailyBonusPopup> {
   // make the button inert while the claim is in flight.
   bool _isClaiming = false;
 
+  /// Flips on the Collect tap so today's credits pop before the dialog
+  /// closes.
+  bool _collected = false;
+
+  /// How long the pop gets on screen before the claim runs and the dialog
+  /// starts leaving (the swell of [CsPop] plus a beat).
+  static const _collectBeat = Duration(milliseconds: 260);
+
   Future<void> _handleClaim() async {
     if (_isClaiming) return;
-    setState(() => _isClaiming = true);
+    final reduce = CsReduceMotion.of(context, listen: false);
+    setState(() {
+      _isClaiming = true;
+      _collected = true;
+    });
+    // The success haptic comes from RewardToast.show inside onClaim (one
+    // per claim), so none is added here; the button already ticked.
+    if (!reduce) await Future<void>.delayed(_collectBeat);
     try {
       await widget.onClaim();
     } finally {
@@ -246,7 +261,7 @@ class _DailyBonusPopupState extends State<DailyBonusPopup> {
         children: [
           _WeekRow(status: status, currentDay: currentDay),
           SizedBox(height: cs(16)),
-          if (todayReward != null) _TodayReward(reward: todayReward),
+          if (todayReward != null) _TodayReward(reward: todayReward, collected: _collected),
           if (!status.canClaim) ...[
             SizedBox(height: cs(10)),
             const CsMeta('Today\'s drop collected', icon: Symbols.schedule_rounded),
@@ -303,49 +318,63 @@ class _WeekRow extends StatelessWidget {
               ? Icon(Symbols.redeem_rounded, size: cs(18), color: CsColors.gold)
               : Image.asset('assets/images/ui/coin.png', width: cs(18), height: cs(18)));
 
-      tiles.add(Expanded(
-        child: CsTile(
-          state: state,
-          rotateRing: isToday && status.canClaim,
-          padding: EdgeInsets.symmetric(vertical: cs(9), horizontal: cs(2)),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'D$day',
+      // Tiles stagger in after the dialog card starts landing; today's tile
+      // pops once it has arrived.
+      final arrive = _firstTileDelay + CsMotion.stagger(index);
+      final Widget tile = CsTile(
+        state: state,
+        rotateRing: isToday && status.canClaim,
+        padding: EdgeInsets.symmetric(vertical: cs(9), horizontal: cs(2)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('D$day', maxLines: 1, style: t.mono(9, color: isToday ? CsColors.ink : CsColors.ink45, em: 0.12)),
+            SizedBox(height: cs(6)),
+            glyph,
+            SizedBox(height: cs(6)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '${reward.coins}',
                 maxLines: 1,
-                style: t.mono(9, color: isToday ? CsColors.ink : CsColors.ink45, em: 0.12),
-              ),
-              SizedBox(height: cs(6)),
-              glyph,
-              SizedBox(height: cs(6)),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  '${reward.coins}',
-                  maxLines: 1,
-                  style: t.mono(
-                    10.5,
-                    weight: FontWeight.w600,
-                    em: 0.04,
-                    color: isClaimed ? CsColors.ink45 : CsColors.gold,
-                  ),
+                style: t.mono(
+                  10.5,
+                  weight: FontWeight.w600,
+                  em: 0.04,
+                  color: isClaimed ? CsColors.ink45 : CsColors.gold,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
+      );
+      tiles.add(Expanded(
+        child: CsFadeUp(
+          delay: arrive,
+          distance: 8,
+          child: isToday
+              ? CsPop(trigger: null, playOnMount: true, delay: arrive + _todayPopAfter, peak: 1.1, child: tile)
+              : tile,
         ),
       ));
       if (index < 6) tiles.add(SizedBox(width: cs(6)));
     }
     return Row(children: tiles);
   }
+
+  /// The first tile starts once the dialog card is ~1/3 of the way in.
+  static const _firstTileDelay = Duration(milliseconds: 100);
+
+  /// Today's pop lands after its own fade-up has mostly settled.
+  static const _todayPopAfter = Duration(milliseconds: 260);
 }
 
-/// "TODAY'S DROP" caption + gold credits (+ bonus item chip).
+/// "TODAY'S DROP" caption + gold credits (+ bonus item chip). Pops the
+/// credits each time [collected] flips (the Collect tap).
 class _TodayReward extends StatelessWidget {
-  const _TodayReward({required this.reward});
+  const _TodayReward({required this.reward, this.collected = false});
   final DailyBonusReward reward;
+  final bool collected;
 
   @override
   Widget build(BuildContext context) {
@@ -356,9 +385,18 @@ class _TodayReward extends StatelessWidget {
       runSpacing: cs(8),
       children: [
         const CsLabel("Today's drop"),
-        CsCoins(reward.coins, prefix: '+', size: 14),
+        CsPop(
+          trigger: collected,
+          peak: 1.2,
+          alignment: Alignment.centerLeft,
+          child: CsCoins(reward.coins, prefix: '+', size: 14),
+        ),
         if (reward.bonusItem != null)
-          CsChip(reward.bonusItem!, kind: CsChipKind.gold, icon: Symbols.redeem_rounded, size: 10),
+          CsPop(
+            trigger: collected,
+            peak: 1.12,
+            child: CsChip(reward.bonusItem!, kind: CsChipKind.gold, icon: Symbols.redeem_rounded, size: 10),
+          ),
       ],
     );
   }

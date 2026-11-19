@@ -253,6 +253,7 @@ class CsPop extends StatefulWidget {
     this.peak = 1.12,
     this.duration = CsMotion.pop,
     this.playOnMount = false,
+    this.delay = Duration.zero,
     this.alignment = Alignment.center,
     this.reduceMotion,
   });
@@ -267,6 +268,10 @@ class CsPop extends StatefulWidget {
 
   /// Also pop when first built (a star appearing, a reward card arriving).
   final bool playOnMount;
+
+  /// Wait this long before the [playOnMount] pop (e.g. until a staggered
+  /// entrance has landed). Trigger changes always pop at once.
+  final Duration delay;
   final Alignment alignment;
 
   /// Overrides [CsReduceMotion.of] (tests).
@@ -281,6 +286,7 @@ class _CsPopState extends State<CsPop> with SingleTickerProviderStateMixin {
       AnimationController(vsync: this, duration: widget.duration, value: 1);
   late Animation<double> _scale = _buildScale();
   bool _mountChecked = false;
+  Timer? _delayTimer;
 
   Animation<double> _buildScale() => TweenSequence<double>([
         TweenSequenceItem(
@@ -300,7 +306,15 @@ class _CsPopState extends State<CsPop> with SingleTickerProviderStateMixin {
     super.didChangeDependencies();
     if (_mountChecked) return;
     _mountChecked = true;
-    if (widget.playOnMount && !_reduce) _c.forward(from: 0);
+    if (!widget.playOnMount || _reduce) return;
+    if (widget.delay <= Duration.zero) {
+      _c.forward(from: 0);
+    } else {
+      _c.value = 1;
+      _delayTimer = Timer(widget.delay, () {
+        if (mounted) _c.forward(from: 0);
+      });
+    }
   }
 
   @override
@@ -308,11 +322,15 @@ class _CsPopState extends State<CsPop> with SingleTickerProviderStateMixin {
     super.didUpdateWidget(old);
     if (old.peak != widget.peak) _scale = _buildScale();
     if (old.duration != widget.duration) _c.duration = widget.duration;
-    if (old.trigger != widget.trigger && !_reduce) _c.forward(from: 0);
+    if (old.trigger != widget.trigger && !_reduce) {
+      _delayTimer?.cancel();
+      _c.forward(from: 0);
+    }
   }
 
   @override
   void dispose() {
+    _delayTimer?.cancel();
     _c.dispose();
     super.dispose();
   }
