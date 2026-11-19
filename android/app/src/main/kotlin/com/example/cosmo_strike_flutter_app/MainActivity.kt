@@ -39,27 +39,25 @@ class MainActivity : FlutterActivity() {
         preferSixtyHz()
     }
 
-    // The game is built and tuned for 60 FPS. On 90/120 Hz panels ask for the
-    // display's 60 Hz mode (same resolution) so frame pacing, battery and
-    // heat match what we test. It's a window hint: the system may still
-    // override it (power saving, a forced-peak developer option), and
-    // single-rate displays are unaffected.
+    // The game is built and tuned for 60 FPS. On 90/120 Hz panels ask the
+    // window for 60 Hz so frame pacing, battery and heat match what we test.
+    //
+    // preferredRefreshRate, NOT preferredDisplayModeId: on One UI (Galaxy
+    // A24) Display.supportedModes only lists the ACTIVE mode, so a 60 Hz mode
+    // id can't be found and the system kept 90 Hz. The rate hint is honoured
+    // (SurfaceFlinger vsync 16.67 ms). Android drops window display
+    // preferences while backgrounded, so re-apply it on every resume. It's a
+    // hint: power saving or a forced-peak developer option can override it.
+    override fun onResume() {
+        super.onResume()
+        preferSixtyHz()
+    }
+
     private fun preferSixtyHz() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
-        @Suppress("DEPRECATION")
-        val display = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else null)
-            ?: windowManager.defaultDisplay
-            ?: return
-        val current = display.mode
-        val sixty = display.supportedModes
-            .filter {
-                it.physicalWidth == current.physicalWidth &&
-                    it.physicalHeight == current.physicalHeight
-            }
-            .minByOrNull { kotlin.math.abs(it.refreshRate - 60f) }
-            ?: return
-        if (sixty.modeId == window.attributes.preferredDisplayModeId) return
-        window.attributes = window.attributes.apply { preferredDisplayModeId = sixty.modeId }
+        val attrs = window.attributes
+        if (attrs.preferredRefreshRate == 60f) return
+        attrs.preferredRefreshRate = 60f
+        window.attributes = attrs
     }
 
     // Android 10 (SDK 29) renders with Skia instead of Impeller.
