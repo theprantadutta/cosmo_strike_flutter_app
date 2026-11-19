@@ -216,6 +216,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
 
   /// Check and show daily bonus popup if available.
   /// Offline-first: reads CoinsCubit's local state. No network call.
+  static bool _bonusOfferedThisSession = false;
+
   Future<void> _checkDailyBonus() async {
     if (!mounted) return;
 
@@ -270,6 +272,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       }
 
       if (status == null || !status.canClaim || !mounted) return;
+      // Offer the drop once per app session: the queue re-runs every time
+      // Home comes back on top, and a dismissed drop popping up on each
+      // return reads as nagging. It's offered again on the next launch.
+      if (_bonusOfferedThisSession) return;
+      _bonusOfferedThisSession = true;
 
       final theme = context.read<ThemeCubit>().state.currentTheme;
 

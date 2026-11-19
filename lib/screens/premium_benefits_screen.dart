@@ -342,7 +342,13 @@ class _PremiumActiveBlock extends StatelessWidget {
       children: [
         const CsChip('Command', kind: CsChipKind.gold, icon: Symbols.workspace_premium_rounded),
         SizedBox(height: cs(16)),
-        CsHeadline(const ['Command\n', 'active.'], prismIndex: 1, maxLines: 2, style: t.title),
+        // Scale down rather than wrap: on phones "Command" alone is wider
+        // than the column and broke mid-word ("Comman / d").
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: CsHeadline(const ['Command\n', 'active.'], prismIndex: 1, maxLines: 2, style: t.title),
+        ),
         SizedBox(height: cs(14)),
         Text(
           'Strike Command is active. Every perk on the right applies to this account.',
