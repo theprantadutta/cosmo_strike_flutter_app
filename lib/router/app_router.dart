@@ -177,7 +177,7 @@ GoRouter createAppRouter({List<NavigatorObserver>? observers}) => GoRouter(
     GoRoute(
       path: AppRoutes.settings,
       name: 'settings',
-      pageBuilder: (context, state) => _zoomPage(state, const SettingsScreen()),
+      pageBuilder: (context, state) => _zoomPage(state, SettingsScreen(fromRun: state.extra == true)),
     ),
     GoRoute(
       path: AppRoutes.statistics,
