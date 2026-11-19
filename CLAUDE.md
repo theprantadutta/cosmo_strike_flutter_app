@@ -235,7 +235,35 @@ labels or screenshots, update those pages too: they only make claims the
 app really backs. The backend must be redeployed on the VPS for page
 changes to go live.
 
+### macOS: first iOS build after 3.5.0 (Nov 2026)
+Android shipped 3.4.0 / 3.5.0 from Windows; iOS hasn't been built since.
+- **Pods:** 3.4.0 added `gma_mediation_unity` + `gma_mediation_liftoffmonetize`
+  (Unity Ads / Liftoff bidding, already mapped in AdMob's iOS mediation
+  groups). Run `cd ios && pod install --repo-update` before building.
+  The 171 SKAdNetwork IDs they need are already in `ios/Runner/Info.plist`.
+- **60 FPS cap:** `CADisableMinimumFrameDurationOnPhone` is now `false` on
+  purpose, so iPhones run at 60 Hz (the game is tuned and profiled at 60 only;
+  Android does the same via `preferredRefreshRate` in `MainActivity`). Don't
+  flip it back. ProMotion iPads can still run 120 Hz.
+- **Paywall perks:** the shared `StrikeCommandOffer` no longer lists "Lucky
+  draw: rarer pickups" or "More in-flight pickups": the game never
+  implemented them. Make sure the App Store Connect subscription
+  descriptions / promotional text don't claim them either.
+- **Liftoff iOS app** is still "not live yet" in Liftoff (store link pending).
+- **Release-test on an iPhone:** both Strike Command entry points (Home →
+  Command, Armory → Command) show the same plans, trial and price line; the
+  Supply Drop shows once per launch and stays closed; the HUD/pause/quit
+  confirm look right.
+
 ## Workflow
+- **Profiling / demo mode:** `flutter build apk --release
+  --dart-define=COSMO_AUTOPILOT=true [--dart-define=COSMO_AUTOPILOT_LEVEL=N]`
+  boots straight into an invincible autopilot run that loops through the
+  levels and never saves progress. `lib/debug/perf_monitor.dart` logs
+  `[PERF]` (fps, build/raster percentiles, frames over the 16.7 ms budget)
+  and `[PERF-SLOW]` (which scene each slow frame belonged to) to logcat
+  every 5 s: `adb logcat -s flutter:I | grep PERF`. Release-signed so it
+  installs over the store build. Never ship with the define.
 - Run `flutter analyze <file>` after edits and fix until **"No issues found!"**
   before committing.
 - ⚠️ **`dart run flutter_native_splash:create` rewrites AndroidManifest.xml and
