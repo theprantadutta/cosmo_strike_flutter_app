@@ -247,8 +247,36 @@ Android shipped 3.4.0 / 3.5.0 from Windows; iOS hasn't been built since.
   flip it back. ProMotion iPads can still run 120 Hz.
 - **Paywall perks:** the shared `StrikeCommandOffer` no longer lists "Lucky
   draw: rarer pickups" or "More in-flight pickups": the game never
-  implemented them. Make sure the App Store Connect subscription
-  descriptions / promotional text don't claim them either.
+  implemented them. The ONLY real Strike Command perks are: no ads; every
+  Livery, Exhaust and Sector; 1.5× credits; the Frontline Command lane
+  (plus the Tactical Gear / Cup Pass resupply the offer lists). Nobody is
+  subscribed to anything (owner, Nov 2026).
+- **App Store Connect cleanup to mirror what was done on Google Play
+  (2026-11-19). Use Claude in Chrome on appstoreconnect.apple.com → Cosmo
+  Strike → Monetization:**
+  - *Subscriptions → Strike Command group* (`command_monthly`,
+    `command_annual`): check each localization's Display Name and
+    Description and the group's display name. Remove any claim beyond the
+    real perks above (no "Lucky draw", no "pickups", no Snake-era words:
+    skins/trails/themes/coins/Battle Pass/tournament). Play's versions list
+    no benefits at all.
+  - *Old Pro subscriptions* (`pro_monthly` / `pro_yearly`, pre-3.2
+    "Cosmo Strike Pro"): on Play their base plans are inactive, so they
+    can't be bought; their benefits were cut to just "No ads" and they were
+    renamed "Retired - Cosmo Strike Pro Monthly/Yearly". On App Store
+    Connect, remove them from sale (or leave them unavailable) and replace
+    any Snake-era description the same way. The app only uses these IDs to
+    label old purchase-history rows (`settings_screen._getTypeFromProductId`),
+    so retiring them is safe.
+  - *In-App Purchases:* Play has 33 one-time products, all already on the
+    3.2 names (Cup Passes, Fleet Kits, Sectors, Exhausts, Liveries, Credits;
+    see `docs/rebrand/REBRAND_SPEC.md`). Confirm the iOS display names and
+    descriptions match and none still say skins/trails/themes/coins.
+  - *App Store description / promotional text:* the Play listing describes
+    Strike Command as "no ads, every Livery, Exhaust and Sector, 1.5×
+    credits and the Frontline Command lane" — use the same claims.
+  - Don't change prices, product IDs or availability of the live
+    `command_*` products.
 - **Liftoff iOS app** is still "not live yet" in Liftoff (store link pending).
 - **Release-test on an iPhone:** both Strike Command entry points (Home →
   Command, Armory → Command) show the same plans, trial and price line; the
