@@ -1,6 +1,5 @@
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter/services.dart';
 
 import '../../game/run_upgrades.dart';
 import 'run_stat_tiles.dart';
@@ -32,7 +31,8 @@ class _UpgradeDraftOverlayState extends State<UpgradeDraftOverlay> {
 
   void _pick(UpgradeId id) {
     if (_picked != null) return;
-    HapticFeedback.mediumImpact();
+    // The card's CsPressable already played its (Haptics-setting aware)
+    // medium tap.
     setState(() => _picked = id);
     // Let the chosen card's confirm pulse land before moving on.
     Future.delayed(const Duration(milliseconds: 420), () {
@@ -151,7 +151,13 @@ class _UpgradeCard extends StatelessWidget {
         duration: CsMotion.base,
         curve: CsMotion.emphasis,
         scale: state == _CardState.picked ? 1.04 : 1,
-        child: CsPressable(onTap: state == _CardState.idle ? onTap : null, semanticLabel: def.name, child: card),
+        child: CsPressable(
+          onTap: state == _CardState.idle ? onTap : null,
+          haptic: CsHaptic.medium,
+          semanticLabel: def.name,
+          // The picked card's prism ring turns; keep its repaint to itself.
+          child: RepaintBoundary(child: card),
+        ),
       ),
     );
   }
@@ -218,6 +224,10 @@ class _BuildStrip extends StatelessWidget {
   }
 }
 
+/// Deals card [index] in: drops 28 px onto its slot on `dropIn` while it
+/// fades (CsFadeUp: FadeTransition + a Transform on the cached card, no
+/// Opacity rebuilds), 120 ms after the previous card. Reduce motion: a plain
+/// 120 ms fade, no drop or stagger.
 class _DealIn extends StatelessWidget {
   const _DealIn({required this.index, required this.child});
   final int index;
@@ -225,15 +235,11 @@ class _DealIn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final start = 0.12 * index;
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 420 + 120 * index),
-      curve: Interval(start / (1 + start), 1, curve: CsMotion.emphasis),
-      builder: (_, v, c) => Opacity(
-        opacity: v.clamp(0.0, 1.0),
-        child: Transform.translate(offset: Offset(0, context.cs(28) * (1 - v)), child: c),
-      ),
+    return CsFadeUp(
+      delay: Duration(milliseconds: 120 * index),
+      distance: -28,
+      duration: CsMotion.gentle,
+      curve: CsMotion.dropIn,
       child: child,
     );
   }
