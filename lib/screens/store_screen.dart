@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_inapp_purchase/flutter_inapp_purchase.dart' as iap;
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/game/livery_decals.dart';
 import 'package:cosmo_strike_flutter_app/models/premium_cosmetics.dart';
@@ -19,7 +18,7 @@ import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
-import 'package:cosmo_strike_flutter_app/widgets/subscription_legal_links.dart';
+import 'package:cosmo_strike_flutter_app/widgets/strike_command_offer.dart';
 
 class StoreScreen extends StatefulWidget {
   final int initialTab;
@@ -61,9 +60,10 @@ class _StoreScreenState extends State<StoreScreen>
 
   static const _tabLabels = _tabNames;
 
-  static const _tabIcons = [
+  /// null = the Credits coin glyph (`CsCoinGlyph`), not a Symbols icon.
+  static const List<IconData?> _tabIcons = [
     Symbols.workspace_premium_rounded,
-    Symbols.paid_rounded,
+    null,
     Symbols.rocket_rounded,
     Symbols.local_fire_department_rounded,
     Symbols.public_rounded,
@@ -208,11 +208,15 @@ class _StoreScreenState extends State<StoreScreen>
         ),
         child: Row(
           children: [
-            Icon(
-              _tabIcons[i],
-              size: cs(20),
-              color: on ? CsColors.gold : CsColors.ink45,
-            ),
+            // Credits uses the same gold coin as every balance/price.
+            if (_tabIcons[i] == null)
+              CsCoinGlyph(size: 20, opacity: on ? 1 : 0.55)
+            else
+              Icon(
+                _tabIcons[i],
+                size: cs(20),
+                color: on ? CsColors.gold : CsColors.ink45,
+              ),
             SizedBox(width: cs(12)),
             Flexible(
               child: Text(
@@ -472,9 +476,6 @@ class _StoreScreenState extends State<StoreScreen>
   // COMMAND TAB (Strike Command subscription)
   // ===========================================================================
 
-  static const _commandBenefitsLine =
-      'No ads · Every livery, exhaust & sector · 1.5× credits · Frontline Command lane';
-
   Widget _buildCommandTab(PremiumState premiumState) {
     // Drops any Command SKU from the pending set once PremiumCubit reports
     // hasPremium=true — the spinner on the plan cards stops the moment the
@@ -487,6 +488,14 @@ class _StoreScreenState extends State<StoreScreen>
     // with a convert CTA + the plan picker. Free → plan picker.
     final isPaidPro = premiumState.hasPremium && !premiumState.isOnPromo;
     final isTrial = premiumState.hasPremium && premiumState.isOnPromo;
+
+    // While one plan is mid-verify BOTH are disabled, so a second purchase
+    // can't start before the first one's VerifyPurchase response lands.
+    final pending = _pendingProductIds.contains(ProductIds.commandMonthly)
+        ? StrikeCommandPlan.monthly
+        : _pendingProductIds.contains(ProductIds.commandAnnual)
+            ? StrikeCommandPlan.annual
+            : null;
 
     return SingleChildScrollView(
       padding: EdgeInsets.only(bottom: cs(20)),
@@ -501,9 +510,7 @@ class _StoreScreenState extends State<StoreScreen>
           ),
           SizedBox(height: cs(8)),
           Text(
-            _commandBenefitsLine,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+            strikeCommandTagline,
             style: t.mono(11, em: 0.06, color: CsColors.ink55, height: 1.4),
           ),
           SizedBox(height: cs(18)),
@@ -513,175 +520,28 @@ class _StoreScreenState extends State<StoreScreen>
           ],
           if (!isPaidPro) ...[
             if (isTrial) _sectionLabel('Subscribe before the trial ends', first: true),
-            _buildPlanCards(),
-            SizedBox(height: cs(10)),
-          ],
-          _buildProFooter(),
-          _sectionLabel('Clearance includes'),
-          _buildProFeatureGrid(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlanCards() {
-    final cs = context.cs;
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: _buildProPlanCard(
-              title: 'Monthly',
-              productId: ProductIds.commandMonthly,
-              fallbackPrice: 4.99,
-              cadence: '/mo',
-              billedLabel: 'Billed monthly',
-              savingsLabel: null,
-              featured: false,
+            // The same offer as Home → COMMAND (PremiumBenefitsScreen).
+            StrikeCommandOffer(
+              busyPlan: pending,
+              busyLabel: 'Verifying…',
+              onSubscribe: pending != null
+                  ? null
+                  : (plan) => _purchaseSubscription(plan.productId, '${plan.label} plan'),
+              onRestore: _restorePurchases,
+              restoring: _restoring,
             ),
-          ),
-          SizedBox(width: cs(14)),
-          Expanded(
-            child: _buildProPlanCard(
-              title: 'Annual',
-              productId: ProductIds.commandAnnual,
-              fallbackPrice: 39.99,
-              cadence: '/yr',
-              billedLabel: 'Billed annually',
-              // Live from Play / App Store prices; hidden until both load.
-              savingsLabel: _yearlySavingsLabel(),
-              featured: true,
+          ] else
+            StrikeCommandFooter(onRestore: _restorePurchases, restoring: _restoring),
+          _sectionLabel(isPaidPro ? 'Unlocked with Strike Command' : 'Strike Command includes'),
+          LayoutBuilder(
+            builder: (context, c) => StrikeCommandFeatureList(
+              owned: isPaidPro,
+              columns: c.maxWidth >= cs(520) ? 2 : 1,
             ),
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildProPlanCard({
-    required String title,
-    required String productId,
-    required double fallbackPrice,
-    required String cadence,
-    required String billedLabel,
-    required String? savingsLabel,
-    required bool featured,
-  }) {
-    final cs = context.cs;
-    final t = cs.type;
-    final price =
-        PurchaseService().getStorePriceOrDefault(productId, fallbackPrice);
-    final trial = _freeTrialLabel(productId);
-    final isPending = _pendingProductIds.contains(productId);
-    // While a sibling plan card is mid-verify we disable BOTH plan cards so
-    // the user can't kick off a second purchase before the first one's
-    // VerifyPurchase response lands — that would double-charge and bug out
-    // the PremiumCubit's mid-flight state.
-    final anyProPending = _pendingProductIds.contains(ProductIds.commandMonthly) ||
-        _pendingProductIds.contains(ProductIds.commandAnnual);
-    final VoidCallback? onBuy = anyProPending
-        ? null
-        : () => _purchaseSubscription(productId, '$title plan');
-
-    final label = isPending ? 'Verifying…' : 'Subscribe';
-    final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(child: CsLabel(title)),
-            if (savingsLabel != null)
-              CsChip(savingsLabel, kind: CsChipKind.gold, size: 10),
-          ],
-        ),
-        SizedBox(height: cs(10)),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(price, maxLines: 1, style: t.display(34, em: -0.02, height: 1.1)),
-              Text(' $cadence', style: t.mono(12, em: 0, color: CsColors.ink45)),
-            ],
-          ),
-        ),
-        SizedBox(height: cs(8)),
-        Text(
-          trial ?? billedLabel,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: t.mono(11, em: 0.02, color: trial != null ? CsColors.mint : CsColors.ink45),
-        ),
-        SizedBox(height: cs(14)),
-        const Spacer(),
-        featured
-            ? CsButton.primary(label: label, expand: true, loading: isPending, onPressed: onBuy)
-            : CsButton.secondary(label: label, expand: true, loading: isPending, onPressed: onBuy),
-      ],
-    );
-
-    final Widget card = featured
-        ? CsPrismRing(
-            radius: CsRadius.card,
-            fill: CsColors.raised,
-            padding: EdgeInsets.all(cs(18.5)),
-            child: content,
-          )
-        : Container(
-            padding: EdgeInsets.all(cs(20)),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(CsRadius.card),
-              border: Border.all(color: CsColors.lineSubtle),
-            ),
-            child: content,
-          );
-    return CsPressable(onTap: onBuy, scale: 0.99, semanticLabel: '$title plan', child: card);
-  }
-
-  /// "N-day free trial" when the store product carries a free-trial offer
-  /// the user is eligible for; null otherwise (we never promise a trial the
-  /// store didn't return).
-  String? _freeTrialLabel(String productId) {
-    final product = PurchaseService().getProduct(productId);
-    if (product is! iap.ProductSubscription) return null;
-    final offers = switch (product) {
-      iap.ProductSubscriptionAndroid(:final subscriptionOffers) => subscriptionOffers,
-      iap.ProductSubscriptionIOS(:final subscriptionOffers) =>
-        subscriptionOffers ?? const <iap.SubscriptionOffer>[],
-    };
-    for (final offer in offers) {
-      final period = offer.period;
-      if (offer.paymentMode == iap.PaymentMode.FreeTrial && period != null) {
-        final unit = switch (period.unit) {
-          iap.SubscriptionPeriodUnit.Day => 'day',
-          iap.SubscriptionPeriodUnit.Week => 'week',
-          iap.SubscriptionPeriodUnit.Month => 'month',
-          iap.SubscriptionPeriodUnit.Year => 'year',
-          iap.SubscriptionPeriodUnit.Unknown => null,
-        };
-        final n = period.value * (offer.periodCount ?? 1);
-        return unit == null ? 'Free trial included' : '$n-$unit free trial';
-      }
-      // Play: a zero-priced, non-recurring pricing phase is the trial.
-      for (final phase in offer.pricingPhasesAndroid?.pricingPhaseList ??
-          const <iap.PricingPhaseAndroid>[]) {
-        if ((int.tryParse(phase.priceAmountMicros) ?? -1) != 0 ||
-            phase.recurrenceMode == 1) {
-          continue;
-        }
-        final m = RegExp(r'^P(\d+)([DWMY])$').firstMatch(phase.billingPeriod);
-        if (m == null) return 'Free trial included';
-        final cycles = phase.billingCycleCount > 0 ? phase.billingCycleCount : 1;
-        final n = int.parse(m.group(1)!) * cycles;
-        const units = {'D': 'day', 'W': 'week', 'M': 'month', 'Y': 'year'};
-        return '$n-${units[m.group(2)]} free trial';
-      }
-    }
-    return null;
   }
 
   Widget _buildProStatus(PremiumState premiumState) {
@@ -722,49 +582,6 @@ class _StoreScreenState extends State<StoreScreen>
     );
   }
 
-  /// "Cancel anytime · Restore purchases" plus the auto-renew / Terms /
-  /// Privacy links App Review requires next to subscription offers.
-  Widget _buildProFooter() {
-    final cs = context.cs;
-    final t = cs.type;
-    final quiet = t.mono(10, em: 0.04, color: CsColors.ink45);
-    return Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        Text('Auto-renews · Cancel anytime  ·  ', style: quiet),
-        CsPressable(
-          onTap: _restoring ? null : _restorePurchases,
-          semanticLabel: 'Restore purchases',
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 44),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Restore purchases',
-                  style: quiet.copyWith(
-                    color: CsColors.ink70,
-                    decoration: TextDecoration.underline,
-                    decorationColor: CsColors.ink30,
-                  ),
-                ),
-                if (_restoring) ...[
-                  SizedBox(width: cs(8)),
-                  SizedBox.square(
-                    dimension: cs(10),
-                    child: const CircularProgressIndicator(strokeWidth: 1.5, color: CsColors.ink60),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        Text('  ·  ', style: quiet),
-        const SubscriptionLegalLinks(compact: true),
-      ],
-    );
-  }
-
   /// Human-friendly countdown for promo expiry — "Ends in 2d 5h" / "Ends in
   /// 14h 20m" / "Ends in 32m" / "Ending soon". Negative durations
   /// (race between sync + revoke job) fall back to "Ending soon".
@@ -779,77 +596,6 @@ class _StoreScreenState extends State<StoreScreen>
     if (days > 0) return 'Ends in ${days}d ${hours}h';
     if (hours > 0) return 'Ends in ${hours}h ${minutes}m';
     return 'Ends in ${minutes}m';
-  }
-
-  Widget _buildProFeatureGrid() {
-    // Honest list — every line maps to an entitlement that's actually
-    // granted. 'No ads' is real: AdService is subscription-gated so
-    // subscribers / trial users never see banners, interstitials, or
-    // rewarded offers.
-    final features = [
-      (Symbols.block_rounded, 'No ads. Fly completely ad-free'),
-      (Symbols.public_rounded, 'All ${PremiumContent.premiumThemes.length} premium Sectors'),
-      (Symbols.rocket_rounded,
-          'All ${LiveryType.values.where((l) => l.isPremium).length} premium liveries'),
-      (Symbols.local_fire_department_rounded,
-          'All ${ExhaustType.values.where((e) => e.isPremium).length} premium exhausts'),
-      (Symbols.paid_rounded, '1.5× credit earnings'),
-      (Symbols.bolt_rounded, '5× Tactical Gear every cycle'),
-      (Symbols.confirmation_number_rounded, 'Scout, Strike and Ace Cup Passes each cycle'),
-      (Symbols.workspace_premium_rounded, 'Frontline Command lane every season'),
-    ];
-    return LayoutBuilder(
-      builder: (context, c) {
-        final cs = context.cs;
-        final t = cs.type;
-        final twoCols = c.maxWidth >= cs(520);
-        Widget row((IconData, String) f) => Container(
-              constraints: const BoxConstraints(minHeight: 44),
-              padding: EdgeInsets.symmetric(vertical: cs(10)),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: CsColors.hairline)),
-              ),
-              child: Row(
-                children: [
-                  Icon(f.$1, size: cs(18), color: CsColors.ink45),
-                  SizedBox(width: cs(12)),
-                  Expanded(
-                    child: Text(
-                      f.$2,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: t.body.copyWith(color: CsColors.ink),
-                    ),
-                  ),
-                  SizedBox(width: cs(8)),
-                  Icon(Symbols.check_circle_rounded, size: cs(16), color: CsColors.mint),
-                ],
-              ),
-            );
-        if (!twoCols) {
-          return Column(children: [for (final f in features) row(f)]);
-        }
-        return Column(
-          children: [
-            for (var i = 0; i < features.length; i += 2)
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(child: row(features[i])),
-                    SizedBox(width: cs(24)),
-                    Expanded(
-                      child: i + 1 < features.length
-                          ? row(features[i + 1])
-                          : const SizedBox.shrink(),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        );
-      },
-    );
   }
 
   /// Every paid path on this screen funnels through this check. Guests
@@ -1309,12 +1055,6 @@ class _StoreScreenState extends State<StoreScreen>
         if (productId != null) _purchaseSectorProduct(productId, target.displayName);
       },
     );
-  }
-
-  /// "Save N%" for annual vs 12× monthly, from live store prices.
-  String? _yearlySavingsLabel() {
-    final pct = PurchaseService().yearlySavingsPercent(ProductIds.commandMonthly, ProductIds.commandAnnual);
-    return pct == null ? null : 'Save $pct%';
   }
 
   static final List<String> _premiumSectorIds = [
