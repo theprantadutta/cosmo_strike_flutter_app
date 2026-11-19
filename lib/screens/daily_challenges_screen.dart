@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:cosmo_strike_flutter_app/widgets/directives/goal_panel.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cosmo_strike_flutter_app/models/daily_challenge.dart';
@@ -111,8 +112,11 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
     final claimCoins = claimable.fold<int>(0, (s, c) => s + c.coinReward);
     final claimXp = claimable.fold<int>(0, (s, c) => s + c.xpReward);
 
+    // Cards claim one at a time; once all 3 are done the goal panel's
+    // "Claim all + bonus" takes over, so this shortcut only shows for
+    // partial days (it also opens the rewarded "watch to 2×" offer).
     Widget? action;
-    if (state.hasUnclaimedRewards) {
+    if (state.hasUnclaimedRewards && !state.allCompleted) {
       action = CsButton.primary(
         label: 'Claim all · $claimCoins CR + $claimXp XP',
         icon: Symbols.redeem_rounded,
@@ -131,16 +135,11 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
     return CsSplit(
       // Inline banner in the summary column (no full-width banners).
       leftFooter: ColumnBannerAd(maxHeight: context.cs.isTablet ? 100 : 60),
-      left: ChallengeSummary(
-        completed: state.completedCount,
-        total: state.totalCount,
-        ringLabel: 'Today',
-        action: action,
-        rules: const [
-          'New orders at 00:00',
-          'Credits + XP per directive',
-          'XP raises your Pilot Rank',
-          'Clear all 3 for a bonus',
+      left: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Expanded(child: DirectivesGoalPanel()),
+          if (action != null) ...[SizedBox(height: context.cs(10)), action],
         ],
       ),
       right: RefreshIndicator(
@@ -163,12 +162,6 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
                 entrance: _entrance,
                 onClaim: _claimReward,
                 onFly: () => launchNextSortie(context),
-                bonusStrip: state.allCompleted
-                    ? DirectivesBonusStrip(
-                        bonusCoins: state.bonusCoins,
-                        claimed: state.isBonusClaimed,
-                      )
-                    : null,
                 weeklyStrip: ListenableBuilder(
                   listenable: WeeklyQuestService(),
                   builder: (context, _) {

@@ -152,8 +152,20 @@ class _ResetCountdownState extends State<_ResetCountdown> {
     var left = widget.nextReset().difference(DateTime.now());
     if (left.isNegative) left = Duration.zero;
     final time = _format(left);
-    return widget.compact
+    // Reserve the width of the longest label (the weekly "0D hh:mm:ss"
+    // form) so switching tabs never shifts the segmented control beside it.
+    final widest = widget.compact
+        ? const CsMeta('0D 00:00:00', icon: Symbols.schedule_rounded)
+        : const CsMeta('Resets in 0D 00:00:00');
+    final current = widget.compact
         ? CsMeta(time, icon: Symbols.schedule_rounded)
         : CsMeta('Resets in $time');
+    return Stack(
+      alignment: Alignment.centerRight,
+      children: [
+        Visibility(visible: false, maintainSize: true, maintainAnimation: true, maintainState: true, child: widest),
+        current,
+      ],
+    );
   }
 }
