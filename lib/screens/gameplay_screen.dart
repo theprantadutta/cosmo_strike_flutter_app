@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../data/database/app_database.dart';
+import '../debug/demo_mode.dart';
 import '../game/components/power_up.dart';
 import '../game/levels/level_def.dart';
 import '../game/cosmo_strike_game.dart';
@@ -252,7 +253,8 @@ class _GameplayScreenState extends State<GameplayScreen>
     // must fly the same for everyone). The service is hydrated in main()
     // so this sync read is always safe.
     final walkthroughs = WalkthroughService();
-    _tutorialRun = RunContext.runsTutorial(
+    _tutorialRun = !DemoMode.enabled &&
+        RunContext.runsTutorial(
       startLevel: widget.startLevel,
       tutorialPending:
           walkthroughs.isInitialized &&
@@ -286,9 +288,12 @@ class _GameplayScreenState extends State<GameplayScreen>
     // The selected game mode is a MODIFIER on top of the campaign level
     // (lives, pacing, enemy fire, drops, one-hit, Time Attack clock).
     // Snapshot at run start.
+    // Demo / profiling runs (DemoMode) are invincible, so they never
+    // report results: no scores, progress, coins or leaderboard entries.
     _game = CosmoStrikeGame(
-      onGameOver: _handleGameOver,
-      onLevelCleared: _handleLevelCleared,
+      onGameOver: DemoMode.enabled ? null : _handleGameOver,
+      onLevelCleared: DemoMode.enabled ? null : _handleLevelCleared,
+      autopilot: DemoMode.enabled,
       mode: _mode,
       seed: _dailySeed,
       hangar: HangarService.instance.loadout,
@@ -303,6 +308,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       selectedTrailId: premium.selectedTrailId,
       trailEffectsEnabled: themeState.trailSystemEnabled,
     );
+    if (DemoMode.enabled) _game.phaseNotifier.addListener(_demoOnPhase);
     if (_tutorialRun) {
       _game.onTutorialStep = (beat, completed) {
         final analytics = GetIt.I<AnalyticsFacade>();
@@ -737,6 +743,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// partial run so campaign progress (bestWaveReached, cleared levels)
   /// survives, submit the aborted score for forensics. No coin/XP rewards.
   void _persistAbandonedRun() {
+    if (DemoMode.enabled) return;
     if (!_quitPersisted && _game.phase != GamePhase.gameOver) {
       _quitPersisted = true;
       // Quitting keeps the points earned so far as a high-score candidate.
@@ -762,6 +769,29 @@ class _GameplayScreenState extends State<GameplayScreen>
     try {
       await context.read<GameSettingsCubit>().updateHighScore(_game.scoreNotifier.value);
     } catch (_) {}
+  }
+
+  /// Demo mode drives the between-level flow itself: auto-pick the first
+  /// upgrade (no ads), and after the run ends start over so the loop
+  /// covers every level indefinitely.
+  void _demoOnPhase() {
+    final phase = _game.phaseNotifier.value;
+    if (phase == GamePhase.levelClear) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!mounted || _game.phase != GamePhase.levelClear) return;
+        final options = _game.rollDraft();
+        if (options.isNotEmpty) _game.takeUpgrade(options.first.id);
+        _game.advanceToNextLevel();
+      });
+    } else if (phase == GamePhase.reviveOffer) {
+      _game.declineRevive();
+    } else if (phase == GamePhase.gameOver) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          context.pushReplacement(AppRoutes.game, extra: DemoMode.startLevel);
+        }
+      });
+    }
   }
 
   void _quitToHome() {

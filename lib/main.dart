@@ -14,6 +14,8 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' as riverpod;
 import 'package:provider/provider.dart';
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
+import 'package:cosmo_strike_flutter_app/debug/demo_mode.dart';
+import 'package:cosmo_strike_flutter_app/debug/perf_monitor.dart';
 import 'package:cosmo_strike_flutter_app/core/startup/startup_guard.dart';
 import 'package:cosmo_strike_flutter_app/core/startup/startup_reporter.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
@@ -160,6 +162,7 @@ void _installGlobalErrorHandlers() {
 void main() async {
   // Ensure Flutter is initialized and preserve splash screen
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  if (DemoMode.perfLog) PerfMonitor.instance.start();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   // Before any init step: errors from here on are buffered for Crashlytics.

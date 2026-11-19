@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../debug/demo_mode.dart';
 import '../utils/title_case.dart';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
@@ -112,6 +113,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   /// onboarding). Each step is a no-op once done, so re-running on every
   /// return to Home is cheap.
   Future<void> _runPromptQueue() async {
+    // Demo / profiling build: no prompts, straight into the autopilot run.
+    if (DemoMode.enabled) {
+      context.push(AppRoutes.playLoading, extra: DemoMode.startLevel);
+      return;
+    }
     if (_queueRunning || !mounted || !_onTop) return;
     _queueRunning = true;
     try {
