@@ -1,5 +1,5 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter/services.dart';
+import 'package:cosmo_strike_flutter_app/ui/cs.dart' show CsHaptic;
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:cosmo_strike_flutter_app/utils/direction.dart';
 
@@ -85,7 +85,7 @@ class _SwipeDetectorState extends State<SwipeDetector>
     });
 
     // Immediate haptic feedback
-    HapticFeedback.lightImpact();
+    CsHaptic.light.play(); // honours the Haptics setting
 
     // Visual feedback with longer display time
     if (widget.showFeedback) {
@@ -191,7 +191,7 @@ class _SwipeDetectorState extends State<SwipeDetector>
         _hasTriggeredThisGesture = false;
       },
       onTap: () {
-        HapticFeedback.selectionClick();
+        CsHaptic.selection.play();
         widget.onTap?.call(); // Call external tap handler (e.g., toggle pause)
       },
       child: Stack(
