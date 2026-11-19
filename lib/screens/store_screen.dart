@@ -17,6 +17,7 @@ import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dar
 import 'package:cosmo_strike_flutter_app/services/purchase_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
+import 'package:cosmo_strike_flutter_app/widgets/list_entrance.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 import 'package:cosmo_strike_flutter_app/widgets/strike_command_offer.dart';
 
@@ -43,6 +44,11 @@ class _StoreScreenState extends State<StoreScreen>
 
   /// True while a "Restore purchases" request is in flight.
   bool _restoring = false;
+
+  /// One first-open stagger per Armory tab, so each tab's grid fades up the
+  /// first time it is shown (and never again on scroll).
+  final _entrances = <int, ListEntrance>{};
+  ListEntrance _entranceFor(int tab) => _entrances.putIfAbsent(tab, ListEntrance.new);
 
   // Armory tab order (REBRAND_SPEC §1): Command / Credits / Liveries /
   // Exhausts / Sectors / Gear / Cup Passes. `?tab=N` deep links index into
@@ -309,12 +315,15 @@ class _StoreScreenState extends State<StoreScreen>
   Widget _tileGrid({
     required int count,
     required IndexedWidgetBuilder itemBuilder,
+    required int tab,
+    int indexOffset = 0,
     double minTile = 170,
     double extent = 236,
     int maxColumns = 5,
     int minColumns = 2,
     int? maxColumnsTablet,
   }) {
+    final entrance = _entranceFor(tab);
     return SliverLayoutBuilder(
       builder: (context, constraints) {
         final cs = context.cs;
@@ -330,7 +339,10 @@ class _StoreScreenState extends State<StoreScreen>
             crossAxisSpacing: gap,
             mainAxisExtent: cs(extent),
           ),
-          delegate: SliverChildBuilderDelegate(itemBuilder, childCount: count),
+          delegate: SliverChildBuilderDelegate(
+            (context, i) => entrance.wrap(indexOffset + i, itemBuilder(context, i)),
+            childCount: count,
+          ),
         );
       },
     );
@@ -674,6 +686,7 @@ class _StoreScreenState extends State<StoreScreen>
       _box(_tabHeader('Credits', subtitle: 'Requisition a Credit Cache, or earn credits in the field.')),
       _box(_sectionLabel('Credit Caches', first: true)),
       _tileGrid(
+        tab: 1,
         count: options.length,
         minTile: 140,
         extent: 214,
@@ -829,11 +842,14 @@ class _StoreScreenState extends State<StoreScreen>
       if (!premiumState.hasPremium) _box(_buildSectorAtlasTile(premiumState)),
       _box(_sectionLabel('Premium sectors')),
       _tileGrid(
+        tab: 4,
         count: premiumSectors.length,
         itemBuilder: (context, i) => _buildSectorTile(premiumSectors[i], theme, premiumState),
       ),
       _box(_sectionLabel('Free sectors', note: 'Always cleared. Switch back any time.')),
       _tileGrid(
+        tab: 4,
+        indexOffset: 4,
         count: freeSectors.length,
         itemBuilder: (context, i) => _buildSectorTile(freeSectors[i], theme, premiumState),
       ),
@@ -1150,14 +1166,15 @@ class _StoreScreenState extends State<StoreScreen>
       // Fleet Kits. Strike Command already includes every cosmetic.
       if (!premiumState.hasPremium) ...[
         _box(_sectionLabel('Fleet Kits', first: true, note: 'Liveries and exhausts together, for less.')),
-        for (final kit in FleetKit.availableKits)
-          _box(Padding(
+        for (final (i, kit) in FleetKit.availableKits.indexed)
+          _box(_entranceFor(2).wrap(i, Padding(
             padding: EdgeInsets.only(bottom: context.cs(8)),
             child: _buildFleetKitTile(kit, premiumState),
-          )),
+          ))),
         _box(_sectionLabel('Liveries')),
       ],
       _tileGrid(
+        tab: 2,
         count: liveries.length,
         itemBuilder: (context, index) {
           final livery = liveries[index];
@@ -1211,6 +1228,7 @@ class _StoreScreenState extends State<StoreScreen>
       )),
       _box(_buildCommandIncludedRow(premiumState, 'exhausts')),
       _tileGrid(
+        tab: 3,
         count: exhausts.length,
         itemBuilder: (context, index) {
           final exhaust = exhausts[index];
@@ -1350,6 +1368,7 @@ class _StoreScreenState extends State<StoreScreen>
           _box(_buildFreeGearAdRow()),
           _box(_sectionLabel('Gear')),
           _tileGrid(
+            tab: 5,
             count: gear.length,
             extent: 214,
             itemBuilder: (context, i) => _buildGearTile(gear[i], powerUpState),
@@ -1359,6 +1378,8 @@ class _StoreScreenState extends State<StoreScreen>
             note: 'Stock several systems at once, for fewer credits.',
           )),
           _tileGrid(
+            tab: 5,
+            indexOffset: 4,
             count: bundles.length,
             minTile: 300,
             extent: 200,
@@ -1384,6 +1405,7 @@ class _StoreScreenState extends State<StoreScreen>
       )),
       _box(_sectionLabel('Requisition passes', first: true)),
       _tileGrid(
+        tab: 6,
         count: _visibleCupPasses.length,
         minTile: 150,
         extent: 214,

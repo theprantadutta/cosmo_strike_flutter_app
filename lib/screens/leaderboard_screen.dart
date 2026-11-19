@@ -11,6 +11,7 @@ import 'package:cosmo_strike_flutter_app/data/database/app_database.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/widgets/list_entrance.dart';
 import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 import 'package:cosmo_strike_flutter_app/utils/number_format.dart';
@@ -29,6 +30,9 @@ class LeaderboardScreen extends ConsumerStatefulWidget {
 class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   _Board _board = _Board.global;
 
+  /// Rows stagger in on first open and again when switching boards.
+  final _entrance = ListEntrance();
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +48,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
       return;
     }
     if (board == _board) return;
+    _entrance.restart();
     setState(() => _board = board);
     getIt<AnalyticsFacade>().trackLeaderboardViewed(board == _Board.weekly ? 'weekly' : 'global');
   }
@@ -297,6 +302,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
       color: CsColors.ink,
       backgroundColor: CsColors.raised,
       child: ListView.builder(
+        key: ValueKey(_board),
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.zero,
         itemCount: entries.length,
@@ -307,7 +313,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
           // Prefer the stable username over the display name, which can be
           // missing for anonymous users and changes with the Google profile.
           final name = (player['username'] ?? player['displayName'] ?? 'Unknown pilot') as String;
-          return _RankRow(
+          return _entrance.wrap(index, _RankRow(
             rank: index + 1,
             name: name,
             photoUrl: player['photoURL'] as String?,
@@ -315,7 +321,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
             score: formatThousands((player['highScore'] ?? 0) as int),
             isYou: isCurrentUser,
             isGuest: player['isAnonymous'] == true,
-          );
+          ));
         },
       ),
     );

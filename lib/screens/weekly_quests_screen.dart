@@ -8,6 +8,7 @@ import 'package:cosmo_strike_flutter_app/screens/daily_challenges_screen.dart'
 import 'package:cosmo_strike_flutter_app/services/weekly_quest_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/directives_empty_state.dart';
+import 'package:cosmo_strike_flutter_app/widgets/list_entrance.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
@@ -24,6 +25,9 @@ class WeeklyQuestsBody extends StatefulWidget {
 
 class _WeeklyQuestsBodyState extends State<WeeklyQuestsBody> {
   final WeeklyQuestService _service = WeeklyQuestService();
+
+  /// Rows stagger in on first open only.
+  final _entrance = ListEntrance();
 
   @override
   void initState() {
@@ -116,7 +120,7 @@ class _WeeklyQuestsBodyState extends State<WeeklyQuestsBody> {
                         itemBuilder: (context, i) {
                           if (i == 0) return const CsHairline();
                           final quest = quests[i - 1];
-                          return ChallengeRow(
+                          return _entrance.wrap(i - 1, key: ValueKey(quest.id), ChallengeRow(
                             title: quest.displayTitle,
                             description: quest.displayDescription,
                             difficulty: quest.difficulty,
@@ -130,7 +134,7 @@ class _WeeklyQuestsBodyState extends State<WeeklyQuestsBody> {
                             xpReward: quest.battlePassXpReward,
                             xpUnit: ' FL XP',
                             onClaim: () => _claimReward(quest),
-                          );
+                          ));
                         },
                       );
                     },

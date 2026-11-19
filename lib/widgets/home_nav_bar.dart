@@ -6,6 +6,9 @@ import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 /// Home's bottom navigation: equal-width [HomeNavItem] cells over a
 /// hairline. A flat canvas fill keeps the labels off the eclipse art
 /// behind (its orbit line used to run through them).
+///
+/// The cells fade up in a short stagger when the bar first mounts. Home
+/// stays mounted under pushed routes, so coming back never replays it.
 class HomeNavBar extends StatelessWidget {
   const HomeNavBar({super.key, required this.items});
   final List<Widget> items;
@@ -21,7 +24,10 @@ class HomeNavBar extends StatelessWidget {
         padding: EdgeInsets.only(top: context.cs(4)),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [for (final item in items) Expanded(child: item)],
+          children: [
+            for (final (i, item) in items.indexed)
+              Expanded(child: CsFadeUp(index: i, distance: 8, child: item)),
+          ],
         ),
       ),
     );
@@ -85,17 +91,28 @@ class HomeNavItem extends StatelessWidget {
                             Positioned(
                               right: -cs(2),
                               top: -cs(1),
-                              child: Container(
-                                width: cs(6),
-                                height: cs(6),
-                                decoration: const BoxDecoration(color: CsColors.gold, shape: BoxShape.circle),
+                              // Pops in when a reward becomes ready.
+                              child: CsPop(
+                                trigger: dot,
+                                playOnMount: true,
+                                peak: 1.4,
+                                child: Container(
+                                  width: cs(6),
+                                  height: cs(6),
+                                  decoration: const BoxDecoration(color: CsColors.gold, shape: BoxShape.circle),
+                                ),
                               ),
                             ),
                         ],
                       ),
                       if (badge != null) ...[
                         SizedBox(width: cs(5)),
-                        Text(badge!, maxLines: 1, style: t.mono(10, color: badgeColor, em: 0.04)),
+                        // Pops when the progress / tier changes.
+                        CsPop(
+                          trigger: badge,
+                          peak: 1.18,
+                          child: Text(badge!, maxLines: 1, style: t.mono(10, color: badgeColor, em: 0.04)),
+                        ),
                       ],
                     ],
                   ),

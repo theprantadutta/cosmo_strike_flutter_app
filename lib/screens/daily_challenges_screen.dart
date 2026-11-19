@@ -10,6 +10,7 @@ import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/directives_empty_state.dart';
+import 'package:cosmo_strike_flutter_app/widgets/list_entrance.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
 
@@ -29,6 +30,9 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
   /// Coins from the last CLAIM ALL that can still be doubled via a rewarded
   /// ad. Null = no offer. Single use.
   int? _doubleOfferCoins;
+
+  /// Rows stagger in on first open only.
+  final _entrance = ListEntrance();
 
   Future<void> _refreshChallenges() async {
     await ref.read(dailyChallengesProvider.notifier).refresh();
@@ -159,8 +163,8 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
               padding: EdgeInsets.only(bottom: cs(12)),
               children: [
                 const CsHairline(),
-                for (final ch in challenges)
-                  ChallengeRow(
+                for (final (i, ch) in challenges.indexed)
+                  _entrance.wrap(i, key: ValueKey(ch.id), ChallengeRow(
                     title: ch.displayTitle,
                     description: ch.displayDescription,
                     difficulty: ch.difficulty,
@@ -173,8 +177,8 @@ class _DailyChallengesBodyState extends ConsumerState<DailyChallengesBody> {
                     coinReward: ch.coinReward,
                     xpReward: ch.xpReward,
                     onClaim: () => _claimReward(ch),
-                  ),
-                if (state.allCompleted) _BonusRow(state: state),
+                  )),
+                if (state.allCompleted) _entrance.wrap(challenges.length, _BonusRow(state: state)),
               ],
             );
           },
@@ -409,11 +413,15 @@ class ChallengeRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Symbols.check_circle_rounded,
-            size: cs(26),
-            fill: isCompleted ? 1 : 0,
-            color: isCompleted ? CsColors.mint : CsColors.ink25,
+          CsPop(
+            trigger: isCompleted || claimed,
+            peak: 1.2,
+            child: Icon(
+              Symbols.check_circle_rounded,
+              size: cs(26),
+              fill: isCompleted ? 1 : 0,
+              color: isCompleted ? CsColors.mint : CsColors.ink25,
+            ),
           ),
           SizedBox(width: cs(18)),
           Expanded(
@@ -474,7 +482,12 @@ class ChallengeRow extends StatelessWidget {
             ),
           ),
           SizedBox(width: cs(22)),
-          ConstrainedBox(
+          // Pops when the reward is claimed (the RewardToast brings the
+          // success haptic, so none is added here).
+          CsPop(
+            trigger: claimed,
+            alignment: Alignment.centerRight,
+            child: ConstrainedBox(
             constraints: BoxConstraints(minWidth: cs(84)),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -488,6 +501,7 @@ class ChallengeRow extends StatelessWidget {
                 if (action != null) ...[SizedBox(height: cs(10)), action],
               ],
             ),
+          ),
           ),
         ],
       ),
