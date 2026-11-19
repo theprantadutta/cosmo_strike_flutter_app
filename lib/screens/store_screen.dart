@@ -766,7 +766,7 @@ class _StoreScreenState extends State<StoreScreen>
             child: Text(
               '${option.totalCoins}',
               maxLines: 1,
-              style: t.display(26, em: -0.02, height: 1.1, color: CsColors.gold),
+              style: t.number(26, em: -0.02, height: 1.1, color: CsColors.gold),
             ),
           ),
           Text(
