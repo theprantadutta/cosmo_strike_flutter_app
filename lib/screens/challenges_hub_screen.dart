@@ -98,7 +98,10 @@ class _ChallengesHubScreenState extends ConsumerState<ChallengesHubScreen> {
           // reload or lose scroll position.
           body: IndexedStack(
             index: _tab,
-            children: const [DailyChallengesBody(), WeeklyQuestsBody()],
+            children: [
+              DailyChallengesBody(onOpenWeekly: () => setState(() => _tab = 1)),
+              const WeeklyQuestsBody(),
+            ],
           ),
         );
       },
