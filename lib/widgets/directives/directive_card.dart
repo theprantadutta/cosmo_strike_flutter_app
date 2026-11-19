@@ -197,7 +197,7 @@ class _CardBody extends StatelessWidget {
     final gapM = cs(6);
     // Title row + reward + bar and their gaps (the minimum middle column).
     final base = titleH + gapM + rewardH + gapM + barH;
-    final descLines = inner >= base + gapS + 2 * descLineH + cs(8)
+    final descLines = inner >= base + gapS + 2 * descLineH
         ? 2
         : (inner >= base + gapS + descLineH ? 1 : 0);
 
@@ -308,7 +308,14 @@ class _CardBody extends StatelessWidget {
           ),
         ],
         SizedBox(height: gapM),
-        CsProgressLine(value: barValue, height: barH, gradient: barGradient),
+        // A visible track so an untouched (0) directive still reads as a bar
+        // to fill; the shared 12% track vanished on the raised card.
+        CsProgressLine(
+          value: barValue,
+          height: barH,
+          gradient: barGradient,
+          trackColor: const Color(0x33FFFFFF),
+        ),
         SizedBox(height: gapM),
         FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: reward),
       ],
