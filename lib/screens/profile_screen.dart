@@ -11,6 +11,7 @@ import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/number_format.dart';
 import 'package:cosmo_strike_flutter_app/widgets/account_upgrade_sheet.dart';
+import 'package:cosmo_strike_flutter_app/widgets/list_entrance.dart';
 import 'package:cosmo_strike_flutter_app/widgets/player_progression.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -22,6 +23,9 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late final AppDataCache _appCache;
+
+  /// Right-column sections stagger in on first open only.
+  final _entrance = ListEntrance();
 
   @override
   void initState() {
@@ -178,9 +182,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Local guests and Firebase-anonymous pilots have no credential: their
     // progress lives on this device only until they sign in.
     final guest = authState.isAnonymous || authState.isGuestUser;
+    // Sections fade up in a short stagger on first open.
     return ListView(
       padding: EdgeInsets.only(bottom: cs(12)),
       children: [
+        for (final (i, child) in <Widget>[
         _SectionHeader(
           'Service Record',
           action: _isLoading ? null : CsButton.text(
@@ -262,6 +268,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           for (var i = 0; i < _recentAchievements.length; i++)
             _buildAchievementRow(_recentAchievements[i], first: i == 0),
         ],
+        ].indexed)
+          _entrance.wrap(i, child),
       ],
     );
   }

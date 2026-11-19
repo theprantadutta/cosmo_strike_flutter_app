@@ -3,6 +3,7 @@ import 'package:cosmo_strike_flutter_app/models/achievement.dart';
 import 'package:cosmo_strike_flutter_app/services/achievement_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
+import 'package:cosmo_strike_flutter_app/widgets/list_entrance.dart';
 
 enum _AwardFilter { all, unlocked, locked }
 
@@ -16,6 +17,9 @@ class AchievementsScreen extends StatefulWidget {
 class _AchievementsScreenState extends State<AchievementsScreen> {
   final AchievementService _achievementService = AchievementService();
   _AwardFilter _filter = _AwardFilter.all;
+
+  /// Tiles stagger in on first open only.
+  final _entrance = ListEntrance();
 
   /// Category filter; null = every category.
   CommendationCategory? _category;
@@ -193,9 +197,12 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         mainAxisExtent: cs(168),
       ),
       itemCount: achievements.length,
-      itemBuilder: (context, i) => _AwardTile(
-        achievement: achievements[i],
-        onTap: () => _showDetail(achievements[i]),
+      itemBuilder: (context, i) => _entrance.wrap(
+        i,
+        _AwardTile(
+          achievement: achievements[i],
+          onTap: () => _showDetail(achievements[i]),
+        ),
       ),
     );
   }

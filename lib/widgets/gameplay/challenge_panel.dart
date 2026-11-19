@@ -1,6 +1,5 @@
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/daily_challenge.dart';
@@ -22,7 +21,17 @@ class ChallengePanel extends ConsumerWidget {
     this.showRunDelta = false,
     this.runStartProgress,
     this.showClaimAll = true,
+    this.entranceDelay,
+    this.reduceMotion,
   });
+
+  /// When set, the rows fade up on mount, starting after this delay and
+  /// staggered 55 ms per row (the game-over debrief's beat). Null: no
+  /// entrance (pause menu).
+  final Duration? entranceDelay;
+
+  /// Overrides [CsReduceMotion.of] for the entrance and fills (tests).
+  final bool? reduceMotion;
 
   /// Show a gold "+N THIS RUN" tag per challenge this run advanced.
   final bool showRunDelta;
@@ -66,24 +75,42 @@ class ChallengePanel extends ConsumerWidget {
             padding: EdgeInsets.only(bottom: cs(12)),
             child: const ChallengeClaimAllButton(),
           ),
-        for (final c in state.challenges)
-          _ChallengeRow(
-            challenge: c,
-            runDelta: showRunDelta
-                ? (c.currentProgress - (runStartProgress?[c.id] ?? c.currentProgress))
-                    .clamp(0, c.currentProgress)
-                : 0,
-            onClaim: () async {
-              final ok = await ref.read(dailyChallengesProvider.notifier).claimReward(c.id);
-              if (ok) {
-                RewardToast.show(
-                  title: 'DIRECTIVE COMPLETE',
-                  amount: '+${c.coinReward} CR · +${c.xpReward} XP',
-                );
-              }
-            },
+        for (final (i, c) in state.challenges.indexed)
+          _entrance(
+            i,
+            c.id,
+            _ChallengeRow(
+              key: ValueKey(c.id),
+              challenge: c,
+              runDelta: showRunDelta
+                  ? (c.currentProgress - (runStartProgress?[c.id] ?? c.currentProgress)).clamp(0, c.currentProgress)
+                  : 0,
+              // The fill starts from where this run found it, so the run's
+              // contribution visibly fills in.
+              fillFrom: showRunDelta && c.targetValue > 0
+                  ? ((runStartProgress?[c.id] ?? c.currentProgress) / c.targetValue).clamp(0.0, 1.0)
+                  : null,
+              reduceMotion: reduceMotion,
+              onClaim: () async {
+                final ok = await ref.read(dailyChallengesProvider.notifier).claimReward(c.id);
+                if (ok) {
+                  RewardToast.show(title: 'DIRECTIVE COMPLETE', amount: '+${c.coinReward} CR · +${c.xpReward} XP');
+                }
+              },
+            ),
           ),
       ],
+    );
+  }
+
+  Widget _entrance(int index, String id, Widget row) {
+    final delay = entranceDelay;
+    if (delay == null) return row;
+    return CsFadeUp(
+      key: ValueKey('in-$id'),
+      delay: delay + CsMotion.stagger(index),
+      reduceMotion: reduceMotion,
+      child: row,
     );
   }
 }
@@ -102,14 +129,11 @@ class ChallengeClaimAllButton extends ConsumerWidget {
     if (claimable == 0) return const SizedBox.shrink();
     return CsButton.prism(
       label: 'Claim all · $claimable',
+      // CsButton plays its own (Haptics-setting aware) tap.
       onPressed: () async {
-        HapticFeedback.lightImpact();
         final total = await ref.read(dailyChallengesProvider.notifier).claimAllRewards();
         if (total > 0) {
-          RewardToast.show(
-            title: 'ALL DIRECTIVES CLAIMED',
-            amount: '+$total CR',
-          );
+          RewardToast.show(title: 'ALL DIRECTIVES CLAIMED', amount: '+$total CR');
         }
       },
     );
@@ -119,17 +143,24 @@ class ChallengeClaimAllButton extends ConsumerWidget {
 /// One directive: title + difficulty chip + gold reward on top, a 2px progress
 /// line, then the mono count (mint "· COMPLETE" when done, gold "+N THIS RUN"
 /// when this run advanced it). CLAIM pill on the right when claimable;
-/// claimed rows dim to 45%.
+/// claimed rows pop once and dim to 45%.
 class _ChallengeRow extends StatelessWidget {
   const _ChallengeRow({
+    super.key,
     required this.challenge,
     required this.runDelta,
     required this.onClaim,
+    this.fillFrom,
+    this.reduceMotion,
   });
 
   final DailyChallenge challenge;
   final int runDelta;
   final VoidCallback onClaim;
+
+  /// Where the progress fill starts on mount (null: at its value).
+  final double? fillFrom;
+  final bool? reduceMotion;
 
   @override
   Widget build(BuildContext context) {
@@ -144,10 +175,7 @@ class _ChallengeRow extends StatelessWidget {
       TextSpan(
         text: count,
         children: [
-          if (claimed)
-            const TextSpan(text: '  ·  CLAIMED')
-          else if (done)
-            const TextSpan(text: '  ·  COMPLETE'),
+          if (claimed) const TextSpan(text: '  ·  CLAIMED') else if (done) const TextSpan(text: '  ·  COMPLETE'),
           if (runDelta > 0)
             TextSpan(
               text: '  +$runDelta THIS RUN',
@@ -177,12 +205,7 @@ class _ChallengeRow extends StatelessWidget {
               child: Row(
                 children: [
                   Flexible(
-                    child: Text(
-                      c.displayTitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: t.rowTitle,
-                    ),
+                    child: Text(c.displayTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.rowTitle),
                   ),
                   SizedBox(width: cs(8)),
                   CsChip(c.difficulty.name, size: 8),
@@ -191,48 +214,92 @@ class _ChallengeRow extends StatelessWidget {
             ),
             // Claimable rows show the reward under the CLAIM pill instead,
             // so the title isn't squeezed to "Casu…" on phones.
-            if (!c.canClaim) ...[
-              SizedBox(width: cs(10)),
-              reward,
-            ],
+            if (!c.canClaim) ...[SizedBox(width: cs(10)), reward],
           ],
         ),
         SizedBox(height: cs(8)),
-        CsGoalLine(value: c.progressPercentage),
+        _FillLine(value: c.progressPercentage, from: fillFrom, reduceMotion: reduceMotion),
         SizedBox(height: cs(7)),
         status,
       ],
     );
 
-    return Opacity(
-      opacity: claimed ? 0.45 : 1,
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: cs(11)),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: CsColors.hairline)),
-        ),
-        child: Row(
-          children: [
-            Expanded(child: body),
-            if (c.canClaim) ...[
-              SizedBox(width: cs(14)),
-              Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                CsButton.primary(
-                  label: 'Claim',
-                  size: CsButtonSize.small,
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    onClaim();
-                  },
+    // Dim through AnimatedOpacity (a composited layer, no per-frame rebuild)
+    // and pop once when the claim lands.
+    return CsPop(
+      trigger: claimed,
+      peak: 1.04,
+      alignment: Alignment.centerLeft,
+      reduceMotion: reduceMotion,
+      child: AnimatedOpacity(
+        opacity: claimed ? 0.45 : 1,
+        duration: CsMotion.base,
+        child: Container(
+          padding: EdgeInsets.symmetric(vertical: cs(11)),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: CsColors.hairline)),
+          ),
+          child: Row(
+            children: [
+              Expanded(child: body),
+              if (c.canClaim) ...[
+                SizedBox(width: cs(14)),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    CsButton.primary(
+                      label: 'Claim',
+                      size: CsButtonSize.small,
+                      // CsButton plays its own (Haptics-setting aware) tap.
+                      onPressed: onClaim,
+                    ),
+                    SizedBox(height: cs(6)),
+                    reward,
+                  ],
                 ),
-                SizedBox(height: cs(6)),
-                reward,
-              ]),
-            ] else if (claimed) ...[
-              SizedBox(width: cs(14)),
-              Icon(Symbols.check_circle_rounded, size: cs(18), color: CsColors.mint),
+              ] else if (claimed) ...[
+                SizedBox(width: cs(14)),
+                Icon(Symbols.check_circle_rounded, size: cs(18), color: CsColors.mint),
+              ],
             ],
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The directive's 2px progress line (mint when complete). Fills smoothly
+/// from [from] on mount, then glides to each new [value] (900 ms
+/// easeOutSoft; 120 ms linear with reduce motion). Animates a scaleX
+/// Transform on a cached bar, never layout.
+class _FillLine extends StatelessWidget {
+  const _FillLine({required this.value, this.from, this.reduceMotion});
+
+  final double value;
+  final double? from;
+  final bool? reduceMotion;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = CsReduceMotion.of(context, override: reduceMotion);
+    final v = value.isNaN ? 0.0 : value.clamp(0.0, 1.0);
+    final bar = DecoratedBox(decoration: BoxDecoration(gradient: v >= 1 ? CsGradients.complete : CsGradients.progress));
+    return SizedBox(
+      height: 2,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(color: CsColors.track),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: from ?? v, end: v),
+          duration: reduce ? CsMotion.instant : CsMotion.lingering,
+          curve: reduce ? Curves.linear : CsMotion.easeOutSoft,
+          child: SizedBox.expand(child: bar),
+          builder: (_, t, child) => Transform(
+            alignment: Alignment.centerLeft,
+            transform: Matrix4.diagonal3Values(t.clamp(0.0, 1.0), 1, 1),
+            child: child,
+          ),
         ),
       ),
     );

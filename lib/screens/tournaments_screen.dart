@@ -8,6 +8,7 @@ import 'package:cosmo_strike_flutter_app/models/tournament.dart';
 import 'package:cosmo_strike_flutter_app/providers/tournaments_provider.dart';
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/widgets/list_entrance.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart' show GameMode;
 
 enum _Tab { active, history, stats }
@@ -21,6 +22,9 @@ class TournamentsScreen extends ConsumerStatefulWidget {
 
 class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
   _Tab _tab = _Tab.active;
+
+  /// Cup rows stagger in on first open and again on each tab switch.
+  final _entrance = ListEntrance();
 
   Future<void> _loadData() async {
     await ref.read(tournamentsProvider.notifier).refresh();
@@ -112,7 +116,10 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
         child: CsSegmented<_Tab>(
           segments: const {_Tab.active: 'Active', _Tab.history: 'History', _Tab.stats: 'My stats'},
           selected: _tab,
-          onChanged: (v) => setState(() => _tab = v),
+          onChanged: (v) {
+            _entrance.restart();
+            setState(() => _tab = v);
+          },
         ),
       ),
       SizedBox(height: cs(22)),
@@ -169,7 +176,10 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
       itemCount: activeTournaments.length,
       itemBuilder: (context, index) {
         final tournament = activeTournaments[index];
-        return _EventRow(tournament: tournament, onTap: () => _openTournamentDetail(tournament));
+        return _entrance.wrap(
+          index,
+          _EventRow(tournament: tournament, onTap: () => _openTournamentDetail(tournament)),
+        );
       },
     );
   }
@@ -188,10 +198,13 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
       itemCount: historyTournaments.length,
       itemBuilder: (context, index) {
         final tournament = historyTournaments[index];
-        return _EventRow(
-          tournament: tournament,
-          showResults: true,
-          onTap: () => _openTournamentDetail(tournament),
+        return _entrance.wrap(
+          index,
+          _EventRow(
+            tournament: tournament,
+            showResults: true,
+            onTap: () => _openTournamentDetail(tournament),
+          ),
         );
       },
     );
@@ -223,7 +236,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const CsLabel('Cup overview'),
         SizedBox(height: cs(8)),
-        CsStatGrid(
+        _entrance.wrap(0, CsStatGrid(
           columns: cs.isCompact ? 2 : 4,
           valueSize: 28,
           stats: [
@@ -232,13 +245,13 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
             CsStat('${userStats['topThreeFinishes'] ?? 0}', 'Top 3 finishes'),
             CsStat('${userStats['bestScore'] ?? 0}', 'Best score', color: CsColors.cyan),
           ],
-        ),
+        )),
         SizedBox(height: cs(24)),
         const CsLabel('Breakdown'),
         SizedBox(height: cs(4)),
-        detail('Total runs', '${userStats['totalAttempts'] ?? 0}'),
-        detail('Win rate', '$winRate%'),
-        detail('Average finish', 'Top ${100 - winRate}%'),
+        _entrance.wrap(1, detail('Total runs', '${userStats['totalAttempts'] ?? 0}')),
+        _entrance.wrap(2, detail('Win rate', '$winRate%')),
+        _entrance.wrap(3, detail('Average finish', 'Top ${100 - winRate}%')),
       ]),
     );
   }

@@ -265,20 +265,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Text(
-                                section.$2,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: cs.type.display(30, em: -0.03, height: 1.05),
+                              CsFadeUp(
+                                child: Text(
+                                  section.$2,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: cs.type.display(30, em: -0.03, height: 1.05),
+                                ),
                               ),
                               SizedBox(height: cs(14)),
-                              ..._buildSectionPane(
+                              // Rows fade up in a short stagger each time a
+                              // section opens (the pane is re-keyed per
+                              // section, so this plays once per switch).
+                              for (final (i, row) in _buildSectionPane(
                                 _selectedSection,
                                 themeState,
                                 authState,
                                 premiumState,
                                 themeState.currentTheme,
-                              ),
+                              ).indexed)
+                                CsFadeUp(index: i + 1, child: row),
                             ],
                           ),
                         ),
@@ -674,7 +680,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       subtitle: subtitle,
       first: first,
       onTap: () => onChanged(!value),
-      trailing: Switch(value: value, onChanged: onChanged),
+      trailing: CsSwitch(value: value, onChanged: onChanged, semanticLabel: title),
     );
   }
 

@@ -10,6 +10,7 @@ import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/app_data_cache.dart';
 import 'package:cosmo_strike_flutter_app/services/social_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/widgets/list_entrance.dart';
 
 class FriendsLeaderboardScreen extends StatefulWidget {
   const FriendsLeaderboardScreen({super.key});
@@ -23,6 +24,9 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen> {
   final AppDataCache _appCache = AppDataCache();
   List<UserProfile> _leaderboard = [];
   bool _isLoading = true;
+
+  /// Rows stagger in on first open only.
+  final _entrance = ListEntrance();
 
   @override
   void initState() {
@@ -197,7 +201,7 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen> {
       itemCount: _leaderboard.length,
       itemBuilder: (context, index) {
         final user = _leaderboard[index];
-        return _RankRow(
+        return _entrance.wrap(index, _RankRow(
           rank: index + 1,
           name: user.publicLabel,
           photoUrl: user.photoUrl,
@@ -205,7 +209,7 @@ class _FriendsLeaderboardScreenState extends State<FriendsLeaderboardScreen> {
           status: user.status,
           score: _formatThousands(user.highScore),
           isYou: currentUid != null && user.uid == currentUid,
-        );
+        ));
       },
     );
   }

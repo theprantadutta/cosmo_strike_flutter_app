@@ -5,14 +5,21 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../theme/cosmo_theme.dart';
 import 'cs_buttons.dart';
+import 'cs_motion.dart';
+import 'cs_odometer.dart';
 import 'cs_prism.dart';
 
 /// One value + mono caption, as used in stat grids.
+///
+/// When [value] is a number (`"1,250"`, `"+30"`, `"12s"`) and a later build
+/// changes it, [CsStatGrid] rolls it with [CsOdometer] (see [CsRollingText]);
+/// the first build is always static. Set [roll] false to opt one stat out.
 class CsStat {
-  const CsStat(this.value, this.label, {this.color = CsColors.ink});
+  const CsStat(this.value, this.label, {this.color = CsColors.ink, this.roll = true});
   final String value;
   final String label;
   final Color color;
+  final bool roll;
 }
 
 /// Grid of stats separated by hairlines (top border + a hairline under each
@@ -25,6 +32,7 @@ class CsStatGrid extends StatelessWidget {
     this.valueSize = 24,
     this.labelSize = 10,
     this.cellPadding = 12,
+    this.animateValues = true,
   });
 
   final List<CsStat> stats;
@@ -32,6 +40,10 @@ class CsStatGrid extends StatelessWidget {
   final double valueSize;
   final double labelSize;
   final double cellPadding;
+
+  /// Roll numeric values that change after the first build (per-stat opt
+  /// out: [CsStat.roll]). Static on first build, instant with reduce motion.
+  final bool animateValues;
 
   @override
   Widget build(BuildContext context) {
@@ -57,8 +69,14 @@ class CsStatGrid extends StatelessWidget {
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             alignment: Alignment.centerLeft,
-                            child: Text(slice[j].value,
-                                maxLines: 1, style: t.number(valueSize, em: -0.01, height: 1.05, color: slice[j].color)),
+                            child: CsRollingText(
+                              // Keyed by label so a different stat landing in
+                              // this cell never rolls from its neighbour.
+                              key: ValueKey<String>(slice[j].label),
+                              slice[j].value,
+                              enabled: animateValues && slice[j].roll,
+                              style: t.number(valueSize, em: -0.01, height: 1.05, color: slice[j].color),
+                            ),
                           ),
                         ),
                         SizedBox(height: cs(4)),
@@ -110,11 +128,18 @@ class CsTile extends StatelessWidget {
     this.height,
     this.width,
     this.rotateRing = false,
+    this.haptic = CsHaptic.none,
   });
 
   final Widget child;
   final CsTileState state;
+
+  /// Makes the tile a [CsPressable] (press dip + spring release).
   final VoidCallback? onTap;
+
+  /// Tap feedback when [onTap] is set (none by default; screens often fire
+  /// their own in onTap).
+  final CsHaptic haptic;
   final EdgeInsetsGeometry? padding;
   final double radius;
   final double? height;
@@ -150,7 +175,7 @@ class CsTile extends StatelessWidget {
     };
 
     final sized = SizedBox(width: width, height: height, child: tile);
-    return onTap == null ? sized : CsPressable(onTap: onTap, child: sized);
+    return onTap == null ? sized : CsPressable(onTap: onTap, haptic: haptic, child: sized);
   }
 }
 
@@ -296,37 +321,162 @@ class CsToggleChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = context.cs;
-    final c = value ? CsColors.ink : CsColors.ink45;
+    final reduce = CsReduceMotion.of(context);
+    final duration = reduce ? CsMotion.instant : CsMotion.base;
+    final curve = reduce ? Curves.linear : CsMotion.standard;
     return CsPressable(
       onTap: onChanged == null ? null : () => onChanged!(!value),
       semanticLabel: '$label ${value ? 'on' : 'off'}',
+      haptic: CsHaptic.selection,
       child: AnimatedContainer(
-        duration: CsMotion.base,
-        curve: CsMotion.standard,
+        duration: duration,
+        curve: curve,
         constraints: const BoxConstraints(minHeight: 44),
         padding: EdgeInsets.symmetric(horizontal: cs(16)),
         decoration: ShapeDecoration(
           shape: StadiumBorder(side: BorderSide(color: value ? const Color(0x33FFFFFF) : CsColors.hairline)),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(value ? icon : (offIcon ?? icon), size: cs(18), color: c),
-          SizedBox(width: cs(8)),
-          Text((value ? label : (offLabel ?? '$label off')).toUpperCase(),
-              style: cs.type.mono(11, color: c, em: 0.1)),
-        ]),
+        // Ink crossfades with the border instead of snapping.
+        child: TweenAnimationBuilder<Color?>(
+          tween: ColorTween(end: value ? CsColors.ink : CsColors.ink45),
+          duration: duration,
+          curve: curve,
+          builder: (context, c, _) => Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(value ? icon : (offIcon ?? icon), size: cs(18), color: c),
+              SizedBox(width: cs(8)),
+              Text(
+                (value ? label : (offLabel ?? '$label off')).toUpperCase(),
+                style: cs.type.mono(11, color: c ?? CsColors.ink45, em: 0.1),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
+/// Prism Noir on/off switch: a drop-in for the theme `Switch` (same 60×48
+/// footprint and look: white track + black knob when on, hairline outline +
+/// small grey knob when off).
+///
+/// Motion (MOTION_SPEC "Toggles"): the knob slides and grows on `springSoft`
+/// over 220 ms while the track fill and outline crossfade. One tiny
+/// CustomPaint, repainted only while the tween runs. Reduce motion: a 120 ms
+/// linear crossfade, no overshoot. A direct tap plays [haptic].
+class CsSwitch extends StatelessWidget {
+  const CsSwitch({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.haptic = CsHaptic.selection,
+    this.semanticLabel,
+    this.reduceMotion,
+  });
+
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final CsHaptic haptic;
+  final String? semanticLabel;
+
+  /// Overrides [CsReduceMotion.of] (tests).
+  final bool? reduceMotion;
+
+  static const _knobDuration = Duration(milliseconds: 220);
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = CsReduceMotion.of(context, override: reduceMotion);
+    final enabled = onChanged != null;
+    return Semantics(
+      toggled: value,
+      enabled: enabled,
+      label: semanticLabel,
+      onTap: enabled ? _toggle : null,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        onTap: enabled ? _toggle : null,
+        child: SizedBox(
+          width: 60,
+          height: 48,
+          child: Center(
+            child: RepaintBoundary(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(end: value ? 1 : 0),
+                duration: reduce ? CsMotion.instant : _knobDuration,
+                curve: reduce ? Curves.linear : CsMotion.springSoft,
+                builder: (context, t, _) => CustomPaint(
+                  size: const Size(52, 32),
+                  painter: _SwitchPainter(t, enabled: enabled),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _toggle() {
+    haptic.play();
+    onChanged?.call(!value);
+  }
+}
+
+class _SwitchPainter extends CustomPainter {
+  _SwitchPainter(this.t, {required this.enabled});
+
+  /// 0 off → 1 on; overshoots slightly on the spring (position only).
+  final double t;
+  final bool enabled;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = t.clamp(0.0, 1.0);
+    final alpha = enabled ? 1.0 : 0.4;
+    final track = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(size.height / 2));
+    final fill = Color.lerp(Colors.transparent, CsColors.ink, c)!;
+    if (fill.a > 0) canvas.drawRRect(track, Paint()..color = fill.withValues(alpha: fill.a * alpha));
+    final outline = Color.lerp(CsColors.lineStrong, CsColors.ink, c)!;
+    canvas.drawRRect(
+      track.deflate(0.5),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = outline.withValues(alpha: outline.a * alpha),
+    );
+    // Knob: 16 px grey off, 24 px black on; its centre rides the spring.
+    final r = (16 + 8 * c) / 2;
+    final cx = size.height / 2 + (size.width - size.height) * t;
+    final knob = Color.lerp(CsColors.ink45, CsColors.onLight, c)!;
+    canvas.drawCircle(Offset(cx, size.height / 2), r, Paint()..color = knob.withValues(alpha: knob.a * alpha));
+  }
+
+  @override
+  bool shouldRepaint(_SwitchPainter old) => old.t != t || old.enabled != enabled;
+}
+
 /// Pill segmented control (GLOBAL / WEEKLY / FRIENDS). Selected = white pill.
-class CsSegmented<T> extends StatelessWidget {
+///
+/// Motion (MOTION_SPEC "Tabs / segments"): the white pill TRAVELS to the new
+/// segment over `CsMotion.screen` on `travel`, morphing its width when the
+/// segments differ; label colours crossfade over `CsMotion.base`. The pill
+/// is painted from the segments' real layout by one CustomPainter driven by
+/// one controller, inside a RepaintBoundary, so a change never rebuilds or
+/// repaints the screen around it. Reduce motion: the pill jumps and labels
+/// crossfade in 120 ms.
+class CsSegmented<T> extends StatefulWidget {
   const CsSegmented({
     super.key,
     required this.segments,
     required this.selected,
     required this.onChanged,
     this.expand = false,
+    this.reduceMotion,
   });
 
   final Map<T, String> segments;
@@ -334,39 +484,161 @@ class CsSegmented<T> extends StatelessWidget {
   final ValueChanged<T> onChanged;
   final bool expand;
 
+  /// Overrides [CsReduceMotion.of] (tests).
+  final bool? reduceMotion;
+
+  @override
+  State<CsSegmented<T>> createState() => _CsSegmentedState<T>();
+}
+
+class _CsSegmentedState<T> extends State<CsSegmented<T>> with SingleTickerProviderStateMixin {
+  final _stackKey = GlobalKey();
+  final List<GlobalKey> _segmentKeys = [];
+  late final AnimationController _c = AnimationController(vsync: this, duration: CsMotion.screen, value: 1);
+  late final CurvedAnimation _t = CurvedAnimation(parent: _c, curve: CsMotion.travel);
+
+  /// Pill travel as fractional segment indexes (-1 = nothing selected).
+  late double _from = _indexOf(widget.selected).toDouble();
+  late double _to = _from;
+
+  int _indexOf(T value) {
+    var i = 0;
+    for (final k in widget.segments.keys) {
+      if (k == value) return i;
+      i++;
+    }
+    return -1;
+  }
+
+  double get _position => _from + (_to - _from) * _t.value;
+
+  @override
+  void didUpdateWidget(CsSegmented<T> old) {
+    super.didUpdateWidget(old);
+    final target = _indexOf(widget.selected).toDouble();
+    if (target == _to) return;
+    final reduce = CsReduceMotion.of(context, override: widget.reduceMotion, listen: false);
+    if (target < 0 || _to < 0 || reduce) {
+      _from = _to = target;
+      _c.value = 1;
+    } else {
+      // Retarget from wherever the pill is now, so a quick second tap
+      // glides on instead of snapping back.
+      _from = _position;
+      _to = target;
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _t.dispose();
+    _c.dispose();
+    super.dispose();
+  }
+
+  /// The pill rect in the stack's coordinates at fractional index [p],
+  /// read from the laid-out segments (valid during paint).
+  Rect? _pillRect() {
+    final p = _position;
+    final n = _segmentKeys.length;
+    if (p < 0 || n == 0) return null;
+    final stack = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (stack == null || !stack.hasSize) return null;
+    Rect? rectOf(int i) {
+      final box = _segmentKeys[i].currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.attached || !box.hasSize) return null;
+      return MatrixUtils.transformRect(box.getTransformTo(stack), Offset.zero & box.size);
+    }
+
+    final lo = p.floor().clamp(0, n - 1);
+    final hi = p.ceil().clamp(0, n - 1);
+    final a = rectOf(lo);
+    final b = rectOf(hi);
+    if (a == null || b == null) return a ?? b;
+    return Rect.lerp(a, b, p - lo);
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = context.cs;
     final t = cs.type;
-    final items = segments.entries.map((e) {
-      final on = e.key == selected;
-      final chip = CsPressable(
-        onTap: () => onChanged(e.key),
-        semanticLabel: e.value,
-        child: AnimatedContainer(
-          duration: CsMotion.base,
-          curve: CsMotion.standard,
-          constraints: BoxConstraints(minHeight: cs(34).clamp(36.0, 48.0)),
-          alignment: Alignment.center,
-          padding: EdgeInsets.symmetric(horizontal: cs(16)),
-          decoration: ShapeDecoration(color: on ? CsColors.ink : Colors.transparent, shape: const StadiumBorder()),
-          child: Text(
-            e.value.toUpperCase(),
-            maxLines: 1,
-            style: t.display(12, weight: FontWeight.w700, em: 0.1, height: 1, color: on ? CsColors.onLight : CsColors.ink60),
+    final reduce = CsReduceMotion.of(context, override: widget.reduceMotion);
+    final n = widget.segments.length;
+    while (_segmentKeys.length < n) {
+      _segmentKeys.add(GlobalKey());
+    }
+    if (_segmentKeys.length > n) _segmentKeys.removeRange(n, _segmentKeys.length);
+
+    final base = t.display(12, weight: FontWeight.w700, em: 0.1, height: 1);
+    var i = 0;
+    final items = widget.segments.entries.map((e) {
+      final on = e.key == widget.selected;
+      final chip = KeyedSubtree(
+        key: _segmentKeys[i++],
+        child: CsPressable(
+          onTap: () => widget.onChanged(e.key),
+          semanticLabel: e.value,
+          haptic: on ? CsHaptic.none : CsHaptic.selection,
+          child: Container(
+            constraints: BoxConstraints(minHeight: cs(34).clamp(36.0, 48.0)),
+            alignment: Alignment.center,
+            padding: EdgeInsets.symmetric(horizontal: cs(16)),
+            child: AnimatedDefaultTextStyle(
+              duration: reduce ? CsMotion.instant : CsMotion.base,
+              curve: reduce ? Curves.linear : CsMotion.standard,
+              style: base.copyWith(color: on ? CsColors.onLight : CsColors.ink60),
+              child: Text(e.value.toUpperCase(), maxLines: 1),
+            ),
           ),
         ),
       );
-      return expand ? Expanded(child: chip) : chip;
+      return widget.expand ? Expanded(child: chip) : chip;
     }).toList();
-    return Container(
-      padding: EdgeInsets.all(cs(4)),
-      decoration: const ShapeDecoration(shape: StadiumBorder(side: BorderSide(color: Color(0x24FFFFFF)))),
-      child: Row(mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min, children: [
-        for (var i = 0; i < items.length; i++) ...[if (i > 0) SizedBox(width: cs(4)), items[i]],
-      ]),
+
+    return RepaintBoundary(
+      child: Container(
+        padding: EdgeInsets.all(cs(4)),
+        decoration: const ShapeDecoration(
+          shape: StadiumBorder(side: BorderSide(color: Color(0x24FFFFFF))),
+        ),
+        child: Stack(
+          key: _stackKey,
+          children: [
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(painter: _SegmentPillPainter(_pillRect, repaint: _c)),
+              ),
+            ),
+            Row(
+              mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
+              children: [
+                for (var j = 0; j < items.length; j++) ...[if (j > 0) SizedBox(width: cs(4)), items[j]],
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
+}
+
+/// Paints the selected white stadium where [rect] says it is right now.
+class _SegmentPillPainter extends CustomPainter {
+  _SegmentPillPainter(this.rect, {required Listenable repaint}) : super(repaint: repaint);
+  final Rect? Function() rect;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = rect();
+    if (r == null || r.isEmpty) return;
+    canvas.drawRRect(RRect.fromRectAndRadius(r, Radius.circular(r.shortestSide / 2)), Paint()..color = CsColors.ink);
+  }
+
+  // Segment layout can change without the controller ticking (labels,
+  // expand, device size), and painting one rounded rect is trivial.
+  @override
+  bool shouldRepaint(_SegmentPillPainter old) => true;
 }
 
 /// A hairline-separated list row: leading · title/subtitle · trailing.
@@ -383,13 +655,19 @@ class CsListRow extends StatelessWidget {
     this.divider = true,
     this.dividerTop = false,
     this.below,
+    this.haptic = CsHaptic.none,
   });
 
   final String title;
   final String? subtitle;
   final Widget? leading;
   final Widget? trailing;
+
+  /// Makes the row a [CsPressable] (a gentle 0.99 dip + spring release).
   final VoidCallback? onTap;
+
+  /// Tap feedback when [onTap] is set (none by default).
+  final CsHaptic haptic;
 
   /// Inline widget right after the title (e.g. a CsChip).
   final Widget? titleTrailing;
@@ -433,7 +711,7 @@ class CsListRow extends StatelessWidget {
         if (trailing != null) ...[SizedBox(width: cs(14)), trailing!],
       ]),
     );
-    return onTap == null ? row : CsPressable(onTap: onTap, scale: 0.99, child: row);
+    return onTap == null ? row : CsPressable(onTap: onTap, scale: 0.99, haptic: haptic, child: row);
   }
 }
 
@@ -456,22 +734,43 @@ class CsCoinGlyph extends StatelessWidget {
 }
 
 /// Coin glyph + gold mono amount ("◉ 928").
+///
+/// When the amount changes after the first build (a purchase, a claim) the
+/// number rolls to the new balance with [CsOdometer]; the first build is a
+/// plain Text, so lists of prices cost nothing extra. Set [roll] false to
+/// keep it static.
 class CsCoins extends StatelessWidget {
-  const CsCoins(this.amount, {super.key, this.size = 11, this.prefix = '', this.suffix = '', this.color = CsColors.gold});
+  const CsCoins(
+    this.amount, {
+    super.key,
+    this.size = 11,
+    this.prefix = '',
+    this.suffix = '',
+    this.color = CsColors.gold,
+    this.roll = true,
+  });
   final Object amount;
   final double size;
   final String prefix;
   final String suffix;
   final Color color;
+  final bool roll;
 
   @override
   Widget build(BuildContext context) {
     final cs = context.cs;
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      CsCoinGlyph(size: size * 1.45),
-      SizedBox(width: cs(6)),
-      Text('$prefix$amount$suffix', style: cs.type.mono(size, color: color, em: 0.1)),
-    ]);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CsCoinGlyph(size: size * 1.45),
+        SizedBox(width: cs(6)),
+        CsRollingText(
+          '$prefix$amount$suffix',
+          enabled: roll,
+          style: cs.type.mono(size, color: color, em: 0.1),
+        ),
+      ],
+    );
   }
 }
 

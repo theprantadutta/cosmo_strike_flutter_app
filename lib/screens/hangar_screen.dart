@@ -9,6 +9,7 @@ import '../presentation/bloc/coins/coins_cubit.dart';
 import '../router/routes.dart';
 import '../services/hangar_service.dart';
 import '../ui/cs.dart';
+import '../widgets/list_entrance.dart';
 import '../widgets/gameplay/upgrade_draft_overlay.dart' show upgradeIcon;
 
 /// The Hangar: pick a ship frame (unlocked by clearing campaign levels) and
@@ -23,6 +24,12 @@ class HangarScreen extends StatefulWidget {
 class _HangarScreenState extends State<HangarScreen> {
   final _hangar = HangarService.instance;
   HangarStat? _buying;
+
+  /// Successful purchases per stat; a change pops that row's level bar.
+  final Map<HangarStat, int> _bought = {};
+
+  /// Ship frames and upgrade rows stagger in on first open only.
+  final _entrance = ListEntrance();
 
   @override
   void initState() {
@@ -61,7 +68,11 @@ class _HangarScreenState extends State<HangarScreen> {
     setState(() => _buying = stat);
     final done = await _hangar.buyNext(stat);
     if (!mounted) return;
-    setState(() => _buying = null);
+    setState(() {
+      _buying = null;
+      if (done) _bought[stat] = (_bought[stat] ?? 0) + 1;
+    });
+    if (done) CsHaptic.success.play();
     showCsToast(
       context,
       done ? '${def.name} upgraded to L$next.' : 'Upgrade failed. Try again.',
@@ -102,9 +113,16 @@ class _HangarScreenState extends State<HangarScreen> {
       washes: const [CsWash.violetTopRight],
       body: CsSplit(
         leftWidth: cs.isTablet ? 340 : 300,
-        left: _ShipList(hangar: _hangar),
+        left: _ShipList(hangar: _hangar, entrance: _entrance),
         right: BlocBuilder<CoinsCubit, CoinsState>(
-          builder: (_, s) => _UpgradeList(hangar: _hangar, balance: s.total, buying: _buying, onBuy: _buy),
+          builder: (_, s) => _UpgradeList(
+            hangar: _hangar,
+            balance: s.total,
+            buying: _buying,
+            bought: _bought,
+            entrance: _entrance,
+            onBuy: _buy,
+          ),
         ),
       ),
     );
@@ -112,8 +130,9 @@ class _HangarScreenState extends State<HangarScreen> {
 }
 
 class _ShipList extends StatelessWidget {
-  const _ShipList({required this.hangar});
+  const _ShipList({required this.hangar, required this.entrance});
   final HangarService hangar;
+  final ListEntrance entrance;
 
   @override
   Widget build(BuildContext context) {
@@ -162,7 +181,7 @@ class _ShipList extends StatelessWidget {
               final f = ShipFrame.all[i];
               final owned = f.ownedWith(hangar.highestCleared);
               final isSel = f.id == selected.id;
-              return CsTile(
+              return entrance.wrap(i, CsTile(
                 state: isSel ? CsTileState.current : (owned ? CsTileState.done : CsTileState.locked),
                 onTap: owned && !isSel ? () => hangar.selectFrame(f) : null,
                 padding: EdgeInsets.symmetric(horizontal: cs(14), vertical: cs(10)),
@@ -179,7 +198,7 @@ class _ShipList extends StatelessWidget {
                     style: t.mono(9, color: isSel ? CsColors.mint : (owned ? CsColors.ink55 : CsColors.ink30)),
                   ),
                 ]),
-              );
+              ));
             },
           ),
         ),
@@ -189,10 +208,19 @@ class _ShipList extends StatelessWidget {
 }
 
 class _UpgradeList extends StatelessWidget {
-  const _UpgradeList({required this.hangar, required this.balance, required this.buying, required this.onBuy});
+  const _UpgradeList({
+    required this.hangar,
+    required this.balance,
+    required this.buying,
+    required this.bought,
+    required this.entrance,
+    required this.onBuy,
+  });
   final HangarService hangar;
   final int balance;
   final HangarStat? buying;
+  final Map<HangarStat, int> bought;
+  final ListEntrance entrance;
   final ValueChanged<HangarStat> onBuy;
 
   static IconData _icon(HangarStat s) => switch (s) {
@@ -215,8 +243,8 @@ class _UpgradeList extends StatelessWidget {
         Expanded(
           child: ListView(
             children: [
-              for (final def in HangarCatalog.stats)
-                Builder(builder: (context) {
+              for (final (index, def) in HangarCatalog.stats.indexed)
+                entrance.wrap(index, Builder(builder: (context) {
                   final lvl = hangar.level(def.stat);
                   final maxed = lvl >= HangarCatalog.maxLevel;
                   final cost = HangarCatalog.costForNext(lvl);
@@ -224,21 +252,25 @@ class _UpgradeList extends StatelessWidget {
                     title: def.name,
                     subtitle: def.perLevel,
                     leading: CsIconDisc(_icon(def.stat), color: lvl > 0 ? CsColors.gold : CsColors.ink60),
-                    below: Row(children: [
-                      for (var i = 0; i < HangarCatalog.maxLevel; i++) ...[
-                        if (i > 0) SizedBox(width: cs(4)),
-                        Container(
-                          width: cs(22),
-                          height: 3,
-                          decoration: BoxDecoration(
-                            color: i < lvl ? null : CsColors.track,
-                            gradient: i < lvl ? CsGradients.prism : null,
-                          ),
+                    // A purchase fills the new segment, rolls the level and
+                    // pops the bar.
+                    below: CsPop(
+                      trigger: bought[def.stat] ?? 0,
+                      peak: 1.06,
+                      alignment: Alignment.centerLeft,
+                      child: Row(children: [
+                        for (var i = 0; i < HangarCatalog.maxLevel; i++) ...[
+                          if (i > 0) SizedBox(width: cs(4)),
+                          _LevelSegment(width: cs(22), filled: i < lvl),
+                        ],
+                        SizedBox(width: cs(8)),
+                        CsOdometer(
+                          value: lvl,
+                          format: (v) => 'L$v / ${HangarCatalog.maxLevel}',
+                          style: t.mono(9, color: CsColors.ink45),
                         ),
-                      ],
-                      SizedBox(width: cs(8)),
-                      Text('L$lvl / ${HangarCatalog.maxLevel}', style: t.mono(9, color: CsColors.ink45)),
-                    ]),
+                      ]),
+                    ),
                     trailing: maxed
                         ? const CsChip('Max', kind: CsChipKind.mint)
                         : _PriceButton(
@@ -248,7 +280,7 @@ class _UpgradeList extends StatelessWidget {
                             onPressed: buying == null ? () => onBuy(def.stat) : null,
                           ),
                   );
-                }),
+                })),
             ],
           ),
         ),
@@ -293,7 +325,8 @@ class _PriceButton extends StatelessWidget {
             else
               const CsCoinGlyph(size: 16),
             SizedBox(width: cs(8)),
-            Text('$cost', maxLines: 1, style: t.number(14, em: 0, height: 1)),
+            // Rolls to the next level's price after a purchase.
+            CsOdometer(value: cost, format: (v) => '$v', style: t.number(14, em: 0, height: 1)),
           ]),
         ),
       ),
@@ -309,6 +342,39 @@ class _PriceButton extends StatelessWidget {
           child: Text('Need $missing more', maxLines: 1, style: t.mono(10, color: CsColors.ink70, em: 0.04)),
         ),
       ],
+    );
+  }
+}
+
+/// One segment of an upgrade's level bar. Filling sweeps the prism in from
+/// the left (a scaleX transform, no relayout); it starts filled on first
+/// build, so only real changes animate.
+class _LevelSegment extends StatelessWidget {
+  const _LevelSegment({required this.width, required this.filled});
+  final double width;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: 3,
+      child: Stack(fit: StackFit.expand, children: [
+        const ColoredBox(color: CsColors.track),
+        TweenAnimationBuilder<double>(
+          tween: Tween(end: filled ? 1 : 0),
+          duration: CsReduceMotion.duration(context, CsMotion.gentle),
+          curve: CsMotion.easeOutSoft,
+          child: const DecoratedBox(decoration: BoxDecoration(gradient: CsGradients.prism)),
+          builder: (context, v, child) => v == 0
+              ? const SizedBox.shrink()
+              : Transform(
+                  alignment: Alignment.centerLeft,
+                  transform: Matrix4.diagonal3Values(v, 1, 1),
+                  child: child,
+                ),
+        ),
+      ]),
     );
   }
 }

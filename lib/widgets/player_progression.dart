@@ -147,16 +147,23 @@ class PlayerProgressionCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('LV ${level.toString().padLeft(2, '0')}', maxLines: 1, style: t.mono(13, color: CsColors.ink, weight: FontWeight.w600)),
+                // LV and lifetime XP roll when they change.
+                CsOdometer(
+                  value: level,
+                  format: (v) => 'LV ${v.toString().padLeft(2, '0')}',
+                  style: t.mono(13, color: CsColors.ink, weight: FontWeight.w600),
+                ),
                 const Spacer(),
                 Flexible(
                   flex: 4,
-                  child: Text(
-                    '$total XP EARNED',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: t.mono(10, color: CsColors.xp),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: CsOdometer(
+                      value: total,
+                      format: (v) => '$v XP EARNED',
+                      style: t.mono(10, color: CsColors.xp),
+                    ),
                   ),
                 ),
               ],
@@ -167,11 +174,17 @@ class PlayerProgressionCard extends StatelessWidget {
               gradient: CsGradients.prism,
             ),
             SizedBox(height: cs(6)),
-            Text(
-              '$into / $needed XP TO LV ${(level + 1).toString().padLeft(2, '0')}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: t.mono(10, color: CsColors.ink45),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: CsOdometer(
+                  value: into,
+                  format: (v) => '$v / $needed XP TO LV ${(level + 1).toString().padLeft(2, '0')}',
+                  style: t.mono(10, color: CsColors.ink45),
+                ),
+              ),
             ),
           ],
         );
