@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../theme/cosmo_theme.dart';
+import 'cs_motion.dart';
 import 'cs_prism.dart';
 
 enum CsButtonVariant {
@@ -29,7 +30,21 @@ enum CsButtonSize {
   small,
 }
 
-/// Scale-on-press wrapper (0.97) used by every tappable in the system.
+/// Press wrapper used by every tappable in the system (MOTION_SPEC "Press").
+///
+/// Pointer down scales to [scale] (0.97) over `CsMotion.quick` on
+/// `easeOutSoft`; release springs back over `CsMotion.release` (250 ms) on
+/// `springSoft`, overshooting a hair past 1. The scale is a ScaleTransition
+/// driven by one controller, so the child is never rebuilt while pressing.
+/// No shadows, no colour change: the content stays as designed.
+///
+/// [haptic] fires once per successful tap (and once per long press) through
+/// [CsHaptic], which honours the player's Haptics toggle. Reduce motion: the
+/// press still dips, but linearly in 120 ms with no spring.
+///
+/// ```dart
+/// CsPressable(onTap: open, haptic: CsHaptic.selection, child: row)
+/// ```
 class CsPressable extends StatefulWidget {
   const CsPressable({
     super.key,
@@ -38,6 +53,7 @@ class CsPressable extends StatefulWidget {
     this.onLongPress,
     this.scale = 0.97,
     this.semanticLabel,
+    this.haptic = CsHaptic.none,
   });
 
   final Widget child;
@@ -46,15 +62,52 @@ class CsPressable extends StatefulWidget {
   final double scale;
   final String? semanticLabel;
 
+  /// Feedback on tap / long press. Default none.
+  final CsHaptic haptic;
+
   @override
   State<CsPressable> createState() => _CsPressableState();
 }
 
-class _CsPressableState extends State<CsPressable> {
-  bool _down = false;
+class _CsPressableState extends State<CsPressable> with SingleTickerProviderStateMixin {
+  // 0 = rest, 1 = fully pressed. Unbounded so the springSoft release can
+  // overshoot below 0 (scale slightly above 1) before settling.
+  late final AnimationController _press = AnimationController.unbounded(vsync: this);
+  late final Animation<double> _scale = _press.drive(_PressScale(this));
 
-  void _set(bool v) {
-    if (_down != v) setState(() => _down = v);
+  bool get _reduce => CsReduceMotion.of(context, listen: false);
+
+  @override
+  void dispose() {
+    _press.dispose();
+    super.dispose();
+  }
+
+  void _down() {
+    if (_reduce) {
+      _press.animateTo(1, duration: CsMotion.instant, curve: Curves.linear);
+    } else {
+      _press.animateTo(1, duration: CsMotion.quick, curve: CsMotion.easeOutSoft);
+    }
+  }
+
+  void _up() {
+    if (!mounted) return;
+    if (_reduce) {
+      _press.animateTo(0, duration: CsMotion.instant, curve: Curves.linear);
+    } else {
+      _press.animateTo(0, duration: CsMotion.release, curve: CsMotion.springSoft);
+    }
+  }
+
+  void _tap() {
+    widget.haptic.play();
+    widget.onTap?.call();
+  }
+
+  void _longPress() {
+    widget.haptic.play();
+    widget.onLongPress?.call();
   }
 
   @override
@@ -66,20 +119,25 @@ class _CsPressableState extends State<CsPressable> {
       label: widget.semanticLabel,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
-        onTapDown: enabled ? (_) => _set(true) : null,
-        onTapUp: enabled ? (_) => _set(false) : null,
-        onTapCancel: enabled ? () => _set(false) : null,
-        child: AnimatedScale(
-          scale: _down ? widget.scale : 1,
-          duration: CsMotion.fast,
-          curve: CsMotion.standard,
-          child: widget.child,
-        ),
+        onTap: widget.onTap == null ? null : _tap,
+        onLongPress: widget.onLongPress == null ? null : _longPress,
+        onTapDown: enabled ? (_) => _down() : null,
+        onTapUp: enabled ? (_) => _up() : null,
+        onTapCancel: enabled ? _up : null,
+        child: ScaleTransition(scale: _scale, child: widget.child),
       ),
     );
   }
+}
+
+/// Maps press progress (0 rest → 1 pressed, may dip below 0) to a scale,
+/// reading the current target scale from the widget so it can change.
+class _PressScale extends Animatable<double> {
+  _PressScale(this._state);
+  final _CsPressableState _state;
+
+  @override
+  double transform(double t) => 1 - (1 - _state.widget.scale) * t;
 }
 
 class CsButton extends StatelessWidget {
@@ -94,6 +152,7 @@ class CsButton extends StatelessWidget {
     this.expand = false,
     this.loading = false,
     this.trailing,
+    this.haptic,
   });
 
   const CsButton.primary({
@@ -106,6 +165,7 @@ class CsButton extends StatelessWidget {
     this.expand = false,
     this.loading = false,
     this.trailing,
+    this.haptic,
   }) : variant = CsButtonVariant.primary;
 
   const CsButton.secondary({
@@ -118,6 +178,7 @@ class CsButton extends StatelessWidget {
     this.expand = false,
     this.loading = false,
     this.trailing,
+    this.haptic,
   }) : variant = CsButtonVariant.secondary;
 
   const CsButton.text({
@@ -130,6 +191,7 @@ class CsButton extends StatelessWidget {
     this.expand = false,
     this.loading = false,
     this.trailing,
+    this.haptic,
   }) : variant = CsButtonVariant.text;
 
   const CsButton.premium({
@@ -142,6 +204,7 @@ class CsButton extends StatelessWidget {
     this.expand = false,
     this.loading = false,
     this.trailing,
+    this.haptic,
   }) : variant = CsButtonVariant.premium;
 
   const CsButton.prism({
@@ -154,6 +217,7 @@ class CsButton extends StatelessWidget {
     this.expand = false,
     this.loading = false,
     this.trailing,
+    this.haptic,
   }) : variant = CsButtonVariant.prism;
 
   final String label;
@@ -167,6 +231,13 @@ class CsButton extends StatelessWidget {
 
   /// Extra widget after the label (e.g. a mono price).
   final Widget? trailing;
+
+  /// Tap feedback. Null picks the variant default: light for filled and
+  /// outlined pills (primary, secondary, premium, prism), selection for text.
+  final CsHaptic? haptic;
+
+  CsHaptic get _haptic =>
+      haptic ?? (variant == CsButtonVariant.text ? CsHaptic.selection : CsHaptic.light);
 
   @override
   Widget build(BuildContext context) {
@@ -262,6 +333,7 @@ class CsButton extends StatelessWidget {
       child: CsPressable(
         onTap: enabled ? onPressed : null,
         semanticLabel: label,
+        haptic: _haptic,
         child: body,
       ),
     );
@@ -280,6 +352,7 @@ class CsIconButton extends StatelessWidget {
     this.color = CsColors.ink,
     this.tooltip,
     this.badge,
+    this.haptic = CsHaptic.selection,
   });
 
   final IconData icon;
@@ -291,6 +364,9 @@ class CsIconButton extends StatelessWidget {
 
   /// Small dot/count shown top-right (e.g. unread friend requests).
   final Widget? badge;
+
+  /// Tap feedback (selection tick by default).
+  final CsHaptic haptic;
 
   @override
   Widget build(BuildContext context) {
@@ -314,7 +390,7 @@ class CsIconButton extends StatelessWidget {
     if (badge != null) {
       w = Stack(clipBehavior: Clip.none, children: [w, Positioned(top: 4, right: 4, child: badge!)]);
     }
-    w = Opacity(opacity: onPressed == null ? 0.4 : 1, child: CsPressable(onTap: onPressed, semanticLabel: tooltip, child: w));
+    w = Opacity(opacity: onPressed == null ? 0.4 : 1, child: CsPressable(onTap: onPressed, semanticLabel: tooltip, haptic: haptic, child: w));
     return tooltip == null ? w : Tooltip(message: tooltip!, child: w);
   }
 }

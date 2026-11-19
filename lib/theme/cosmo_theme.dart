@@ -98,16 +98,94 @@ class CsRadius {
   static const tile = 14.0, card = 22.0, pill = 999.0, chip = 999.0;
 }
 
+/// Motion tokens. The full table of which interaction uses which token, its
+/// haptic and its reduce-motion fallback is `docs/motion/MOTION_SPEC.md`.
+///
+/// The overshooting curves are cubic approximations of a spring, so they work
+/// with any implicit widget (`AnimatedScale`, `AnimatedContainer`…) and with
+/// `Interval`s inside a `CsBeatSheet`. Their output leaves 0..1, so only use
+/// them on properties that tolerate it (scale, translation, size), never on
+/// opacity (clamp first) or colour.
 class CsMotion {
   CsMotion._();
+
+  // ── Durations ────────────────────────────────────────────────────────────
+  /// 120 ms. Hover/press colour, reduce-motion fades. Same as [instant].
   static const fast = Duration(milliseconds: 120);
+
+  /// 200 ms. Chip/segment fill crossfades, small state swaps.
   static const base = Duration(milliseconds: 200);
+
+  /// 320 ms. Larger state changes (panel expand, dialog in).
   static const slow = Duration(milliseconds: 320);
+
+  /// 280 ms. Route transitions.
   static const screen = Duration(milliseconds: 280);
+
+  /// 600 ms. Number count-ups and odometer-style rolls of big values.
   static const countUp = Duration(milliseconds: 600);
+
+  /// 6 s. One turn of a decorative prism ring (not a loop by default).
   static const ringTurn = Duration(seconds: 6);
+
+  /// 120 ms. Press-down colour, reduce-motion fallbacks.
+  static const instant = Duration(milliseconds: 120);
+
+  /// 180 ms. Press-down scale, toggles' first half, toast exit.
+  static const quick = Duration(milliseconds: 180);
+
+  /// 250 ms. Press release spring.
+  static const release = Duration(milliseconds: 250);
+
+  /// 380 ms. One odometer character roll.
+  static const roll = Duration(milliseconds: 380);
+
+  /// 400 ms. Content fade-up, dialog/toast entrance, chip pops.
+  static const gentle = Duration(milliseconds: 400);
+
+  /// 450 ms. One-shot reward / HUD pop (`CsPop`).
+  static const pop = Duration(milliseconds: 450);
+
+  /// 900 ms. Hero moments (results card, progress fills that tell a story).
+  static const lingering = Duration(milliseconds: 900);
+
+  // ── Stagger ──────────────────────────────────────────────────────────────
+  /// Delay added per list slot by `CsFadeUp`.
+  static const staggerStep = Duration(milliseconds: 55);
+
+  /// Slots past this index all start together, so long lists never make the
+  /// player wait (8 × 55 ms ≈ 440 ms worst case).
+  static const staggerMaxSlots = 8;
+
+  /// The entrance delay for list slot [index] (capped at [staggerMaxSlots]).
+  static Duration stagger(int index) =>
+      staggerStep * index.clamp(0, staggerMaxSlots);
+
+  // ── Curves ───────────────────────────────────────────────────────────────
+  /// Material-ish decelerate; the default for colour and layout tweens.
   static const standard = Cubic(0.2, 0, 0, 1);
+
+  /// Slight overshoot at the end (legacy; prefer [springSoft]).
   static const emphasis = Cubic(0.3, 0, 0, 1.2);
+
+  /// Settles gently, no overshoot. Fades, fade-ups, progress fills, press-down.
+  static const easeOutSoft = Cubic(0.2, 0.8, 0.2, 1);
+
+  /// ~8% overshoot. Press release, toggles, counters, deselect.
+  static const springSoft = Cubic(0.3, 1.5, 0.5, 1);
+
+  /// ~15% overshoot. Pops: rewards, stars, chain counter, selected chips.
+  static const springPop = Cubic(0.3, 1.8, 0.5, 1);
+
+  /// Fast start, soft landing. Things arriving from off-screen (toasts, cards).
+  static const dropIn = Cubic(0.3, 0.9, 0.4, 1);
+
+  /// Accelerates away. Anything leaving (toast out, dialog out).
+  static const exit = Cubic(0.4, 0, 0.5, 1);
+
+  /// Ease-in-out for things moving between two on-screen spots (tab indicator,
+  /// a coin flying to the wallet).
+  static const travel = Cubic(0.45, 0, 0.25, 1);
 }
 
 class CsFonts {
