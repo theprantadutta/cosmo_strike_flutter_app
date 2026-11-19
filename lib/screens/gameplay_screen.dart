@@ -38,7 +38,6 @@ import '../services/daily_challenge_service.dart';
 import '../services/statistics_service.dart';
 import '../services/tournament_service.dart';
 import '../services/weekly_quest_service.dart';
-import '../services/haptic_service.dart';
 import '../services/hangar_service.dart';
 import '../services/notification_service.dart';
 import '../services/walkthrough_service.dart';
@@ -46,6 +45,7 @@ import '../ui/cs.dart';
 import '../ui/design/immersive.dart';
 import '../widgets/game_dpad.dart';
 import '../widgets/gameplay/game_over_overlay.dart';
+import '../widgets/gameplay/hud_motion.dart';
 import '../widgets/gameplay/level_complete_overlay.dart';
 import '../widgets/gameplay/pause_overlay.dart';
 import '../widgets/gameplay/run_context.dart';
@@ -859,7 +859,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// flourish + sound + haptic so the reward never lands silently.
   void _celebrateRevive() {
     AudioService().playSound('revive');
-    unawaited(HapticService().customHaptic(HapticIntensity.success));
+    CsHaptic.success.play();
     if (!mounted) return;
     setState(() => _showRevived = true);
     Future.delayed(const Duration(milliseconds: 1500), () {
@@ -1002,14 +1002,6 @@ class _GameplayScreenState extends State<GameplayScreen>
     }
   }
 
-  /// Pink edge vignette for the landed-hit pulse — const so the 450ms pulse
-  /// only animates an opacity, never re-allocates a gradient per frame.
-  static const RadialGradient _hitVignette = RadialGradient(
-    radius: 1.15,
-    colors: [Color(0x00FF8AD8), Color(0x4DFF8AD8)],
-    stops: [0.55, 1.0],
-  );
-
   /// The full-screen result overlays that replace the playfield.
   static bool _resultOverlayUp(GamePhase phase) =>
       phase == GamePhase.levelClear ||
@@ -1065,29 +1057,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
                 // Pink edge vignette pulse on every landed hit — shake-setting
                 // independent, so a hit ALWAYS reads on screen.
-                ValueListenableBuilder<int>(
-                  valueListenable: _game.hitPulseNotifier,
-                  builder: (_, pulse, _) {
-                    if (pulse == 0) return const SizedBox.shrink();
-                    return IgnorePointer(
-                      child: TweenAnimationBuilder<double>(
-                        key: ValueKey(pulse),
-                        tween: Tween(begin: 1, end: 0),
-                        duration: const Duration(milliseconds: 450),
-                        curve: Curves.easeOut,
-                        builder: (_, t, child) {
-                          if (t <= 0.01) return const SizedBox.shrink();
-                          return Opacity(opacity: t, child: child);
-                        },
-                        child: const SizedBox.expand(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(gradient: _hitVignette),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                _HitPulse(game: _game),
                 // HUD + controls, hidden under the full-screen result
                 // overlays (level clear / revive / game over) so nothing —
                 // score, KILLS, lives, the missile / Overdrive buttons or
@@ -1188,15 +1158,9 @@ class _GameplayScreenState extends State<GameplayScreen>
                 ),
 
                 // Level intro banner (non-blocking).
-                ValueListenableBuilder<GamePhase>(
-                  valueListenable: _game.phaseNotifier,
-                  builder: (context, phase, _) {
-                    if (phase != GamePhase.levelIntro) {
-                      return const SizedBox.shrink();
-                    }
-                    return _LevelIntroBanner(game: _game, runLabel: _runLabel);
-                  },
-                ),
+                // Listens to the phase itself so it can play its exit after
+                // the intro ends.
+                _LevelIntroBanner(game: _game, runLabel: _runLabel),
 
                 // Set-piece callout ("CANYON RUN") — small banner that never
                 // blocks input.
@@ -1422,7 +1386,7 @@ class _Hud extends StatelessWidget {
               children: [
                 _ScoreBlock(game: game),
                 SizedBox(height: cs(6)),
-                _ChainPopup(game: game),
+                HudChainReadout(game: game),
               ],
             ),
           ),
@@ -1433,7 +1397,7 @@ class _Hud extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IgnorePointer(child: _LifePips(game: game)),
+              IgnorePointer(child: HudLifePips(game: game)),
               SizedBox(width: cs(14)),
               CsIconButton(
                 icon: Symbols.pause_rounded,
@@ -1477,13 +1441,7 @@ class _ScoreBlock extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            RepaintBoundary(
-              child: ValueListenableBuilder<int>(
-                valueListenable: game.scoreNotifier,
-                builder: (_, score, _) =>
-                    Text('$score', maxLines: 1, style: t.hudScore),
-              ),
-            ),
+            RepaintBoundary(child: HudScore(game: game)),
             SizedBox(width: cs(18)),
             Padding(
               padding: EdgeInsets.only(bottom: cs(3)),
@@ -1545,230 +1503,8 @@ class _ScoreBlock extends StatelessWidget {
           ),
         ),
         SizedBox(height: cs(10)),
-        RepaintBoundary(
-          child: ValueListenableBuilder<List<ActiveEffectHud>>(
-            valueListenable: game.effectsNotifier,
-            builder: (_, effects, _) {
-              if (effects.isEmpty) return const SizedBox.shrink();
-              return Wrap(
-                spacing: cs(6),
-                runSpacing: cs(6),
-                children: [for (final e in effects) _EffectChip(effect: e)],
-              );
-            },
-          ),
-        ),
+        RepaintBoundary(child: HudEffectChips(game: game)),
       ],
-    );
-  }
-}
-
-/// Lives as small ship icons: filled ink = in reserve, hollow 38% = lost. A
-/// lost ship flashes pink and settles hollow in its slot, with a mono
-/// "SHIP DOWN" tag dropping in below — losing a life is never silent.
-class _LifePips extends StatefulWidget {
-  const _LifePips({required this.game});
-  final CosmoStrikeGame game;
-
-  @override
-  State<_LifePips> createState() => _LifePipsState();
-}
-
-class _LifePipsState extends State<_LifePips> {
-  late int _shown;
-  int _lossEvents = 0;
-
-  static const Color _lost = Color(0x61F4F3F7); // 38% ink, hollow
-
-  @override
-  void initState() {
-    super.initState();
-    _shown = widget.game.livesNotifier.value;
-    widget.game.livesNotifier.addListener(_onLivesChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.game.livesNotifier.removeListener(_onLivesChanged);
-    super.dispose();
-  }
-
-  void _onLivesChanged() {
-    final now = widget.game.livesNotifier.value;
-    if (!mounted || now == _shown) return;
-    setState(() {
-      if (now < _shown) _lossEvents++;
-      _shown = now;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = context.cs;
-    final total = math.max(widget.game.mode.runLives, _shown).clamp(1, 6);
-    // Small ship silhouettes (nose right, like the player's ship): filled
-    // = a ship in reserve, hollow = lost. Reads as "lives" without a label.
-    final w = cs(17).clamp(13.0, 24.0);
-    final h = w * 0.72;
-
-    Widget ship(int i) {
-      final lit = i < _shown;
-      // The slot that just emptied flashes pink before settling hollow.
-      if (!lit && i == _shown && _lossEvents > 0) {
-        return TweenAnimationBuilder<double>(
-          key: ValueKey(_lossEvents),
-          tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 800),
-          curve: CsMotion.standard,
-          builder: (_, t, _) => CustomPaint(
-            size: Size(w, h),
-            painter: _ShipIconPainter(
-              color: Color.lerp(CsColors.pink, _lost, t)!,
-              filled: t < 0.5,
-            ),
-          ),
-        );
-      }
-      return CustomPaint(
-        size: Size(w, h),
-        painter: _ShipIconPainter(color: lit ? CsColors.ink : _lost, filled: lit),
-      );
-    }
-
-    return RepaintBoundary(
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Semantics(
-            label: 'Ships $_shown of $total',
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < total; i++) ...[
-                  if (i > 0) SizedBox(width: cs(5)),
-                  ship(i),
-                ],
-              ],
-            ),
-          ),
-          if (_lossEvents > 0)
-            Positioned(
-              right: 0,
-              top: h + cs(8),
-              child: TweenAnimationBuilder<double>(
-                key: ValueKey(-_lossEvents),
-                tween: Tween(begin: 0, end: 1),
-                duration: const Duration(milliseconds: 1400),
-                builder: (_, t, child) {
-                  // Pop in fast, hold, fade at the tail.
-                  final inT = (t * 6).clamp(0.0, 1.0);
-                  final outT = ((t - 0.75) * 4).clamp(0.0, 1.0);
-                  final alpha = inT * (1 - outT);
-                  if (alpha <= 0.01) return const SizedBox.shrink();
-                  return Opacity(
-                    opacity: alpha,
-                    child: Transform.translate(
-                      offset: Offset(0, (1 - inT) * -6),
-                      child: child,
-                    ),
-                  );
-                },
-                child: Text(
-                  'SHIP DOWN',
-                  maxLines: 1,
-                  style: cs.type.mono(10, em: 0.16, color: CsColors.pink),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The lives HUD ship: an arrowhead pointing right (the player's heading)
-/// with a notched tail — filled when in reserve, a 1.4px outline when lost.
-class _ShipIconPainter extends CustomPainter {
-  const _ShipIconPainter({required this.color, required this.filled});
-
-  final Color color;
-  final bool filled;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    const stroke = 1.4;
-    final path = Path()
-      ..moveTo(stroke, stroke)
-      ..lineTo(w - stroke, h / 2)
-      ..lineTo(stroke, h - stroke)
-      ..lineTo(w * 0.3, h / 2)
-      ..close();
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color
-        ..isAntiAlias = true
-        ..style = filled ? PaintingStyle.fill : PaintingStyle.stroke
-        ..strokeWidth = stroke
-        ..strokeJoin = StrokeJoin.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_ShipIconPainter old) =>
-      old.color != color || old.filled != filled;
-}
-
-/// Kill-chain popup: prism "×2" (ink at ×1) + mono "CHAIN 12". Appears from
-/// a 2-chain on and pops when the multiplier tier rises.
-class _ChainPopup extends StatelessWidget {
-  const _ChainPopup({required this.game});
-  final CosmoStrikeGame game;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = context.cs;
-    final t = cs.type;
-    final multStyle = t.display(26, height: 1);
-    return RepaintBoundary(
-      child: ValueListenableBuilder<int>(
-        valueListenable: game.combo.comboNotifier,
-        builder: (_, chain, _) {
-          if (chain < 2) return const SizedBox.shrink();
-          return ValueListenableBuilder<int>(
-            valueListenable: game.combo.multiplierNotifier,
-            builder: (_, mult, _) => TweenAnimationBuilder<double>(
-              key: ValueKey(mult),
-              tween: Tween(begin: mult > 1 ? 1.3 : 1.0, end: 1.0),
-              duration: CsMotion.base,
-              curve: CsMotion.emphasis,
-              builder: (_, s, child) => Transform.scale(
-                scale: s,
-                alignment: Alignment.centerLeft,
-                child: child,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  if (mult >= 2)
-                    CsPrismText('×$mult', style: multStyle)
-                  else
-                    Text('×$mult', style: multStyle),
-                  SizedBox(width: cs(10)),
-                  Text(
-                    'CHAIN $chain',
-                    style: t.mono(12, em: 0.1, color: CsColors.ink),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
     );
   }
 }
@@ -1821,66 +1557,6 @@ class _BossBar extends StatelessWidget {
   }
 }
 
-/// Active timed power-up: glyph + a tiny 2px remaining-time line. Not
-/// tweened — the notifier already updates continuously.
-class _EffectChip extends StatelessWidget {
-  const _EffectChip({required this.effect});
-  final ActiveEffectHud effect;
-
-  static const Map<String, IconData> _icons = {
-    'weapon': Symbols.bolt_rounded,
-    'x2': Symbols.close_rounded, // x glyph
-    'speed': Symbols.speed_rounded,
-    'slowmo': Symbols.slow_motion_video_rounded,
-    'magnet': Symbols.attractions_rounded,
-    'ghost': Symbols.blur_on_rounded,
-    'shield': Symbols.shield_rounded, // post-revive protection window
-  };
-
-  static const ShapeDecoration _chip = ShapeDecoration(
-    color: Color(0xB30A0A0D),
-    shape: StadiumBorder(side: BorderSide(color: CsColors.hairline)),
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = context.cs;
-    final barW = cs(26);
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: cs(9), vertical: cs(5)),
-      decoration: _chip,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _icons[effect.id] ?? Symbols.star_rounded,
-            size: cs(13),
-            color: CsColors.ink,
-          ),
-          SizedBox(width: cs(6)),
-          SizedBox(
-            width: barW,
-            height: 2,
-            child: ColoredBox(
-              color: CsColors.track,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: SizedBox(
-                  width: barW * effect.remaining01.clamp(0.0, 1.0),
-                  height: 2,
-                  child: const DecoratedBox(
-                    decoration: BoxDecoration(gradient: CsGradients.progress),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// 72px missile button: near-black disc, rocket glyph + "×N" ammo count,
 /// ringed by the graze meter as a prism conic arc on a hairline track (a
 /// full ring converts to +1 missile).
@@ -1912,7 +1588,7 @@ const double _emptyActionOpacity = 0.38;
 
 /// Small missile launcher: rocket + ammo; double-tap anywhere also fires.
 /// Empty = whole chip at 38%; armed = full ink with a strong rim, and one
-/// pop when it gains its first missile.
+/// pop every time the ammo goes up.
 class _MissileChip extends StatelessWidget {
   const _MissileChip({required this.game});
   final CosmoStrikeGame game;
@@ -1931,8 +1607,8 @@ class _MissileChip extends StatelessWidget {
           return Semantics(
             button: true,
             label: armed ? 'Missile, $ammo ready' : 'Missile, empty',
-            child: _ReadyPop(
-              ready: armed,
+            child: HudPopOnRise(
+              value: ammo,
               child: AnimatedOpacity(
                 opacity: armed ? 1 : _emptyActionOpacity,
                 duration: CsMotion.base,
@@ -1970,7 +1646,9 @@ class _MissileChip extends StatelessWidget {
 /// Overdrive: the ring fills from grazes over a solid disc (the % stays
 /// readable over the busy floor) with the contents dimmed while charging;
 /// when full it lights up as a white disc in a prism ring ("TAP") with one
-/// pop; while active the ring drains in gold.
+/// `springPop` (never a looping pulse); while active the ring drains in
+/// gold. The ring fill eases to each new meter value (CsRingProgress tweens
+/// it), so grazes never step it.
 class _OverdriveButton extends StatelessWidget {
   const _OverdriveButton({required this.game});
   final CosmoStrikeGame game;
@@ -2034,7 +1712,7 @@ class _OverdriveButton extends StatelessWidget {
                 return Semantics(
                   button: true,
                   label: semantics,
-                  child: _ReadyPop(ready: ready, child: body),
+                  child: HudPopOnRise(value: ready ? 1 : 0, child: body),
                 );
               },
             ),
@@ -2059,42 +1737,6 @@ class _OverdriveButton extends StatelessWidget {
       );
 }
 
-/// One subtle scale pop (1 → 1.12 → 1) each time [ready] flips to true.
-/// Deliberately not looping (no looping shimmer in Prism Noir).
-class _ReadyPop extends StatefulWidget {
-  const _ReadyPop({required this.ready, required this.child});
-  final bool ready;
-  final Widget child;
-
-  @override
-  State<_ReadyPop> createState() => _ReadyPopState();
-}
-
-class _ReadyPopState extends State<_ReadyPop> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 420));
-  late final Animation<double> _scale = TweenSequence<double>([
-    TweenSequenceItem(tween: Tween(begin: 1, end: 1.12), weight: 40),
-    TweenSequenceItem(tween: Tween(begin: 1.12, end: 1), weight: 60),
-  ]).animate(CurvedAnimation(parent: _c, curve: Curves.easeOut));
-
-  @override
-  void didUpdateWidget(_ReadyPop old) {
-    super.didUpdateWidget(old);
-    if (widget.ready && !old.ready) _c.forward(from: 0);
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) =>
-      ScaleTransition(scale: _scale, child: widget.child);
-}
-
 /// Boss WARNING: pink hazard rules around a Syne headline with the boss
 /// name, sliding in mid-screen for the warning window.
 class _BossWarning extends StatelessWidget {
@@ -2107,14 +1749,9 @@ class _BossWarning extends StatelessWidget {
     final t = cs.type;
     return Align(
       alignment: const Alignment(0, -0.15),
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: CsMotion.slow,
-        curve: CsMotion.emphasis,
-        builder: (_, v, child) => Opacity(
-          opacity: v.clamp(0.0, 1.0),
-          child: Transform.scale(scale: 1.15 - 0.15 * v, child: child),
-        ),
+      child: _Entrance(
+        fromScale: 1.15,
+        curve: CsMotion.dropIn,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2147,7 +1784,12 @@ class _BossWarning extends StatelessWidget {
 /// "LEVEL 03" mono + level name headline during the level intro phase.
 /// Sits in the upper playfield, right of the ship's spawn column (left
 /// edge, vertical centre), so the title card never covers the ship.
-class _LevelIntroBanner extends StatelessWidget {
+///
+/// Always mounted; it listens to the phase itself so it can animate out:
+/// the title drops in (`dropIn`), the mono line fades up just after, and
+/// when the intro ends the card lifts away on the exit curve before it
+/// unmounts. Reduce motion: shown and hidden instantly.
+class _LevelIntroBanner extends StatefulWidget {
   const _LevelIntroBanner({required this.game, required this.runLabel});
   final CosmoStrikeGame game;
 
@@ -2155,52 +1797,291 @@ class _LevelIntroBanner extends StatelessWidget {
   final String runLabel;
 
   @override
+  State<_LevelIntroBanner> createState() => _LevelIntroBannerState();
+}
+
+class _LevelIntroBannerState extends State<_LevelIntroBanner>
+    with TickerProviderStateMixin {
+  late final AnimationController _in = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 560),
+  );
+  late final AnimationController _out =
+      AnimationController(vsync: this, duration: CsMotion.quick);
+
+  late final Animation<double> _titleFade = CurvedAnimation(
+    parent: _in,
+    curve: const Interval(0, 0.55, curve: CsMotion.easeOutSoft),
+  );
+  late final Animation<double> _titleDrop = CurvedAnimation(
+    parent: _in,
+    curve: const Interval(0, 0.8, curve: CsMotion.dropIn),
+  );
+  late final Animation<double> _subFade = CurvedAnimation(
+    parent: _in,
+    curve: const Interval(0.3, 1, curve: CsMotion.easeOutSoft),
+  );
+  late final Animation<double> _leave =
+      CurvedAnimation(parent: _out, curve: CsMotion.exit);
+  late final Animation<double> _leaveFade = ReverseAnimation(_leave);
+
+  /// The card is in the tree (entering, shown or leaving).
+  bool _visible = false;
+
+  /// The game is in its intro phase (the card should be showing).
+  bool _showing = false;
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    widget.game.phaseNotifier.addListener(_onPhase);
+    _onPhase(initial: true);
+  }
+
+  @override
+  void dispose() {
+    widget.game.phaseNotifier.removeListener(_onPhase);
+    _in.dispose();
+    _out.dispose();
+    super.dispose();
+  }
+
+  void _onPhase({bool initial = false}) {
+    if (!mounted) return;
+    // The first sync runs before the first build: assign, don't setState.
+    void setVisible(bool v) => initial ? _visible = v : setState(() => _visible = v);
+    final intro = widget.game.phaseNotifier.value == GamePhase.levelIntro;
+    if (intro == _showing) return;
+    _showing = intro;
+    final reduce = CsReduceMotion.of(context, listen: false);
+    if (intro) {
+      setVisible(true);
+      _out.value = 0;
+      if (reduce) {
+        _in.value = 1;
+      } else {
+        _in.forward(from: 0);
+      }
+    } else if (reduce) {
+      setVisible(false);
+    } else {
+      _out.forward(from: 0).whenComplete(() {
+        if (mounted && !_showing) setState(() => _visible = false);
+      });
+    }
+  }
+
+  /// Translates [child] by `dy * factor()` (a per-frame Transform with the
+  /// child cached, never a rebuild of the subtree).
+  Widget _shift(Animation<double> a, double Function(double v) dy, Widget child) =>
+      AnimatedBuilder(
+        animation: a,
+        child: child,
+        builder: (_, c) => Transform.translate(offset: Offset(0, dy(a.value)), child: c),
+      );
+
+  @override
   Widget build(BuildContext context) {
+    if (!_visible) return const SizedBox.shrink();
     final cs = context.cs;
     final t = cs.type;
+    final game = widget.game;
+
+    final subtitle = ValueListenableBuilder<int>(
+      valueListenable: game.levelNotifier,
+      builder: (_, level, _) => CsLabel(
+        'Level ${_two(level)} · ${widget.runLabel}',
+        color: CsColors.ink60,
+        size: 12,
+      ),
+    );
+    final title = ValueListenableBuilder<String>(
+      valueListenable: game.levelNameNotifier,
+      builder: (_, name, _) => FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          name,
+          maxLines: 1,
+          style: t.display(48, em: -0.04, height: 1),
+        ),
+      ),
+    );
+
+    final rise = cs(8);
+    final drop = cs(18);
+    final lift = cs(10);
     return IgnorePointer(
       child: Container(
         // The left inset clears the ship's spawn column; the upper-third
         // alignment keeps the card above the ship's vertical centre.
         padding: EdgeInsets.only(left: cs(170)),
         alignment: const Alignment(0, -0.42),
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: 1),
-          duration: CsMotion.slow,
-          curve: CsMotion.standard,
-          builder: (context, v, child) => Opacity(
-            opacity: v,
-            child: Transform.translate(
-              offset: Offset(0, cs(16) * (1 - v)),
-              child: child,
+        child: FadeTransition(
+          opacity: _leaveFade,
+          child: _shift(
+            _leave,
+            (v) => -lift * v,
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: cs(48)),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FadeTransition(
+                    opacity: _subFade,
+                    child: _shift(_subFade, (v) => rise * (1 - v), subtitle),
+                  ),
+                  SizedBox(height: cs(10)),
+                  FadeTransition(
+                    opacity: _titleFade,
+                    child: _shift(_titleDrop, (v) => -drop * (1 - v), title),
+                  ),
+                ],
+              ),
             ),
           ),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: cs(48)),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ValueListenableBuilder<int>(
-                  valueListenable: game.levelNotifier,
-                  builder: (_, level, _) => CsLabel(
-                    'Level ${_two(level)} · $runLabel',
-                    color: CsColors.ink60,
-                    size: 12,
-                  ),
-                ),
-                SizedBox(height: cs(10)),
-                ValueListenableBuilder<String>(
-                  valueListenable: game.levelNameNotifier,
-                  builder: (_, name, _) => FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      name,
-                      maxLines: 1,
-                      style: t.display(48, em: -0.04, height: 1),
-                    ),
-                  ),
-                ),
-              ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One-shot entrance for the in-run banners (boss warning, callouts,
+/// tutorial beats, flourishes): fades in on `easeOutSoft` while it slides
+/// from [offset] (design px) and/or scales from [fromScale] on [curve]. Key
+/// it to replay for new content. Opacity runs through FadeTransition and
+/// motion through a Transform with the child cached, so nothing rebuilds per
+/// frame. Reduce motion: a 120 ms fade, no movement.
+class _Entrance extends StatefulWidget {
+  const _Entrance({
+    super.key,
+    required this.child,
+    this.offset = Offset.zero,
+    this.fromScale = 1,
+    this.duration = CsMotion.slow,
+    this.curve = CsMotion.springSoft,
+  });
+
+  final Widget child;
+  final Offset offset;
+  final double fromScale;
+  final Duration duration;
+  final Curve curve;
+
+  @override
+  State<_Entrance> createState() => _EntranceState();
+}
+
+class _EntranceState extends State<_Entrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this);
+  late final Animation<double> _fade =
+      CurvedAnimation(parent: _c, curve: CsMotion.easeOutSoft);
+  late final Animation<double> _move =
+      CurvedAnimation(parent: _c, curve: widget.curve);
+  bool _reduce = false;
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    _reduce = CsReduceMotion.of(context, listen: false);
+    _c
+      ..duration = _reduce ? CsMotion.instant : widget.duration
+      ..forward();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final faded = FadeTransition(opacity: _fade, child: widget.child);
+    if (_reduce) return faded;
+    final cs = context.cs;
+    final dx = cs(widget.offset.dx);
+    final dy = cs(widget.offset.dy);
+    final s0 = widget.fromScale;
+    return AnimatedBuilder(
+      animation: _move,
+      child: faded,
+      builder: (_, child) {
+        final v = _move.value;
+        Widget w = child!;
+        if (s0 != 1) w = Transform.scale(scale: s0 + (1 - s0) * v, child: w);
+        if (dx != 0 || dy != 0) {
+          w = Transform.translate(offset: Offset(dx * (1 - v), dy * (1 - v)), child: w);
+        }
+        return w;
+      },
+    );
+  }
+}
+
+/// Pink edge vignette pulse on every landed hit. One controller restarted
+/// per hit and a FadeTransition over a const gradient box (drops its layer
+/// at 0), instead of a keyed TweenAnimationBuilder + Opacity rebuilt each
+/// frame. Gameplay feedback, so it plays under reduce motion too.
+class _HitPulse extends StatefulWidget {
+  const _HitPulse({required this.game});
+  final CosmoStrikeGame game;
+
+  @override
+  State<_HitPulse> createState() => _HitPulseState();
+}
+
+class _HitPulseState extends State<_HitPulse>
+    with SingleTickerProviderStateMixin {
+  /// Const so the pulse only animates an opacity, never re-allocates a
+  /// gradient per frame.
+  static const RadialGradient _hitVignette = RadialGradient(
+    radius: 1.15,
+    colors: [Color(0x00FF8AD8), Color(0x4DFF8AD8)],
+    stops: [0.55, 1.0],
+  );
+
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 450),
+    value: 1,
+  );
+  late final Animation<double> _opacity = _c
+      .drive(CurveTween(curve: Curves.easeOut))
+      .drive(Tween(begin: 1.0, end: 0.0));
+
+  @override
+  void initState() {
+    super.initState();
+    widget.game.hitPulseNotifier.addListener(_onHit);
+  }
+
+  @override
+  void dispose() {
+    widget.game.hitPulseNotifier.removeListener(_onHit);
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _onHit() {
+    if (widget.game.hitPulseNotifier.value != 0) _c.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: RepaintBoundary(
+        child: FadeTransition(
+          opacity: _opacity,
+          child: const SizedBox.expand(
+            child: DecoratedBox(
+              decoration: BoxDecoration(gradient: _hitVignette),
             ),
           ),
         ),
@@ -2220,15 +2101,10 @@ class _Callout extends StatelessWidget {
     final cs = context.cs;
     return Align(
       alignment: const Alignment(0, -0.4),
-      child: TweenAnimationBuilder<double>(
+      child: _Entrance(
         key: ValueKey(text),
-        tween: Tween(begin: 0, end: 1),
-        duration: CsMotion.slow,
-        curve: CsMotion.emphasis,
-        builder: (_, v, child) => Opacity(
-          opacity: v.clamp(0.0, 1.0),
-          child: Transform.scale(scale: 0.9 + 0.1 * v, child: child),
-        ),
+        fromScale: 0.9,
+        curve: CsMotion.springSoft,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2290,6 +2166,10 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
   late final AnimationController _countdown;
   bool _resolved = false;
 
+  /// Whole seconds left, so the digit rebuilds (and pops) once a second
+  /// instead of every frame; the ring repaints straight off [_countdown].
+  final ValueNotifier<int> _secondsLeft = ValueNotifier(_seconds);
+
   @override
   void initState() {
     super.initState();
@@ -2304,12 +2184,16 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
               widget.onGiveUp();
             }
           })
+          ..addListener(() {
+            _secondsLeft.value = (_seconds * (1 - _countdown.value)).ceil();
+          })
           ..forward();
   }
 
   @override
   void dispose() {
     _countdown.dispose();
+    _secondsLeft.dispose();
     super.dispose();
   }
 
@@ -2364,16 +2248,22 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox.square(
-          dimension: cs(96),
-          child: CustomPaint(
-            painter: _CountdownPainter(_countdown, stroke: cs(3)),
-            child: Center(
-              child: AnimatedBuilder(
-                animation: _countdown,
-                builder: (_, _) => Text(
-                  '${(_seconds * (1 - _countdown.value)).ceil()}',
-                  style: t.display(34, height: 1),
+        // The ring drains continuously (painter repaints off the
+        // controller, isolated in its own layer); the digit ticks with a
+        // small pop each second.
+        RepaintBoundary(
+          child: SizedBox.square(
+            dimension: cs(96),
+            child: CustomPaint(
+              painter: _CountdownPainter(_countdown, stroke: cs(3)),
+              child: Center(
+                child: ValueListenableBuilder<int>(
+                  valueListenable: _secondsLeft,
+                  builder: (_, secs, _) => CsPop(
+                    trigger: secs,
+                    peak: 1.1,
+                    child: Text('$secs', style: t.display(34, height: 1)),
+                  ),
                 ),
               ),
             ),
@@ -2401,23 +2291,30 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        // Buttons arrive one after another (55 ms stagger) after the status.
         children: [
-          primary,
+          CsFadeUp(index: 1, child: primary),
           SizedBox(height: cs(12)),
           // Universal credit fallback.
-          CsButton.secondary(
-            label: widget.coinsEnough ? 'Revive' : 'Not enough credits',
-            expand: true,
-            trailing: const CsCoins(200, size: 11),
-            onPressed: widget.coinsEnough
-                ? () => _resolve(widget.onSpendCoins)
-                : null,
+          CsFadeUp(
+            index: 2,
+            child: CsButton.secondary(
+              label: widget.coinsEnough ? 'Revive' : 'Not enough credits',
+              expand: true,
+              trailing: const CsCoins(200, size: 11),
+              onPressed: widget.coinsEnough
+                  ? () => _resolve(widget.onSpendCoins)
+                  : null,
+            ),
           ),
           SizedBox(height: cs(6)),
-          CsButton.text(
-            label: 'Give up',
-            expand: true,
-            onPressed: () => _resolve(widget.onGiveUp),
+          CsFadeUp(
+            index: 3,
+            child: CsButton.text(
+              label: 'Give up',
+              expand: true,
+              onPressed: () => _resolve(widget.onGiveUp),
+            ),
           ),
         ],
       ),
@@ -2443,7 +2340,7 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    status,
+                    CsFadeUp(child: status),
                     SizedBox(width: cs(48)),
                     Container(
                       width: 1,
@@ -2527,18 +2424,12 @@ class _TutorialBanner extends StatelessWidget {
       alignment: Alignment.topCenter,
       child: Padding(
         padding: EdgeInsets.only(top: cs(16)),
-        child: TweenAnimationBuilder<double>(
+        // Each new beat slides down + fades in on springSoft.
+        child: _Entrance(
           key: ValueKey(prompt.title),
-          tween: Tween(begin: 0, end: 1),
-          duration: CsMotion.slow,
-          curve: CsMotion.standard,
-          builder: (_, v, child) => Opacity(
-            opacity: v.clamp(0.0, 1.0),
-            child: Transform.translate(
-              offset: Offset(0, -cs(8) * (1 - v)),
-              child: child,
-            ),
-          ),
+          offset: const Offset(0, -12),
+          duration: CsMotion.gentle,
+          curve: CsMotion.springSoft,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -2624,14 +2515,9 @@ class _Flourish extends StatelessWidget {
     final t = cs.type;
     return Align(
       alignment: const Alignment(0, -0.4),
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: CsMotion.slow,
-        curve: CsMotion.emphasis,
-        builder: (_, v, child) => Opacity(
-          opacity: v.clamp(0.0, 1.0),
-          child: Transform.scale(scale: 0.85 + 0.15 * v, child: child),
-        ),
+      child: _Entrance(
+        fromScale: 0.85,
+        curve: CsMotion.springPop,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

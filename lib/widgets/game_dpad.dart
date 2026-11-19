@@ -64,6 +64,7 @@ class _GameDPadState extends State<GameDPad> {
         );
 
     const threshold = 0.35;
+    final reduce = CsReduceMotion.of(context);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onPanDown: (e) => _track(e.localPosition),
@@ -94,9 +95,14 @@ class _GameDPadState extends State<GameDPad> {
               arrow(Symbols.keyboard_arrow_down_rounded, Alignment.bottomCenter, _nub.dy > threshold),
               arrow(Symbols.keyboard_arrow_left_rounded, Alignment.centerLeft, _nub.dx < -threshold),
               arrow(Symbols.keyboard_arrow_right_rounded, Alignment.centerRight, _nub.dx > threshold),
-              // Thumb nub: outlined disc that follows the drag.
-              Transform.translate(
-                offset: Offset(_nub.dx * travel, _nub.dy * travel),
+              // Thumb nub: outlined disc that follows the drag 1:1 while
+              // pressed (zero-length tween) and springs back to centre on
+              // release (springSoft; instant under reduce motion).
+              TweenAnimationBuilder<Offset>(
+                tween: Tween(end: Offset(_nub.dx * travel, _nub.dy * travel)),
+                duration: _pressed || reduce ? Duration.zero : CsMotion.release,
+                curve: CsMotion.springSoft,
+                builder: (_, offset, nub) => Transform.translate(offset: offset, child: nub),
                 child: AnimatedContainer(
                   duration: CsMotion.fast,
                   curve: CsMotion.standard,

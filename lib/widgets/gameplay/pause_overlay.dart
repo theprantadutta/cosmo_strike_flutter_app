@@ -59,6 +59,17 @@ class PauseOverlay extends StatefulWidget {
 }
 
 class _PauseOverlayState extends State<PauseOverlay> {
+  /// Entrance: each section fades up 8 px over 260 ms, 30 ms apart; the last
+  /// (slot 4) lands at 380 ms, so the whole menu is in under 400 ms and the
+  /// player can resume immediately. CsFadeUp plays once per mount (each
+  /// pause) and never replays on rebuilds; reduce motion = a plain 120 ms
+  /// fade.
+  static const Duration _enter = Duration(milliseconds: 260);
+  static const Duration _step = Duration(milliseconds: 30);
+
+  Widget _up(int slot, Widget child) =>
+      CsFadeUp(delay: _step * slot, duration: _enter, distance: 8, child: child);
+
   @override
   Widget build(BuildContext context) {
     final cs = context.cs;
@@ -83,11 +94,11 @@ class _PauseOverlayState extends State<PauseOverlay> {
         Expanded(
           child: CsFitColumn(
             children: [
-              CsLabel(meta),
+              _up(0, CsLabel(meta)),
               SizedBox(height: cs(6)),
-              Text('Paused', maxLines: 1, style: t.display(60, em: -0.04, height: 1)),
+              _up(1, Text('Paused', maxLines: 1, style: t.display(60, em: -0.04, height: 1))),
               SizedBox(height: cs(18)),
-              CsStatGrid(
+              _up(2, CsStatGrid(
                 columns: 3,
                 stats: [
                   CsStat('${partial.score}', 'Score'),
@@ -97,9 +108,9 @@ class _PauseOverlayState extends State<PauseOverlay> {
                   CsStat('${partial.grazeCount}', 'Grazes'),
                   CsStat('$coinsEst', 'Credits (est.)', color: CsColors.gold),
                 ],
-              ),
+              )),
               SizedBox(height: cs(18)),
-              Wrap(
+              _up(3, Wrap(
                 spacing: cs(10),
                 runSpacing: cs(10),
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -117,12 +128,12 @@ class _PauseOverlayState extends State<PauseOverlay> {
                       onPressed: widget.onWatchAdForLife,
                     ),
                 ],
-              ),
+              )),
             ],
           ),
         ),
         SizedBox(height: cs(16)),
-        OverlayActions(
+        _up(4, OverlayActions(
           children: [
             CsButton.primary(
               label: 'Resume',
@@ -135,26 +146,29 @@ class _PauseOverlayState extends State<PauseOverlay> {
             ),
             CsButton.text(label: 'Quit', onPressed: widget.onQuit),
           ],
-        ),
+        )),
       ],
     );
 
     final right = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
+        _up(1, Row(
           children: [
             const Expanded(child: CsLabel('Daily Directives')),
             SizedBox(width: cs(10)),
             const ChallengeClaimAllButton(),
           ],
-        ),
+        )),
         SizedBox(height: cs(8)),
-        const Expanded(
-          child: ScrollEdgeFade(
-            child: SingleChildScrollView(
-              physics: ClampingScrollPhysics(),
-              child: ChallengePanel(showClaimAll: false),
+        Expanded(
+          child: _up(
+            2,
+            const ScrollEdgeFade(
+              child: SingleChildScrollView(
+                physics: ClampingScrollPhysics(),
+                child: ChallengePanel(showClaimAll: false),
+              ),
             ),
           ),
         ),
@@ -199,8 +213,9 @@ class _QuickTogglesState extends State<_QuickToggles> {
     setState(() => _haptics = !_haptics);
     HapticService().setEnabled(_haptics);
     await StorageService().setHapticsEnabled(_haptics);
-    // Confirm-by-feel: a single thud instantly proves it works.
-    if (_haptics) await HapticService().mediumImpact();
+    // Confirm-by-feel: a single thud instantly proves it works (CsHaptic
+    // goes through HapticService, which was just switched on above).
+    if (_haptics) CsHaptic.medium.play();
   }
 
   @override
