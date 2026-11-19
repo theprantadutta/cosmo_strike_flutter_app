@@ -164,7 +164,7 @@ class _ChallengeRow extends StatelessWidget {
     );
 
     final reward = Text(
-      '+${c.coinReward} CR · ${c.xpReward} XP',
+      '+${c.coinReward} CR · +${c.xpReward} XP',
       maxLines: 1,
       style: t.mono(11, em: 0.06, color: CsColors.gold),
     );

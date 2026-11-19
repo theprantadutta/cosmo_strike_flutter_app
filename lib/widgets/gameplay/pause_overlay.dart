@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -24,6 +22,7 @@ class PauseOverlay extends StatefulWidget {
     super.key,
     required this.game,
     required this.outcomes,
+    this.runLabel,
     required this.onResume,
     required this.onRestart,
     required this.onQuit,
@@ -37,7 +36,13 @@ class PauseOverlay extends StatefulWidget {
   /// first-clear bonus).
   final Map<int, StageClearOutcome> outcomes;
 
+  /// The run's name ("Daily Run" / "Sector Cup" / mode) for the header;
+  /// null falls back to the mode name.
+  final String? runLabel;
+
   final VoidCallback onResume;
+
+  /// Restart / quit: the host confirms before abandoning the run.
   final VoidCallback onRestart;
   final VoidCallback onQuit;
 
@@ -54,28 +59,6 @@ class PauseOverlay extends StatefulWidget {
 }
 
 class _PauseOverlayState extends State<PauseOverlay> {
-  /// Restart is destructive mid-run — first tap arms a 3s "CONFIRM?" beat.
-  bool _confirmRestart = false;
-  Timer? _confirmTimer;
-
-  @override
-  void dispose() {
-    _confirmTimer?.cancel();
-    super.dispose();
-  }
-
-  void _tapRestart() {
-    if (_confirmRestart) {
-      _confirmTimer?.cancel();
-      widget.onRestart();
-      return;
-    }
-    setState(() => _confirmRestart = true);
-    _confirmTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted) setState(() => _confirmRestart = false);
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final cs = context.cs;
@@ -92,7 +75,7 @@ class _PauseOverlayState extends State<PauseOverlay> {
         partial.levelsCleared * 25 +
         firstClears * 75;
     final level = game.levelNotifier.value.toString().padLeft(2, '0');
-    final meta = '${game.mode.name} · L$level — ${game.levelNameNotifier.value}';
+    final meta = '${widget.runLabel ?? game.mode.name} · L$level — ${game.levelNameNotifier.value}';
 
     final left = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,8 +130,8 @@ class _PauseOverlayState extends State<PauseOverlay> {
               onPressed: widget.onResume,
             ),
             CsButton.secondary(
-              label: _confirmRestart ? 'Confirm?' : 'Restart',
-              onPressed: _tapRestart,
+              label: 'Restart',
+              onPressed: widget.onRestart,
             ),
             CsButton.text(label: 'Quit', onPressed: widget.onQuit),
           ],
@@ -168,9 +151,11 @@ class _PauseOverlayState extends State<PauseOverlay> {
         ),
         SizedBox(height: cs(8)),
         const Expanded(
-          child: SingleChildScrollView(
-            physics: ClampingScrollPhysics(),
-            child: ChallengePanel(showClaimAll: false),
+          child: ScrollEdgeFade(
+            child: SingleChildScrollView(
+              physics: ClampingScrollPhysics(),
+              child: ChallengePanel(showClaimAll: false),
+            ),
           ),
         ),
       ],
@@ -183,7 +168,8 @@ class _PauseOverlayState extends State<PauseOverlay> {
   }
 }
 
-/// SFX / MUSIC / HAPTICS quick toggle chips (off = 40% ink, 10% border).
+/// SFX / MUSIC / HAPTICS quick toggles (on = white pill, off = outline +
+/// slashed glyph).
 /// Mirrors the settings screen's persistence exactly.
 class _QuickToggles extends StatefulWidget {
   const _QuickToggles();
@@ -223,29 +209,90 @@ class _QuickTogglesState extends State<_QuickToggles> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        CsToggleChip(
+        _StateToggle(
           icon: Symbols.volume_up_rounded,
           offIcon: Symbols.volume_off_rounded,
           label: 'SFX',
           value: _sound,
-          onChanged: (_) => _toggleSound(),
+          onTap: _toggleSound,
         ),
         SizedBox(width: gap),
-        CsToggleChip(
+        _StateToggle(
           icon: Symbols.music_note_rounded,
           offIcon: Symbols.music_off_rounded,
           label: 'Music',
           value: _music,
-          onChanged: (_) => _toggleMusic(),
+          onTap: _toggleMusic,
         ),
         SizedBox(width: gap),
-        CsToggleChip(
+        _StateToggle(
           icon: Symbols.vibration_rounded,
+          offIcon: Symbols.mobile_off_rounded,
           label: 'Haptics',
           value: _haptics,
-          onChanged: (_) => _toggleHaptics(),
+          onTap: _toggleHaptics,
         ),
       ],
+    );
+  }
+}
+
+/// A pause quick-toggle whose state reads at a glance: ON = filled white
+/// pill (the design system's selected style) with dark glyph + label; OFF =
+/// outline, dim slashed glyph and "<LABEL> OFF". Local wrapper: the shared
+/// CsToggleChip's on/off differ only by a faint ink shift, which read as
+/// identical on device.
+class _StateToggle extends StatelessWidget {
+  const _StateToggle({
+    required this.icon,
+    required this.offIcon,
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final IconData offIcon;
+  final String label;
+  final bool value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.cs;
+    final c = value ? CsColors.onLight : CsColors.ink45;
+    return Semantics(
+      toggled: value,
+      label: label,
+      button: true,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: CsPressable(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: CsMotion.base,
+          curve: CsMotion.standard,
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: EdgeInsets.symmetric(horizontal: cs(16)),
+          decoration: ShapeDecoration(
+            color: value ? CsColors.ink : Colors.transparent,
+            shape: StadiumBorder(
+              side: BorderSide(color: value ? CsColors.ink : CsColors.lineStrong),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(value ? icon : offIcon, size: cs(18), color: c),
+              SizedBox(width: cs(8)),
+              Text(
+                value ? label.toUpperCase() : '${label.toUpperCase()} OFF',
+                style: cs.type.mono(11, color: c, em: 0.1),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
