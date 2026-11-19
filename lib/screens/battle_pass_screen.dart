@@ -10,6 +10,7 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/battle_pass_c
 import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
+import 'package:cosmo_strike_flutter_app/widgets/list_entrance.dart';
 import 'package:cosmo_strike_flutter_app/widgets/reward_toast.dart';
 
 /// Battle pass — Prism Noir mock 08.
@@ -32,6 +33,9 @@ class _BattlePassScreenState extends State<BattlePassScreen> {
   final Set<String> _claiming = <String>{};
   final ScrollController _tiers = ScrollController();
   bool _didAutoScroll = false;
+
+  /// Tier cells stagger in on first open only.
+  final _entrance = ListEntrance();
 
   @override
   void initState() {
@@ -161,6 +165,7 @@ class _BattlePassScreenState extends State<BattlePassScreen> {
                   onClaim: _claim,
                   onOpenReward: _openRewardDetail,
                   onLayout: _scheduleAutoScroll,
+                  entrance: _entrance,
                 ),
               ),
             ],
@@ -286,14 +291,17 @@ class _Header extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text.rich(
-              TextSpan(children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
                 // Spelled out: in Syne a bare "T0" reads as the word "To".
-                TextSpan(text: 'Tier ', style: t.display(22, height: 1)),
-                TextSpan(text: '${state.currentTier}', style: t.number(22, height: 1)),
-                TextSpan(text: ' / $maxTier', style: t.mono(12, color: CsColors.ink45)),
-              ]),
-              maxLines: 1,
+                Text('Tier ', maxLines: 1, style: t.display(22, height: 1)),
+                // Rolls when a tier is earned.
+                CsOdometer(value: state.currentTier, format: (v) => '$v', style: t.number(22, height: 1)),
+                Text(' / $maxTier', maxLines: 1, style: t.mono(12, color: CsColors.ink45)),
+              ],
             ),
             SizedBox(width: cs(14)),
             Flexible(
@@ -307,11 +315,14 @@ class _Header extends StatelessWidget {
               ),
             ),
             SizedBox(width: cs(14)),
-            Text(
-              complete ? 'MAX TIER' : '${state.currentXP}/${state.xpForNextTier} XP',
-              maxLines: 1,
-              style: t.mono(11, color: complete ? CsColors.mint : CsColors.ink60, em: 0.06),
-            ),
+            if (complete)
+              Text('MAX TIER', maxLines: 1, style: t.mono(11, color: CsColors.mint, em: 0.06))
+            else
+              CsOdometer(
+                value: state.currentXP,
+                format: (v) => '$v/${state.xpForNextTier} XP',
+                style: t.mono(11, color: CsColors.ink60, em: 0.06),
+              ),
           ],
         ),
         SizedBox(height: cs(10)),
@@ -538,8 +549,10 @@ class _TierStrip extends StatelessWidget {
     required this.onClaim,
     required this.onOpenReward,
     required this.onLayout,
+    required this.entrance,
   });
 
+  final ListEntrance entrance;
   final BattlePassState state;
   final BattlePassSeason season;
   final ScrollController controller;
@@ -602,7 +615,7 @@ class _TierStrip extends StatelessWidget {
         itemBuilder: (context, i) {
           final level = levels[i];
           final isCurrent = level.level == state.currentTier;
-          return SizedBox(
+          return entrance.wrap(i, SizedBox(
             width: tileW,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -628,7 +641,7 @@ class _TierStrip extends StatelessWidget {
                 _tile(level, premium: true, height: tileH, focal: false),
               ],
             ),
-          );
+          ));
         },
       );
 
@@ -647,7 +660,19 @@ class _TierStrip extends StatelessWidget {
     });
   }
 
+  /// A tier cell; it pops when its reward is claimed (the RewardToast
+  /// brings the success haptic).
   Widget _tile(BattlePassLevel level, {required bool premium, required double height, required bool focal}) {
+    final tier = level.level;
+    final claimed = premium ? state.isPremiumTierClaimed(tier) : state.isFreeTierClaimed(tier);
+    return CsPop(
+      trigger: claimed,
+      peak: 1.08,
+      child: _tileBody(level, premium: premium, height: height, focal: focal),
+    );
+  }
+
+  Widget _tileBody(BattlePassLevel level, {required bool premium, required double height, required bool focal}) {
     final reward = premium ? level.premiumReward : level.freeReward;
     final tier = level.level;
     final reached = tier <= state.currentTier;

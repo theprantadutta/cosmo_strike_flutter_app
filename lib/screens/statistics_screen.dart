@@ -9,6 +9,7 @@ import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/number_format.dart';
 import 'package:cosmo_strike_flutter_app/widgets/ads/banner_ad_widget.dart';
+import 'package:cosmo_strike_flutter_app/widgets/list_entrance.dart';
 
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
@@ -20,6 +21,9 @@ class StatisticsScreen extends StatefulWidget {
 class _StatisticsScreenState extends State<StatisticsScreen> {
   final StatisticsService _statisticsService = StatisticsService();
   late final AppDataCache _appCache;
+
+  /// Stat sections stagger in on first open only.
+  final _entrance = ListEntrance();
 
   @override
   void initState() {
@@ -87,7 +91,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
-          child: Text(_num('highScore'), maxLines: 1, style: t.scoreGiant),
+          // Rolls when the cached record refreshes with a new best.
+          child: switch (_displayStats['highScore']) {
+            final num best => CsOdometer(value: best.round(), format: formatThousands, style: t.scoreGiant),
+            _ => Text(_num('highScore'), maxLines: 1, style: t.scoreGiant),
+          },
         ),
         SizedBox(height: cs(28)),
         CsButton.primary(
@@ -119,6 +127,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return ListView(
       padding: EdgeInsets.only(bottom: cs(16)),
       children: [
+        for (final (i, child) in <Widget>[
         // Best score is the left-hand hero; it isn't repeated here.
         const _Section('Service summary'),
         CsStatGrid(columns: cols, valueSize: 22, stats: [
@@ -206,6 +215,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             onPressed: _showResetDialog,
           ),
         ),
+        ].indexed)
+          _entrance.wrap(i, child),
       ],
     );
   }

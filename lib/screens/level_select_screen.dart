@@ -328,6 +328,15 @@ class _LevelPanel extends StatelessWidget {
                     CsPlanet(size: planet, dim: !unlocked),
                     SizedBox(height: cs(14)),
                   ],
+                  // Selecting another level / sector cross-fades the details
+                  // with a short slide instead of an instant swap.
+                  _DetailSwitcher(
+                    level: level,
+                    child: Column(
+                    key: ValueKey(level),
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
                   // Scale down rather than ellipsize: long names ("Shattered
                   // Light") don't fit the narrow phone column at full size.
                   FittedBox(
@@ -377,6 +386,9 @@ class _LevelPanel extends StatelessWidget {
                       maxLines: 1,
                       style: t.mono(10, color: CsColors.pink),
                     ),
+                    ],
+                    ),
+                  ),
                 ],
               );
             },
@@ -442,13 +454,17 @@ class _LevelRow extends StatelessWidget {
                       for (var i = 0; i < per; i++) ...[
                         if (i > 0) SizedBox(width: gap),
                         Expanded(
-                          child: _LevelTile(
-                            level: b * per + i + 1,
-                            row: byStage[b * per + i + 1],
-                            isSelected: b * per + i + 1 == selected,
-                            isNext: b * per + i + 1 == furthest,
-                            onTap: () => onTap(b * per + i + 1),
-                            onLongPress: () => onLongPress(b * per + i + 1),
+                          // Tiles stagger in once, when the screen opens.
+                          child: CsFadeUp(
+                            index: b * per + i,
+                            child: _LevelTile(
+                              level: b * per + i + 1,
+                              row: byStage[b * per + i + 1],
+                              isSelected: b * per + i + 1 == selected,
+                              isNext: b * per + i + 1 == furthest,
+                              onTap: () => onTap(b * per + i + 1),
+                              onLongPress: () => onLongPress(b * per + i + 1),
+                            ),
                           ),
                         ),
                       ],
@@ -523,7 +539,8 @@ class _LevelTile extends StatelessWidget {
       );
     }
 
-    return CsPressable(
+    final reduce = CsReduceMotion.of(context);
+    final tile = CsPressable(
       onTap: onTap,
       onLongPress: onLongPress,
       semanticLabel: 'Level $level${unlocked ? '' : ', locked'}',
@@ -543,11 +560,78 @@ class _LevelTile extends StatelessWidget {
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.bottomLeft,
-              child: foot,
+              // Cross-fade the foot when the tile's state changes (cleared,
+              // unlocked, becomes NEXT).
+              child: AnimatedSwitcher(
+                duration: reduce ? CsMotion.instant : CsMotion.base,
+                switchInCurve: CsMotion.easeOutSoft,
+                switchOutCurve: CsMotion.exit,
+                child: KeyedSubtree(key: ValueKey((unlocked, current, cleared, stars)), child: foot),
+              ),
             ),
           ],
         ),
       ),
+    );
+    // The selected tile lifts a touch on a soft spring.
+    return AnimatedScale(
+      scale: isSelected && !current ? 1.04 : 1,
+      duration: reduce ? Duration.zero : CsMotion.release,
+      curve: CsMotion.springSoft,
+      child: tile,
+    );
+  }
+}
+
+/// Right-panel level details: when [level] changes the old details fade out
+/// and the new ones fade in while sliding a few px in from the side of
+/// travel. Reduce motion: a plain 120 ms cross-fade.
+class _DetailSwitcher extends StatefulWidget {
+  const _DetailSwitcher({required this.level, required this.child});
+  final int level;
+  final Widget child;
+
+  @override
+  State<_DetailSwitcher> createState() => _DetailSwitcherState();
+}
+
+class _DetailSwitcherState extends State<_DetailSwitcher> {
+  /// +1 when moving to a later level (slide in from the right), -1 earlier.
+  double _dir = 1;
+
+  @override
+  void didUpdateWidget(_DetailSwitcher old) {
+    super.didUpdateWidget(old);
+    if (old.level != widget.level) _dir = widget.level > old.level ? 1 : -1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = CsReduceMotion.of(context);
+    final dir = _dir;
+    return AnimatedSwitcher(
+      duration: reduce ? CsMotion.instant : CsMotion.slow,
+      reverseDuration: reduce ? CsMotion.instant : CsMotion.quick,
+      switchInCurve: reduce ? Curves.linear : CsMotion.easeOutSoft,
+      switchOutCurve: reduce ? Curves.linear : CsMotion.exit,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: Alignment.centerRight,
+        children: [...previous, ?current],
+      ),
+      transitionBuilder: (child, animation) {
+        final fade = FadeTransition(opacity: animation, child: child);
+        if (reduce) return fade;
+        // The incoming child slides in along the travel direction; the
+        // outgoing one (animation reversing) slides back the same way.
+        final incoming = child.key == ValueKey(widget.level);
+        final from = Offset((incoming ? 0.08 : -0.08) * dir, 0);
+        return SlideTransition(
+          position: Tween(begin: from, end: Offset.zero)
+              .animate(CurvedAnimation(parent: animation, curve: CsMotion.travel)),
+          child: fade,
+        );
+      },
+      child: widget.child,
     );
   }
 }

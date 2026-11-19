@@ -415,6 +415,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       TextStyle? style,
       String? semanticLabel,
       String? tooltip,
+      Widget? child,
     }) {
       final w = CsPressable(
         key: key,
@@ -423,7 +424,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
         child: SizedBox(
           height: 44,
           child: Center(
-            child: ExcludeSemantics(child: Text(text, maxLines: 1, style: style ?? meta)),
+            child: ExcludeSemantics(child: child ?? Text(text, maxLines: 1, style: style ?? meta)),
           ),
         ),
       );
@@ -459,6 +460,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                       key: HomeWalkthrough.coinsKey,
                       tooltip: 'Credits',
                       semanticLabel: 'Credits: ${coinsState.total}. Open Armory',
+                      // Rolls when the balance changes (claims, buys, ads).
+                      child: CsOdometer(
+                        value: coinsState.total,
+                        format: (v) => 'CR ${_formatCoins(v)}',
+                        style: meta,
+                      ),
                     ),
                   ),
                   // EARN — rewarded ad for free coins, free users only.
@@ -494,6 +501,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                       () => context.push(AppRoutes.profile),
                       style: meta.copyWith(color: CsColors.ink),
                       semanticLabel: 'Pilot Rank ${getIt<ProgressionService>().level}. Open Pilot File',
+                      child: CsOdometer(
+                        value: getIt<ProgressionService>().level,
+                        format: (v) => 'LV ${v.toString().padLeft(2, '0')}',
+                        style: meta.copyWith(color: CsColors.ink),
+                      ),
                     ),
                   ),
                   SizedBox(width: cs(14)),
@@ -554,18 +566,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
         final name = titleCaseName(CampaignCatalog.levelNameFor(level));
         final biome = CampaignCatalog.biomeNameFor(level);
 
+        // Entrance: mission label -> title -> actions fade up in sequence.
+        // Home stays mounted under pushed routes, so this plays on first
+        // mount only, never when the player comes back from a screen.
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'MISSION ${level.toString().padLeft(2, '0')} / $biome',
-              style: t.mono(11, em: 0.16, color: CsColors.ink55),
+            CsFadeUp(
+              child: Text(
+                'MISSION ${level.toString().padLeft(2, '0')} / $biome',
+                style: t.mono(11, em: 0.16, color: CsColors.ink55),
+              ),
             ),
             SizedBox(height: cs(16)),
-            _HeroTitle(name: name),
+            CsFadeUp(index: 2, distance: 14, child: _HeroTitle(name: name)),
             SizedBox(height: cs(22)),
-            Wrap(
+            CsFadeUp(index: 4, child: Wrap(
               spacing: cs(14),
               runSpacing: cs(8),
               crossAxisAlignment: WrapCrossAlignment.center,
@@ -591,7 +608,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
                   onPressed: () => context.push(AppRoutes.levelSelect),
                 ),
               ],
-            ),
+            )),
           ],
         );
       },
