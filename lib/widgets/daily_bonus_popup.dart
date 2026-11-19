@@ -202,7 +202,12 @@ class _DailyBonusPopupState extends State<DailyBonusPopup> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('SUPPLY DROP', style: t.mono(11, em: .16)),
+                // Where the pilot is on the ladder; the title already
+                // names the Supply Drop.
+                Text(
+                  'DAY $currentDay OF ${status.weekRewards.isNotEmpty ? status.weekRewards.length : 7}',
+                  style: t.mono(11, em: .16),
+                ),
                 SizedBox(height: cs(6)),
                 Text(
                   status.canClaim ? 'Supply Drop inbound.' : 'Next drop tomorrow.',

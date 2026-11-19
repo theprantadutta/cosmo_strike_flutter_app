@@ -12,7 +12,7 @@ class HomeWalkthrough {
   static final storeKey = GlobalKey();
   static final profileKey = GlobalKey();
   static final settingsKey = GlobalKey();
-  /// Hangar nav item (permanent upgrades, ships, skins + trails).
+  /// Hangar nav item (permanent upgrades and ship frames).
   static final cosmeticsKey = GlobalKey();
 
   /// Get the list of walkthrough steps
@@ -49,7 +49,7 @@ class HomeWalkthrough {
         spotlightBorderRadius: 20,
       ),
 
-      // Step 3: Daily Directives (nav rail, top row).
+      // Step 3: Daily Directives (bottom nav, first item).
       WalkthroughStep(
         id: 'home_daily',
         title: 'Daily Directives',
@@ -57,13 +57,13 @@ class HomeWalkthrough {
             'Three new orders every day. Complete them for credits and '
             'Frontline XP.',
         targetKey: dailyChallengesKey,
-        position: TooltipPosition.below,
+        position: TooltipPosition.above,
         icon: Symbols.calendar_today_rounded,
         spotlightPadding: 6,
         spotlightBorderRadius: 18,
       ),
 
-      // Step 4: Armory (action row under the launch bay).
+      // Step 4: Armory (bottom nav, last item).
       WalkthroughStep(
         id: 'home_store',
         title: 'Armory',
@@ -77,7 +77,7 @@ class HomeWalkthrough {
         spotlightBorderRadius: 14,
       ),
 
-      // Step 5: Cosmetics (nav rail, bottom row).
+      // Step 5: Hangar (bottom nav).
       WalkthroughStep(
         id: 'home_cosmetics',
         title: 'Hangar',
@@ -86,7 +86,7 @@ class HomeWalkthrough {
             'to unlock new frames.',
         targetKey: cosmeticsKey,
         position: TooltipPosition.above,
-        icon: Symbols.palette_rounded,
+        icon: Symbols.rocket_rounded,
         spotlightPadding: 6,
         spotlightBorderRadius: 14,
       ),
@@ -96,8 +96,8 @@ class HomeWalkthrough {
         id: 'home_profile',
         title: 'Pilot File',
         message:
-            'Service Record, Commendations and best scores. Sign in to back '
-            'up your progress across devices.',
+            'Service Record, Commendations, Standings and your Squadron. '
+            'Save your progress here to fly it on any device.',
         targetKey: profileKey,
         position: TooltipPosition.below,
         icon: Symbols.account_circle_rounded,
