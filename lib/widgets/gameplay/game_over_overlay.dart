@@ -18,16 +18,21 @@ import 'run_stat_tiles.dart';
 ///           campaign clear), the score rolling up at 84px + BEST / NEW
 ///           RECORD, a 4×2 stat grid, +COINS (gold) · +XP (violet), unlock /
 ///           bonus notes, then RETRY · HOME/CAMPAIGN · 2× COINS.
-///   RIGHT — today's directives with CLAIM pills + the prism CLAIM ALL chip,
-///           then this run's achievement unlocks (the only scrollable).
+///   RIGHT — the new-best reminder ask (first new best only), then from
+///           run 2 on the NEXT UP strip (closest directive · streak ·
+///           Supply Drop) heading the rest of today's directives with CLAIM
+///           pills + the prism CLAIM ALL chip, then this run's achievement
+///           unlocks (the only scrollable).
 ///
 /// Coins / XP / challenge progress / achievements all land async after
 /// `_submitRun` and rebuild reactively.
 ///
 /// Entrance is one [CsBeatSheet] (see [GameOverOverlay.beats]): header →
 /// score rolls up → NEW RECORD pops (records only) → stat tiles stagger in →
-/// +CR / +XP roll up → actions arrive (~2.1 s). A tap after 1 s skips to the
-/// end state; reduce motion shows it at once.
+/// +CR / +XP roll up → actions arrive (~2.1 s; ~0.8 s with [quickRetry]).
+/// NEXT UP slides in with the right column, the reminder ask lands after
+/// NEW RECORD. A tap after 1 s skips to the end state; reduce motion shows
+/// it at once.
 class GameOverOverlay extends StatefulWidget {
   const GameOverOverlay({
     super.key,
@@ -46,7 +51,21 @@ class GameOverOverlay extends StatefulWidget {
     required this.challengeRunStart,
     this.reduceMotion,
     this.directives,
+    this.nextUp,
+    this.reminderAsk,
+    this.quickRetry = false,
   });
+
+  /// The NEXT UP strip (from run 2 on; null hides it and keeps the plain
+  /// "Daily Directives" column). The directive it features is left out of
+  /// the list below it.
+  final Widget? nextUp;
+
+  /// The inline new-best reminder ask row (null: not offered).
+  final Widget? reminderAsk;
+
+  /// Onboarding runs: the actions arrive early so Retry is one tap away.
+  final bool quickRetry;
 
   final GameResult result;
 
@@ -97,23 +116,28 @@ class GameOverOverlay extends StatefulWidget {
   static const int tilesAt = 1100;
   static const int rewardsAt = 1600;
 
+  /// Where the actions land for onboarding runs ([quickRetry]).
+  static const int quickActionsAt = 450;
+
   /// When the directive rows start fading up (they run on their own
   /// CsFadeUps, finished before the skip window opens).
   static const Duration directivesDelay = Duration(milliseconds: 380);
 
   /// The game-over timeline; [onRecord] is the NEW RECORD cue.
-  static Map<String, CsBeat> beats({required VoidCallback onRecord}) => {
+  static Map<String, CsBeat> beats({required VoidCallback onRecord, bool quickRetry = false}) => {
         'header': const CsBeat(at: 0, duration: 400, curve: CsMotion.dropIn),
         'scoreRow': const CsBeat(at: 100, duration: 350),
         'score': const CsBeat(at: 200, duration: 600),
         'right': const CsBeat(at: 300, duration: 400),
+        'nextUp': const CsBeat(at: 340, duration: 400),
         'record': CsBeat(at: recordAt, duration: 450, curve: CsMotion.springPop, onStart: onRecord),
         'soClose': const CsBeat(at: 1000, duration: 400),
+        'remind': const CsBeat(at: 1000, duration: 400, curve: CsMotion.dropIn),
         for (var i = 0; i < 8; i++) 'tile$i': CsBeat(at: tilesAt + 55 * i, duration: 400),
         'build': const CsBeat(at: 1450, duration: 400),
         'rewards': const CsBeat(at: rewardsAt, duration: 400),
         'notes': const CsBeat(at: 1750, duration: 400),
-        'actions': const CsBeat(at: 1800, duration: 320),
+        'actions': CsBeat(at: quickRetry ? quickActionsAt : 1800, duration: 320),
       };
 
   @override
@@ -123,7 +147,7 @@ class GameOverOverlay extends StatefulWidget {
 class _GameOverOverlayState extends State<GameOverOverlay> with SingleTickerProviderStateMixin {
   late final ResultsBeats _beats = ResultsBeats(
     vsync: this,
-    beats: GameOverOverlay.beats(onRecord: _onRecord),
+    beats: GameOverOverlay.beats(onRecord: _onRecord, quickRetry: widget.quickRetry),
   );
 
   bool get _newRecord => widget.result.score > widget.previousBest;
@@ -353,7 +377,7 @@ class _GameOverOverlayState extends State<GameOverOverlay> with SingleTickerProv
           slideX: 12,
           child: Row(
             children: [
-              const Expanded(child: CsLabel('Daily Directives')),
+              Expanded(child: CsLabel(widget.nextUp == null ? 'Daily Directives' : 'Next up')),
               SizedBox(width: cs(10)),
               if (widget.directives == null) const ChallengeClaimAllButton(),
             ],
@@ -366,22 +390,29 @@ class _GameOverOverlayState extends State<GameOverOverlay> with SingleTickerProv
             fadeColor: GameOverOverlay._overScrim,
             child: SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
-              child:
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.reminderAsk case final ask?)
+                    BeatFade(beats: b, name: 'remind', rise: 8, child: ask),
+                  if (widget.nextUp case final nextUp?) ...[
+                    BeatFade(beats: b, name: 'nextUp', rise: 0, slideX: 12, child: nextUp),
+                    SizedBox(height: cs(14)),
+                    const CsLabel("Today's directives", size: 9),
+                  ],
                   widget.directives ??
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
                       ChallengePanel(
                         showClaimAll: false,
                         showRunDelta: true,
+                        hideFocus: widget.nextUp != null,
                         runStartProgress: widget.challengeRunStart,
                         entranceDelay: GameOverOverlay.directivesDelay,
                         reduceMotion: widget.reduceMotion,
                       ),
-                      const _AchievementUnlocks(),
-                    ],
-                  ),
+                  if (widget.directives == null) const _AchievementUnlocks(),
+                ],
+              ),
             ),
           ),
         ),

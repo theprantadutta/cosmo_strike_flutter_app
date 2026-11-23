@@ -31,13 +31,16 @@ import 'package:cosmo_strike_flutter_app/presentation/bloc/premium/premium_cubit
 import 'package:cosmo_strike_flutter_app/presentation/bloc/theme/theme_cubit.dart';
 import 'package:cosmo_strike_flutter_app/router/app_router.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
+import 'package:cosmo_strike_flutter_app/services/analytics/analytics_gate.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_route_observer.dart';
+import 'package:cosmo_strike_flutter_app/services/analytics/test_device.dart';
+import 'package:cosmo_strike_flutter_app/services/telemetry/telemetry_service.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/audio_service.dart';
 import 'package:cosmo_strike_flutter_app/services/auth_service.dart';
+import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
 import 'package:cosmo_strike_flutter_app/services/data_sync_service.dart';
 import 'package:cosmo_strike_flutter_app/services/haptic_service.dart';
-import 'package:cosmo_strike_flutter_app/services/in_app_update_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
 import 'package:cosmo_strike_flutter_app/services/preferences_service.dart';
@@ -382,9 +385,15 @@ Future<void> _bootstrap() async {
       !kDebugMode,
     ),
   );
+  // Off for debug, DemoMode (autopilot) builds and devices marked with the
+  // hidden test-device switch (About & Credits → tap the version 7×).
   await _optionalStep(
     'analytics_collection',
-    () => FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(!kDebugMode),
+    () async => FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(
+      AnalyticsGate.collectionEnabled(
+        testDevice: await TestDevice.instance.load(),
+      ),
+    ),
   );
 
   // Re-assert the handlers now Firebase is up, in case a plugin's init
@@ -427,6 +436,13 @@ Future<void> _bootstrap() async {
 
     // Track app open (fire-and-forget)
     unawaited(getIt<AnalyticsFacade>().trackAppOpened());
+    // Backend retention telemetry: counts today's first session and sends
+    // it (background, never blocks; no-op in DemoMode). Re-sends when
+    // connectivity returns.
+    unawaited(TelemetryService.instance.noteForeground());
+    getIt<ConnectivityService>().onlineStatusStream.listen((online) {
+      if (online) TelemetryService.instance.noteOnline();
+    });
   }
 
   // From here on every step is optional at launch: bounded and non-fatal.
@@ -470,9 +486,8 @@ Future<void> _bootstrap() async {
   // home and signed in (if applicable).
 
   _phases.begin('wiring');
-  InAppUpdateService().checkForUpdate().then((_) {
-    AppLogger.success('In-app update check completed');
-  });
+  // The Play in-app update check runs from Home after its first frame
+  // (HomeScreen.initState), not here: see InAppUpdateService.
 
   // Initialize ads (UMP consent + ATT + SDK). Fire-and-forget — the service
   // is mobile-only, Pro-gated, and self-disables on web/desktop or for Pro.
@@ -659,8 +674,8 @@ class _CosmoStrikeAppState extends State<CosmoStrikeApp>
       // Re-authenticate with backend if JWT expired and refresh premium state
       _refreshOnResume();
       unawaited(AudioService().resumeBackgroundMusic());
-      // Finish any interrupted/ready in-app update (never starts a new one).
-      unawaited(InAppUpdateService().resumeUpdateIfNeeded());
+      // New telemetry session after 30+ min in the background.
+      unawaited(TelemetryService.instance.noteForeground());
     }
 
     // Music pauses ONLY on a real background transition — `inactive`
@@ -669,6 +684,7 @@ class _CosmoStrikeAppState extends State<CosmoStrikeApp>
     // stutter the track.
     if (state == AppLifecycleState.paused) {
       unawaited(AudioService().pauseBackgroundMusic());
+      unawaited(TelemetryService.instance.noteBackground());
     }
 
     // When app goes to background, attempt to sync pending data

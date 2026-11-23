@@ -67,3 +67,4 @@ app.*.map.json
 
 # ---- Tooling ----
 .claude/
+play-store-screenshots/_upload/

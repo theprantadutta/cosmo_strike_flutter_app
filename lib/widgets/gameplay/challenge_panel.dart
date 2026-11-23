@@ -6,6 +6,7 @@ import '../../models/daily_challenge.dart';
 import '../../providers/daily_challenges_provider.dart';
 import '../directives_empty_state.dart';
 import '../reward_toast.dart';
+import 'next_up.dart';
 
 /// Today's daily challenges ("directives") for the pause / game-over
 /// overlays: hairline-separated rows with a 2px progress line (mint when
@@ -23,7 +24,12 @@ class ChallengePanel extends ConsumerWidget {
     this.showClaimAll = true,
     this.entranceDelay,
     this.reduceMotion,
+    this.hideFocus = false,
   });
+
+  /// Leave out the directive the game over's NEXT UP strip features
+  /// ([NextUp.pickFocus] on the same state), so it isn't listed twice.
+  final bool hideFocus;
 
   /// When set, the rows fade up on mount, starting after this delay and
   /// staggered 55 ms per row (the game-over debrief's beat). Null: no
@@ -65,6 +71,11 @@ class ChallengePanel extends ConsumerWidget {
     }
 
     final claimable = state.challenges.where((c) => c.canClaim).length;
+    final focusId = hideFocus ? NextUp.pickFocus(state.challenges)?.id : null;
+    final rows = [
+      for (final c in state.challenges)
+        if (c.id != focusId) c,
+    ];
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -75,7 +86,7 @@ class ChallengePanel extends ConsumerWidget {
             padding: EdgeInsets.only(bottom: cs(12)),
             child: const ChallengeClaimAllButton(),
           ),
-        for (final (i, c) in state.challenges.indexed)
+        for (final (i, c) in rows.indexed)
           _entrance(
             i,
             c.id,

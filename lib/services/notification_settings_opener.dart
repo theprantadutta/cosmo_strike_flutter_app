@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:get_it/get_it.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../utils/logger.dart';
+import 'analytics/analytics_facade.dart';
 import 'notification_service.dart';
 
 /// Opens the OS page where the player can turn this app's notifications on.
@@ -38,11 +40,35 @@ class NotificationSettingsOpener {
   /// can still appear, otherwise this app's settings page. Returns true when
   /// notifications are enabled afterwards (false also when the settings page
   /// was opened: the caller re-checks when the app resumes).
-  static Future<bool> requestOrOpen() async {
+  ///
+  /// Logs `notification_permission` with [placement] (where the ask was:
+  /// `home_soft_ask`, `settings`, `new_best`...) and the result
+  /// (`already_enabled` / `granted` / `denied` / `settings_opened`).
+  static Future<bool> requestOrOpen({String placement = 'unknown'}) async {
     final service = NotificationService();
-    if (await service.areNotificationsEnabled()) return true;
-    if (await service.requestPermissionFlow()) return true;
-    if (service.lastPermissionPromptBlocked) await open();
+    if (await service.areNotificationsEnabled()) {
+      track(placement, 'already_enabled');
+      return true;
+    }
+    if (await service.requestPermissionFlow()) {
+      track(placement, 'granted');
+      return true;
+    }
+    if (service.lastPermissionPromptBlocked) {
+      final opened = await open();
+      track(placement, opened ? 'settings_opened' : 'denied');
+    } else {
+      track(placement, 'denied');
+    }
     return false;
+  }
+
+  /// Fire-and-forget `notification_permission` event.
+  static void track(String placement, String result) {
+    if (!GetIt.I.isRegistered<AnalyticsFacade>()) return;
+    GetIt.I<AnalyticsFacade>().trackNotificationPermission(
+      placement: placement,
+      result: result,
+    );
   }
 }

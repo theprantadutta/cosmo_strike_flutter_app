@@ -55,9 +55,20 @@ put sign-in, privacy, notifications or setup choices in front of the first run.
   an OLDER version hit the blocking `PrivacyConsentScreen`
   (`PrivacyPolicy.needsReconsent`). Read-only `/privacy-policy` from Settings.
 - **Home prompt queue** (`home_screen._runPromptQueue`, re-runs on return via
-  `appRouteObserver`): walkthrough (first visit, ends the queue) → daily bonus
-  → game-mode picker (after run 1) → notification soft-ask (after onboarding).
-  One at a time — never stack dialogs.
+  `appRouteObserver`): Play update offer (Android, ends the queue) →
+  walkthrough (first visit, ends the queue) → daily bonus → game-mode picker
+  (after run 1) → notification soft-ask (after onboarding). One at a time —
+  never stack dialogs.
+- **In-app updates** (Android only; `InAppUpdateService` + pure
+  `UpdatePolicy`): one check per process, kicked off by Home after its first
+  frame. Routine release → our `showPlayUpdateOfferDialog` ("Update now" =
+  Play's immediate flow, which installs and restarts by itself; Later /
+  outside tap / back / declining Play's screen = 24 h snooze). Urgent
+  (`updatePriority` >= 4) → immediate flow unasked; flexible only when Play
+  refuses immediate. Never offered before the install's first run (unless
+  urgent). A finished flexible download installs at the next launch on Home
+  while Home is on top, never on background/resume (ads and paused runs
+  background the app; the install kills the process). Event `app_update`.
 - **Notifications**: `NotificationService.initialize()` never shows the OS
   dialog; only `NotificationSoftAsk` → `requestPermissionFlow()` does.
   When the OS prompt is blocked, `NotificationSettingsOpener` (native
@@ -91,6 +102,48 @@ word lists from Snake Classic.
   (`GameMode.fromWire`, `LiveryType/ExhaustType.fromId`, `GameTheme.fromId`).
 - The Store's Cup Passes tab hides `cup_ace_trio` / `cup_squadron` until the
   store returns them (`_TournamentEntryOffer.requiresStoreProduct`).
+
+## Measurement: analytics, telemetry, test devices, ratings
+- **Keep test devices out of the data.** Debug and DemoMode (autopilot /
+  profiling) builds only get `LoggerAnalyticsClient` and never send
+  telemetry (`AnalyticsGate`). **Mark every device you test release builds
+  on as a test device:** Settings → About & Credits → tap the version chip
+  **7 times** → toast "Test device: on (analytics off)" (same again turns it
+  off; persisted in SharedPreferences). That sets user property
+  `test_device=1`, switches Firebase Analytics collection off (re-applied
+  every launch in `main.dart`), and sends backend telemetry with
+  `is_test: true` (sticky server-side: the install leaves every retention
+  number forever). `TestDevice` in `lib/services/analytics/test_device.dart`.
+- **Events:** new ones go through `AnalyticsClient.trackEvent` with typed
+  wrappers on `AnalyticsFacade` (don't add a method per client). Run
+  context comes from `RunSession` (`lib/services/analytics/run_session.dart`),
+  driven by one-line hooks in `gameplay_screen`: `game_over` gained
+  `run_number` (lifetime, 1 = first run), `onboarding` (0/1) and
+  `end_trigger` (`death`/`time`/`victory`); quits log `game_abandoned`
+  (`end_trigger: quit`); `revive_offer` (`ad`/`coins`/`free`/`declined`/
+  `timeout`/`skipped_onboarding`); `first_input` (install's first run);
+  `push_opened` (`PushOpenTracker`, FCM + local incl. cold-start launches);
+  `notification_permission` (`NotificationSettingsOpener.requestOrOpen(
+  placement: ...)`); `next_goal_shown/tapped`. User properties
+  `install_week` / `onboarding_done` (set from `FirstRunService`).
+  **Register every new param in GA4** — list and descriptions:
+  `docs/analytics/GA4_CUSTOM_DEFINITIONS.md`.
+- **Backend telemetry** (`lib/services/telemetry/telemetry_service.dart`,
+  contract in the API repo's `docs/TELEMETRY_CONTRACT.md`): one cumulative
+  counter row per local day (sessions, runs started/finished, seconds
+  played, max level) in SharedPreferences, POSTed to
+  `/telemetry/heartbeat` with an install UUID (device-only, never reset on
+  sign-out). A session = launch, or resume after ≥ 30 min in the background.
+  Flushes on launch, background and reconnect; 400 drops, 413/429/5xx/
+  network retry with backoff. Never blocks the UI.
+- **Ratings:** `ReviewService.maybeAskForReview(trigger)` is the only
+  automatic prompt, fired by `RunSession` at a level clear (or a new best
+  reached at a level clear) and at a campaign victory that isn't a new best.
+  Gate (`ReviewGate`): onboarding done AND ≥ 6 runs started, ≤ once per 60
+  days, never within 90 s of a full-screen ad, purchase sheet or lost ship
+  (`ReviewService.noteInterruption`), never in DemoMode. Native in-app
+  review API only — **never add a "Do you like the game?" pre-dialog**
+  (filtering unhappy players violates Play policy).
 
 ## Stack & conventions
 - **State management:** `flutter_bloc` Cubits/Blocs in `lib/presentation/bloc/`

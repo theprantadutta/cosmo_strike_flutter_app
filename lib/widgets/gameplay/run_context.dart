@@ -30,4 +30,11 @@ abstract final class RunContext {
       tutorialPending &&
       dailySeed == null &&
       tournamentId == null;
+
+  /// Whether losing the last ship may offer the continue. Never during the
+  /// onboarding runs ([onboardingRunNumber] is set for runs 1-3): a new
+  /// pilot's first deaths go straight to game over so Retry is one tap
+  /// away (more day-0 runs is what predicts a day-1 return).
+  static bool allowsRevive({int? onboardingRunNumber}) =>
+      onboardingRunNumber == null;
 }

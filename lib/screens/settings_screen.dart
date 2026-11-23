@@ -156,7 +156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _turnOnSystemNotifications() async {
-    final on = await NotificationSettingsOpener.requestOrOpen();
+    final on = await NotificationSettingsOpener.requestOrOpen(placement: 'settings');
     if (!mounted) return;
     setState(() => _osNotificationsOn = on);
     _analytics.trackSettingChanged(

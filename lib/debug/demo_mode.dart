@@ -20,6 +20,12 @@ abstract final class DemoMode {
   static const int startLevel =
       int.fromEnvironment('COSMO_AUTOPILOT_LEVEL', defaultValue: 1);
 
+  /// Seconds the demo lingers on a level clear before moving on. Raise it
+  /// (`--dart-define=COSMO_AUTOPILOT_CLEAR_HOLD=6`) for store screenshots so
+  /// the results beat sheet has fully settled.
+  static const int clearHoldSeconds =
+      int.fromEnvironment('COSMO_AUTOPILOT_CLEAR_HOLD', defaultValue: 2);
+
   /// Frame-stat logging: on with the autopilot, or alone via
   /// `--dart-define=COSMO_PERF_LOG=true` for hand-played profiling.
   static const bool perfLog =

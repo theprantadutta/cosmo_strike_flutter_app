@@ -136,7 +136,22 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     this.hangar = const HangarLoadout(),
     this.onboardingEase = 0,
     this.autopilot = false,
+    this.allowRevive = true,
   }) : _tutorialPending = tutorial;
+
+  /// Whether losing the last ship offers the one-per-run continue. The
+  /// screen passes false for the onboarding runs so a brand-new pilot's
+  /// game over leads straight to an instant Retry.
+  final bool allowRevive;
+
+  /// The continue rule: one per run, never in Perfect Game (a continue
+  /// contradicts the mode's premise), never when the screen turned it off.
+  static bool offersRevive({
+    required bool allowRevive,
+    required bool reviveUsed,
+    required bool oneHitRun,
+  }) =>
+      allowRevive && !reviveUsed && !oneHitRun;
 
   /// Demo / profiling mode (`DemoMode`): an [Autopilot] flies the ship and
   /// landed hits do no damage, so the run never ends. Never set in release.
@@ -1210,9 +1225,11 @@ class CosmoStrikeGame extends FlameGame with HasCollisionDetection {
     final lives = livesNotifier.value - 1;
     livesNotifier.value = lives;
     if (lives <= 0) {
-      // One revive per run — except Perfect Game, where a continue would
-      // contradict the mode's whole premise.
-      if (!_reviveUsed && !mode.oneHitRun) {
+      if (offersRevive(
+        allowRevive: allowRevive,
+        reviveUsed: _reviveUsed,
+        oneHitRun: mode.oneHitRun,
+      )) {
         phaseNotifier.value = GamePhase.reviveOffer;
         pauseEngine();
       } else {

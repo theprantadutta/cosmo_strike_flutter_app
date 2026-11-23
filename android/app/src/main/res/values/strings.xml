@@ -8,4 +8,10 @@
     <string name="default_notification_channel_id">cosmo_strike_notifications</string>
     <string name="default_notification_channel_name">Cosmo Strike Notifications</string>
     <string name="default_notification_channel_desc">Cup alerts, directives and squadron traffic</string>
+    <!-- IncompleteInstallActivity: shown instead of crashing when the install
+         is missing the engine's native split (sideloaded base APK only). -->
+    <string name="incomplete_install_title">Cosmo Strike needs a reinstall</string>
+    <string name="incomplete_install_message">This copy of Cosmo Strike was not installed completely, so it can\'t start. Please reinstall it from Google Play.</string>
+    <string name="incomplete_install_open_play">Open Google Play</string>
+    <string name="incomplete_install_close">Close</string>
 </resources>
