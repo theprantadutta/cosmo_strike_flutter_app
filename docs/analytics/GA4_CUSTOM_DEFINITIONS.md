@@ -1,5 +1,9 @@
 # GA4 custom definitions to register
 
+**Status: all registered on 2026-11-23** in property 539679562 (16 event
+dimensions, 5 user dimensions, 5 event metrics). Reports only show data from
+that date on. Add any new parameter here first, then register it the same way.
+
 GA4 only shows a custom event parameter or user property in reports after it
 is registered (Admin → Data display → Custom definitions), and only from the
 day it was registered. Register everything below once, in the Cosmo Strike
