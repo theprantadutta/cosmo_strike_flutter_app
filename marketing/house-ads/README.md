@@ -33,9 +33,11 @@ One campaign per platform, so each only targets that platform's ad units:
 - Store name and icon match the live listings.
 - Not for kids/Families-designated apps.
 
-## Live setup (2026-11-23)
+## Status: NOT live (owner's decision, 2026-11-23)
 
-Share starts low (see the campaign's "Fill rate") so the host apps keep most
-of their paid inventory; raise it in AdMob if installs justify it. Measure in
-Play Console → Acquisition (utm_source=house_ads) and App Store Connect →
-App Analytics → Campaigns (ct=house_ads_admob).
+AdMob only allows house-ad campaigns once the account is linked to Google
+Ads, and the owner will not link Google Ads (account-ban risk for the shared
+AdMob publisher). Do not link it or ask again. Cross-promo runs through the
+in-app "More games" card instead (`marketing/cross-promo/MORE_GAMES_SPEC.md`).
+These images stay here for that card or any self-served promo slot in the
+owner's apps, using the same platform-correct links above.
