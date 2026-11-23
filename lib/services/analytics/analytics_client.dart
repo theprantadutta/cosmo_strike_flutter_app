@@ -10,6 +10,19 @@ abstract class AnalyticsClient {
   Future<void> setUserProperties({String? authMethod, bool? isPremium});
   Future<void> trackAppOpened();
 
+  /// One user property by name (`install_week`, `test_device`, ...).
+  /// A null [value] clears it.
+  Future<void> setUserProperty(String name, String? value);
+
+  /// Turns collection on/off for this device (Firebase:
+  /// `setAnalyticsCollectionEnabled`). Off for test devices.
+  Future<void> setCollectionEnabled(bool enabled);
+
+  /// A generic named event. The retention events (revive_offer,
+  /// first_input, push_opened, ...) go through this, with typed wrappers
+  /// on [AnalyticsFacade] — add new events there, not a method per client.
+  Future<void> trackEvent(String name, Map<String, Object> parameters);
+
   // ==================== Screen Views ====================
 
   Future<void> trackScreenView(String screenName);
@@ -40,6 +53,9 @@ abstract class AnalyticsClient {
     required int maxCombo,
     required bool victory,
     required String gameMode,
+    int? runNumber,
+    bool? onboarding,
+    String? endTrigger,
   });
   Future<void> trackLevelUp(int level);
   Future<void> trackPowerUpUsed(String powerUpType);

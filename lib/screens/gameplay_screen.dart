@@ -33,6 +33,7 @@ import '../services/achievement_service.dart';
 import '../utils/campaign_catalog.dart';
 import '../services/ads/ad_service.dart';
 import '../services/analytics/analytics_facade.dart';
+import '../services/analytics/run_session.dart';
 import '../services/audio_service.dart';
 import '../services/daily_challenge_service.dart';
 import '../services/statistics_service.dart';
@@ -309,6 +310,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       trailEffectsEnabled: themeState.trailSystemEnabled,
     );
     if (DemoMode.enabled) _game.phaseNotifier.addListener(_demoOnPhase);
+    RunSession.begin(mode: _mode, startLevel: widget.startLevel, controlScheme: _dPadEnabled ? 'dpad' : 'drag', previousBest: _prevBestScore, phase: _game.phaseNotifier, score: _game.scoreNotifier);
     if (_tutorialRun) {
       _game.onTutorialStep = (beat, completed) {
         final analytics = GetIt.I<AnalyticsFacade>();
@@ -458,6 +460,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   void _handleGameOver(GameResult result) {
     _lastResult = result;
+    RunSession.current?.recordEnd(result);
     _trackOnboardingRunEnded(
       result,
       outcome: result.cleared ? 'victory' : 'game_over',
@@ -749,6 +752,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       // Quitting keeps the points earned so far as a high-score candidate.
       unawaited(_recordRunScore());
       final partial = _game.buildPartialResult();
+      RunSession.current?.recordQuit(partial);
       _trackOnboardingRunEnded(partial, outcome: 'quit');
       final pending = partial.levelResults
           .where((lr) => !lr.cleared || !_persistedClears.contains(lr.stageId))
@@ -848,6 +852,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   static const double _dragSensitivity = 1.3;
 
   void _steerBy(Offset delta) {
+    RunSession.current?.markFirstInput('drag');
     _game.steerBy(
       Vector2(delta.dx * _dragSensitivity, delta.dy * _dragSensitivity),
     );
@@ -871,6 +876,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// by the game's `_reviveUsed`). Premium users can't watch ads, so this is
   /// their continue path.
   void _reviveFree() {
+    RunSession.current?.recordReviveOffer(ReviveOutcome.free);
     _game.revive();
     _celebrateRevive();
   }
@@ -879,6 +885,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     GetIt.I<AdService>()
         .showRewarded(
           onReward: () {
+            RunSession.current?.recordReviveOffer(ReviveOutcome.ad);
             _game.revive();
             _celebrateRevive();
           },
@@ -995,6 +1002,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       itemName: 'revive',
     );
     if (ok) {
+      RunSession.current?.recordReviveOffer(ReviveOutcome.coins);
       _game.revive();
       _celebrateRevive();
     } else if (mounted) {
@@ -1049,6 +1057,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                   // target to the finger — only movement steers.
                   onPanUpdate: (d) => _steerBy(d.delta),
                   onTapDown: (_) {
+                    RunSession.current?.markFirstInput('tap');
                     if (!_game.autoFire) _game.firePrimary();
                   },
                   onDoubleTap: _game.fireMissile,
@@ -2184,6 +2193,7 @@ class _ReviveOverlayState extends State<_ReviveOverlay>
           ..addStatusListener((status) {
             if (status == AnimationStatus.completed && !_resolved) {
               _resolved = true;
+              RunSession.current?.recordReviveOffer(ReviveOutcome.timeout);
               widget.onGiveUp();
             }
           })

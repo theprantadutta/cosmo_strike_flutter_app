@@ -1,197 +1,216 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cosmo_strike_flutter_app/debug/demo_mode.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
-import 'package:cosmo_strike_flutter_app/services/statistics_service.dart';
+import 'package:cosmo_strike_flutter_app/services/first_run_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 
 /// What positive moment is asking for a review.
-///
-/// Each trigger has its own eligibility threshold so we don't burn the
-/// platform's annual prompt cap on weak signals. Cap is shared across triggers
-/// (one prompt per [_minDaysBetweenPrompts] regardless of which fired it).
 enum ReviewTrigger {
-  /// User just beat their personal best. Strongest positive signal.
+  /// The run's score passed the player's previous best at a level clear.
   newHighScore,
 
-  /// User just unlocked a non-trivial achievement (rare+).
+  /// A campaign level's boss fell (level-clear summary on screen).
+  levelCleared,
+
+  /// The whole campaign was cleared (victory debrief, no death).
+  victory,
+
+  /// A non-trivial achievement unlocked (rare+). Not wired yet.
   achievementUnlocked,
 }
 
-/// Wraps the platform in-app review API with a local eligibility gate.
+/// The automatic review prompt's local gate, as a pure function so the
+/// rules are testable. Returns null when a prompt may be requested, else a
+/// short reason it was skipped.
 ///
-/// Google Play / StoreKit each throttle to ~3–4 prompts/year and silently
-/// no-op if exceeded — neither store reports whether the dialog actually
-/// rendered or what the rating was. This service adds a thinner local gate on
-/// top so we never *ask* the platform during a bad moment.
+/// Rules (chosen Nov 2026, see CLAUDE.md "Ratings"):
+/// - never in DemoMode builds;
+/// - the player finished onboarding (3 runs) AND has started at least
+///   [minRuns] runs (FirstRunService, device-only) — the "6 runs" option,
+///   not "3 sessions on different days": with D1 around 14% the day rule
+///   would gate out almost everyone we can ask;
+/// - at most once per [cooldown] (60 days; Play/StoreKit also throttle);
+/// - not within [quietAfterInterruption] of a full-screen ad, a purchase
+///   sheet or a lost ship (revive offer) — never right after a death, ad
+///   or purchase.
+abstract final class ReviewGate {
+  static const int minRuns = 6;
+  static const Duration cooldown = Duration(days: 60);
+  static const Duration quietAfterInterruption = Duration(seconds: 90);
+
+  static String? skipReason({
+    required bool onboardingDone,
+    required int runsStarted,
+    required DateTime now,
+    DateTime? lastPromptAt,
+    DateTime? lastInterruptionAt,
+    bool demo = DemoMode.enabled,
+  }) {
+    if (demo) return 'demo_mode';
+    if (!onboardingDone) return 'onboarding';
+    if (runsStarted < minRuns) return 'runs<$minRuns';
+    if (lastPromptAt != null && now.difference(lastPromptAt) < cooldown) {
+      return 'cooldown';
+    }
+    if (lastInterruptionAt != null &&
+        now.difference(lastInterruptionAt) < quietAfterInterruption) {
+      return 'recent_interruption';
+    }
+    return null;
+  }
+}
+
+/// Wraps the platform in-app review API (Play In-App Review / StoreKit)
+/// with the [ReviewGate].
 ///
-/// Wire callers via [maybeRequestReview]; eligibility, delay, and dispatch
-/// all live in this class. The platform decides if a dialog actually shows.
+/// Policy: we only ever call the native `requestReview()`. There is NO
+/// custom "Do you like the game?" pre-dialog — filtering unhappy players
+/// before the store sheet violates Google Play policy. The platform
+/// decides whether a sheet actually shows and never tells us the result.
 class ReviewService {
-  /// Stop asking once the platform's annual cap is likely hit. The Play
-  /// store typically caps ~3–4 in-app reviews per year per user, so 60 days
-  /// between local prompts leaves headroom.
-  static const Duration _minDaysBetweenPrompts = Duration(days: 60);
-
-  /// New installs need a baseline of play before being prompted.
-  /// 8 lifetime games × ~2 min each ≈ 15+ minutes of engagement.
-  static const int _minLifetimeGames = 8;
-
-  /// Don't prompt anyone who installed less than this ago — even if they
-  /// somehow blasted through 8 games on day 1, that's not "I love this app"
-  /// territory yet.
-  static const Duration _minDaysSinceFirstPlay = Duration(days: 3);
-
-  /// Delay before triggering the OS dialog after the eligibility check
-  /// passes. Lets celebration audio + animation finish first so the prompt
-  /// lands during a satisfied moment instead of interrupting one.
-  static const Duration _promptDelay = Duration(milliseconds: 1800);
+  /// Lets celebration audio/animation land before the OS sheet.
+  static const Duration defaultPromptDelay = Duration(milliseconds: 1800);
 
   static const String _kLastPromptedAtMillisKey = 'review_last_prompted_at';
-  static const String _kEligibilityTag = '[ReviewService]';
+  static const String _tag = '[ReviewService]';
+
+  static DateTime? _lastInterruptionAt;
+
+  /// Marks a moment the review prompt must not follow closely: a
+  /// full-screen ad, a purchase sheet, a lost ship. Called from AdService,
+  /// PurchaseService and RunSession.
+  static void noteInterruption([DateTime? at]) =>
+      _lastInterruptionAt = at ?? DateTime.now();
+
+  @visibleForTesting
+  static void debugResetInterruption() => _lastInterruptionAt = null;
 
   final InAppReview _inAppReview;
-  final StatisticsService _statisticsService;
   final AnalyticsFacade _analytics;
+  final int Function() _runsStarted;
+  final bool Function() _onboardingDone;
+  final DateTime Function() _clock;
+  final Duration _promptDelay;
+  final bool _demo;
 
-  Timer? _pendingPromptTimer;
+  bool _pending = false;
+  Future<bool>? _pendingDispatch;
 
   ReviewService({
     InAppReview? inAppReview,
-    required StatisticsService statisticsService,
     required AnalyticsFacade analytics,
-  })  : _inAppReview = inAppReview ?? InAppReview.instance,
-        _statisticsService = statisticsService,
-        _analytics = analytics;
+    int Function()? runsStarted,
+    bool Function()? onboardingDone,
+    DateTime Function()? clock,
+    Duration promptDelay = defaultPromptDelay,
+    bool demo = DemoMode.enabled,
+  }) : _inAppReview = inAppReview ?? InAppReview.instance,
+       _analytics = analytics,
+       _runsStarted = runsStarted ?? (() => FirstRunService.instance.gamesStarted),
+       _onboardingDone =
+           onboardingDone ??
+           (() => FirstRunService.instance.hasCompletedOnboarding),
+       _clock = clock ?? DateTime.now,
+       _promptDelay = promptDelay,
+       _demo = demo;
 
-  /// Ask the platform to consider showing a review prompt, if [trigger] is
-  /// strong enough and the user has crossed the local eligibility gates.
+  /// The single entry point for the automatic prompt. Call it at a
+  /// positive moment (level clear, new best at a level clear, victory).
   ///
-  /// Always fire-and-forget safe. Returns whether the request was actually
-  /// dispatched to the platform — `false` means we filtered it locally.
-  /// A `true` return does *not* guarantee a dialog was shown; the platform
-  /// silently no-ops if its own cap is hit.
-  Future<bool> maybeRequestReview(ReviewTrigger trigger) async {
+  /// Fire-and-forget safe. Returns true when a request was scheduled; the
+  /// native call happens after [defaultPromptDelay], and only if
+  /// [stillAppropriate] (when given) still holds then — e.g. the
+  /// level-clear summary is still on screen. A true return does not mean a
+  /// sheet showed; the platform silently no-ops past its own quota.
+  Future<bool> maybeAskForReview(
+    ReviewTrigger trigger, {
+    bool Function()? stillAppropriate,
+  }) async {
     try {
-      if (!await _isEligible(trigger)) return false;
-
-      // Stamp the timestamp BEFORE the delayed call. If anything cancels or
-      // crashes the timer, we'd rather skip the next eligible moment than
-      // risk firing twice in a row.
-      await _recordPromptScheduled();
-
-      _pendingPromptTimer?.cancel();
-      _pendingPromptTimer = Timer(_promptDelay, () => _dispatch(trigger));
+      if (_pending) return false;
+      final prefs = await SharedPreferences.getInstance();
+      final lastMs = prefs.getInt(_kLastPromptedAtMillisKey);
+      final reason = ReviewGate.skipReason(
+        onboardingDone: _onboardingDone(),
+        runsStarted: _runsStarted(),
+        now: _clock(),
+        lastPromptAt: lastMs == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(lastMs),
+        lastInterruptionAt: _lastInterruptionAt,
+        demo: _demo,
+      );
+      if (reason != null) {
+        AppLogger.info('$_tag skip (${trigger.name}): $reason');
+        return false;
+      }
+      if (!await _inAppReview.isAvailable()) {
+        AppLogger.info('$_tag skip (${trigger.name}): API unavailable');
+        return false;
+      }
+      _pending = true;
+      _pendingDispatch = Future.delayed(
+        _promptDelay,
+        () => _dispatch(trigger, stillAppropriate),
+      ).whenComplete(() => _pending = false);
       return true;
     } catch (e) {
-      AppLogger.info('$_kEligibilityTag request errored: $e');
+      AppLogger.info('$_tag request errored: $e');
       return false;
     }
   }
 
-  /// User-initiated rating (e.g. a "Rate this game" button in Settings).
-  ///
-  /// Unlike [maybeRequestReview], this is NOT gated — the user explicitly
-  /// asked to rate, so we always try. Prefers the native in-app review sheet;
-  /// if the platform reports it unavailable (debug build, sideloaded APK, or a
-  /// device without Play / a recent enough OS), falls back to opening the store
-  /// listing directly so the action is never a dead end. Fire-and-forget safe.
+  /// Completes when the scheduled native request ran (or was dropped).
+  @visibleForTesting
+  Future<bool>? get debugPendingDispatch => _pendingDispatch;
+
+  Future<bool> _dispatch(
+    ReviewTrigger trigger,
+    bool Function()? stillAppropriate,
+  ) async {
+    try {
+      if (stillAppropriate != null && !stillAppropriate()) return false;
+      // Re-check: an ad/purchase may have started during the delay.
+      final lastInt = _lastInterruptionAt;
+      if (lastInt != null &&
+          _clock().difference(lastInt) < ReviewGate.quietAfterInterruption) {
+        return false;
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(
+        _kLastPromptedAtMillisKey,
+        _clock().millisecondsSinceEpoch,
+      );
+      AppLogger.info('$_tag requesting review (trigger: ${trigger.name})');
+      unawaited(_analytics.trackReviewRequested(trigger.name));
+      await _inAppReview.requestReview();
+      return true;
+    } catch (e) {
+      AppLogger.info('$_tag platform request failed: $e');
+      return false;
+    }
+  }
+
+  /// User-initiated rating (Settings "Rate app"). Not gated — the player
+  /// asked. Prefers the native sheet; falls back to the store listing when
+  /// the platform reports the API unavailable (debug, sideloaded APK...).
   Future<void> rateAppManually() async {
     try {
-      _analytics.trackReviewRequested('manual');
+      unawaited(_analytics.trackReviewRequested('manual'));
       if (await _inAppReview.isAvailable()) {
         await _inAppReview.requestReview();
       } else {
         await _inAppReview.openStoreListing();
       }
     } catch (e) {
-      AppLogger.info('$_kEligibilityTag manual rate failed: $e');
-      // Last-ditch fallback — if requestReview() threw, still try the listing.
+      AppLogger.info('$_tag manual rate failed: $e');
       try {
         await _inAppReview.openStoreListing();
       } catch (_) {}
     }
-  }
-
-  Future<bool> _isEligible(ReviewTrigger trigger) async {
-    // Per-trigger guards — keeps weak signals from burning the local cap.
-    if (trigger == ReviewTrigger.achievementUnlocked) {
-      // newHighScore is always a strong-enough signal on its own; the caller
-      // for achievementUnlocked has already filtered by rarity ≥ rare. No
-      // extra per-trigger gate to add here yet, but the branch is here so
-      // future triggers can plug in their own conditions.
-    }
-
-    final stats = _statisticsService.statistics;
-
-    if (stats.totalGamesPlayed < _minLifetimeGames) {
-      AppLogger.info(
-        '$_kEligibilityTag skip ($trigger): only ${stats.totalGamesPlayed} '
-        'games played, need $_minLifetimeGames',
-      );
-      return false;
-    }
-
-    final firstPlayed = stats.firstPlayedDate;
-    if (firstPlayed != null &&
-        DateTime.now().difference(firstPlayed) < _minDaysSinceFirstPlay) {
-      AppLogger.info(
-        '$_kEligibilityTag skip ($trigger): first played '
-        '${DateTime.now().difference(firstPlayed).inHours}h ago, need '
-        '${_minDaysSinceFirstPlay.inDays}d',
-      );
-      return false;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    final lastPromptedMillis = prefs.getInt(_kLastPromptedAtMillisKey);
-    if (lastPromptedMillis != null) {
-      final lastPrompted =
-          DateTime.fromMillisecondsSinceEpoch(lastPromptedMillis);
-      final sinceLast = DateTime.now().difference(lastPrompted);
-      if (sinceLast < _minDaysBetweenPrompts) {
-        AppLogger.info(
-          '$_kEligibilityTag skip ($trigger): last prompt '
-          '${sinceLast.inDays}d ago, need ${_minDaysBetweenPrompts.inDays}d',
-        );
-        return false;
-      }
-    }
-
-    // Platform availability check last — it's the only async I/O we don't
-    // already need, and the cheaper gates above filter most calls.
-    if (!await _inAppReview.isAvailable()) {
-      AppLogger.info(
-        '$_kEligibilityTag skip ($trigger): platform reports review API '
-        'unavailable (debug build, sideloaded APK, or device without Play)',
-      );
-      return false;
-    }
-
-    return true;
-  }
-
-  Future<void> _recordPromptScheduled() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(
-      _kLastPromptedAtMillisKey,
-      DateTime.now().millisecondsSinceEpoch,
-    );
-  }
-
-  Future<void> _dispatch(ReviewTrigger trigger) async {
-    try {
-      AppLogger.info('$_kEligibilityTag requesting review (trigger: $trigger)');
-      _analytics.trackReviewRequested(trigger.name);
-      await _inAppReview.requestReview();
-    } catch (e) {
-      AppLogger.info('$_kEligibilityTag platform request failed: $e');
-    }
-  }
-
-  void dispose() {
-    _pendingPromptTimer?.cancel();
-    _pendingPromptTimer = null;
   }
 }

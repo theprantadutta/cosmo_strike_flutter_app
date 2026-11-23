@@ -24,6 +24,21 @@ class LoggerAnalyticsClient implements AnalyticsClient {
   }
 
   @override
+  Future<void> setUserProperty(String name, String? value) async {
+    AppLogger.info('$_tag set_user_property: $name=$value');
+  }
+
+  @override
+  Future<void> setCollectionEnabled(bool enabled) async {
+    AppLogger.info('$_tag collection_enabled: $enabled');
+  }
+
+  @override
+  Future<void> trackEvent(String name, Map<String, Object> parameters) async {
+    AppLogger.info('$_tag $name: $parameters');
+  }
+
+  @override
   Future<void> trackScreenView(String screenName) async {
     AppLogger.info('$_tag screen_view: $screenName');
   }
@@ -88,11 +103,15 @@ class LoggerAnalyticsClient implements AnalyticsClient {
     required int maxCombo,
     required bool victory,
     required String gameMode,
+    int? runNumber,
+    bool? onboarding,
+    String? endTrigger,
   }) async {
     AppLogger.info(
       '$_tag game_over: score=$score, duration=${durationSeconds}s, '
       'stage=$stageReached, cleared=$levelsCleared, kills=$enemiesKilled, '
-      'maxCombo=$maxCombo, victory=$victory, mode=$gameMode',
+      'maxCombo=$maxCombo, victory=$victory, mode=$gameMode, '
+      'run=$runNumber, onboarding=$onboarding, endTrigger=$endTrigger',
     );
   }
 

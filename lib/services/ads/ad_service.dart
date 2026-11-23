@@ -12,6 +12,7 @@ import 'package:cosmo_strike_flutter_app/services/ads/ad_load_tally.dart';
 import 'package:cosmo_strike_flutter_app/services/ads/ad_tuning.dart';
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
+import 'package:cosmo_strike_flutter_app/services/review_service.dart';
 import 'package:cosmo_strike_flutter_app/utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -481,6 +482,7 @@ class AdService with WidgetsBindingObserver {
         _loadInterstitial();
       },
     );
+    ReviewService.noteInterruption(); // no review prompt right after an ad
     await ad.show();
     await prefs.setInt(counterKey, 0);
     await prefs.setInt(
@@ -590,6 +592,7 @@ class AdService with WidgetsBindingObserver {
         _loadRewarded();
       },
     );
+    ReviewService.noteInterruption(); // no review prompt right after an ad
     await ad.show(
       onUserEarnedReward: (_, _) {
         earned = true;

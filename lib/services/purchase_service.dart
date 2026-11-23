@@ -8,6 +8,7 @@ import '../utils/logger.dart';
 import 'analytics/analytics_facade.dart';
 import 'api_service.dart';
 import 'data_sync_service.dart';
+import 'review_service.dart';
 import 'storage_service.dart';
 
 // Product IDs for different categories
@@ -363,6 +364,7 @@ class PurchaseService {
       // Funnel event — fired BEFORE the IAP sheet opens. Combined with
       // item_purchased / purchase_cancelled / purchase_failed, this gives
       // us the IAP-sheet abandonment rate.
+      ReviewService.noteInterruption(); // no review prompt after a purchase
       _analytics?.trackPurchaseInitiated(
         productId: product.id,
         productType: _productTypeFor(product.id),
