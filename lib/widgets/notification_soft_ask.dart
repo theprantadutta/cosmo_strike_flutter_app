@@ -15,6 +15,13 @@ class NotificationSoftAsk {
 
   static const _kShown = 'notif_soft_ask_shown';
 
+  /// Retires this ask without showing it: the pilot already answered the
+  /// game over's new-best reminder row (`NewBestReminderAsk`).
+  static Future<void> markShown() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kShown, true);
+  }
+
   /// Returns true when the ask was shown (it counts as this visit's
   /// interruption).
   static Future<bool> maybeShow(BuildContext context) async {

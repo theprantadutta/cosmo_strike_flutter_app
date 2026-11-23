@@ -18,7 +18,27 @@ import io.flutter.embedding.engine.FlutterShellArgs
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    /** This launch found an incomplete install (see [IncompleteInstall]). */
+    private var incompleteInstall = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Incomplete install (the ABI split with libflutter.so is missing):
+        // FlutterActivity.onCreate would crash creating the engine. Hand off
+        // to the native "reinstall from Google Play" dialog and finish; the
+        // platform onCreate inside FlutterActivity's runs before the engine
+        // attach throws, so the Activity contract still holds. A normal
+        // install never enters this branch.
+        if (IncompleteInstall.isMissingEngine(this)) {
+            incompleteInstall = true
+            startActivity(Intent(this, IncompleteInstallActivity::class.java))
+            finish()
+            try {
+                super.onCreate(savedInstanceState)
+            } catch (expected: Throwable) {
+                // The engine's MissingLibraryException / UnsatisfiedLinkError.
+            }
+            return
+        }
         // Explicit edge-to-edge opt-in on every Android version — the call
         // Play Console's "Edge-to-edge may not display for all users" check
         // looks for. androidx.core's Window variant, because FlutterActivity
@@ -51,6 +71,19 @@ class MainActivity : FlutterActivity() {
     override fun onResume() {
         super.onResume()
         preferSixtyHz()
+    }
+
+    // An incomplete install finished in onCreate with a half-attached
+    // delegate: let the platform teardown run, ignore the engine's.
+    override fun onDestroy() {
+        if (!incompleteInstall) {
+            super.onDestroy()
+            return
+        }
+        try {
+            super.onDestroy()
+        } catch (expected: Throwable) {
+        }
     }
 
     private fun preferSixtyHz() {

@@ -42,6 +42,14 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Incomplete-install fallback (IncompleteInstall.kt): a plain platform
+             dialog asking to reinstall from Google Play, launched by
+             MainActivity only when libflutter.so is missing. -->
+        <activity
+            android:name=".IncompleteInstallActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <!-- flutter_local_notifications: fires zonedSchedule notifications (the
              one-shot comeback reminder) and restores them after reboot. The
              plugin's own manifest does not declare these. -->
