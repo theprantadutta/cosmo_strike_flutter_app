@@ -1,3 +1,4 @@
+import 'package:cosmo_strike_flutter_app/services/analytics/run_session.dart';
 import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -38,6 +39,7 @@ class _GameDPadState extends State<GameDPad> {
       _pressed = true;
     });
     widget.onDirection(dir);
+    RunSession.current?.markFirstInput('dpad');
   }
 
   void _release() {

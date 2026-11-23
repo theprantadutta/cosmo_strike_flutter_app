@@ -11,6 +11,7 @@ import 'package:timezone/timezone.dart' as tz;
 import '../core/di/injection.dart';
 import '../presentation/bloc/premium/premium_cubit.dart';
 import '../utils/logger.dart';
+import 'analytics/push_open_tracker.dart';
 import 'api_service.dart';
 import 'comeback_reminder.dart';
 import 'data_sync_service.dart';
@@ -128,6 +129,7 @@ class NotificationService {
       settings: initSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
+    unawaited(PushOpenTracker.trackLocalLaunch(_localNotifications));
 
     // Create notification channel for Android, then explicitly request
     // POST_NOTIFICATIONS at runtime via flutter_local_notifications.
@@ -330,6 +332,7 @@ class NotificationService {
     AppLogger.info('👆 App opened from notification: ${message.messageId}');
 
     final data = message.data;
+    PushOpenTracker.fcm(data);
     // Defensive: data-only pings never create a tray entry, so this path
     // is mostly unreachable for them — but cheap to handle anyway.
     if (data['action'] == 'entitlements_changed') {
@@ -354,6 +357,7 @@ class NotificationService {
 
   void _onNotificationTapped(NotificationResponse response) {
     AppLogger.info('👆 Local notification tapped: ${response.id}');
+    PushOpenTracker.local(response.payload);
 
     if (response.payload != null) {
       try {

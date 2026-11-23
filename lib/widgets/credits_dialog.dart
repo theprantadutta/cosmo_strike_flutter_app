@@ -4,6 +4,8 @@ import 'package:cosmo_strike_flutter_app/ui/cs.dart';
 import 'package:cosmo_strike_flutter_app/utils/constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'test_device_tap_target.dart';
+
 /// "About / Credits" dialog for Cosmo Strike. Reached from the home top bar's
 /// about tool (and the Settings screen).
 ///
@@ -60,7 +62,8 @@ class _CreditsBody extends StatelessWidget {
         SizedBox(height: cs(8)),
         Text('A 12-level space shooter campaign.', style: t.body),
         SizedBox(height: cs(14)),
-        CsChip(version),
+        // Hidden switch: 7 taps mark this device as a test device.
+        TestDeviceTapTarget(child: CsChip(version)),
       ],
     );
 

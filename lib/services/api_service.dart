@@ -91,6 +91,9 @@ class ApiService {
 
   String? get currentUserId => _userId;
 
+  /// The app JWT when signed in (telemetry links the install with it).
+  String? get accessToken => _accessToken;
+
   bool get isTokenExpiredOrExpiring {
     if (_accessToken == null) return true;
     try {

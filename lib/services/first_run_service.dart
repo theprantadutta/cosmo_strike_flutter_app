@@ -1,6 +1,10 @@
+import 'dart:async';
+
+import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/logger.dart';
+import 'analytics/analytics_facade.dart';
 
 /// First-run / onboarding window, the gate for every deferred ask (sign-in,
 /// notification soft-ask, game-mode picker, home prompt queue).
@@ -40,6 +44,18 @@ class FirstRunService {
     } catch (e) {
       AppLogger.error('FirstRunService init failed', e);
     }
+    _applyUserProperties();
+  }
+
+  /// Install cohort user properties: `install_week` (ISO year-week of
+  /// [installedAt]) and `onboarding_done`, so every GA4 report can be
+  /// split by install cohort.
+  void _applyUserProperties() {
+    final installed = installedAt;
+    if (!GetIt.I.isRegistered<AnalyticsFacade>()) return;
+    final analytics = GetIt.I<AnalyticsFacade>();
+    if (installed != null) unawaited(analytics.setInstallWeek(installed));
+    unawaited(analytics.setOnboardingDone(hasCompletedOnboarding));
   }
 
   int get gamesStarted => _gamesStarted;
@@ -75,6 +91,7 @@ class FirstRunService {
   Future<void> recordGameStarted() async {
     _gamesStarted++;
     final isFirst = _gamesStarted == 1;
+    if (_gamesStarted == onboardingGameCount) _applyUserProperties();
     try {
       final prefs = _prefs ??= await SharedPreferences.getInstance();
       if (isFirst && prefs.getInt(_kFirstGameAt) == null) {

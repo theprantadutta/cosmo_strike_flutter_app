@@ -2,6 +2,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 import 'analytics_client.dart';
+import 'analytics_params.dart';
 
 /// Firebase Analytics implementation of [AnalyticsClient].
 ///
@@ -13,7 +14,9 @@ import 'analytics_client.dart';
 /// user identifier — keeping crash reports attributable without scattering
 /// `kDebugMode` guards across every auth call site.
 class FirebaseAnalyticsClient implements AnalyticsClient {
-  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
+  // A getter (not a field) so constructing the client never touches the
+  // Firebase plugin; tests can build it without Firebase.
+  FirebaseAnalytics get _analytics => FirebaseAnalytics.instance;
 
   @override
   Future<void> setUserId(String? userId) {
@@ -38,6 +41,24 @@ class FirebaseAnalyticsClient implements AnalyticsClient {
   @override
   Future<void> trackAppOpened() {
     return _analytics.logAppOpen();
+  }
+
+  @override
+  Future<void> setUserProperty(String name, String? value) {
+    return _analytics.setUserProperty(name: name, value: value);
+  }
+
+  @override
+  Future<void> setCollectionEnabled(bool enabled) {
+    return _analytics.setAnalyticsCollectionEnabled(enabled);
+  }
+
+  @override
+  Future<void> trackEvent(String name, Map<String, Object> parameters) {
+    return _analytics.logEvent(
+      name: name,
+      parameters: parameters.isEmpty ? null : parameters,
+    );
   }
 
   @override
@@ -106,19 +127,25 @@ class FirebaseAnalyticsClient implements AnalyticsClient {
     required int maxCombo,
     required bool victory,
     required String gameMode,
+    int? runNumber,
+    bool? onboarding,
+    String? endTrigger,
   }) {
     return _analytics.logEvent(
       name: 'game_over',
-      parameters: {
-        'score': score,
-        'duration_seconds': durationSeconds,
-        'stage_reached': stageReached,
-        'levels_cleared': levelsCleared,
-        'enemies_killed': enemiesKilled,
-        'max_combo': maxCombo,
-        'victory': victory ? 1 : 0,
-        'game_mode': gameMode,
-      },
+      parameters: AnalyticsParams.gameOver(
+        score: score,
+        durationSeconds: durationSeconds,
+        stageReached: stageReached,
+        levelsCleared: levelsCleared,
+        enemiesKilled: enemiesKilled,
+        maxCombo: maxCombo,
+        victory: victory,
+        gameMode: gameMode,
+        runNumber: runNumber,
+        onboarding: onboarding,
+        endTrigger: endTrigger,
+      ),
     );
   }
 

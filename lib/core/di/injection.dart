@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 
 // Database
@@ -6,8 +5,7 @@ import 'package:cosmo_strike_flutter_app/data/database/app_database.dart';
 
 // Services
 import 'package:cosmo_strike_flutter_app/services/analytics/analytics_facade.dart';
-import 'package:cosmo_strike_flutter_app/services/analytics/firebase_analytics_client.dart';
-import 'package:cosmo_strike_flutter_app/services/analytics/logger_analytics_client.dart';
+import 'package:cosmo_strike_flutter_app/services/analytics/analytics_gate.dart';
 import 'package:cosmo_strike_flutter_app/services/api_service.dart';
 import 'package:cosmo_strike_flutter_app/services/offline_cache_service.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
@@ -92,19 +90,15 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<PurchaseService>(() => PurchaseService());
   getIt.registerLazySingleton<AppDataCache>(() => AppDataCache());
   getIt.registerLazySingleton<ReviewService>(
-    () => ReviewService(
-      statisticsService: getIt<StatisticsService>(),
-      analytics: getIt<AnalyticsFacade>(),
-    ),
+    () => ReviewService(analytics: getIt<AnalyticsFacade>()),
   );
 
   // ==================== Analytics ====================
-  // Debug builds never hit production Firebase Analytics — they log locally only.
-  getIt.registerLazySingleton<AnalyticsFacade>(() {
-    return AnalyticsFacade([
-      if (kDebugMode) LoggerAnalyticsClient() else FirebaseAnalyticsClient(),
-    ]);
-  });
+  // Debug and DemoMode (autopilot/profiling) builds never hit production
+  // Firebase Analytics — they log locally only (AnalyticsGate).
+  getIt.registerLazySingleton<AnalyticsFacade>(
+    () => AnalyticsFacade(AnalyticsGate.buildClients()),
+  );
 
   // ==================== Core ====================
 

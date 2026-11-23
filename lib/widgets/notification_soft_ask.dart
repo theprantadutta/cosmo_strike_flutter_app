@@ -15,6 +15,9 @@ class NotificationSoftAsk {
 
   static const _kShown = 'notif_soft_ask_shown';
 
+  /// `notification_permission.placement` for this ask.
+  static const placement = 'home_soft_ask';
+
   /// Returns true when the ask was shown (it counts as this visit's
   /// interruption).
   static Future<bool> maybeShow(BuildContext context) async {
@@ -26,6 +29,7 @@ class NotificationSoftAsk {
     }
     await prefs.setBool(_kShown, true);
     if (!context.mounted) return false;
+    NotificationSettingsOpener.track(placement, 'soft_shown');
     final enable = await showCsDialog<bool>(
       context,
       builder: (dialogContext) => CsDialog(
@@ -43,7 +47,11 @@ class NotificationSoftAsk {
     );
     // If the OS can no longer show its prompt (permanently denied), this
     // opens the app's notification settings instead.
-    if (enable == true) await NotificationSettingsOpener.requestOrOpen();
+    if (enable == true) {
+      await NotificationSettingsOpener.requestOrOpen(placement: placement);
+    } else {
+      NotificationSettingsOpener.track(placement, 'soft_declined');
+    }
     return true;
   }
 }
