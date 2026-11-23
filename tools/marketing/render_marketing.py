@@ -8,7 +8,11 @@ headless Chrome so text, gradients and shadows match the app exactly.
 
 Usage (from the app root):
     python3 tools/marketing/render_marketing.py
-Inputs : iphone_screenshots/, ipad_screenshots/ (raw simulator captures)
+Inputs : iphone_screenshots/, ipad_screenshots/ (raw iOS simulator captures)
+         android_phone_screenshots/, android_tablet_screenshots/ (raw adb
+         captures from the Galaxy A24 / Tab A9+, for Google Play)
+Raw names must match the SLIDES table (01_home.png, 02_gameplay_formation.png…).
+Runs on macOS and Windows (finds Chrome in either place).
 Outputs: app-store-screenshots/, app-store-ipad-screenshots/,
          play-store-screenshots/{phone,tablet-7in,tablet-10in}/
 """
@@ -24,28 +28,37 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 FONTS = ROOT / "assets" / "fonts"
-CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+CHROME = next(
+    (c for c in (
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ) if Path(c).exists()),
+    "google-chrome",
+)
 ROCKET = ROOT / "assets" / "images" / "brand"
 
-# (eyebrow, line1, gradient line / words, glow colour, iphone shot, ipad shot)
+# (eyebrow, line1, gradient line / words, glow colour, phone shot, tablet shot)
+# Order = store order: the first 8 are what Google Play shows. Lead with the
+# hook (Home), then action, then the reasons to come back.
 SLIDES = [
     ("Arcade space shooter", "Dodge. Graze.", "Strike.", "#6B4BD8", "01_home", "01_home"),
     ("Fast-paced combat", "Blast through", "alien waves.", "#1F7A78", "02_gameplay_formation", "02_gameplay_formation"),
-    ("Graze for points", "Fly close.", "Score big.", "#B0457F", "03_gameplay_graze", None),
-    ("Multi-phase bosses", "Topple the", "bosses.", "#B0457F", None, "03_gameplay_boss"),
-    ("4 sectors · 12 levels", "Conquer the", "campaign.", "#3E5BC7", "04_campaign", "04_campaign"),
-    ("Ships & upgrades", "Build your", "perfect ship.", "#B88A2E", "08_hangar", "08_hangar"),
-    ("Frontline seasons", "Push the", "Frontline.", "#9B3FC4", "07_frontline", "07_frontline"),
-    ("Liveries & exhausts", "Make it", "yours.", "#C2662E", "09_armory_liveries", "09_armory_liveries"),
-    ("Sector Cups", "Win the", "Sector Cups.", "#1F8A8A", "06_sector_cups", "06_sector_cups"),
-    ("Global standings", "Top the", "Standings.", "#3E5BC7", "05_standings", "05_standings"),
-    ("72 commendations", "Earn every", "commendation.", "#2E8A5C", "12_commendations", "12_commendations"),
+    ("Graze for points", "Fly close.", "Score big.", "#B0457F", "03_gameplay_graze", "03_gameplay_graze"),
+    ("Multi-phase bosses", "Topple the", "bosses.", "#B0457F", "04_gameplay_boss", "04_gameplay_boss"),
+    ("Every clear pays", "Stars, records,", "upgrades.", "#2E8A5C", "05_level_clear", "05_level_clear"),
+    ("Daily directives", "Clear all 3.", "Keep the streak.", "#B88A2E", "06_directives", "06_directives"),
+    ("Ships & upgrades", "Build your", "perfect ship.", "#B88A2E", "07_hangar", "07_hangar"),
+    ("Liveries & exhausts", "Make it", "yours.", "#C2662E", "08_armory_liveries", "08_armory_liveries"),
+    ("4 sectors · 12 levels", "Conquer the", "campaign.", "#3E5BC7", "09_campaign", "09_campaign"),
+    ("Sector Cups", "Win the", "Sector Cups.", "#1F8A8A", "10_sector_cups", "10_sector_cups"),
+    ("Frontline seasons", "Push the", "Frontline.", "#9B3FC4", "11_frontline", "11_frontline"),
 ]
 
 
 def font_face(family, weight, file):
     return (f"@font-face{{font-family:'{family}';font-weight:{weight};"
-            f"src:url('file://{FONTS / file}');}}")
+            f"src:url('{(FONTS / file).as_uri()}');}}")
 
 
 CSS_FONTS = "".join([
@@ -69,7 +82,7 @@ def stars(w, h, seed, n=140):
 
 def brand_mark():
     icon = ROCKET / "logo-mark-prism.png"
-    img = f'<img src="file://{icon}">' if icon.exists() else ""
+    img = f'<img src="{icon.as_uri()}">' if icon.exists() else ""
     return f'<div class="brand">COSMO<span>/</span>STRIKE{img}</div>'
 
 
@@ -135,7 +148,7 @@ html,body{{width:{w}px;height:{h}px;overflow:hidden;background:#0A0A0D}}
 </style></head><body>
 <div class="bg"></div><div class="stars">{stars(w, h, slide_idx)}</div>
 <div class="head">{head_block}</div>
-<div class="device">{camera}<img src="file://{shot}"></div>
+<div class="device">{camera}<img src="{Path(shot).resolve().as_uri()}"></div>
 </body></html>"""
     with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
         f.write(doc)
@@ -144,7 +157,7 @@ html,body{{width:{w}px;height:{h}px;overflow:hidden;background:#0A0A0D}}
     subprocess.run([CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars",
                     "--force-device-scale-factor=1", f"--window-size={w},{h}",
                     "--virtual-time-budget=4000", "--allow-file-access-from-files",
-                    f"--screenshot={tmp_png}", f"file://{page}"],
+                    f"--screenshot={tmp_png}", Path(page).resolve().as_uri()],
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.unlink(page)
     im = Image.open(tmp_png).convert("RGB")  # opaque: stores reject alpha
@@ -156,22 +169,27 @@ html,body{{width:{w}px;height:{h}px;overflow:hidden;background:#0A0A0D}}
 
 
 def main():
+    """Raw captures by source: iOS from the Mac simulator (App Store), Android
+    from the Galaxy A24 / Tab A9+ (Google Play). A missing raw is skipped."""
     jobs = []
-    phone_slides = [s for s in SLIDES if s[4]]
-    tablet_slides = [s for s in SLIDES if s[5]]
-    for i, s in enumerate(phone_slides, 1):
-        shot = ROOT / "iphone_screenshots" / f"{s[4]}.png"
+    for i, s in enumerate(SLIDES, 1):
         name = f"{i:02d}-{s[4]}"
-        jobs.append((i, s, shot, 2868, 1320, "phone", ROOT / "app-store-screenshots" / f"{name}-2868x1320.png"))
+        ios = ROOT / "iphone_screenshots" / f"{s[4]}.png"
+        droid = ROOT / "android_phone_screenshots" / f"{s[4]}.png"
+        if i <= 10:
+            jobs.append((i, s, ios, 2868, 1320, "phone", ROOT / "app-store-screenshots" / f"{name}-2868x1320.png"))
         if i <= 8:
-            jobs.append((i, s, shot, 2560, 1440, "phone", ROOT / "play-store-screenshots/phone" / f"{name}-2560x1440.jpg"))
-    for i, s in enumerate(tablet_slides, 1):
-        shot = ROOT / "ipad_screenshots" / f"{s[5]}.png"
+            jobs.append((i, s, droid, 2560, 1440, "phone", ROOT / "play-store-screenshots/phone" / f"{name}-2560x1440.jpg"))
+    for i, s in enumerate(SLIDES, 1):
         name = f"{i:02d}-{s[5]}"
-        jobs.append((i, s, shot, 2752, 2064, "tablet", ROOT / "app-store-ipad-screenshots" / f"{name}-2752x2064.jpg"))
+        ios = ROOT / "ipad_screenshots" / f"{s[5]}.png"
+        droid = ROOT / "android_tablet_screenshots" / f"{s[5]}.png"
+        if i <= 10:
+            jobs.append((i, s, ios, 2752, 2064, "tablet", ROOT / "app-store-ipad-screenshots" / f"{name}-2752x2064.jpg"))
         if i <= 8:
-            jobs.append((i, s, shot, 1920, 1080, "tablet", ROOT / "play-store-screenshots/tablet-7in" / f"{name}-1920x1080.jpg"))
-            jobs.append((i, s, shot, 2560, 1440, "tablet", ROOT / "play-store-screenshots/tablet-10in" / f"{name}-2560x1440.jpg"))
+            jobs.append((i, s, droid, 1920, 1080, "tablet", ROOT / "play-store-screenshots/tablet-7in" / f"{name}-1920x1080.jpg"))
+            jobs.append((i, s, droid, 2560, 1440, "tablet", ROOT / "play-store-screenshots/tablet-10in" / f"{name}-2560x1440.jpg"))
+    jobs = [j for j in jobs if j[2].exists()]
     only = sys.argv[1:]  # optional filter: output path substrings
     for i, s, shot, w, h, kind, out in jobs:
         if only and not any(o in str(out) for o in only):
