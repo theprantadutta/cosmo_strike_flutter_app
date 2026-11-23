@@ -890,7 +890,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   void _demoOnPhase() {
     final phase = _game.phaseNotifier.value;
     if (phase == GamePhase.levelClear) {
-      Future.delayed(const Duration(seconds: 2), () {
+      Future.delayed(const Duration(seconds: DemoMode.clearHoldSeconds), () {
         if (!mounted || _game.phase != GamePhase.levelClear) return;
         final options = _game.rollDraft();
         if (options.isNotEmpty) _game.takeUpgrade(options.first.id);
