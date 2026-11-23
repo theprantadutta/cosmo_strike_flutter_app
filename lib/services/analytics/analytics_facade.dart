@@ -525,6 +525,17 @@ class AnalyticsFacade implements AnalyticsClient {
   Future<void> trackNextGoalTapped({required String kind}) =>
       trackEvent('next_goal_tapped', {'kind': kind});
 
+  /// One step of the Play in-app update flow (`InAppUpdateService`).
+  /// [stage]: `offered` / `accepted` / `snoozed` / `urgent` /
+  /// `flexible_fallback` / `immediate_result` / `auto_completed`.
+  /// [result]: `AppUpdateResult` name or `error` (immediate_result),
+  /// `home` (auto_completed).
+  Future<void> trackAppUpdate({required String stage, String? result}) =>
+      trackEvent('app_update', {
+        'stage': stage,
+        'result': ?result,
+      });
+
   /// User property `install_week` (ISO year-week of the install).
   Future<void> setInstallWeek(DateTime installedAt) =>
       setUserProperty('install_week', AnalyticsParams.isoWeek(installedAt));

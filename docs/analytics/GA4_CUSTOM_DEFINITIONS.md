@@ -30,7 +30,8 @@ Code: `lib/services/analytics/` (`AnalyticsFacade` typed wrappers,
 | `source` | Notification channel: `fcm` (push) or `local` (scheduled on device). | `push_opened` |
 | `cold_start` | 1 when the tap launched the app from a killed state (local notifications only for now). | `push_opened` |
 | `placement` | Where a notification permission ask happened: `home_soft_ask`, `settings`, `new_best` (game-over ask, once wired). (Also used by `rewarded_result`.) | `notification_permission` |
-| `result` | Step of the permission ask: `soft_shown` / `soft_declined` / `already_enabled` / `granted` / `denied` / `settings_opened`. | `notification_permission` |
+| `result` | Step of the permission ask: `soft_shown` / `soft_declined` / `already_enabled` / `granted` / `denied` / `settings_opened`. On `app_update`: Play's `AppUpdateResult` (`success` / `userDeniedUpdate` / `inAppUpdateFailed`) or `error` for `immediate_result`, `home` for `auto_completed`. | `notification_permission`, `app_update` |
+| `stage` | Step of the Play in-app update flow: `offered` (our dialog on screen) / `accepted` / `snoozed` / `urgent` (priority >= 4, blocking flow unasked) / `flexible_fallback` / `immediate_result` / `auto_completed` (finished download installed at launch on Home). | `app_update` |
 | `kind` | Kind of goal on the game-over "Next up" strip (values set by that feature, e.g. `daily`, `level`, `streak`). | `next_goal_shown`, `next_goal_tapped` |
 | `trigger` | Moment that requested the store review sheet: `levelCleared` / `newHighScore` / `victory` / `manual`. | `review_requested` |
 
@@ -58,5 +59,5 @@ dimensions too if they are not yet.
 ## New events (for reference)
 
 `revive_offer`, `first_input`, `push_opened`, `notification_permission`,
-`next_goal_shown`, `next_goal_tapped`, `game_abandoned`. Mark none of them as
+`next_goal_shown`, `next_goal_tapped`, `game_abandoned`, `app_update`. Mark none of them as
 key events except, optionally, `push_opened`.

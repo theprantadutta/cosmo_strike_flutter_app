@@ -17,6 +17,9 @@ import 'package:cosmo_strike_flutter_app/router/routes.dart';
 import 'package:cosmo_strike_flutter_app/widgets/notification_soft_ask.dart';
 import 'package:cosmo_strike_flutter_app/utils/privacy_policy.dart';
 import 'package:cosmo_strike_flutter_app/services/first_run_service.dart';
+import 'package:cosmo_strike_flutter_app/services/in_app_update_service.dart';
+import 'package:cosmo_strike_flutter_app/services/update_policy.dart';
+import 'package:cosmo_strike_flutter_app/widgets/play_update_offer_dialog.dart';
 import 'package:cosmo_strike_flutter_app/router/app_router.dart' show appRouteObserver;
 import 'package:cosmo_strike_flutter_app/core/di/injection.dart';
 import 'package:cosmo_strike_flutter_app/data/database/app_database.dart';
@@ -71,6 +74,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
       });
     }
     _refreshPolicyNotice();
+    // Play in-app update (Android; a no-op elsewhere): one check per
+    // process, after Home is up rather than in the bootstrap. Urgent
+    // releases and finished downloads are handled inside the service; a
+    // routine release resolves to the offer the prompt queue shows first.
+    // A finished download only installs (restarting the app) while Home is
+    // still on top, so a player who already tapped Play keeps their run.
+    if (!DemoMode.enabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        InAppUpdateService().checkForUpdate(canRestartNow: () => mounted && _onTop);
+      });
+    }
   }
 
   @override
@@ -107,10 +121,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
 
   bool get _onTop => _route?.isCurrent ?? true;
 
-  /// Home's interruptions, strictly one at a time: walkthrough (first
-  /// visit; ends the queue for that visit) -> daily bonus -> game-mode
-  /// picker (after the first run) -> notification soft-ask (after
-  /// onboarding). Each step is a no-op once done, so re-running on every
+  /// Home's interruptions, strictly one at a time: Play update offer
+  /// (Android, not before the first run; ends the queue for that visit) ->
+  /// walkthrough (first visit; ends the queue for that visit) -> daily
+  /// bonus -> game-mode picker (after the first run) -> notification
+  /// soft-ask (after onboarding). Each step is a no-op once done, so re-running on every
   /// return to Home is cheap.
   Future<void> _runPromptQueue() async {
     // Demo / profiling build: no prompts, straight into the autopilot run.
@@ -121,6 +136,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     if (_queueRunning || !mounted || !_onTop) return;
     _queueRunning = true;
     try {
+      if (await _maybeShowUpdateOffer()) return;
+      if (!mounted || !_onTop) return;
       if (await _checkWalkthrough()) {
         // Let the tour finish; the bonus waits for the next visit.
         await ref.read(walkthroughProvider.notifier).stream.firstWhere((s) => !s.isActive);
@@ -138,6 +155,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
     } finally {
       _queueRunning = false;
     }
+  }
+
+  /// Step 0: the Play update offer. Before the install's first run the
+  /// check is not even awaited (the policy never offers then, and the
+  /// walkthrough shouldn't wait on Play's up-to-5 s answer). When the offer
+  /// shows it is the visit's only popup: "Update now" restarts the app
+  /// anyway, and after "Later" one more dialog would be too much. True when
+  /// it was shown.
+  Future<bool> _maybeShowUpdateOffer() async {
+    if (FirstRunService.instance.isFirstGame) return false;
+    final updates = InAppUpdateService();
+    final flow = await updates.checkForUpdate(canRestartNow: () => mounted && _onTop);
+    if (flow != UpdateFlow.offer || !updates.offerPending) return false;
+    if (!mounted || !_onTop) return false;
+    await showPlayUpdateOfferDialog(context);
+    return true;
   }
 
   /// One-time game-mode picker, offered after the first run (never in

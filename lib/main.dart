@@ -41,7 +41,6 @@ import 'package:cosmo_strike_flutter_app/services/auth_service.dart';
 import 'package:cosmo_strike_flutter_app/services/connectivity_service.dart';
 import 'package:cosmo_strike_flutter_app/services/data_sync_service.dart';
 import 'package:cosmo_strike_flutter_app/services/haptic_service.dart';
-import 'package:cosmo_strike_flutter_app/services/in_app_update_service.dart';
 import 'package:cosmo_strike_flutter_app/services/storage_service.dart';
 import 'package:cosmo_strike_flutter_app/services/notification_service.dart';
 import 'package:cosmo_strike_flutter_app/services/preferences_service.dart';
@@ -487,9 +486,8 @@ Future<void> _bootstrap() async {
   // home and signed in (if applicable).
 
   _phases.begin('wiring');
-  InAppUpdateService().checkForUpdate().then((_) {
-    AppLogger.success('In-app update check completed');
-  });
+  // The Play in-app update check runs from Home after its first frame
+  // (HomeScreen.initState), not here: see InAppUpdateService.
 
   // Initialize ads (UMP consent + ATT + SDK). Fire-and-forget — the service
   // is mobile-only, Pro-gated, and self-disables on web/desktop or for Pro.
@@ -676,8 +674,6 @@ class _CosmoStrikeAppState extends State<CosmoStrikeApp>
       // Re-authenticate with backend if JWT expired and refresh premium state
       _refreshOnResume();
       unawaited(AudioService().resumeBackgroundMusic());
-      // Finish any interrupted/ready in-app update (never starts a new one).
-      unawaited(InAppUpdateService().resumeUpdateIfNeeded());
       // New telemetry session after 30+ min in the background.
       unawaited(TelemetryService.instance.noteForeground());
     }

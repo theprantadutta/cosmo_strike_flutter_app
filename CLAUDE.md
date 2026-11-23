@@ -55,9 +55,20 @@ put sign-in, privacy, notifications or setup choices in front of the first run.
   an OLDER version hit the blocking `PrivacyConsentScreen`
   (`PrivacyPolicy.needsReconsent`). Read-only `/privacy-policy` from Settings.
 - **Home prompt queue** (`home_screen._runPromptQueue`, re-runs on return via
-  `appRouteObserver`): walkthrough (first visit, ends the queue) → daily bonus
-  → game-mode picker (after run 1) → notification soft-ask (after onboarding).
-  One at a time — never stack dialogs.
+  `appRouteObserver`): Play update offer (Android, ends the queue) →
+  walkthrough (first visit, ends the queue) → daily bonus → game-mode picker
+  (after run 1) → notification soft-ask (after onboarding). One at a time —
+  never stack dialogs.
+- **In-app updates** (Android only; `InAppUpdateService` + pure
+  `UpdatePolicy`): one check per process, kicked off by Home after its first
+  frame. Routine release → our `showPlayUpdateOfferDialog` ("Update now" =
+  Play's immediate flow, which installs and restarts by itself; Later /
+  outside tap / back / declining Play's screen = 24 h snooze). Urgent
+  (`updatePriority` >= 4) → immediate flow unasked; flexible only when Play
+  refuses immediate. Never offered before the install's first run (unless
+  urgent). A finished flexible download installs at the next launch on Home
+  while Home is on top, never on background/resume (ads and paused runs
+  background the app; the install kills the process). Event `app_update`.
 - **Notifications**: `NotificationService.initialize()` never shows the OS
   dialog; only `NotificationSoftAsk` → `requestPermissionFlow()` does.
   When the OS prompt is blocked, `NotificationSettingsOpener` (native
