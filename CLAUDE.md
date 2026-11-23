@@ -336,6 +336,36 @@ Android shipped 3.4.0 / 3.5.0 from Windows; iOS hasn't been built since.
   Supply Drop shows once per launch and stays closed; the HUD/pause/quit
   confirm look right.
 
+### macOS: App Store listing + screenshots refresh (to do, from Nov 2026)
+Google Play got a refreshed listing on 2026-11-23 (in review then). The App
+Store still shows the Nov 13 iOS shots: old 10-item text nav on Home, old HUD,
+no Directives / level-clear shots. Mirror Play on the Mac:
+1. **Build + install 3.7.0 (29)+** on the iOS simulators (iPhone 6.9" and
+   iPad 13"). Use an account with progress (Best/credits/levels) for the menu
+   screens, not a fresh guest.
+2. **Capture raws** into `iphone_screenshots/` and `ipad_screenshots/` using the
+   SLIDES names in `tools/marketing/render_marketing.py` (01_home,
+   02_gameplay_formation, 03_gameplay_graze, 04_gameplay_boss, 05_level_clear,
+   06_directives, 07_hangar, 08_armory_liveries, 09_campaign, 10_sector_cups,
+   11_frontline). For busy action shots build the autopilot:
+   `flutter build ios --release --dart-define=COSMO_AUTOPILOT=true
+   --dart-define=COSMO_AUTOPILOT_LEVEL=4 --dart-define=COSMO_AUTOPILOT_CLEAR_HOLD=8`
+   and grab frames (`xcrun simctl io booted screenshot`) during formations /
+   grazes / bosses / a settled level clear. Never ship the autopilot build.
+3. **Render:** `python3 tools/marketing/render_marketing.py app-store`
+   → `app-store-screenshots/` (iPhone, 10) and `app-store-ipad-screenshots/`
+   (iPad, 10). The Android raws/outputs are already done; leave them.
+4. **App Store Connect (Claude in Chrome):** upload both sets (replace all),
+   then mirror `docs/store/PLAY_LISTING.md`: name/subtitle ("Cosmo Strike" +
+   subtitle "Arcade Space Shooter", 30 chars), promotional text, description
+   and keywords (space shooter, shoot em up, arcade, shmup, offline, boss,
+   bullet, galaxy, spaceship — no competitor names). Keep Marketing/Support/
+   Privacy URLs as in "Releasing a new version" above.
+5. **iOS-only items:** the house-ad creative for iOS is in
+   `marketing/house-ads/` (App Store link); the "More games" card spec is
+   `marketing/cross-promo/MORE_GAMES_SPEC.md`.
+6. Commit raws + renders. Never git tags.
+
 ## Workflow
 - **Profiling / demo mode:** `flutter build apk --release
   --dart-define=COSMO_AUTOPILOT=true [--dart-define=COSMO_AUTOPILOT_LEVEL=N]`
