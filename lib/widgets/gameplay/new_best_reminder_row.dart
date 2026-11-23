@@ -3,7 +3,7 @@ import 'package:cosmo_strike_flutter_app/utils/number_format.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The game over's inline new-best reminder ask (see `NewBestReminderAsk`):
-/// "Remind me tomorrow to beat 9,170?" with REMIND ME and a dismiss ×.
+/// "Beat 9,170 tomorrow?" with REMIND ME and a dismiss ×.
 /// It is the soft ask: the OS prompt only follows the tap ([onAccept]).
 /// After an answer it settles to a one-line confirmation (granted) or
 /// folds away (declined / dismissed). Never a dialog.
@@ -81,7 +81,7 @@ class _NewBestReminderRowState extends State<NewBestReminderRow> {
               children: [
                 Expanded(
                   child: Text(
-                    'Remind me tomorrow to beat ${formatThousands(widget.bestScore)}?',
+                    'Beat ${formatThousands(widget.bestScore)} tomorrow?',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: t.rowTitle.copyWith(fontSize: cs(14)),

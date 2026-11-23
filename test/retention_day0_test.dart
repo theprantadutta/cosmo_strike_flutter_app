@@ -206,7 +206,7 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('NEXT UP'), findsOneWidget);
       expect(find.text('2-DAY STREAK SECURED'), findsOneWidget);
-      expect(find.text('Remind me tomorrow to beat 9,170?'), findsOneWidget);
+      expect(find.text('Beat 9,170 tomorrow?'), findsOneWidget);
     });
   });
 
