@@ -34,6 +34,7 @@ import '../utils/campaign_catalog.dart';
 import '../services/ads/ad_service.dart';
 import '../services/analytics/analytics_facade.dart';
 import '../services/analytics/run_session.dart';
+import '../services/notification_settings_opener.dart';
 import '../services/audio_service.dart';
 import '../services/daily_challenge_service.dart';
 import '../services/statistics_service.dart';
@@ -48,12 +49,16 @@ import '../widgets/game_dpad.dart';
 import '../widgets/gameplay/game_over_overlay.dart';
 import '../widgets/gameplay/hud_motion.dart';
 import '../widgets/gameplay/level_complete_overlay.dart';
+import '../widgets/gameplay/new_best_reminder_row.dart';
+import '../widgets/gameplay/next_up.dart';
 import '../widgets/gameplay/pause_overlay.dart';
 import '../widgets/gameplay/run_context.dart';
 import '../widgets/gameplay/upgrade_draft_overlay.dart';
 import '../game/run_upgrades.dart';
 import '../widgets/reward_toast.dart';
 import 'package:cosmo_strike_flutter_app/services/first_run_service.dart';
+import 'package:cosmo_strike_flutter_app/services/new_best_reminder_ask.dart';
+import 'package:cosmo_strike_flutter_app/services/run_checkpoint.dart';
 import 'package:cosmo_strike_flutter_app/widgets/deferred_sign_in_prompt.dart';
 import 'package:cosmo_strike_flutter_app/utils/privacy_policy.dart';
 
@@ -99,6 +104,21 @@ class _GameplayScreenState extends State<GameplayScreen>
   final Map<int, StageProgressRow?> _priorBest = {};
 
   bool _quitPersisted = false;
+
+  /// Captured in initState: the abandon / checkpoint paths also run from
+  /// dispose and app-lifecycle callbacks, where reading the tree is unsafe.
+  late final GameSettingsCubit _settingsCubit;
+
+  /// Outbox key for this run's parked aborted score (see [_checkpointRun]).
+  final String _checkpointKey = const Uuid().v4();
+
+  /// Whether the app went to the background mid-run and parked the run
+  /// (cleared on resume).
+  bool _checkpointed = false;
+
+  /// The game over offers the new-best comeback reminder ask
+  /// ([NewBestReminderAsk]) — decided once, after the run ends.
+  bool _offerReminder = false;
 
   /// The tree-provided tournament context. Captured in initState so we read
   /// THIS run's tournament id and can clear it on dispose — tournament mode
@@ -184,7 +204,8 @@ class _GameplayScreenState extends State<GameplayScreen>
     // Full-screen play: hide the status / notification bar.
     Immersive.enterGame();
 
-    final settings = context.read<GameSettingsCubit>().state;
+    _settingsCubit = context.read<GameSettingsCubit>();
+    final settings = _settingsCubit.state;
     _dPadEnabled = settings.dPadEnabled;
     _dPadPosition = settings.dPadPosition;
 
@@ -299,6 +320,11 @@ class _GameplayScreenState extends State<GameplayScreen>
       seed: _dailySeed,
       hangar: HangarService.instance.loadout,
       onboardingEase: _onboardingEase,
+      // No continue offer in the onboarding runs: the game over (and its
+      // instant Retry) comes straight up.
+      allowRevive: RunContext.allowsRevive(
+        onboardingRunNumber: _onboardingRunNumber,
+      ),
       startLevel: widget.startLevel,
       armedLoadoutKey: loadoutKey,
       screenShake: settings.screenShakeEnabled,
@@ -402,13 +428,78 @@ class _GameplayScreenState extends State<GameplayScreen>
     if (state == AppLifecycleState.resumed) {
       // Android drops immersiveSticky on resume — re-assert it.
       Immersive.enterGame();
+      // Back in the run: it will submit itself at game over / quit.
+      if (_checkpointed) {
+        _checkpointed = false;
+        unawaited(RunCheckpoint.clear());
+      }
     } else {
       _game.pauseGame();
+      if (state == AppLifecycleState.paused ||
+          state == AppLifecycleState.hidden ||
+          state == AppLifecycleState.detached) {
+        _checkpointRun();
+      }
     }
+  }
+
+  /// The app left the foreground mid-run and may never come back (process
+  /// killed, app swiped away): save what the run earned so far WITHOUT
+  /// ending it. Safe to repeat on every background:
+  /// - the high-score candidate never lowers the stored best;
+  /// - stage progress merges monotonically, and a cleared level is marked
+  ///   in [_persistedClears] so no later persist counts its clear again;
+  /// - the aborted score is parked in [RunCheckpoint] (replaced each time),
+  ///   not queued — if the pilot resumes it is dropped and game over / quit
+  ///   submit the run once; if the process dies the next launch queues it.
+  void _checkpointRun() {
+    if (DemoMode.enabled || _quitPersisted) return;
+    final phase = _game.phase;
+    if (phase == GamePhase.gameOver || phase == GamePhase.ready) return;
+    unawaited(_recordRunScore());
+    final partial = _game.buildPartialResult();
+    _mergeStageProgress(partial.levelResults);
+    if (partial.score <= 0) return;
+    _checkpointed = true;
+    unawaited(GetIt.I<AnalyticsFacade>().trackEvent('run_backgrounded', {
+      'run_number': RunSession.current?.runNumber ?? FirstRunService.instance.gamesStarted,
+      'score': partial.score,
+      'stage_reached': _game.levelIndex,
+    }));
+    unawaited(
+      RunCheckpoint.stash(
+        entityKey: _checkpointKey,
+        payload: _scorePayload(partial, _checkpointKey, aborted: true),
+      ),
+    );
+  }
+
+  /// Merges the not-yet-persisted level results (see
+  /// [RunCheckpoint.pendingResults]) into Drift. Cleared levels are marked
+  /// up front and unmarked if the write fails, so the next persist retries.
+  void _mergeStageProgress(List<LevelRunResult> results) {
+    final pending = RunCheckpoint.pendingResults(results, _persistedClears);
+    if (pending.isEmpty) return;
+    final cleared = [
+      for (final lr in pending)
+        if (lr.cleared) lr.stageId,
+    ];
+    _persistedClears.addAll(cleared);
+    unawaited(
+      GetIt.I<AppDatabase>().stageProgressDao
+          .applyRunResults(pending)
+          .catchError((_) {
+        _persistedClears.removeAll(cleared);
+        return const <StageClearOutcome>[];
+      }),
+    );
   }
 
   @override
   void dispose() {
+    // Leaving mid-run by any path that didn't already save (no-op after
+    // quit / restart / game over).
+    _persistAbandonedRun();
     // Restore the menu chrome (status/nav bars) when leaving the game.
     Immersive.enterMenu();
     // Clear tournament mode so it can't leak into the next (possibly normal)
@@ -461,6 +552,10 @@ class _GameplayScreenState extends State<GameplayScreen>
   void _handleGameOver(GameResult result) {
     _lastResult = result;
     RunSession.current?.recordEnd(result);
+    // Game over submits the whole run; a parked background checkpoint would
+    // count it twice.
+    _checkpointed = false;
+    unawaited(RunCheckpoint.clear());
     _trackOnboardingRunEnded(
       result,
       outcome: result.cleared ? 'victory' : 'game_over',
@@ -498,6 +593,18 @@ class _GameplayScreenState extends State<GameplayScreen>
         }
       });
     }
+    // The first new personal best (any run, the first ones included) is the
+    // high point to offer tomorrow's reminder: an inline row on the game
+    // over, never a dialog, once per install.
+    unawaited(() async {
+      final offer = await NewBestReminderAsk.shouldOffer(
+        isNewBest: result.score > _prevBestScore && result.score > 0,
+      );
+      if (!offer || !mounted || _game.phase != GamePhase.gameOver) return;
+      await NewBestReminderAsk.recordShown();
+      NotificationSettingsOpener.track('game_over_new_best', 'soft_shown');
+      if (mounted) setState(() => _offerReminder = true);
+    }());
   }
 
   /// Persist campaign progress, submit the run to the backend
@@ -702,7 +809,20 @@ class _GameplayScreenState extends State<GameplayScreen>
         dataType: SyncDataType.gameScore,
         entityKey: idempotencyKey,
         priority: 1,
-        payload: {
+        payload: _scorePayload(r, idempotencyKey, aborted: aborted),
+      );
+    } catch (_) {
+      // A queue write shouldn't ever fail, but never let it block game-over.
+    }
+  }
+
+  /// The /scores/batch item for [r] (frozen when queued or parked).
+  Map<String, dynamic> _scorePayload(
+    GameResult r,
+    String idempotencyKey, {
+    bool aborted = false,
+  }) =>
+      {
           'score': r.score,
           'game_duration_seconds': r.durationSeconds,
           'enemies_killed': r.enemiesKilled,
@@ -735,12 +855,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                     if (r.cleared) 'victory': true,
                   },
                 },
-        },
-      );
-    } catch (_) {
-      // A queue write shouldn't ever fail, but never let it block game-over.
-    }
-  }
+      };
 
   /// Abandon the run mid-game (quit or restart from pause): persist the
   /// partial run so campaign progress (bestWaveReached, cleared levels)
@@ -749,21 +864,15 @@ class _GameplayScreenState extends State<GameplayScreen>
     if (DemoMode.enabled) return;
     if (!_quitPersisted && _game.phase != GamePhase.gameOver) {
       _quitPersisted = true;
+      // Queued directly below, so a parked background checkpoint goes.
+      _checkpointed = false;
+      unawaited(RunCheckpoint.clear());
       // Quitting keeps the points earned so far as a high-score candidate.
       unawaited(_recordRunScore());
       final partial = _game.buildPartialResult();
       RunSession.current?.recordQuit(partial);
       _trackOnboardingRunEnded(partial, outcome: 'quit');
-      final pending = partial.levelResults
-          .where((lr) => !lr.cleared || !_persistedClears.contains(lr.stageId))
-          .toList();
-      if (pending.isNotEmpty) {
-        unawaited(
-          GetIt.I<AppDatabase>().stageProgressDao
-              .applyRunResults(pending)
-              .catchError((_) => const <StageClearOutcome>[]),
-        );
-      }
+      _mergeStageProgress(partial.levelResults);
       unawaited(_enqueueScore(partial, const Uuid().v4(), aborted: true));
     }
   }
@@ -771,7 +880,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   /// Offline-first high-score update from the live run total.
   Future<void> _recordRunScore() async {
     try {
-      await context.read<GameSettingsCubit>().updateHighScore(_game.scoreNotifier.value);
+      await _settingsCubit.updateHighScore(_game.scoreNotifier.value);
     } catch (_) {}
   }
 
@@ -930,6 +1039,15 @@ class _GameplayScreenState extends State<GameplayScreen>
         kind: CsToastKind.error,
       );
     }
+  }
+
+  /// NEXT UP's directive → the Directives hub (Back returns to wherever
+  /// the run was launched from).
+  void _openDirectivesFromGameOver() {
+    unawaited(GetIt.I<AnalyticsFacade>().trackNextGoalTapped(kind: 'directive'));
+    _exitWithInterstitial(
+      () => context.pushReplacement(AppRoutes.dailyChallenges),
+    );
   }
 
   /// Leave the game-over screen through the (frequency-capped)
@@ -1281,6 +1399,11 @@ class _GameplayScreenState extends State<GameplayScreen>
                         final r = _lastResult;
                         if (r == null) return const SizedBox.shrink();
                         final victory = r.cleared;
+                        final onboarding = _onboardingRunNumber != null;
+                        void retry() => context.pushReplacement(
+                          AppRoutes.game,
+                          extra: widget.startLevel,
+                        );
                         final unlocked = _outcomes.values
                             .where((o) => o.unlockedNextStage)
                             .map((o) => o.stageId + 1)
@@ -1309,18 +1432,41 @@ class _GameplayScreenState extends State<GameplayScreen>
                                   ) >
                                   0,
                           onDoubleCoins: _doubleRunCoins,
-                          onRetry: () => _exitWithInterstitial(
-                            () => context.pushReplacement(
-                              AppRoutes.game,
-                              extra: widget.startLevel,
-                            ),
-                          ),
+                          // Onboarding runs retry instantly: no interstitial
+                          // round-trip (none would show in the first session
+                          // anyway) and the actions arrive early.
+                          onRetry: onboarding
+                              ? retry
+                              : () => _exitWithInterstitial(retry),
+                          quickRetry: onboarding,
                           onExit: () => _exitWithInterstitial(
                             () => victory
                                 ? context.go(AppRoutes.levelSelect)
                                 : context.go(AppRoutes.home),
                           ),
                           challengeRunStart: _challengeRunStart,
+                          nextUp: NextUp.showsFor(
+                                runsStarted: FirstRunService.instance.gamesStarted,
+                              )
+                              ? GameOverNextUp(
+                                  runStartProgress: _challengeRunStart,
+                                  onOpenDirectives: _openDirectivesFromGameOver,
+                                )
+                              : null,
+                          reminderAsk: _offerReminder
+                              ? NewBestReminderRow(
+                                  bestScore: r.score,
+                                  onAccept: () {
+                                    return NewBestReminderAsk.accept(
+                                      bestScore: math.max(r.score, _prevBestScore),
+                                    );
+                                  },
+                                  onDismiss: () {
+                                    NotificationSettingsOpener.track('game_over_new_best', 'soft_declined');
+                                    unawaited(NewBestReminderAsk.recordAnswered());
+                                  },
+                                )
+                              : null,
                         );
                       case GamePhase.ready:
                       case GamePhase.levelIntro:

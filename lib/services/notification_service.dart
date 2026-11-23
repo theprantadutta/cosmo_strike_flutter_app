@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cosmo_strike_flutter_app/services/first_run_service.dart';
 import 'dart:convert';
 import 'dart:ui' show Color;
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -808,8 +809,14 @@ class NotificationService {
     if (!_initialized) return;
 
     // Players with a backend session get the server's daily reminder;
-    // scheduling here as well would double-notify them.
-    if (ApiService().isAuthenticated || _backendIntegrationDone) {
+    // scheduling here as well would double-notify them. Except in their
+    // first 48 h: the server skips accounts that young (its new-account
+    // grace), so the local Day-1 reminder is theirs.
+    final installedAt = FirstRunService.instance.installedAt;
+    final inNewPlayerWindow = installedAt != null &&
+        DateTime.now().difference(installedAt) < const Duration(hours: 48);
+    if (!inNewPlayerWindow &&
+        (ApiService().isAuthenticated || _backendIntegrationDone)) {
       await cancelComebackReminder();
       return;
     }

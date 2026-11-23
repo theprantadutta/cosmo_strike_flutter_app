@@ -17,6 +17,12 @@ class NotificationSoftAsk {
 
   /// `notification_permission.placement` for this ask.
   static const placement = 'home_soft_ask';
+  /// Retires this ask without showing it: the pilot already answered the
+  /// game over's new-best reminder row (`NewBestReminderAsk`).
+  static Future<void> markShown() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kShown, true);
+  }
 
   /// Returns true when the ask was shown (it counts as this visit's
   /// interruption).
